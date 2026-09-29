@@ -14,3 +14,13 @@ PRODUCT_TARGET_VNDK_VERSION := 34
 BOARD_SHIPPING_API_LEVEL := 34
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
+
+PRODUCT_PACKAGES += \
+    uke-recoveryctl \
+    e2fsck \
+    fsck.fat \
+    mke2fs \
+    mkfs.fat \
+    resize2fs \
+    tune2fs \
+    sgdisk

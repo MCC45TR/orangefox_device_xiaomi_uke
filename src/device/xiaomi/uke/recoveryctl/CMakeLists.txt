@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(uke_recoveryctl LANGUAGES CXX)
+add_executable(uke-recoveryctl recoveryctl.cpp)
+target_compile_features(uke-recoveryctl PRIVATE cxx_std_20)
+target_compile_options(uke-recoveryctl PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)

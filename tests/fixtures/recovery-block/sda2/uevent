@@ -1,0 +1,3 @@
+DEVNAME=sda2
+PARTNAME=uke_linux
+PARTUUID=abcdefab-cdef-abcd-efab-cdefabcdefab

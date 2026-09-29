@@ -1,6 +1,7 @@
 /referances/*
 !/referances/README.md
 /build/
+/out/
 /artifacts/
 /reports/private/
 /reports/*.log

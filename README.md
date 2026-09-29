@@ -4,6 +4,8 @@ A device-specific OrangeFox recovery for POCO Pad X1 and Xiaomi Pad 7 (`uke`, SM
 
 [Uke Linux](https://github.com/MCC45TR/uke-linux) · [Recovery architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Source audit](docs/UKE-SOURCE-AUDIT.md) · [Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases)
 
+Release candidates use [separate fastboot-boot, recovery-flash and ZIP assets](docs/PRE-RELEASE.md); none is interchangeable with another. [A/B, OTA, boot-selection and encryption support](docs/RECOVERY-VERSION-GATES.md) is tracked by device and firmware, not by configuration flags alone.
+
 ## Planned capabilities
 
 - OrangeFox installation, backup/restore, ADB, sideload, MTP and fastbootd with verified target selection.
@@ -16,7 +18,7 @@ The [34-group feature matrix](docs/FEATURE-PARITY.md) captures the minimum funct
 
 ## Downloads
 
-**No recovery image has been released.** The first [local Global-profile recovery build](reports/FIRST-RECOVERY-BUILD.md) completed, but neither commercial model has been boot-tested. Future releases will include the exact device/firmware profile, image hashes, source revision, installation steps and a tested recovery path. Do not flash a source repository, an untested build or a donor image.
+**No recovery image has been released.** The [first Global-profile build](reports/FIRST-RECOVERY-BUILD.md) and [Linux/ESP controls build](reports/RECOVERY-CONTROLS-BUILD.md) completed locally, but neither commercial model has been boot-tested and the payload privacy gate still fails. Future releases will include the exact device/firmware profile, image hashes, source revision, installation steps and a tested recovery path. Do not flash a source repository, an untested build or a donor image.
 
 The current source baseline is official OrangeFox `fox_16.0`, which identifies its release series as R12.0. The branch revision is pinned in the workspace archive catalog and is updated through reviewed source changes. The Uke-specific device configuration is under development; existing community trees are reference material.
 

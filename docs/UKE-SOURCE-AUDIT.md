@@ -4,7 +4,7 @@
 
 The pinned official [fox_16.0 core](https://gitlab.com/OrangeFox/bootable/Recovery/-/tree/3d733672081bca3af42475a286145f4a8cdce4e7) sets `FOX_INTERNAL_RELEASE := R12.0` in `orangefox.mk`. This pin was reviewed on 29 September and advances three commits from the earlier research snapshot. The official sync instructions describe Android 16. The [wiki changelog](https://wiki.orangefox.tech/changelog) still carried R11.3 during the 28 September research. Source release, published release and device build success are different records.
 
-Manifest commit `6bbb43ed568c9ee2127fb64333808388e583e459` includes recovery/vendor/system-core/libvterm and a Mondrian/SM84xx example. The local Uke manifest removes both example projects, keeps the pinned Uke donor at `reference/device/xiaomi/uke`, and resolves the vendor theme's malformed upstream gitlink as an explicit project; the project-owned build target remains `device/xiaomi/uke`. The synchronized Android 16 checkout contains 399 projects, is clean, and is recorded at exact revisions in `manifests/orangefox-android16-uke.lock.xml`. This checkout has not been built and its projects are not yet all independent offline archives. Network recovery/web/NAS dependencies must not be assumed present in this source branch. `FOX_VERSION` is obsolete; follow current release and numeric maintainer-version configuration.
+Manifest commit `6bbb43ed568c9ee2127fb64333808388e583e459` includes recovery/vendor/system-core/libvterm and a Mondrian/SM84xx example. The local Uke manifest removes both example projects, keeps the pinned Uke donor at `reference/device/xiaomi/uke`, and resolves the vendor theme's malformed upstream gitlink as an explicit project; the project-owned build target remains `device/xiaomi/uke`. The synchronized Android 16 checkout contains 399 projects and is recorded at exact revisions in `manifests/orangefox-android16-uke.lock.xml`. A local recovery image has since built from this checkout; its packaging and privacy limitations are in [the first-build report](../reports/FIRST-RECOVERY-BUILD.md). Its projects are not yet all independent offline archives. Network recovery/web/NAS dependencies must not be assumed present in this source branch. `FOX_VERSION` is obsolete; follow current release and numeric maintainer-version configuration.
 
 ## Uke donor
 
@@ -26,6 +26,14 @@ Manifest commit `6bbb43ed568c9ee2127fb64333808388e583e459` includes recovery/ven
 | userdata/metadata fstab | F2FS, mifs and wrapped-key entries | Verify real filesystems and formatting behavior |
 
 First experiments use file-backed filesystem fixtures and pinned mkfs/fsck tools. Stock image extraction follows. No data-format script or security binary from this donor has been run on a device.
+
+The later [darkstride OrangeFox tree](https://github.com/darkstride/Ofox-uke-Tree/tree/1a1433f2fcd64ab60786c5c6a82dbc36b01f0d4e)
+and [xiaomi-uke recovery tree](https://github.com/xiaomi-uke/android_device_xiaomi_uke-recovery/tree/d037467a1643d64979337ad79267c8b8f2e4ca17)
+are pinned read-only references. Both contain useful candidate module/rotation
+settings, but their synthetic patch dates, fixed super sizes and permissive
+dependency policies cannot be adopted. The latter also bundles proprietary
+security libraries. See [version gates](RECOVERY-VERSION-GATES.md) for the
+feature-by-feature review.
 
 ## First build gate
 

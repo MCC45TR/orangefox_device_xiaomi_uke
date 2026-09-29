@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "role": "read-only donor evidence; never copy device security or storage settings",
+  "sources": [
+    {
+      "id": "twrpdtgen-uke",
+      "url": "https://github.com/twrpdtgen/android_device_xiaomi_uke.git",
+      "commit": "69165f781ebf9b62075922bb4a36abfa7adee9da",
+      "local_path": "referances/recovery/twrpdtgen-uke",
+      "history": "shallow-pinned-source"
+    },
+    {
+      "id": "93ir88-uke",
+      "url": "https://github.com/93ir88/-UNOFFICIAL-twrp-for-xiaomi-pad-7-UNTESTED-.git",
+      "commit": "fbe4571eca5b19b73ae3691b6077d3e9ddbdb905",
+      "local_path": "referances/recovery/93ir88-uke",
+      "history": "shallow-pinned-source"
+    },
+    {
+      "id": "hasan6034-uke-test",
+      "url": "https://github.com/hasan6034/uke_test.git",
+      "branch": "fox_14.1-new",
+      "commit": "a79f3835ba1917051640a88f6fabbda1d5c605c3",
+      "local_path": "referances/recovery/hasan6034-uke-test",
+      "history": "shallow-selected-two-commits",
+      "role": "Telegram beta source candidate; touch bring-up hypothesis only"
+    },
+    {
+      "id": "darkstride-ofox-uke-tree",
+      "url": "https://github.com/darkstride/Ofox-uke-Tree.git",
+      "branch": "fox_12.1",
+      "commit": "1a1433f2fcd64ab60786c5c6a82dbc36b01f0d4e",
+      "local_path": "referances/recovery/darkstride-ofox-uke-tree",
+      "history": "shallow-selected-two-commits",
+      "role": "community OrangeFox comparison only; generated settings require stock reconciliation"
+    },
+    {
+      "id": "xiaomi-uke-recovery",
+      "url": "https://github.com/xiaomi-uke/android_device_xiaomi_uke-recovery.git",
+      "commit": "d037467a1643d64979337ad79267c8b8f2e4ca17",
+      "local_path": "referances/recovery/xiaomi-uke-recovery",
+      "history": "shallow-pinned-source",
+      "role": "community TWRP configuration comparison; opaque blobs are not imported"
+    }
+  ]
+}

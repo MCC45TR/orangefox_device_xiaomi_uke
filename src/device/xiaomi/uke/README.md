@@ -14,3 +14,7 @@ donor's synthetic security patch level and conflicting super size are excluded.
 `scripts/prepare-build-tree.sh` installs this directory into the ignored Android
 build checkout and extracts the kernel from a verified stock package. Binary
 firmware and prebuilts are never committed to this repository.
+
+The bundled [Linux/ESP controls](../../../../docs/LINUX-ESP-TOOLS.md) can
+inventory prospective partitions and mount only a matching named PARTUUID
+read-only. Partition creation, formatting and resizing remain gated.

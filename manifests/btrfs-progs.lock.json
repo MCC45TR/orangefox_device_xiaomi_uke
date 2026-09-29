@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "btrfs-progs",
+  "url": "https://github.com/kdave/btrfs-progs.git",
+  "tag": "v7.1",
+  "tag_object": "0a919c7d6e389c07920675b7fad3f793b92aa78b",
+  "peeled_commit": "4ab0e80be9e3bb1db2e6038e6d4316d35fb7ba8b",
+  "local_path": "referances/upstream/btrfs-progs",
+  "history": "shallow-pinned-source",
+  "role": "Host-side source review only; not packaged for recovery",
+  "tablet_payload": false
+}

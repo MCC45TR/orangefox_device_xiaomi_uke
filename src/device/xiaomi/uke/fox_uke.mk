@@ -18,6 +18,11 @@ OF_DISABLE_ORS_AUTO_REBOOT := 1
 OF_LOOP_DEVICE_ERRORS_TO_LOG := 1
 OF_USE_LOCKSCREEN_BUTTON := 1
 
+# OrangeFox's default flashlight path targets phone torch LEDs. Neither a
+# camera flash nor a matching Uke recovery sysfs path is verified; hide the
+# control until per-model hardware evidence supplies a safe device path.
+OF_FLASHLIGHT_ENABLE := 0
+
 # FBE access remains off for the first build profile. It will be enabled only
 # after firmware-matched KeyMint/TEE evidence and a read-only device test.
 OF_SKIP_FBE_DECRYPTION := 1

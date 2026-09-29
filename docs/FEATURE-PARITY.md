@@ -11,7 +11,10 @@ Six branches of [ArKT-7/twrp_device_xiaomi_nabu](https://github.com/ArKT-7/twrp_
 | mod-win-CN | 31e31389e1a54d72776b8ad22cefcae3f55ebf8b | Language and regional UI differences |
 | test-rotation | 639290964d6a1cc36d98328984fdcd2e83dfbfcd | Rotation experiments |
 
-All rows are **planned, not implemented or tested by this Uke project**. Windows and second-Android tools remain part of the feature target but require working platform support and proven storage isolation before activation.
+The table states acceptance targets, not completed hardware support. A
+host-tested Linux/ESP identity and read-only mount control now covers part of
+REC-13/14; chroot and storage-changing work are still gated. Windows and
+second-Android tools require working platform support and proven isolation.
 
 | ID | Capability | Nabu source | Uke acceptance |
 |---|---|---|---|
@@ -51,6 +54,11 @@ All rows are **planned, not implemented or tested by this Uke project**. Windows
 | REC-34 | Reproducible CI | Workflows and patches | Pinned inputs, reviewed artifacts and full build logs |
 
 Standard OrangeFox features remain part of the target. The management UI shares preflight validation and diagnostics across them. Root or kernel-modification add-ons are not installed automatically.
+
+The stock Global kernel has Btrfs disabled, so Btrfs mounting is not supported
+by the current recovery build even though a future read-only mount plan is
+defined. OrangeFox's generic flashlight control is disabled for Uke until a
+real, safe LED path is verified on each model. See [Linux/ESP tools](LINUX-ESP-TOOLS.md).
 
 ## Portability findings
 
