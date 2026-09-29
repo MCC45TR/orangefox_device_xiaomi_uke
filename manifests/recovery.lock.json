@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "source-references-only-not-build-locked",
+  "status": "local-recovery-build-global-profile-unvalidated-on-device",
   "source_release": "R12.0",
   "branch": "fox_16.0",
   "device": "uke",
@@ -12,7 +12,7 @@
       "url": "https://gitlab.com/OrangeFox/bootable/Recovery.git",
       "checkout": "refs/heads/fox_16.0",
       "refs": {
-        "refs/heads/fox_16.0": "6ff71bed1506fec1893247f0c74d7ae87c594eed",
+        "refs/heads/fox_16.0": "3d733672081bca3af42475a286145f4a8cdce4e7",
         "refs/heads/fox_14.1": "7280e7204e2acdd8133c5485a15cfa05a4feb34d",
         "refs/heads/fox_12.1": "cbcc4f713dbef98d76d6d2cfd019b1ebfd9418e9"
       },
@@ -98,7 +98,83 @@
       "owner": "recovery-uke-ofox"
     }
   },
-  "full_repo_manifest_resolved": false,
-  "image_built": false,
-  "hardware_tested": false
+  "full_repo_manifest_resolved": true,
+  "full_repo_sync": {
+    "resolved_manifest": "manifests/orangefox-android16-uke.lock.xml",
+    "resolved_manifest_sha256": "a070c25b23cf69660ef525608f5d8a93c2df7886c7869c037f09362fcc096f07",
+    "project_count": 399,
+    "source_checkout_clean_after_sync": true,
+    "build_checkout_has_project_patch": true,
+    "per_project_offline_archives_complete": false
+  },
+  "build_tree": {
+    "prepared": true,
+    "profile": "global-os3.0.303.0",
+    "device_target": "device/xiaomi/uke",
+    "stock_kernel_sha256": "97b2c53022e8c0bd0b279c4c592a196126a6eb0a93647c2957b39dcd5f2dc1c9",
+    "lunch_target": "twrp_uke-bp2a-eng",
+    "lunch_validated": true,
+    "image_built": true
+  },
+  "image_built": true,
+  "local_build": {
+    "profile": "global-os3.0.303.0",
+    "target": "twrp_uke-bp2a-eng recoveryimage",
+    "build_result": "first-incremental-and-fresh-output-builds-successful",
+    "fresh_output_build_verified": true,
+    "pristine_checkout_rebuild_verified": false,
+    "payload_privacy_audit_passed": false,
+    "report": "reports/FIRST-RECOVERY-BUILD.md",
+    "recovery_image": {
+      "path": "src/upstream/orangefox-android16/out/target/product/uke/recovery.img",
+      "size_bytes": 104857600,
+      "sha256": "8b02f293c876476ca4ee36cee8641ba43e78d3a2fe2018c799b5ad0d5f1c55a5",
+      "header_version": 4,
+      "kernel_size_bytes": 0,
+      "ramdisk_size_bytes": 34935728,
+      "avb_algorithm": "NONE",
+      "authenticated_for_release": false
+    },
+    "orangefox_zip": {
+      "path": "src/upstream/orangefox-android16/out/target/product/uke/OrangeFox-R12.0-Unofficial-uke.zip",
+      "size_bytes": 52441726,
+      "sha256": "55c520b0904d37c15e9f644f2cd61d3aa2ff32a0a196d6dc45b09a2d699a0b99",
+      "archive_integrity_verified": true
+    },
+    "fresh_output_build": {
+      "output_directory": "src/upstream/orangefox-android16/out-clean",
+      "recovery_image_size_bytes": 104857600,
+      "recovery_image_sha256": "1ac8fb4edd9f5e93d1477f8f6087a5d0010928dca2b1ddc3347e1a94af2a68da",
+      "ramdisk_size_bytes": 34935750,
+      "ramdisk_sha256": "a323898039353a0467e3cceb72603f24b7376c35342e2f4fb67267372ebc385e",
+      "orangefox_zip_size_bytes": 52441710,
+      "orangefox_zip_sha256": "cd568c1d2b8a72ba3cf29c0105c4eceb7e3a5aaacfeb29c212b8c5b0c7de853e",
+      "archive_integrity_verified": true,
+      "payload_python_audit_passed": true,
+      "payload_privacy_audit_passed": false,
+      "avb_algorithm": "NONE"
+    },
+    "physical_boot_tested": false,
+    "flash_approved": false
+  },
+  "hardware_tested": false,
+  "stock_profiles": {
+    "global": {
+      "boot_profile": "manifests/boot-profile-global.json",
+      "partition_inventory": "manifests/stock-layout-global.json",
+      "extraction_report": "reports/private/global-os3.0.303.0-extraction.tsv",
+      "archive_verified": true,
+      "extraction_verified": true,
+      "layout_verified": true,
+      "verified": true
+    },
+    "cn": {
+      "extraction_report": "reports/private/cn-os3.0.302.0-extraction.tsv",
+      "bounded_entries_extracted": 38,
+      "archive_verified": true,
+      "extraction_verified": true,
+      "layout_verified": false,
+      "verified": false
+    }
+  }
 }

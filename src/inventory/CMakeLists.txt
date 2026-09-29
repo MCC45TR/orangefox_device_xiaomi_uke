@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(uke_recovery_inventory LANGUAGES CXX)
+find_package(LibXml2 REQUIRED)
+add_executable(uke-partition-inventory partition_inventory.cpp)
+target_compile_features(uke-partition-inventory PRIVATE cxx_std_20)
+target_compile_options(uke-partition-inventory PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+target_link_libraries(uke-partition-inventory PRIVATE LibXml2::LibXml2)

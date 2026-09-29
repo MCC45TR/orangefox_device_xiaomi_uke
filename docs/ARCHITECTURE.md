@@ -6,4 +6,4 @@ A future operation plan contains schema version, operation ID, model/SKU, firmwa
 
 UI sections: device status, boot profile, backup/restore, image installation, storage plan, USB modes, logs and settings. Persist project preferences outside calibration storage. Storage-changing controls require an explicit reviewed plan; a displayed feature is not marked working until its acceptance evidence exists.
 
-The source audit and feature parity matrix define the next implementation work. The current repository intentionally contains no fabricated BoardConfig, fstab or flash command; those depend on stock Uke image analysis.
+The first `uke` BoardConfig and read-only recovery fstab are derived from the verified Global stock package. `scripts/prepare-build-tree.sh` stages the device tree and applies `patches/0001-preserve-recovery-vendor-directory.patch` to the active Android build tree. The patch keeps recovery's vendor metadata directory intact while the base ramdisk is copied. The source audit and feature matrix define the remaining implementation work. No partition-writing command is provided by this profile.

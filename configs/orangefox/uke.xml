@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!-- Replace the manifest's Mondrian example and retain the Uke donor as a
+       reference. The project-owned build target is staged at device/xiaomi/uke. -->
+  <remote name="uke-reference" fetch="https://github.com/Thanick50" />
+  <remote name="orangefox-theme" fetch="https://gitlab.com/OrangeFox" />
+  <remove-project name="device/mondrian" />
+  <remove-project name="device/sm84xx-common" />
+  <project
+      path="reference/device/xiaomi/uke"
+      name="ofox_device_xiaomi_uke"
+      remote="uke-reference"
+      revision="ad9bf4ed034455663a71f61eb214322806f9f1fd" />
+  <project
+      path="vendor/recovery/Files/classic_theme"
+      name="classic-theme"
+      remote="orangefox-theme"
+      revision="350432b6a0f65a119ac2c4511aff5c57344f7c23" />
+</manifest>

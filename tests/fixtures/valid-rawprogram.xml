@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+  <program physical_partition_number="4" label="boot_a" filename="boot.img" start_sector="10" num_partition_sectors="30" SECTOR_SIZE_IN_BYTES="4096"/>
+  <program physical_partition_number="4" label="recovery_a" filename="recovery.img" start_sector="40" num_partition_sectors="40" SECTOR_SIZE_IN_BYTES="4096"/>
+  <program physical_partition_number="4" label="BackupGPT" filename="gpt_backup4.bin" start_sector="NUM_DISK_SECTORS-5." num_partition_sectors="5" SECTOR_SIZE_IN_BYTES="4096"/>
+</data>

@@ -1,0 +1,8 @@
+diff --git a/core/Makefile b/core/Makefile
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -2830 +2830,3 @@
+-	rsync -a --exclude=sdcard $(IGNORE_RECOVERY_SEPOLICY) $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT)
++	# Recovery installs real /vendor metadata; the system root's vendor symlink
++	# must not replace that directory during ramdisk assembly.
++	rsync -a --exclude=sdcard --exclude=/root/vendor $(IGNORE_RECOVERY_SEPOLICY) $(IGNORE_CACHE_LINK) $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT)

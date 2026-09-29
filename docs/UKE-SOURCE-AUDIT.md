@@ -2,9 +2,9 @@
 
 ## OrangeFox baseline
 
-The pinned official [fox_16.0 core](https://gitlab.com/OrangeFox/bootable/Recovery/-/tree/6ff71bed1506fec1893247f0c74d7ae87c594eed) sets `FOX_INTERNAL_RELEASE := R12.0` in `orangefox.mk`. The official sync instructions describe Android 16. The [wiki changelog](https://wiki.orangefox.tech/changelog) still carried R11.3 during the 28 September research. Source release, published release and device build success are different records.
+The pinned official [fox_16.0 core](https://gitlab.com/OrangeFox/bootable/Recovery/-/tree/3d733672081bca3af42475a286145f4a8cdce4e7) sets `FOX_INTERNAL_RELEASE := R12.0` in `orangefox.mk`. This pin was reviewed on 29 September and advances three commits from the earlier research snapshot. The official sync instructions describe Android 16. The [wiki changelog](https://wiki.orangefox.tech/changelog) still carried R11.3 during the 28 September research. Source release, published release and device build success are different records.
 
-Manifest commit `6bbb43ed568c9ee2127fb64333808388e583e459` includes recovery/vendor/system-core/libvterm and a Mondrian/SM84xx target. Replace that target with Uke only after stock boot analysis. The full Android manifest has not been resolved, downloaded or built. Network recovery/web/NAS dependencies must not be assumed present in this source branch. `FOX_VERSION` is obsolete; follow current release and numeric maintainer-version configuration.
+Manifest commit `6bbb43ed568c9ee2127fb64333808388e583e459` includes recovery/vendor/system-core/libvterm and a Mondrian/SM84xx example. The local Uke manifest removes both example projects, keeps the pinned Uke donor at `reference/device/xiaomi/uke`, and resolves the vendor theme's malformed upstream gitlink as an explicit project; the project-owned build target remains `device/xiaomi/uke`. The synchronized Android 16 checkout contains 399 projects, is clean, and is recorded at exact revisions in `manifests/orangefox-android16-uke.lock.xml`. This checkout has not been built and its projects are not yet all independent offline archives. Network recovery/web/NAS dependencies must not be assumed present in this source branch. `FOX_VERSION` is obsolete; follow current release and numeric maintainer-version configuration.
 
 ## Uke donor
 

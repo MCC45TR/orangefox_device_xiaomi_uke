@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+  <program physical_partition_number="4" label="boot_a" filename="boot.img" start_sector="18446744073709551610" num_partition_sectors="30" SECTOR_SIZE_IN_BYTES="4096"/>
+</data>

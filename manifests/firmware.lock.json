@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "not-downloaded",
+  "status": "all-tracked-profiles-verified",
   "profiles": [
     {
       "id": "cn-os3.0.302.0",
@@ -8,8 +8,12 @@
       "region": "CN",
       "url": "https://cdnorg.d.miui.com/OS3.0.302.0.WOZCNXM/uke_images_OS3.0.302.0.WOZCNXM_20260515.0000.00_16.0_cn_edb3b58fc4.tgz",
       "expected_bytes_from_head": 9979118103,
-      "sha256": null,
-      "purpose": "donor-compatible fixed reference; not a latest ROM claim"
+      "sha256": "b58bce97a14d2723e2b17031199c9165e89b51ad26044e01f2bd22c6e864dfa7",
+      "purpose": "donor-compatible fixed reference; not a latest ROM claim",
+      "measured_bytes": 9979118103,
+      "download_status": "verified",
+      "download_mirror": "https://bn.d.miui.com",
+      "acquired_at": "2026-09-29T16:54:59Z"
     },
     {
       "id": "global-os3.0.303.0",
@@ -17,8 +21,26 @@
       "region": "Global",
       "url": "https://cdnorg.d.miui.com/OS3.0.303.0.WOZMIXM/uke_global_images_OS3.0.303.0.WOZMIXM_20260625.0000.00_16.0_global_0a5b1b6851.tgz",
       "expected_bytes_from_head": 8263251606,
-      "sha256": null,
-      "purpose": "independent global firmware profile"
+      "sha256": "f811ae6255b7535d32f80548d800487a6494a87ddb4cca592799337fab24cd0d",
+      "purpose": "independent global firmware profile",
+      "measured_bytes": 8263251606,
+      "download_status": "verified",
+      "acquired_at": "2026-09-29T03:39:41Z"
+    },
+    {
+      "id": "turkey-ota-os3.0.303.0",
+      "version": "OS3.0.303.0.WOZTRXM",
+      "region": "Turkey",
+      "package_type": "recovery-ota",
+      "url": "https://bigota.d.miui.com/OS3.0.303.0.WOZTRXM/uke_tr_global-ota_full-OS3.0.303.0.WOZTRXM-user-16.0-a2ea2002e7.zip",
+      "expected_bytes_from_head": 6454461500,
+      "expected_md5": "a2ea2002e7b8978918270ea11bb8defe",
+      "sha256": "59e2b12674015085c977a8d9230e180224d6465a4d893d18f44299d4a112cf0f",
+      "purpose": "Turkey-region OTA reference for the POCO Pad X1 target; not a flash authorization",
+      "measured_bytes": 6454461500,
+      "download_status": "verified",
+      "download_mirror": "https://bn.d.miui.com",
+      "acquired_at": "2026-09-29T18:35:05Z"
     }
   ]
 }
