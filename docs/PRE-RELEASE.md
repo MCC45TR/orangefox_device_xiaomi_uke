@@ -19,6 +19,13 @@ unidentified slot or locked bootloader. The exact install/rollback commands
 belong in the release only after both commercial models and their firmware
 profiles are checked.
 
+The current upstream ZIP installer detects dedicated A/B recovery partitions,
+checks the active recovery partition size, then writes `recovery.img` to
+**both** `recovery_a` and `recovery_b`. It does not preserve an untouched stock
+recovery slot or validate each target independently. This conflicts with the
+project's fallback requirement; the ZIP must be made slot-safe and re-audited
+before publication or device use.
+
 The published instructions will distinguish temporary boot (`fastboot boot
 OrangeFox-uke-fastboot-boot.img`), flashing only the confirmed
 `recovery_<active-slot>` partition with `OrangeFox-uke-recovery.img`, and

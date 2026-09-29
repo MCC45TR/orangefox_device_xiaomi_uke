@@ -21,4 +21,6 @@ internal recovery hash, but the footer's AVB algorithm is `NONE`, not an
 authenticated signature. The image has no embedded kernel and is not a
 validated `fastboot boot` artifact. ZIP installer target safety, bootloader
 acceptance, rotation/touch, A/B merge, userdata decryption and both tablet
-models remain untested. No image or ZIP from this run is uploaded for flashing.
+models remain untested. The ZIP installer also writes both recovery slots
+after checking only the active slot's size, which violates the preserved
+fallback requirement. No image or ZIP from this run is uploaded for flashing.
