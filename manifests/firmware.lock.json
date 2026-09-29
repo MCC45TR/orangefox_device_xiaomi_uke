@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "not-downloaded",
+  "profiles": [
+    {
+      "id": "cn-os3.0.302.0",
+      "version": "OS3.0.302.0.WOZCNXM",
+      "region": "CN",
+      "url": "https://cdnorg.d.miui.com/OS3.0.302.0.WOZCNXM/uke_images_OS3.0.302.0.WOZCNXM_20260515.0000.00_16.0_cn_edb3b58fc4.tgz",
+      "expected_bytes_from_head": 9979118103,
+      "sha256": null,
+      "purpose": "donor-compatible fixed reference; not a latest ROM claim"
+    },
+    {
+      "id": "global-os3.0.303.0",
+      "version": "OS3.0.303.0.WOZMIXM",
+      "region": "Global",
+      "url": "https://cdnorg.d.miui.com/OS3.0.303.0.WOZMIXM/uke_global_images_OS3.0.303.0.WOZMIXM_20260625.0000.00_16.0_global_0a5b1b6851.tgz",
+      "expected_bytes_from_head": 8263251606,
+      "sha256": null,
+      "purpose": "independent global firmware profile"
+    }
+  ]
+}

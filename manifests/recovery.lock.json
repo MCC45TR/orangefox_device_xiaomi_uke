@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "status": "source-references-only-not-build-locked",
+  "source_release": "R12.0",
+  "branch": "fox_16.0",
+  "device": "uke",
+  "target_artifact": "must-be-derived-from-stock-recovery-layout",
+  "sources": {
+    "orangefox-recovery": {
+      "id": "orangefox-recovery",
+      "path": "recovery-uke-ofox/referances/recovery/orangefox-recovery",
+      "url": "https://gitlab.com/OrangeFox/bootable/Recovery.git",
+      "checkout": "refs/heads/fox_16.0",
+      "refs": {
+        "refs/heads/fox_16.0": "6ff71bed1506fec1893247f0c74d7ae87c594eed",
+        "refs/heads/fox_14.1": "7280e7204e2acdd8133c5485a15cfa05a4feb34d",
+        "refs/heads/fox_12.1": "cbcc4f713dbef98d76d6d2cfd019b1ebfd9418e9"
+      },
+      "role": "Official recovery core; R12.0 source version, fox_16.0 primary",
+      "phase": "preparation",
+      "history": "full-selected-refs",
+      "redistribution": "review-file-licenses-before-publication",
+      "owner": "recovery-uke-ofox"
+    },
+    "orangefox-vendor": {
+      "id": "orangefox-vendor",
+      "path": "recovery-uke-ofox/referances/recovery/orangefox-vendor",
+      "url": "https://gitlab.com/OrangeFox/vendor/recovery.git",
+      "checkout": "refs/heads/main",
+      "refs": {
+        "refs/heads/main": "cea00cabf2e8ce50fc9f0b5cda99b5801855847a"
+      },
+      "role": "Official recovery vendor configuration and tools",
+      "phase": "preparation",
+      "history": "full-selected-refs",
+      "redistribution": "review-file-licenses-before-publication",
+      "owner": "recovery-uke-ofox"
+    },
+    "orangefox-manifest": {
+      "id": "orangefox-manifest",
+      "path": "recovery-uke-ofox/referances/recovery/orangefox-manifest",
+      "url": "https://gitlab.com/OrangeFox/Manifest.git",
+      "checkout": "refs/heads/fox_16.0",
+      "refs": {
+        "refs/heads/fox_16.0": "6bbb43ed568c9ee2127fb64333808388e583e459"
+      },
+      "role": "Complete official Android 16 manifest; contains Mondrian donor requiring Uke replacement",
+      "phase": "preparation",
+      "history": "full-selected-refs",
+      "redistribution": "review-file-licenses-before-publication",
+      "owner": "recovery-uke-ofox"
+    },
+    "orangefox-sync": {
+      "id": "orangefox-sync",
+      "path": "recovery-uke-ofox/referances/recovery/orangefox-sync",
+      "url": "https://gitlab.com/OrangeFox/sync.git",
+      "checkout": "refs/heads/master",
+      "refs": {
+        "refs/heads/master": "53a303ecfb622c516082d3e61dbaa7d9f02f0120"
+      },
+      "role": "Official synchronization workflow",
+      "phase": "preparation",
+      "history": "full-selected-refs",
+      "redistribution": "review-file-licenses-before-publication",
+      "owner": "recovery-uke-ofox"
+    },
+    "thanick-uke": {
+      "id": "thanick-uke",
+      "path": "recovery-uke-ofox/referances/recovery/thanick-uke",
+      "url": "https://github.com/Thanick50/ofox_device_xiaomi_uke.git",
+      "checkout": "refs/heads/real-fox_14.1",
+      "refs": {
+        "refs/heads/real-fox_14.1": "ad9bf4ed034455663a71f61eb214322806f9f1fd"
+      },
+      "role": "Uke recovery donor; declared broken F2FS format; audit only",
+      "phase": "preparation",
+      "history": "full-selected-refs",
+      "redistribution": "review-file-licenses-before-publication",
+      "owner": "recovery-uke-ofox"
+    },
+    "arkt-nabu": {
+      "id": "arkt-nabu",
+      "path": "recovery-uke-ofox/referances/recovery/arkt-nabu",
+      "url": "https://github.com/ArKT-7/twrp_device_xiaomi_nabu.git",
+      "checkout": "refs/heads/mod-windows",
+      "refs": {
+        "refs/heads/mod-windows": "b7dc2d2c2285630744934ffdd387bddd69a723de",
+        "refs/heads/mod-linux": "91e6e861c68025e838a382f75e57dd2e321ca2f1",
+        "refs/heads/mod-uefi-dualpart": "dd50416e860f274806b6069e24734c95868b2ffe",
+        "refs/heads/mod-normal": "ed558b4ae201651ec786d25d8869802660838076",
+        "refs/heads/mod-win-CN": "31e31389e1a54d72776b8ad22cefcae3f55ebf8b",
+        "refs/heads/test-rotation": "639290964d6a1cc36d98328984fdcd2e83dfbfcd"
+      },
+      "role": "Minimum recovery feature inventory; SM8150 hardware is not portable",
+      "phase": "preparation",
+      "history": "full-selected-refs",
+      "redistribution": "review-file-licenses-before-publication",
+      "owner": "recovery-uke-ofox"
+    }
+  },
+  "full_repo_manifest_resolved": false,
+  "image_built": false,
+  "hardware_tested": false
+}

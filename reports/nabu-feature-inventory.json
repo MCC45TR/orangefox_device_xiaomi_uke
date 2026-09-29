@@ -1,0 +1,4283 @@
+{
+  "source": "https://github.com/ArKT-7/twrp_device_xiaomi_nabu",
+  "method": "git object and UI action inspection; no donor scripts executed",
+  "branches": [
+    {
+      "branch": "mod-windows",
+      "commit": "b7dc2d2c2285630744934ffdd387bddd69a723de",
+      "tool_paths": [
+        "recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti",
+        "recovery/root/system/bin/android.hardware.keymaster@4.1-service-qti",
+        "recovery/root/system/bin/backupwin",
+        "recovery/root/system/bin/common",
+        "recovery/root/system/bin/dmsetup",
+        "recovery/root/system/bin/fixgpt",
+        "recovery/root/system/bin/fixvb",
+        "recovery/root/system/bin/format",
+        "recovery/root/system/bin/gdisk",
+        "recovery/root/system/bin/gpt0",
+        "recovery/root/system/bin/gpt1",
+        "recovery/root/system/bin/gpt2",
+        "recovery/root/system/bin/gpt3",
+        "recovery/root/system/bin/gpt4",
+        "recovery/root/system/bin/gpt5",
+        "recovery/root/system/bin/msc",
+        "recovery/root/system/bin/ntfsfix",
+        "recovery/root/system/bin/ntfsresize",
+        "recovery/root/system/bin/overrideprops.sh",
+        "recovery/root/system/bin/panel",
+        "recovery/root/system/bin/parted",
+        "recovery/root/system/bin/partition",
+        "recovery/root/system/bin/qseecomd",
+        "recovery/root/system/bin/restore",
+        "recovery/root/system/bin/restoregpt",
+        "recovery/root/system/bin/restorewin",
+        "recovery/root/system/bin/sgdisk",
+        "recovery/root/system/bin/wimlib"
+      ],
+      "custom_ui_actions": [
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 744,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 753,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1106,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1196,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1197,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1207,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1208,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1318,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1319,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1320,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1327,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1405,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1407,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1409,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1411,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1425,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1427,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1429,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1459,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1460,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1468,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1515,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1518,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1534,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1537,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1553,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1556,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1572,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1575,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1591,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1594,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1610,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1613,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1629,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 2973,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 3909,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4080,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4100,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4108,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4208,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4212,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4213,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4214,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4227,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5885,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5886,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5912,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5915,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5923,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5926,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5984,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5985,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5995,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6005,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6016,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6026,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6027,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6036,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6154,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6252,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6461,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6462,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6551,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6640,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6650,
+          "function": "partitionByArKT",
+          "argument": ""
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 793,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 802,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1155,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1245,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1246,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1256,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1257,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1362,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1363,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1364,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1371,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1449,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1451,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1453,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1455,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1469,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1471,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1473,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1503,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1504,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1512,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1559,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1562,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1578,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1581,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1597,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1600,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1616,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1619,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1635,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1638,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1654,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1657,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1673,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 2816,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3786,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3956,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3976,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3984,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4084,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4088,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4089,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4090,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6066,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6067,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6093,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6096,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6104,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6107,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6165,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6166,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6176,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6186,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6197,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6207,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6208,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6217,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6448,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6658,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7089,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7090,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7290,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7490,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7500,
+          "function": "partitionByArKT",
+          "argument": ""
+        }
+      ]
+    },
+    {
+      "branch": "mod-linux",
+      "commit": "91e6e861c68025e838a382f75e57dd2e321ca2f1",
+      "tool_paths": [
+        "recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti",
+        "recovery/root/system/bin/android.hardware.keymaster@4.1-service-qti",
+        "recovery/root/system/bin/common",
+        "recovery/root/system/bin/dmsetup",
+        "recovery/root/system/bin/fixvb",
+        "recovery/root/system/bin/format",
+        "recovery/root/system/bin/formatdata",
+        "recovery/root/system/bin/lon-chroot",
+        "recovery/root/system/bin/mkfs.ext4",
+        "recovery/root/system/bin/msc",
+        "recovery/root/system/bin/overrideprops.sh",
+        "recovery/root/system/bin/parted",
+        "recovery/root/system/bin/partition",
+        "recovery/root/system/bin/qseecomd",
+        "recovery/root/system/bin/restore",
+        "recovery/root/system/bin/sgdisk",
+        "recovery/root/system/bin/stock_gpt"
+      ],
+      "custom_ui_actions": [
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 744,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 753,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1106,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1196,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1197,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1207,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1208,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1318,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1319,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1320,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1327,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1405,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1407,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1409,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1411,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1425,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1427,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1429,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1459,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1460,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1468,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1515,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1518,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1534,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1537,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1553,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1556,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1572,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1575,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1591,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1594,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1610,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1613,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1629,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 2973,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 3909,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4080,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4100,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4108,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4208,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4212,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4213,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4214,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4227,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5885,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5886,
+          "function": "set",
+          "argument": "arkt_format_lin=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5912,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5915,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5923,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5926,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5984,
+          "function": "set",
+          "argument": "arkt_format_lin=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5985,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5995,
+          "function": "set",
+          "argument": "arkt_format_lin=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6005,
+          "function": "set",
+          "argument": "arkt_format_lin=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6027,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6037,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6038,
+          "function": "set",
+          "argument": "arkt_format_lin=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6047,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6165,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6263,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6472,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6473,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6562,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6651,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6661,
+          "function": "partitionByArKT",
+          "argument": ""
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 793,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 802,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1155,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1245,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1246,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1256,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1257,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1362,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1363,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1364,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1371,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1449,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1451,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1453,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1455,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1469,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1471,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1473,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1503,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1504,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1512,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1559,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1562,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1578,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1581,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1597,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1600,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1616,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1619,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1635,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1638,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1654,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1657,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1673,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 2816,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3786,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3956,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3976,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3984,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4084,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4088,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4089,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4090,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6066,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6067,
+          "function": "set",
+          "argument": "arkt_format_lin=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6093,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6096,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6104,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6107,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6165,
+          "function": "set",
+          "argument": "arkt_format_lin=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6166,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6176,
+          "function": "set",
+          "argument": "arkt_format_lin=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6186,
+          "function": "set",
+          "argument": "arkt_format_lin=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6208,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6218,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6219,
+          "function": "set",
+          "argument": "arkt_format_lin=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6228,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6459,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6669,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7100,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7101,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7301,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7501,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7511,
+          "function": "partitionByArKT",
+          "argument": ""
+        }
+      ]
+    },
+    {
+      "branch": "mod-uefi-dualpart",
+      "commit": "dd50416e860f274806b6069e24734c95868b2ffe",
+      "tool_paths": [
+        "recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti",
+        "recovery/root/system/bin/android.hardware.keymaster@4.1-service-qti",
+        "recovery/root/system/bin/common",
+        "recovery/root/system/bin/dmsetup",
+        "recovery/root/system/bin/dualpart",
+        "recovery/root/system/bin/fixgpt",
+        "recovery/root/system/bin/format",
+        "recovery/root/system/bin/formatdata",
+        "recovery/root/system/bin/gdisk",
+        "recovery/root/system/bin/msc",
+        "recovery/root/system/bin/ntfsfix",
+        "recovery/root/system/bin/ntfsresize",
+        "recovery/root/system/bin/overrideprops.sh",
+        "recovery/root/system/bin/panel",
+        "recovery/root/system/bin/parted",
+        "recovery/root/system/bin/partition",
+        "recovery/root/system/bin/qseecomd",
+        "recovery/root/system/bin/restore",
+        "recovery/root/system/bin/sgdisk",
+        "recovery/root/system/bin/stock_gpt",
+        "recovery/root/system/bin/switch",
+        "recovery/root/system/bin/uefi.img",
+        "recovery/root/system/bin/wimlib",
+        "recovery/root/system/bin/ziptool"
+      ],
+      "custom_ui_actions": [
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1093,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1183,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1184,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1194,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1195,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1305,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1306,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1307,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1314,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1392,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1394,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1396,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1398,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1412,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1414,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1416,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1446,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1447,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1455,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1502,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1505,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1521,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1524,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1540,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1543,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1559,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1562,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1578,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1581,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1597,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1600,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1616,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 2960,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 3896,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4067,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4087,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4095,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4195,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4199,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4200,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4201,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4214,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5591,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5592,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5624,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5627,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5635,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5638,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5690,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5691,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5701,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5711,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5733,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5743,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5744,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5753,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5871,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5969,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6178,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6179,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6268,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6357,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6367,
+          "function": "partitionByArKT",
+          "argument": ""
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1142,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1232,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1233,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1243,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1244,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1349,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1350,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1351,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1358,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1436,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1438,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1440,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1442,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1456,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1458,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1460,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1490,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1491,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1499,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1546,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1549,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1565,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1568,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1584,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1587,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1603,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1606,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1622,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1625,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1641,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1644,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1660,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 2803,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3773,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3943,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3963,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3971,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4071,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4075,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4076,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4077,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5750,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5751,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5783,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5786,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5794,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5797,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5849,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5850,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5860,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5870,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5892,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5902,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5903,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 5912,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6143,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6353,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6784,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6785,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6985,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7185,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7195,
+          "function": "partitionByArKT",
+          "argument": ""
+        }
+      ]
+    },
+    {
+      "branch": "mod-normal",
+      "commit": "ed558b4ae201651ec786d25d8869802660838076",
+      "tool_paths": [
+        "recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti",
+        "recovery/root/system/bin/android.hardware.keymaster@4.1-service-qti",
+        "recovery/root/system/bin/fixvb",
+        "recovery/root/system/bin/lpmake",
+        "recovery/root/system/bin/otaripper",
+        "recovery/root/system/bin/overrideprops.sh",
+        "recovery/root/system/bin/pv",
+        "recovery/root/system/bin/qseecomd"
+      ],
+      "custom_ui_actions": [
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 741,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 750,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1103,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1193,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1194,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1204,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1205,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1315,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1316,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1317,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1324,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1402,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1404,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1406,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1408,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1422,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1424,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1426,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1456,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1457,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1465,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1512,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1515,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1531,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1534,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1550,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1553,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1569,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1572,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1588,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1591,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1607,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1610,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1626,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 2970,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 3906,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4071,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4091,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4099,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4199,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4203,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4204,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4205,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4218,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 790,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 799,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1152,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1242,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1243,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1253,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1254,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1359,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1360,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1361,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1368,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1446,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1448,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1450,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1452,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1466,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1468,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1470,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1500,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1501,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1509,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1556,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1559,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1575,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1578,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1594,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1597,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1613,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1616,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1632,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1635,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1651,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1654,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1670,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 2813,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3783,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3947,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3967,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3975,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4075,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4079,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4080,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4081,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        }
+      ]
+    },
+    {
+      "branch": "mod-win-CN",
+      "commit": "31e31389e1a54d72776b8ad22cefcae3f55ebf8b",
+      "tool_paths": [
+        "recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti",
+        "recovery/root/system/bin/android.hardware.keymaster@4.1-service-qti",
+        "recovery/root/system/bin/backupwin",
+        "recovery/root/system/bin/common",
+        "recovery/root/system/bin/dmsetup",
+        "recovery/root/system/bin/fixgpt",
+        "recovery/root/system/bin/fixvb",
+        "recovery/root/system/bin/format",
+        "recovery/root/system/bin/gdisk",
+        "recovery/root/system/bin/gpt0",
+        "recovery/root/system/bin/gpt1",
+        "recovery/root/system/bin/gpt2",
+        "recovery/root/system/bin/gpt3",
+        "recovery/root/system/bin/gpt4",
+        "recovery/root/system/bin/gpt5",
+        "recovery/root/system/bin/msc",
+        "recovery/root/system/bin/ntfsfix",
+        "recovery/root/system/bin/ntfsresize",
+        "recovery/root/system/bin/overrideprops.sh",
+        "recovery/root/system/bin/panel",
+        "recovery/root/system/bin/parted",
+        "recovery/root/system/bin/partition",
+        "recovery/root/system/bin/qseecomd",
+        "recovery/root/system/bin/restore",
+        "recovery/root/system/bin/restoregpt",
+        "recovery/root/system/bin/restorewin",
+        "recovery/root/system/bin/sgdisk",
+        "recovery/root/system/bin/wimlib"
+      ],
+      "custom_ui_actions": [
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 744,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 753,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1106,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1196,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1197,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1207,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1208,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1318,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1319,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1320,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1327,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1405,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1407,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1409,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1411,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1425,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1427,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1429,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1459,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1460,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1468,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1515,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1518,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1534,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1537,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1553,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1556,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1572,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1575,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1591,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1594,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1610,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1613,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1629,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 2973,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 3909,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4080,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4100,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4108,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4208,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4212,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4213,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4214,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4227,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5885,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5886,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5912,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5915,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5923,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5926,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5984,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5985,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 5995,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6005,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6027,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6037,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6038,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6047,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6165,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6263,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6472,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6473,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6562,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6651,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 6661,
+          "function": "partitionByArKT",
+          "argument": ""
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 793,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 802,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1155,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1245,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1246,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1256,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1257,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1362,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1363,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1364,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1371,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1449,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1451,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1453,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1455,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1469,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1471,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1473,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1503,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1504,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1512,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1559,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1562,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1578,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1581,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1597,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1600,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1616,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1619,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1635,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1638,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1654,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1657,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1673,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 2816,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3786,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3956,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3976,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3984,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4084,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4088,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4089,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4090,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6066,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6067,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6093,
+          "function": "rebootbyarkt",
+          "argument": "r"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6096,
+          "function": "rebootbyarkt",
+          "argument": "rtbl"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6104,
+          "function": "rebootbyarkt",
+          "argument": "rtr"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6107,
+          "function": "rebootbyarkt",
+          "argument": "off"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6165,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6166,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6176,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6186,
+          "function": "set",
+          "argument": "arkt_format_win=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6208,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6218,
+          "function": "set",
+          "argument": "arkt_format_esp=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6219,
+          "function": "set",
+          "argument": "arkt_format_win=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6228,
+          "function": "set",
+          "argument": "arkt_format_esp=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6459,
+          "function": "restorebyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 6669,
+          "function": "mscbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7100,
+          "function": "partitionaskbyarkt",
+          "argument": "pass"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7101,
+          "function": "set",
+          "argument": "arkt_part_size="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7301,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7501,
+          "function": "overlay",
+          "argument": "partition_ask"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 7511,
+          "function": "partitionByArKT",
+          "argument": ""
+        }
+      ]
+    },
+    {
+      "branch": "test-rotation",
+      "commit": "639290964d6a1cc36d98328984fdcd2e83dfbfcd",
+      "tool_paths": [
+        "recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti",
+        "recovery/root/system/bin/android.hardware.keymaster@4.1-service-qti",
+        "recovery/root/system/bin/fixvb",
+        "recovery/root/system/bin/lpmake",
+        "recovery/root/system/bin/overrideprops.sh",
+        "recovery/root/system/bin/pdumper",
+        "recovery/root/system/bin/pv",
+        "recovery/root/system/bin/qseecomd"
+      ],
+      "custom_ui_actions": [
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 741,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 750,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1103,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1193,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1194,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1204,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1205,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1315,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1316,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1317,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1324,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1402,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1404,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1406,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1408,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1422,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1424,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1426,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1456,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1457,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1465,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1512,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1515,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1531,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1534,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1550,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1553,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1569,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1572,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1588,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1591,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1607,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1610,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 1626,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 2970,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 3906,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4071,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4091,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4099,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4199,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4203,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4204,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4205,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        },
+        {
+          "path": "recovery/root/twres/portrait.xml",
+          "line": 4218,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 790,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 799,
+          "function": "set",
+          "argument": "tw_flash_partition="
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1152,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1242,
+          "function": "checkpartitionlist",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1243,
+          "function": "page",
+          "argument": "checkpartitionlist"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1253,
+          "function": "set",
+          "argument": "tw_text1={@wipe_sel_confirm=Wipe Selected Partition(s)?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1254,
+          "function": "set",
+          "argument": "tw_action_text1={@wiping_part=Wiping Partition(s)...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1359,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1360,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1361,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1368,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1446,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1448,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1450,
+          "function": "set",
+          "argument": "tw_action2=getpartitiondetails"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1452,
+          "function": "set",
+          "argument": "tw_text1={@resize_confirm=Resize %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1466,
+          "function": "set",
+          "argument": "tw_back=partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1468,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1470,
+          "function": "set",
+          "argument": "tw_text1={@repair_confirm=Repair %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1500,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1501,
+          "function": "getpartitiondetails",
+          "argument": "tw_wipe_list"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1509,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1556,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1559,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1575,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1578,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1594,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1597,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1613,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1616,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1632,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1635,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1651,
+          "function": "set",
+          "argument": "tw_action_param=%tw_partition_mount_point%"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1654,
+          "function": "set",
+          "argument": "tw_text1={@change_fs_confirm=Change %tw_partition_name%?}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 1670,
+          "function": "page",
+          "argument": "partitionoptions"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 2813,
+          "function": "checkpartitionlifetimewrites",
+          "argument": "/system"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3783,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3947,
+          "function": "getpartitiondetails",
+          "argument": "tw_storage_path"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3967,
+          "function": "set",
+          "argument": "partitionlisterror=0"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 3975,
+          "function": "set",
+          "argument": "partitionlisterror=1"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4075,
+          "function": "set",
+          "argument": "tw_action=partitionsd"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4079,
+          "function": "set",
+          "argument": "tw_action_text1={@partitioning_sd=Partitioning SD Card...}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4080,
+          "function": "set",
+          "argument": "tw_action_text2={@partitioning_sd2=This will take a few minutes.}"
+        },
+        {
+          "path": "recovery/root/twres/twres-arkt/landscape.xml",
+          "line": 4081,
+          "function": "set",
+          "argument": "tw_complete_text1={@part_sd_complete=Partitioning Complete}"
+        }
+      ]
+    }
+  ]
+}
