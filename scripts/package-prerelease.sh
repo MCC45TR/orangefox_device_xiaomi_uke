@@ -36,7 +36,8 @@ cp -- "$product/recovery.img" "$destination/OrangeFox-uke-recovery.img"
     --os_version 16.0.0 --os_patch_level 2025-06 \
     --cmdline 'androidboot.force_normal_boot=0' --output "$destination/OrangeFox-uke-fastboot-boot.img"
 "$avb" add_hash_footer --image "$destination/OrangeFox-uke-fastboot-boot.img" \
-    --partition_name boot --partition_size 100663296 --algorithm NONE
+    --partition_name boot --partition_size 100663296 --algorithm NONE \
+    --salt "$(jq -r .kernel_sha256 "$component/manifests/stock-kernel-source.json")"
 [[ $(od -An -tu4 -j8 -N4 "$destination/OrangeFox-uke-fastboot-boot.img" | tr -d ' ') == 35432960 ]]
 [[ $(od -An -tu4 -j12 -N4 "$destination/OrangeFox-uke-fastboot-boot.img" | tr -d ' ') == "$ramdisk_bytes" ]]
 cp -- "$installer" "$package_work/uke-recovery-install"

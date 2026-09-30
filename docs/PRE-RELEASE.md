@@ -22,7 +22,7 @@ exact snapshot accompany the release. Binary reproduction has not been performed
 Verify `SHA256SUMS` before using any asset:
 
 ```sh
-sha256sum -c SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 ## Temporary boot
@@ -46,8 +46,8 @@ host package check says nothing about whether an Uke bootloader will accept it.
 Use a working recovery with an operational boot-control HAL. The ZIP uses a
 static AArch64 C++ helper, not the upstream dual-slot installer. It requires
 `uke`, unlocked-state evidence, exactly two consistent slots, snapshot status
-`none`, a bootable inactive slot, exact stock303 hashes for active boot,
-init_boot, vendor_boot and dtbo, and stock recovery on the inactive slot. It
+`none`, a bootable inactive slot, exact stock303 hashes for boot, init_boot,
+vendor_boot and dtbo on **both slots**, and stock recovery on the inactive slot. It
 checks real block-device labels and sizes. It backs up current recovery in RAM,
 then writes only active recovery and verifies a full SHA-256 read-back. It does
 not format/mount userdata, switch slots, touch vbmeta or reboot automatically.
@@ -67,6 +67,9 @@ through `adb shell`, replacing `SHA256` with the image hash in `SHA256SUMS`.
 Missing evidence is a rejection, not permission to bypass checks. After
 installation, copy the printed `/tmp/uke-recovery-backup-*` file to your host
 before reboot; it is volatile. Prefer the ZIP to a manual flash.
+
+An older/different inactive firmware causes refusal too. Do not update, clone
+or switch that slot just to satisfy this experimental installer.
 
 ## Manual recovery flash and stock return
 

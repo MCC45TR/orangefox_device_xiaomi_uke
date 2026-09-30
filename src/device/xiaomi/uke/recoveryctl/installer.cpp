@@ -180,8 +180,15 @@ int main(int argc, char* argv[]) {
         const int active = uke::validate(evidence());
         const std::string suffix = active == 0 ? "_a" : "_b";
         for (const auto& stock : uke::global_stock) {
-            const std::string slot = std::string_view(stock.name) == "recovery" ? (active == 0 ? "_b" : "_a") : suffix;
-            require_stock(block(std::string(stock.name) + slot, stock.bytes), stock.sha256);
+            if (std::string_view(stock.name) == "recovery") {
+                const std::string fallback = active == 0 ? "_b" : "_a";
+                require_stock(block(std::string(stock.name) + fallback, stock.bytes), stock.sha256);
+            } else {
+                // Dedicated recovery depends on that slot's kernel/vendor/DT
+                // stack. A bootable flag alone does not establish fallback ABI.
+                for (const char* slot : {"_a", "_b"})
+                    require_stock(block(std::string(stock.name) + slot, stock.bytes), stock.sha256);
+            }
         }
         const auto target = block("recovery" + suffix, uke::recovery_bytes);
         std::cout << "Verified Global stock303 boot stack; plan: " << target.label
