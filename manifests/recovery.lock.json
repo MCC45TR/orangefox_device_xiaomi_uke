@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "local-recovery-build-global-profile-unvalidated-on-device",
+  "status": "experimental-artifacts-built-host-validated-not-device-tested",
   "source_release": "R12.0",
   "branch": "fox_16.0",
   "device": "uke",
@@ -157,6 +157,23 @@
     "physical_boot_tested": false,
     "flash_approved": false
   },
+  "public_candidate": {
+    "firmware_profile": "global-os3.0.303.0",
+    "output_directory": "src/upstream/orangefox-android16/out-public",
+    "source_core": "3d733672081bca3af42475a286145f4a8cdce4e7",
+    "payload_privacy_audit_passed": true,
+    "payload_python_audit_passed": true,
+    "slot_safe_installer_host_tests_passed": true,
+    "native_installer_aarch64_static_build_passed": true,
+    "recovery_sha256": "b58c0297a666baf74ae0b68c7bf5f58dbb731ef2e11343f252a7cb1894a48bcd",
+    "temporary_boot_sha256": "0227fc42238b5a796d67823c00bec439dc7ef0bc433740e72709d2165cacc48a",
+    "zip_sha256": "e8e9deb8b3fa21492b8d16e2469ce8271b89d413eefc0bfd707f1f723c0d0547",
+    "avb_algorithm": "NONE",
+    "zip_signed": false,
+    "physical_device_tested": false,
+    "binary_reproduction": false,
+    "report": "reports/PUBLIC-ALPHA-BUILD.md"
+  },
   "hardware_tested": false,
   "stock_profiles": {
     "global": {
@@ -169,12 +186,14 @@
       "verified": true
     },
     "cn": {
+      "boot_profile": "manifests/boot-profile-cn.json",
+      "partition_inventory": "manifests/stock-layout-cn.json",
       "extraction_report": "reports/private/cn-os3.0.302.0-extraction.tsv",
       "bounded_entries_extracted": 38,
       "archive_verified": true,
       "extraction_verified": true,
-      "layout_verified": false,
-      "verified": false
+      "layout_verified": true,
+      "verified": true
     }
   }
 }

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "profile": "cn-os3.0.302.0",
+  "source_archive_sha256": "b58bce97a14d2723e2b17031199c9165e89b51ad26044e01f2bd22c6e864dfa7",
+  "boot_header_version": 4,
+  "vendor_boot_page_bytes": 4096,
+  "boot": {
+    "kernel_bytes": 35432960,
+    "ramdisk_bytes": 0
+  },
+  "init_boot": {
+    "kernel_bytes": 0,
+    "ramdisk_bytes": 2308992
+  },
+  "recovery": {
+    "partition_bytes": 104857600,
+    "kernel_bytes": 0,
+    "ramdisk_bytes": 28074571,
+    "slots": ["recovery_a", "recovery_b"]
+  },
+  "vendor_boot": {
+    "partition_bytes": 100663296,
+    "dtb_bytes": 1885961,
+    "vendor_ramdisk_bytes": 34052291
+  },
+  "dtbo_partition_bytes": 25165824,
+  "super_partition_bytes": 11274289152,
+  "avb": {
+    "vbmeta_flags": 0,
+    "recovery_chain_rollback_index_location": 1,
+    "recovery_algorithm": "SHA256_RSA2048"
+  },
+  "userdata_size": "not-resolved-from-rawprogram"
+}

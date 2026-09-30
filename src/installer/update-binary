@@ -1,0 +1,26 @@
+#!/system/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Recovery ZIP protocol wrapper. The native helper owns every block-device check.
+set -eu
+[ "$#" -eq 3 ] || exit 2
+case "$2" in ''|*[!0-9]*) exit 2;; esac
+output="/proc/self/fd/$2"
+package=$3
+ui() { printf 'ui_print %s\nui_print\n' "$*" > "$output"; }
+work=$(mktemp -d /tmp/uke-package-XXXXXX) || exit 1
+trap 'rm -f "$work/recovery.img" "$work/uke-recovery-install" "$work/recovery.sha256" "$work/result"; rmdir "$work"' EXIT
+ui 'Unofficial Uke experimental recovery: Global OS3.0.303.0 only.'
+for entry in recovery.img uke-recovery-install recovery.sha256; do
+    unzip -p "$package" "$entry" > "$work/$entry" || exit 1
+done
+chmod 700 "$work/uke-recovery-install"
+hash=$(tr -d '\r\n' < "$work/recovery.sha256")
+# No shell evaluation, Magisk, slot switch, userdata mount or automatic reboot.
+if "$work/uke-recovery-install" install "$work/recovery.img" "$hash" > "$work/result" 2>&1; then
+    while IFS= read -r line; do ui "$line"; done < "$work/result"
+    ui 'Installation completed. Copy the volatile backup to your host before reboot.'
+else
+    while IFS= read -r line; do ui "$line"; done < "$work/result"
+    ui 'Installation refused or failed. Do not change slots or erase any partition.'
+    exit 1
+fi

@@ -1,0 +1,1252 @@
+{
+  "schema_version": 1,
+  "profile": "cn-os3.0.302.0",
+  "source_archive_sha256": "b58bce97a14d2723e2b17031199c9165e89b51ad26044e01f2bd22c6e864dfa7",
+  "logical_sector_bytes": 4096,
+  "extraction": "extract-boot-reference.sh",
+  "inventory": "uke-partition-inventory",
+  "entries": [
+    {
+      "lun": 0,
+      "label": "switch",
+      "start_sector": "6",
+      "sector_count": 2,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "ssd",
+      "start_sector": "8",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "dbg",
+      "start_sector": "16",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk01",
+      "start_sector": "24",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk02",
+      "start_sector": "32",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk03",
+      "start_sector": "64",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk04",
+      "start_sector": "128",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "keystore",
+      "start_sector": "256",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "frp",
+      "start_sector": "384",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "frp_erase.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "countrycode_a",
+      "start_sector": "512",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "countrycode.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "countrycode_b",
+      "start_sector": "768",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "misc",
+      "start_sector": "1024",
+      "sector_count": 1024,
+      "sector_bytes": 4096,
+      "filename": "misc.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk05",
+      "start_sector": "2048",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "logfs",
+      "start_sector": "4096",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "logfs_ufs_8mb.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "ffu",
+      "start_sector": "6144",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "devinfo",
+      "start_sector": "8192",
+      "sector_count": 2,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "vbmeta_system_a",
+      "start_sector": "8194",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "vbmeta_system.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "vbmeta_system_b",
+      "start_sector": "8226",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "mem",
+      "start_sector": "8258",
+      "sector_count": 1024,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk06",
+      "start_sector": "9282",
+      "sector_count": 7102,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "metadata",
+      "start_sector": "16384",
+      "sector_count": 16384,
+      "sector_bytes": 4096,
+      "filename": "metadata.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "bk07",
+      "start_sector": "32768",
+      "sector_count": 1280,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "charger",
+      "start_sector": "34048",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "mtdblk",
+      "start_sector": "34304",
+      "sector_count": 8192,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "blackbox",
+      "start_sector": "42496",
+      "sector_count": 39424,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "oops",
+      "start_sector": "81920",
+      "sector_count": 4096,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "rawdump",
+      "start_sector": "86016",
+      "sector_count": 76800,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "opconfig",
+      "start_sector": "162816",
+      "sector_count": 5120,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "mbnconfig",
+      "start_sector": "167936",
+      "sector_count": 8192,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "rescue",
+      "start_sector": "176128",
+      "sector_count": 32768,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "super",
+      "start_sector": "208896",
+      "sector_count": 2752512,
+      "sector_bytes": 4096,
+      "filename": "super.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "userdata",
+      "start_sector": "2961408",
+      "sector_count": 0,
+      "sector_bytes": 4096,
+      "filename": "userdata.img",
+      "state": "zero-length-or-open-ended"
+    },
+    {
+      "lun": 0,
+      "label": "PrimaryGPT",
+      "start_sector": "0",
+      "sector_count": 6,
+      "sector_bytes": 4096,
+      "filename": "gpt_main0.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 0,
+      "label": "BackupGPT",
+      "start_sector": "NUM_DISK_SECTORS-5.",
+      "sector_count": 5,
+      "sector_bytes": 4096,
+      "filename": "gpt_backup0.bin",
+      "state": "symbolic"
+    },
+    {
+      "lun": 1,
+      "label": "xbl_a",
+      "start_sector": "6",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "xbl_s.melf",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "xbl_config_a",
+      "start_sector": "2054",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "xbl_config.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "xbl_config_nof_a",
+      "start_sector": "2182",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "multiimgqti_a",
+      "start_sector": "2310",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "multi_image_qti.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "multiimgoem_a",
+      "start_sector": "2318",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "multi_image.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "apdp",
+      "start_sector": "2326",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "last_parti",
+      "start_sector": "2390",
+      "sector_count": 0,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "zero-length-or-open-ended"
+    },
+    {
+      "lun": 1,
+      "label": "PrimaryGPT",
+      "start_sector": "0",
+      "sector_count": 6,
+      "sector_bytes": 4096,
+      "filename": "gpt_main1.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 1,
+      "label": "BackupGPT",
+      "start_sector": "NUM_DISK_SECTORS-5.",
+      "sector_count": 5,
+      "sector_bytes": 4096,
+      "filename": "gpt_backup1.bin",
+      "state": "symbolic"
+    },
+    {
+      "lun": 2,
+      "label": "xbl_b",
+      "start_sector": "6",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "xbl_config_b",
+      "start_sector": "2054",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "xbl_config_nof_b",
+      "start_sector": "2182",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "multiimgqti_b",
+      "start_sector": "2310",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "multiimgoem_b",
+      "start_sector": "2318",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "apdpb",
+      "start_sector": "2326",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "last_parti",
+      "start_sector": "2390",
+      "sector_count": 0,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "zero-length-or-open-ended"
+    },
+    {
+      "lun": 2,
+      "label": "PrimaryGPT",
+      "start_sector": "0",
+      "sector_count": 6,
+      "sector_bytes": 4096,
+      "filename": "gpt_main2.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 2,
+      "label": "BackupGPT",
+      "start_sector": "NUM_DISK_SECTORS-5.",
+      "sector_count": 5,
+      "sector_bytes": 4096,
+      "filename": "gpt_backup2.bin",
+      "state": "symbolic"
+    },
+    {
+      "lun": 3,
+      "label": "ALIGN_TO_128K_1",
+      "start_sector": "6",
+      "sector_count": 26,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 3,
+      "label": "cdt",
+      "start_sector": "32",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 3,
+      "label": "ddr",
+      "start_sector": "64",
+      "sector_count": 512,
+      "sector_bytes": 4096,
+      "filename": "zeros_5sectors.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 3,
+      "label": "last_parti",
+      "start_sector": "576",
+      "sector_count": 0,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "zero-length-or-open-ended"
+    },
+    {
+      "lun": 3,
+      "label": "PrimaryGPT",
+      "start_sector": "0",
+      "sector_count": 6,
+      "sector_bytes": 4096,
+      "filename": "gpt_main3.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 3,
+      "label": "BackupGPT",
+      "start_sector": "NUM_DISK_SECTORS-5.",
+      "sector_count": 5,
+      "sector_bytes": 4096,
+      "filename": "gpt_backup3.bin",
+      "state": "symbolic"
+    },
+    {
+      "lun": 4,
+      "label": "uefi_a",
+      "start_sector": "6",
+      "sector_count": 1280,
+      "sector_bytes": 4096,
+      "filename": "uefi.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "aop_a",
+      "start_sector": "1286",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "aop.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "aop_config_a",
+      "start_sector": "1414",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "aop_devcfg.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "tz_a",
+      "start_sector": "1542",
+      "sector_count": 1024,
+      "sector_bytes": 4096,
+      "filename": "tz.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "hyp_a",
+      "start_sector": "2566",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "hypvmperformance.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "modem_a",
+      "start_sector": "4614",
+      "sector_count": 51712,
+      "sector_bytes": 4096,
+      "filename": "NON-HLOS.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "bluetooth_a",
+      "start_sector": "56326",
+      "sector_count": 1024,
+      "sector_bytes": 4096,
+      "filename": "BTFM.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "abl_a",
+      "start_sector": "57350",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "abl.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "dsp_a",
+      "start_sector": "59398",
+      "sector_count": 16384,
+      "sector_bytes": 4096,
+      "filename": "dspso.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "keymaster_a",
+      "start_sector": "75782",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "keymint.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "boot_a",
+      "start_sector": "75910",
+      "sector_count": 24576,
+      "sector_bytes": 4096,
+      "filename": "boot.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "devcfg_a",
+      "start_sector": "100486",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "devcfg.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "qupfw_a",
+      "start_sector": "100550",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "qupv3fw.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "vbmeta_a",
+      "start_sector": "100582",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "vbmeta.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "dtbo_a",
+      "start_sector": "100614",
+      "sector_count": 6144,
+      "sector_bytes": 4096,
+      "filename": "dtbo.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "uefisecapp_a",
+      "start_sector": "106758",
+      "sector_count": 512,
+      "sector_bytes": 4096,
+      "filename": "uefi_sec.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "imagefv_a",
+      "start_sector": "107270",
+      "sector_count": 12288,
+      "sector_bytes": 4096,
+      "filename": "imagefv.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "shrm_a",
+      "start_sector": "119558",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "shrm.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "cpucp_a",
+      "start_sector": "119622",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "cpucp.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "featenabler_a",
+      "start_sector": "119878",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "featenabler.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "vendor_boot_a",
+      "start_sector": "119910",
+      "sector_count": 24576,
+      "sector_bytes": 4096,
+      "filename": "vendor_boot.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "qmcs",
+      "start_sector": "144486",
+      "sector_count": 7680,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "qweslicstore_a",
+      "start_sector": "152166",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "recovery_a",
+      "start_sector": "152230",
+      "sector_count": 25600,
+      "sector_bytes": 4096,
+      "filename": "recovery.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "xbl_ramdump_a",
+      "start_sector": "177830",
+      "sector_count": 512,
+      "sector_bytes": 4096,
+      "filename": "XblRamdump.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "init_boot_a",
+      "start_sector": "178342",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "init_boot.img",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "cpucp_dtb_a",
+      "start_sector": "180390",
+      "sector_count": 16,
+      "sector_bytes": 4096,
+      "filename": "cpucp_dtbs.elf",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "pvmfw_a",
+      "start_sector": "180406",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "uefi_b",
+      "start_sector": "180662",
+      "sector_count": 1280,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "aop_b",
+      "start_sector": "181942",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "aop_config_b",
+      "start_sector": "182070",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "tz_b",
+      "start_sector": "182198",
+      "sector_count": 1024,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "hyp_b",
+      "start_sector": "183222",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "modem_b",
+      "start_sector": "185270",
+      "sector_count": 51712,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "bluetooth_b",
+      "start_sector": "236982",
+      "sector_count": 1024,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "abl_b",
+      "start_sector": "238006",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "dsp_b",
+      "start_sector": "240054",
+      "sector_count": 16384,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "keymaster_b",
+      "start_sector": "256438",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "boot_b",
+      "start_sector": "256566",
+      "sector_count": 24576,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "devcfg_b",
+      "start_sector": "281142",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "qupfw_b",
+      "start_sector": "281206",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "vbmeta_b",
+      "start_sector": "281238",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "dtbo_b",
+      "start_sector": "281270",
+      "sector_count": 6144,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "uefisecapp_b",
+      "start_sector": "287414",
+      "sector_count": 512,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "imagefv_b",
+      "start_sector": "287926",
+      "sector_count": 12288,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "shrm_b",
+      "start_sector": "300214",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "cpucp_b",
+      "start_sector": "300278",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "featenabler_b",
+      "start_sector": "300534",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "vendor_boot_b",
+      "start_sector": "300566",
+      "sector_count": 24576,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "qweslicstore_b",
+      "start_sector": "325142",
+      "sector_count": 64,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "recovery_b",
+      "start_sector": "325206",
+      "sector_count": 25600,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "xbl_ramdump_b",
+      "start_sector": "350806",
+      "sector_count": 512,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "init_boot_b",
+      "start_sector": "351318",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "cpucp_dtb_b",
+      "start_sector": "353366",
+      "sector_count": 16,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "pvmfw_b",
+      "start_sector": "353382",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "toolsfv",
+      "start_sector": "353638",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "tools.fv",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "gsort",
+      "start_sector": "353894",
+      "sector_count": 4096,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "storsec",
+      "start_sector": "357990",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "storsec.mbn",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "uefivarstore",
+      "start_sector": "358022",
+      "sector_count": 128,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "secdata",
+      "start_sector": "358150",
+      "sector_count": 8,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "mdcompress",
+      "start_sector": "358158",
+      "sector_count": 5120,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "connsec",
+      "start_sector": "363278",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "tzsc",
+      "start_sector": "363310",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "spunvm",
+      "start_sector": "363342",
+      "sector_count": 8192,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "xbl_sc_test_mode",
+      "start_sector": "371534",
+      "sector_count": 16,
+      "sector_bytes": 4096,
+      "filename": "xbl_sc_test_mode.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "xbl_sc_logs",
+      "start_sector": "371550",
+      "sector_count": 32,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "dpm",
+      "start_sector": "371582",
+      "sector_count": 2,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "last_parti",
+      "start_sector": "371584",
+      "sector_count": 0,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "zero-length-or-open-ended"
+    },
+    {
+      "lun": 4,
+      "label": "PrimaryGPT",
+      "start_sector": "0",
+      "sector_count": 6,
+      "sector_bytes": 4096,
+      "filename": "gpt_main4.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 4,
+      "label": "BackupGPT",
+      "start_sector": "NUM_DISK_SECTORS-5.",
+      "sector_count": 5,
+      "sector_bytes": 4096,
+      "filename": "gpt_backup4.bin",
+      "state": "symbolic"
+    },
+    {
+      "lun": 5,
+      "label": "ALIGN_TO_128K_2",
+      "start_sector": "6",
+      "sector_count": 26,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "bk51",
+      "start_sector": "32",
+      "sector_count": 224,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "modemst1",
+      "start_sector": "256",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "modemst2",
+      "start_sector": "2304",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "fsg",
+      "start_sector": "4352",
+      "sector_count": 2048,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "fsc",
+      "start_sector": "6400",
+      "sector_count": 256,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "persist",
+      "start_sector": "6656",
+      "sector_count": 8192,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "last_parti",
+      "start_sector": "14848",
+      "sector_count": 0,
+      "sector_bytes": 4096,
+      "filename": "",
+      "state": "zero-length-or-open-ended"
+    },
+    {
+      "lun": 5,
+      "label": "PrimaryGPT",
+      "start_sector": "0",
+      "sector_count": 6,
+      "sector_bytes": 4096,
+      "filename": "gpt_main5.bin",
+      "state": "resolved"
+    },
+    {
+      "lun": 5,
+      "label": "BackupGPT",
+      "start_sector": "NUM_DISK_SECTORS-5.",
+      "sector_count": 5,
+      "sector_bytes": 4096,
+      "filename": "gpt_backup5.bin",
+      "state": "symbolic"
+    }
+  ]
+}

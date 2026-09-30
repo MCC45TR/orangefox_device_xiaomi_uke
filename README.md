@@ -18,7 +18,7 @@ The [34-group feature matrix](docs/FEATURE-PARITY.md) captures the minimum funct
 
 ## Downloads
 
-**No recovery image has been released.** The [first Global-profile build](reports/FIRST-RECOVERY-BUILD.md) and [Linux/ESP controls build](reports/RECOVERY-CONTROLS-BUILD.md) completed locally, but neither commercial model has been boot-tested and the payload privacy gate still fails. Future releases will include the exact device/firmware profile, image hashes, source revision, installation steps and a tested recovery path. Do not flash a source repository, an untested build or a donor image.
+See [GitHub pre-releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) for experimental build candidates and [installation/rollback instructions](docs/PRE-RELEASE.md). The first alpha supplies separate temporary-boot IMG, dedicated recovery IMG and active-slot installer ZIP, plus hashes and source snapshots. **Neither commercial model has been boot-tested. Global OS3.0.303.0.WOZMIXM is the only packaged profile.** These unsigned development artifacts are not a supported recovery; do not use them on another firmware or treat a source/host check as a hardware result.
 
 The current source baseline is official OrangeFox `fox_16.0`, which identifies its release series as R12.0. The branch revision is pinned in the workspace archive catalog and is updated through reviewed source changes. The Uke-specific device configuration is under development; existing community trees are reference material.
 

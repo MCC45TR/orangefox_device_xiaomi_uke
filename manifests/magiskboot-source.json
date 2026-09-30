@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "role": "upstream-OrangeFox-boot-image-utility-not-a-root-installer",
+  "source_url": "https://github.com/nilz3000/Magisk.git",
+  "source_tag": "v26.5-vb-beta",
+  "source_commit": "358ecafba26b5ec54ae05f3b47e4ab00cf978632",
+  "release_apk_url": "https://github.com/nilz3000/Magisk/releases/download/v26.5-vb-beta/app-release.apk",
+  "apk_entry": "lib/arm64-v8a/libmagiskboot.so",
+  "binary_sha256": "5c7580473ef33ee193cb6dfef0ae3a33d7e52c28ecb95c8a6cfd9f361df550a0",
+  "binary_provenance": "byte-identical-to-TeamWin-prebuilt-at-1e91763f0e216c2a674d018811967e0837b27e0e",
+  "binary_reproduction": "not-performed",
+  "dependencies": "recursive-pinned-submodule-snapshots-in-source-archive",
+  "license": "GPL-3.0-or-later-with-dependency-licenses-retained"
+}

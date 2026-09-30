@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profile": "turkey-ota-os3.0.303.0",
+  "archive_sha256": "59e2b12674015085c977a8d9230e180224d6465a4d893d18f44299d4a112cf0f",
+  "ota_type": "AB",
+  "pre_device": "uke",
+  "post_sdk": 36,
+  "post_security_patch": "2026-07-01",
+  "payload": {
+    "bytes": 6454452961,
+    "hash_base64": "phGV2LCUz6XQJiRWTupWY9PN5iS8RHPqjuP8zZ2IK+4=",
+    "major_version": 2,
+    "manifest_bytes": 243157,
+    "metadata_signature_bytes": 267,
+    "metadata_bytes_excluding_signature": 243181,
+    "metadata_hash_base64": "joYZylX5wPwzZIocqrO9KGr4ny2jES5kRnpJZtznxHY=",
+    "metadata_hash_verified": true,
+    "operation_data_offset": 243448,
+    "signature_verified": false,
+    "partition_payloads_extracted": false
+  },
+  "installation_compatibility": "not-established",
+  "physical_device_tested": false
+}

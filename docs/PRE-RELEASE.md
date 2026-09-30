@@ -1,51 +1,113 @@
-# Uke recovery pre-release gate
+# Experimental Uke recovery
 
-This is the short release format for a future hardware-validation pre-release.
-Do not publish an installable release until every artifact is independently
-built and its exact use is validated on the matching device and firmware.
+Unofficial OrangeFox R12.0 / Android 16 for the `uke` device family: POCO Pad X1
+and Xiaomi Pad 7. **Neither model has been boot-tested.** These are development
+artifacts, not a supported recovery release. Keep a complete backup and the
+firmware-matched stock recovery on your host. An unlocked bootloader is required;
+this release does not unlock it, bypass AVB or change trusted firmware.
 
-## Asset roles
+The only packaged firmware profile is **Global OS3.0.303.0.WOZMIXM**. CN, Turkey,
+other HyperOS versions and Android 14/15/17 are not installation targets. The
+stock GKI kernel is used without modification; source identification and its
+exact snapshot accompany the release. Binary reproduction has not been performed.
 
-| Asset | Intended command after validation | Current status |
+## Choose the correct file
+
+| Asset | Purpose | Important limitation |
 |---|---|---|
-| `OrangeFox-uke-fastboot-boot.img` | `fastboot boot OrangeFox-uke-fastboot-boot.img` | Not built or boot-tested; a recovery image with no embedded kernel is not this asset |
-| `OrangeFox-uke-recovery.img` | Flash the confirmed recovery slot only after device-specific rollback checks | Local source build only; privacy, AVB and hardware gates open |
-| `OrangeFox-uke-flashable.zip` | Install from a compatible recovery after installer target audit | Local source build only; installer and signing gates open |
+| `OrangeFox-uke-fastboot-boot.img` | Temporary `fastboot boot` experiment; contains stock GKI kernel and recovery ramdisk | Never flash this file. Bootloader acceptance and vendor-ramdisk handoff are untested. |
+| `OrangeFox-uke-recovery.img` | Dedicated 100 MiB recovery image; kernel supplied by the stock boot chain | Write only the verified active recovery slot, never both. Not a `fastboot boot` image. |
+| `OrangeFox-uke-flashable.zip` | Install from an already working Android recovery | Native checks must succeed; unavailable boot-control/snapshot HAL causes refusal. Unsigned development ZIP. |
 
-Do not rename or duplicate one image to fill another role. The current local
-`recovery.img` has a zero-byte embedded kernel and is not advertised for
-`fastboot boot`. Do not run a generic `fastboot flash recovery` command on an
-unidentified slot or locked bootloader. The exact install/rollback commands
-belong in the release only after both commercial models and their firmware
-profiles are checked.
+Verify `SHA256SUMS` before using any asset:
 
-The current upstream ZIP installer detects dedicated A/B recovery partitions,
-checks the active recovery partition size, then writes `recovery.img` to
-**both** `recovery_a` and `recovery_b`. It does not preserve an untouched stock
-recovery slot or validate each target independently. This conflicts with the
-project's fallback requirement; the ZIP must be made slot-safe and re-audited
-before publication or device use.
+```sh
+sha256sum -c SHA256SUMS
+```
 
-The published instructions will distinguish temporary boot (`fastboot boot
-OrangeFox-uke-fastboot-boot.img`), flashing only the confirmed
-`recovery_<active-slot>` partition with `OrangeFox-uke-recovery.img`, and
-installing `OrangeFox-uke-flashable.zip` from an already working recovery.
-Before any flash, check model, firmware, unlocked state, active slot, snapshot
-merge status, partition size and SHA-256. Keep the firmware-matched stock
-`recovery.img` and a validated return command for that same slot. These are
-future instructions, **not commands approved for the current local artifacts**.
+## Temporary boot
 
-## Proposed concise release text
+Only on the matching stock boot/vendor_boot/dtbo stack, with the bootloader
+unlocked and no OTA/snapshot operation in progress:
 
-> **OrangeFox for POCO Pad X1 / Xiaomi Pad 7 — pre-release**
->
-> Early `uke` hardware-validation build. Assets are model/firmware-specific;
-> verify the device, unlocked bootloader, active slot and SHA-256 before use.
-> See the per-asset installation and rollback instructions below. Linux/ESP
-> discovery is read-only. Btrfs, rotation/touch and flashlight remain subject
-> to device validation. Do not use on an unsupported firmware or SKU.
+```sh
+fastboot getvar product
+fastboot getvar current-slot
+fastboot boot OrangeFox-uke-fastboot-boot.img
+```
 
-Every published release must supply asset hashes, exact source revision,
-compatible firmware, what was actually boot-tested, flashing instructions and
-a verified stock return route. The existing private local images fail the
-payload privacy audit and have an AVB `NONE` footer; they are not release assets.
+Product must be `uke`. If boot is refused, hangs, or USB/display/touch fails,
+return to the stock bootloader; do not flash the temporary image as a workaround.
+This file has an unsigned AVB `NONE` footer, not an OEM signature. A successful
+host package check says nothing about whether an Uke bootloader will accept it.
+
+## ZIP installation and preflight
+
+Use a working recovery with an operational boot-control HAL. The ZIP uses a
+static AArch64 C++ helper, not the upstream dual-slot installer. It requires
+`uke`, unlocked-state evidence, exactly two consistent slots, snapshot status
+`none`, a bootable inactive slot, exact stock303 hashes for active boot,
+init_boot, vendor_boot and dtbo, and stock recovery on the inactive slot. It
+checks real block-device labels and sizes. It backs up current recovery in RAM,
+then writes only active recovery and verifies a full SHA-256 read-back. It does
+not format/mount userdata, switch slots, touch vbmeta or reboot automatically.
+
+To run the same checks without writing, extract the helper and send it and the
+recovery image to `/tmp` in the working recovery:
+
+```sh
+unzip -p OrangeFox-uke-flashable.zip uke-recovery-install > uke-recovery-install
+adb push uke-recovery-install /tmp/uke-recovery-install
+adb push OrangeFox-uke-recovery.img /tmp/OrangeFox-uke-recovery.img
+adb shell chmod 700 /tmp/uke-recovery-install
+```
+
+Run `/tmp/uke-recovery-install check /tmp/OrangeFox-uke-recovery.img SHA256`
+through `adb shell`, replacing `SHA256` with the image hash in `SHA256SUMS`.
+Missing evidence is a rejection, not permission to bypass checks. After
+installation, copy the printed `/tmp/uke-recovery-backup-*` file to your host
+before reboot; it is volatile. Prefer the ZIP to a manual flash.
+
+## Manual recovery flash and stock return
+
+First pass the native preflight above, save current recovery, and record the
+verified active slot. Reboot to the bootloader, confirm it still reports that
+slot and that its recovery partition is `0x6400000` bytes. For verified active
+slot **a**, the commands are:
+
+```sh
+fastboot getvar current-slot
+fastboot getvar partition-size:recovery_a
+fastboot flash recovery_a OrangeFox-uke-recovery.img
+fastboot reboot recovery
+```
+
+For verified active slot **b**, use `recovery_b` instead. Never issue a bare
+`fastboot flash recovery` or flash both slots. To restore, return to fastboot
+and flash the **same recorded slot** with `stock303-recovery.img` extracted
+from the verified stock303 fastboot package; expected SHA-256:
+`a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b`.
+For recorded slot a: `fastboot flash recovery_a stock303-recovery.img`, then
+`fastboot reboot recovery`. Do not change slots or erase metadata/userdata as
+a recovery workaround. This is a package-derived return procedure, **not a
+physically rehearsed rollback**.
+
+## Included and unavailable
+
+Included: upstream recovery tools, ADB/sideload/fastbootd configuration, Bash,
+Toybox, ext4/FAT utilities, GPT inspection, native Linux/ESP read-only controls
+and rotation-property controls. Runtime USB, display, touch, rotation, backup
+and OTA compatibility still require device tests. Upstream menus are not all
+protected by the project installer; do not use formatting or repartitioning.
+
+Fonts use license-identified AOSP Roboto aliases in this alpha; upstream font
+selection names do not yet select distinct families. Generic FRP, AVB-disable
+and verity/encryption-edit addon recipes are omitted. Bundled generic addon
+ZIPs are omitted as well: an embedded legacy updater failed the privacy scan.
+Their optional UI actions are not supported in this alpha; use the native
+project installer and commands documented here.
+
+Unavailable: Android data decryption, working Btrfs mounts (stock kernel lacks
+Btrfs), flashlight, Fedora/UEFI boot selection, repartitioning and a validated
+seamless-update path. No Android 14–17 decryption promise is made. No stock
+vendor HAL blobs, stock vendor_boot or proprietary firmware are redistributed.

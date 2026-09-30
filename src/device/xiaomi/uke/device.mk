@@ -17,6 +17,8 @@ PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
 
 PRODUCT_PACKAGES += \
     uke-recoveryctl \
+    uke-recovery-install \
+    bootctl \
     e2fsck \
     fsck.fat \
     mke2fs \

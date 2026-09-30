@@ -27,3 +27,7 @@ OF_FLASHLIGHT_ENABLE := 0
 # after firmware-matched KeyMint/TEE evidence and a read-only device test.
 OF_SKIP_FBE_DECRYPTION := 1
 OF_MAINTAINER := MCC45TR
+
+# Compile Bash from the locked source instead of shipping the vendor prebuilt,
+# whose locale/debugger prefixes retain an unrelated home-directory path.
+FOX_BUILD_BASH := 1

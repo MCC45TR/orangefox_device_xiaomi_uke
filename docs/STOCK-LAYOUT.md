@@ -18,6 +18,6 @@ Baseline: Global `OS3.0.303.0.WOZMIXM` fastboot package. The complete archive wa
 
 The stock package programs A-slot images while the B-slot recovery/boot partitions exist. An A/B slot is not a separate user-data store. This source analysis does not identify the installed device's current slot or partition contents.
 
-The Uke donor's recovery size and kernel-exclusion settings match this Global package. Its declared super partition size does **not** match the Global rawprogram size; copying the entire BoardConfig would be unsafe. The CN profile and any later firmware must be analyzed independently before claiming cross-profile compatibility.
+The Uke donor's recovery size and kernel-exclusion settings match this Global package. Its declared super partition size does **not** match the Global rawprogram size; copying the entire BoardConfig would be unsafe. The separately measured [China package](STOCK-LAYOUT-CN.md) has byte-identical rawprogram maps but different image payload sizes; neither package proves a physical tablet's installed layout or cross-profile firmware compatibility.
 
 `uke-partition-inventory` is a read-only C++ parser using libxml2. It rejects overlapping numeric ranges and arithmetic overflow, and retains symbolic backup-GPT sectors without guessing disk capacity. Its output is an inventory, not a flash plan. It never opens a block device. See `tests/check-inventory.sh` for fixture tests.
