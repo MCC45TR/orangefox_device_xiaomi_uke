@@ -109,13 +109,20 @@ source_command restore stream-status "$source_journal" "${target[@]}" "${context
 [[ $(jq -er '.data.plan_sha256' "$work/status.json") == "$confirmation" &&
    $(jq -er '.data.receipt_sha256' "$work/status.json") == "$(jq -er '.receipt_sha256' "$receipt")" ]]
 if [[ $mode == rollback ]]; then
-    source_command restore stream-rollback "$source_journal" "${target[@]}" "${context[@]}" --confirm "$confirmation" > "$work/status.json"
+    if [[ $(jq -er '.data.state' "$work/status.json") != ROLLED_BACK ]]; then
+        source_command restore stream-rollback "$source_journal" "${target[@]}" "${context[@]}" --confirm "$confirmation" > "$work/status.json"
+    fi
 else [[ $(jq -er '.data.direction' "$work/status.json") == restore ]]; fi
 while true; do
     check_host_roots
     phase=$(jq -er '.data.state' "$work/status.json")
     if [[ $phase == COMMITTED || $phase == ROLLED_BACK ]]; then
         [[ ( $phase == COMMITTED && $mode != rollback ) || ( $phase == ROLLED_BACK && $mode == rollback ) ]]
+        if [[ $phase == COMMITTED ]]; then wanted=after; direction=restore; else wanted=before; direction=rollback; fi
+        [[ $(jq -er '.data.direction' "$work/status.json") == "$direction" &&
+           $(jq -er '.data.current_sha256' "$work/status.json") == "$(jq -er --arg wanted "$wanted" '.[$wanted].sha256' "$plan")" ]] || {
+            echo 'Terminal journal differs from full current readback; stop and inspect the target.' >&2; exit 1;
+        }
         cat -- "$work/status.json"; exit 0
     fi
     jq -e '.data.recovery_actions | index("host-resume") != null' "$work/status.json" > /dev/null

@@ -38,8 +38,12 @@ for sector in 512 4096; do
     bash "$component/scripts/restore-from-host.sh" --start "${args[@]}" | jq -e '.data.state=="COMMITTED" and .data.verified' >/dev/null
     [[ $desired == "$(sha256sum "$image" | cut -d' ' -f1)" ]]
     "$binary" restore stream-status "$work/journal-$sector" --image "$image" --sector-size "$sector" | jq -e '.data.classification=="TARGET" and .data.host_backup_trust=="HOST_ATTESTED" and (.data.device_verified_host_persistence==false)' >/dev/null
+    printf 'Unrelated terminal change\n' | dd of="$image" bs=65536 seek=2 conv=notrunc status=none
+    if bash "$component/scripts/restore-from-host.sh" --resume "${args[@]}" > "$work/diverged" 2> "$work/diverged-error"; then echo 'Terminal journal bypassed current readback' >&2; exit 1; fi
+    dd if=/dev/zero of="$image" bs=65536 seek=2 count=1 conv=notrunc status=none
     bash "$component/scripts/restore-from-host.sh" --rollback "${args[@]}" | jq -e '.data.state=="ROLLED_BACK" and .data.verified' >/dev/null
     [[ $original == "$(sha256sum "$image" | cut -d' ' -f1)" ]]
+    bash "$component/scripts/restore-from-host.sh" --rollback "${args[@]}" | jq -e '.data.state=="ROLLED_BACK" and .data.current_sha256!=null' >/dev/null
     [[ ! -d $work/journal-$sector/before && ! -d $work/journal-$sector/after ]]
 done
 mkdir -- "$work/mock"
