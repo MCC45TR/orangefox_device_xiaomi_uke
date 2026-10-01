@@ -90,6 +90,12 @@ std::string storage_read(int fd, std::uint64_t offset, std::size_t bytes);
 struct StorageRange { std::string name; std::uint64_t offset; std::string bytes; };
 std::vector<StorageRange> gpt_regions(int fd, std::uint32_t sector);
 std::vector<StorageRange> gpt_repair_regions(int fd, std::uint32_t sector);
+std::vector<StorageRange> gpt_stock_regions(const fs::path& inputs, std::uint64_t capacity, unsigned lun,
+                                          const Value& identities, const std::string& profile, Value& source);
+Value gpt_stock_preview(const fs::path& inputs, std::uint64_t capacity, unsigned lun,
+                        const std::string& profile, const fs::path& destination);
+Value gpt_stock_plan(const StorageTarget& target, const fs::path& inputs, unsigned lun,
+                     const std::string& profile, const fs::path& identity_backup = {}, const Root* system = nullptr);
 Value gpt_backup(const StorageTarget& target, const fs::path& directory, const std::string& profile,
                  const Root* system = nullptr);
 Value gpt_backup_verify(const fs::path& directory);

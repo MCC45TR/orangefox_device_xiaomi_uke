@@ -241,6 +241,11 @@ int GUIAction::uremanager(std::string command) {
             else if(command=="gpt-execute") {
                 ure::require(pending_gpt_plan.isObject() && !pending_gpt_journal.empty() &&
                     pending_gpt_plan["plan_sha256"].asString()==value("ure_gpt_plan_hash"),"plan-required","Create and review a GPT plan first");
+                ure::require(ure::fs::path(pending_gpt_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),
+                    "stale-plan","Journal destination changed; review a new GPT plan");
+                if(pending_gpt_plan["operation"]=="gpt.stock")ure::require(value("ure_stock_inputs")==pending_gpt_plan["stock_inputs_directory"].asString() &&
+                    value("ure_stock_lun")==std::to_string(pending_gpt_plan["stock_lun"].asUInt()) && value("ure_stock_identity_backup")==pending_gpt_plan["backup_directory"].asString(),
+                    "stale-plan","Stock inputs, LUN or original identity backup changed; review a new plan");
                 auto target=gpt_target(system,true);
                 publish(ure::gpt_execute(target,pending_gpt_plan,pending_gpt_journal,value("ure_gpt_plan_hash"),&system));
                 DataManager::SetValue("ure_gpt_journal",pending_gpt_journal);
@@ -253,23 +258,32 @@ int GUIAction::uremanager(std::string command) {
                 else publish(ure::gpt_resume(target,reviewed_gpt_journal,value("ure_gpt_journal_hash"),&system));
                 clear_gpt_review();
             } else {
-                if(command=="gpt-repair-plan" || command=="gpt-restore-plan" || command=="gpt-journal-inspect")clear_gpt_review();
+                if(command=="gpt-repair-plan" || command=="gpt-restore-plan" || command=="gpt-stock-plan" || command=="gpt-journal-inspect")clear_gpt_review();
                 auto target=gpt_target(system);
                 if(command=="gpt-inspect") {
                     ure::Value result; result["identity"]=target.identity;
                     result["table"]=ure::gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()); publish(result);
                 } else if(command=="gpt-backup")publish(ure::gpt_backup(target,value("ure_gpt_backup_dir"),"global-os3.0.303.0",&system));
                 else if(command=="gpt-compare")publish(ure::gpt_compare(target,value("ure_gpt_backup_dir"),"global-os3.0.303.0",&system));
-                else if(command=="gpt-repair-plan" || command=="gpt-restore-plan") {
+                else if(command=="gpt-repair-plan" || command=="gpt-restore-plan" || command=="gpt-stock-plan") {
                     ure::Root parent(value("ure_journal_parent"));
-                    pending_gpt_plan=ure::gpt_plan(target,command=="gpt-repair-plan" ? "gpt.repair" : "gpt.restore","global-os3.0.303.0",
+                    if(command=="gpt-stock-plan") {
+                        const auto lun=value("ure_stock_lun"),inputs=value("ure_stock_inputs"),original=value("ure_stock_identity_backup");
+                        ure::require(lun.size()==1 && lun[0]>='0' && lun[0]<='5',"invalid-lun","Select UFS LUN 0 through 5");
+                        ure::require(ure::fs::path(inputs).is_absolute() && (original.empty() || ure::fs::path(original).is_absolute()),
+                            "invalid-path","Select absolute stock-input and optional original-backup paths");
+                        pending_gpt_plan=ure::gpt_stock_plan(target,inputs,static_cast<unsigned>(lun[0]-'0'),"global-os3.0.303.0",original,&system);
+                        DataManager::SetValue("ure_stock_inputs",pending_gpt_plan["stock_inputs_directory"].asString());
+                        DataManager::SetValue("ure_stock_identity_backup",pending_gpt_plan["backup_directory"].asString());
+                    } else pending_gpt_plan=ure::gpt_plan(target,command=="gpt-repair-plan" ? "gpt.repair" : "gpt.restore","global-os3.0.303.0",
                         command=="gpt-restore-plan" ? ure::fs::path(value("ure_gpt_backup_dir")) : ure::fs::path(),&system);
                     pending_gpt_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-gpt-"+pending_gpt_plan["operation_id"].asString())).string();
                     const auto file="/tmp/ure-gpt-plan-"+pending_gpt_plan["operation_id"].asString()+".json"; ure::save_json(file,pending_gpt_plan);
                     auto review=pending_gpt_plan; review["journal_directory"]=pending_gpt_journal; review["plan_file"]=file; publish(review);
                     DataManager::SetValue("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
                     DataManager::SetValue("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
-                    DataManager::SetValue("ure_status","Review both partition tables and journal destination; live writes remain gated");
+                    DataManager::SetValue("ure_status",command=="gpt-stock-plan" ? "Review affected partitions and OS visibility; this restores metadata only" :
+                        "Review both partition tables and journal destination; live writes remain gated");
                 } else if(command=="gpt-journal-inspect") {
                     const auto review=ure::gpt_journal_inspect(target,value("ure_gpt_journal"),&system); publish(review);
                     reviewed_gpt_journal=value("ure_gpt_journal"); DataManager::SetValue("ure_gpt_journal_hash",review["plan_sha256"].asString());

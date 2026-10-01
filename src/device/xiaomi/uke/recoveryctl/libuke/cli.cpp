@@ -70,6 +70,8 @@ static Value usage() {
         "restore stream-finish|stream-rollback|stream-cancel JOURNAL --image IMAGE|--object STABLE_ID --confirm SHA256",
         "boot plan linux|windows ENTRY --root ROOT --esp ESP --output REQUEST",
         "diagnose all|recovery|kernel|display|touch|usb|storage|boot|power|thermal|network|android",
+        "gpt stock-preview INPUTS --capacity-bytes BYTES --lun 0..5 --profile PROFILE --output DIRECTORY",
+        "gpt stock-plan INPUTS --image IMAGE --lun 0..5 --profile PROFILE [--identity-backup ORIGINAL_GPT] --output PLAN",
         "report --output REPORT.json", "crypto detect|info --image IMAGE", "btrfs capabilities|subvolumes|usage|scrub-status|balance-status|device-stats --root ROOT",
         "wim info|verify --image IMAGE", "ntfs info --image IMAGE", "btrfs check --image IMAGE",
         "android info|slots|super", "network status", "help"
@@ -86,10 +88,18 @@ int dispatch(std::vector<std::string> args) {
         const auto chunk_size=option(args,"--chunk-size"), chunk_index=option(args,"--chunk");
         const auto object_option=option(args,"--object");
         const auto before_option=option(args,"--before"),after_option=option(args,"--after"),receipt_option=option(args,"--receipt"),packet_option=option(args,"--packet");
+        const auto lun_option=option(args,"--lun"),capacity_option=option(args,"--capacity-bytes"),identity_backup=option(args,"--identity-backup");
         require(std::count(args.begin(),args.end(),"--json")<=1,"invalid-options","Duplicate --json option");
         args.erase(std::remove(args.begin(),args.end(),"--json"),args.end());
         require(!args.empty(),"usage","A command is required");
         const auto operation=args.size()>1 ? args[1] : std::string();
+        const bool stock_preview=args[0]=="gpt" && operation=="stock-preview",stock_plan=args[0]=="gpt" && operation=="stock-plan";
+        require(!lun_option || stock_preview || stock_plan,"invalid-options","LUN applies only to stock GPT reconstruction");
+        require(!capacity_option || stock_preview,"invalid-options","Explicit capacity applies only to a template preview");
+        require(!identity_backup || stock_plan,"invalid-options","Original GPT identities apply only to a stock restore plan");
+        require(!stock_preview || (!image_option && !object_option && !sector_option && !system_option && !root_option && !esp_option),
+            "invalid-options","A template preview does not select a target or system context");
+        require(!stock_plan || (!root_option && !esp_option),"invalid-options","Stock GPT planning selects a whole storage object");
         const bool storage_backup=args[0]=="backup" && operation=="storage-plan";
         const bool restore=args[0]=="restore";
         const bool stream_plan=restore && operation=="stream-plan",host_receipt=restore && operation=="host-receipt";
@@ -107,7 +117,7 @@ int dispatch(std::vector<std::string> args) {
         require(!object_option || ((args[0]=="gpt" || storage_backup || restore) && !image_option && operation!="verify"),"invalid-options","Select one storage image or live object");
         require(!content_option || (args[0]=="editor" && operation=="plan"),"invalid-options","Content file applies only to editor plans");
         require(!profile_option || storage_backup || stream_plan || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
-            (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan")),"invalid-options","Profile does not apply to this operation");
+            (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan" || stock_preview || stock_plan)),"invalid-options","Profile does not apply to this operation");
         require(!journal_option || stream_begin || ((args[0]=="transaction" || args[0]=="gpt" || restore) && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
         require(!confirm_option || (args[0]=="transaction" && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")) ||
             (args[0]=="gpt" && (operation=="execute" || operation=="rollback" || operation=="resume")) ||
@@ -167,6 +177,9 @@ int dispatch(std::vector<std::string> args) {
             else if(operation=="stream-rollback" && confirm_option)data=restore_stream_rollback(system,selected,args[2],*confirm_option);
             else if(operation=="stream-cancel" && confirm_option)data=restore_stream_cancel(system,selected,args[2],*confirm_option);
             else throw Error("unknown-command","Incomplete or unsupported raw restore command");
+        } else if(stock_preview && args.size()==3 && lun_option && capacity_option && profile_option && output_option) {
+            const auto lun=number(*lun_option); require(lun<6,"invalid-lun","Select UFS LUN 0 through 5");
+            data=gpt_stock_preview(args[2],number(*capacity_option),static_cast<unsigned>(lun),*profile_option,*output_option);
         } else if(command=="gpt" && operation=="verify" && args.size()==3 && !image_option && !object_option)data=gpt_backup_verify(args[2]);
         else if(command=="gpt" && (image_option || object_option)) {
             const auto sector=sector_option.value_or("4096");
@@ -179,6 +192,9 @@ int dispatch(std::vector<std::string> args) {
                 data=gpt_plan(selected,"gpt.repair",*profile_option,{},&system); save_json(*output_option,data);
             } else if(operation=="restore-plan" && args.size()==3 && profile_option && output_option) {
                 data=gpt_plan(selected,"gpt.restore",*profile_option,args[2],&system); save_json(*output_option,data);
+            } else if(stock_plan && args.size()==3 && profile_option && output_option && lun_option) {
+                const auto lun=number(*lun_option); require(lun<6,"invalid-lun","Select UFS LUN 0 through 5");
+                data=gpt_stock_plan(selected,args[2],static_cast<unsigned>(lun),*profile_option,identity_backup.value_or(""),&system); save_json(*output_option,data);
             } else if(operation=="execute" && args.size()==3 && journal_option && confirm_option)data=gpt_execute(selected,json_file(args[2]),*journal_option,*confirm_option,&system);
             else if(operation=="rollback" && args.size()==3 && confirm_option)data=gpt_rollback(selected,args[2],*confirm_option,&system);
             else if(operation=="journal-inspect" && args.size()==3)data=gpt_journal_inspect(selected,args[2],&system);

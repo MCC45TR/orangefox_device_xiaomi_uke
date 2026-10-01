@@ -59,6 +59,20 @@ int main(int argc,char* argv[]) {
             check(inspection["healthy"]==true && inspection["partitions"][0]["label"]=="uke🚀","GPT layout or UTF-16 decoding failed");
             auto manifest=ure::gpt_backup(target,base/"backup","fixture");
             check(ure::gpt_backup_verify(base/"backup")["verified"]==true && ure::gpt_compare(target,base/"backup","fixture")["matches"]==true,"GPT backup or compare failed");
+            {
+                ure::Root store(base/"backup"); const auto original_table=store.read("partition-table.json"),original_sums=store.read("SHA256SUMS");
+                auto legacy_table=ure::parse_json(original_table); legacy_table.removeMember("reserved_records");
+                auto legacy_manifest=manifest; legacy_manifest["partition_table_sha256"]=ure::sha256(ure::json(legacy_table));
+                legacy_manifest.removeMember("manifest_sha256"); legacy_manifest["manifest_sha256"]=ure::sha256(ure::json(legacy_manifest));
+                store.save_record("partition-table.json",legacy_table,true); store.save_record("manifest.json",legacy_manifest,true);
+                std::string sums;
+                for(const auto& range:legacy_manifest["regions"])sums+=range["sha256"].asString()+"  "+range["name"].asString()+".bin\n";
+                sums+=legacy_manifest["partition_table_sha256"].asString()+"  partition-table.json\n"+ure::sha256(ure::json(legacy_manifest))+"  manifest.json\n";
+                store.atomic_save("SHA256SUMS",sums,ure::sha256(original_sums));
+                check(ure::gpt_backup_verify(base/"backup")["verified"]==true,"Older schema-1 backup without an empty reserved-record inventory was rejected");
+                store.save_record("partition-table.json",ure::parse_json(original_table),true); store.save_record("manifest.json",manifest,true);
+                store.atomic_save("SHA256SUMS",original_sums,ure::sha256(sums));
+            }
             reject([&]{ure::gpt_compare(target,base/"backup","other-profile");},"wrong-profile");
             write(base/"copy.img",pristine); auto other=ure::storage_image(base/"copy.img",sector);
             reject([&]{ure::gpt_compare(other,base/"backup","fixture");},"wrong-target");

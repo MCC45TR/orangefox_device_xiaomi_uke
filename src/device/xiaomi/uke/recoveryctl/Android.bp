@@ -7,7 +7,7 @@ cc_library_static {
     cflags: ["-Wall", "-Wextra", "-Werror"],
     srcs: ["libuke/core.cpp", "libuke/storage.cpp", "libuke/systems.cpp",
            "libuke/transaction.cpp", "libuke/diagnostics.cpp", "libuke/tools.cpp",
-           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/ownership.cpp"],
+           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/stock.cpp", "libuke/ownership.cpp"],
     export_include_dirs: ["libuke"],
     static_libs: ["libjsoncpp"],
     shared_libs: ["libcrypto"],

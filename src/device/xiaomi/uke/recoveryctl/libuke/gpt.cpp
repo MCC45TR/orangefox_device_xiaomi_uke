@@ -4,6 +4,7 @@
 #include <array>
 #include <cerrno>
 #include <fcntl.h>
+#include <map>
 #include <set>
 #include <sys/file.h>
 #include <sys/mman.h>
@@ -24,6 +25,13 @@ public:
     TargetLock& operator=(const TargetLock&)=delete;
 };
 std::string seal(Value value,const std::string& key) { value.removeMember(key); return sha256(json(value)); }
+bool tables_equal(Value a,Value b) {
+    // Older schema-1 records predate the explicit OEM reservation inventory.
+    // Only an empty additive inventory can be omitted without changing meaning.
+    if(!a.isMember("reserved_records") && b["reserved_records"].isArray() && b["reserved_records"].empty())b.removeMember("reserved_records");
+    if(!b.isMember("reserved_records") && a["reserved_records"].isArray() && a["reserved_records"].empty())a.removeMember("reserved_records");
+    return json(a)==json(b);
+}
 int order(const std::string& name);
 Value descriptions(const std::vector<StorageRange>& ranges) {
     Value result(Json::arrayValue);
@@ -103,7 +111,7 @@ Value backup_manifest(const Root& store) {
         sums+=range["sha256"].asString()+"  "+name+"\n";
     }
     const auto actual=gpt_inspect(reconstruction.get(),sector);
-    require(actual["disk_guid"]==manifest["target_identity"]["disk_guid"] && json(actual)==json(record(store,"partition-table.json")) &&
+    require(actual["disk_guid"]==manifest["target_identity"]["disk_guid"] && tables_equal(actual,record(store,"partition-table.json")) &&
         json(descriptions(gpt_regions(reconstruction.get(),sector)))==json(manifest["regions"]),
         "invalid-backup","Backup bytes do not encode the recorded GPT or metadata geometry");
     sums+=manifest["partition_table_sha256"].asString()+"  partition-table.json\n"+sha256(store.read("manifest.json",range_limit))+"  manifest.json\n";
@@ -174,6 +182,36 @@ Value proposed_table(const StorageTarget& target,const std::vector<StorageRange>
     auto table=gpt_inspect(temporary.get(),sector);
     require(table["healthy"]==true,"invalid-gpt-plan","Proposed metadata does not produce two matching valid GPT copies"); return table;
 }
+std::vector<StorageRange> stock_desired(const StorageTarget& target,const fs::path& inputs,unsigned lun,
+                                      const std::string& profile,const fs::path& identity_backup,Value& source) {
+    require(target.identity["logical_sector_bytes"].isUInt() && target.identity["logical_sector_bytes"].asUInt()==4096,
+        "invalid-sector","Pinned Uke stock metadata uses 4096-byte sectors");
+    Value identities=gpt_inspect(target.descriptor.get(),4096),backup;
+    if(!identity_backup.empty()) {
+        auto store=private_directory(identity_backup,false); backup=backup_manifest(store); same_target(target.identity,backup["target_identity"]);
+        require(backup["firmware_profile"]==profile,"wrong-profile","Original GPT backup has another firmware profile");
+        identities=record(store,"partition-table.json");
+    }
+    auto ranges=gpt_stock_regions(inputs,target.identity["bytes"].asUInt64(),lun,identities,profile,source);
+    // Unknown current partitions remain protected even if an older original
+    // backup can supply all stock GUIDs. A separate migration must classify them.
+    std::set<std::string> expected;
+    for(const auto& part:source["desired_table"]["partitions"])expected.insert(part["label"].asString());
+    for(const auto& part:source["desired_table"]["reserved_records"])expected.insert(part["label"].asString());
+    const auto current=gpt_inspect(target.descriptor.get(),4096);
+    for(const auto& part:current["partitions"]) {
+        const auto name=part["label"].asString();
+        require(expected.count(name)!=0 || name=="uke_linux" || name=="uke_windows" || name=="uke_esp",
+            "protected-partition","Unknown current partitions cannot be removed by stock restoration");
+    }
+    source["identity_backup_manifest_sha256"]=backup["manifest_sha256"];
+    source["manifest_sha256"]=seal(source,"manifest_sha256"); return ranges;
+}
+std::vector<StorageRange> plan_desired(const StorageTarget& target,const Value& plan,Value& source) {
+    if(plan["operation"]=="gpt.stock")return stock_desired(target,plan["stock_inputs_directory"].asString(),plan["stock_lun"].asUInt(),
+        plan["firmware_profile"].asString(),plan["backup_directory"].asString(),source);
+    return desired(target,plan["operation"].asString(),plan["backup_directory"].asString(),plan["firmware_profile"].asString(),source);
+}
 Fd lock_journal(const Root& journal) {
     auto lock=journal.open(".lock",O_RDWR|O_CREAT,0600); private_file(journal,".lock");
     require(::flock(lock.get(),LOCK_EX|LOCK_NB)==0,"busy-journal","Another process owns this GPT journal"); return lock;
@@ -186,7 +224,7 @@ void verify_ranges(int fd,const std::vector<StorageRange>& ranges) {
 }
 void write_gate(const StorageTarget& target) { storage_write_gate(target); }
 void check_plan(const Value& plan) {
-    require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore") &&
+    require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore" || plan["operation"]=="gpt.stock") &&
         plan["target_identity"].isObject() && plan["target_identity"]["bytes"].isUInt64() &&
         plan["target_identity"]["logical_sector_bytes"].isUInt() && plan["firmware_profile"].isString() &&
         identifier(plan["firmware_profile"].asString()) && plan["operation_id"].isString() && identifier(plan["operation_id"].asString()) &&
@@ -194,6 +232,10 @@ void check_plan(const Value& plan) {
         plan["plan_sha256"].asString()==seal(plan,"plan_sha256"),"invalid-gpt-plan","Invalid sealed GPT plan");
     const auto sector=plan["target_identity"]["logical_sector_bytes"].asUInt();
     require(sector==512 || sector==4096,"invalid-gpt-plan","Unsupported plan sector size");
+    if(plan["operation"]=="gpt.stock")require(sector==4096 && plan["stock_lun"].isUInt() && plan["stock_lun"].asUInt()<6 &&
+        plan["stock_inputs_directory"].isString() && fs::path(plan["stock_inputs_directory"].asString()).is_absolute() &&
+        plan["backup_directory"].isString() && plan["stock_source"].isObject() && plan["stock_source"]["template_preview_only"]==false &&
+        plan["stock_source"]["manifest_sha256"]==plan["backup_manifest_sha256"],"invalid-gpt-plan","Invalid original-identity-bound stock reconstruction plan");
     check_ranges(plan["before"],plan["target_identity"]["bytes"].asUInt64(),sector); check_ranges(plan["after"],plan["target_identity"]["bytes"].asUInt64(),sector);
     require(plan["before"].size()==plan["after"].size(),"invalid-gpt-plan","Original and target metadata range counts differ");
     for(Json::ArrayIndex i=0;i<plan["before"].size();++i)for(const auto* key:{"name","offset","bytes"})
@@ -248,7 +290,7 @@ JournalReview inspect_journal(const StorageTarget& target,const Root& journal,co
     result["recovery_actions"]=Value(Json::arrayValue);
     if(expected && target.identity["kind"]=="regular-image")result["recovery_actions"].append("rollback");
     const auto phase=review.state["state"].asString();
-    if(payload && json(result["current_table"])==json(plan["desired_table"]) &&
+    if(payload && tables_equal(result["current_table"],plan["desired_table"]) &&
         (phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN"))result["recovery_actions"].append("resume");
     storage_revalidate(target,system); return review;
 }
@@ -308,18 +350,53 @@ Value gpt_plan(const StorageTarget& target,const std::string& operation,const st
     plan["desired_table"]=proposed_table(target,after);
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,system); return plan;
 }
+Value gpt_stock_plan(const StorageTarget& target,const fs::path& inputs,unsigned lun,const std::string& profile,
+                     const fs::path& identity_backup,const Root* system) {
+    storage_revalidate(target,system);
+    require(target.identity["kind"]=="regular-image" || target.identity["partition"]==false,"invalid-target","Stock GPT restoration selects a whole disk/LUN");
+    Value source; const auto after=stock_desired(target,inputs,lun,profile,identity_backup,source);
+    const auto before=read_original(target.descriptor.get(),after);
+    protect_usable(target.descriptor.get(),descriptions(after),4096);
+    Value plan; plan["schema"]=1; plan["operation"]="gpt.stock"; plan["operation_id"]=operation_id(); plan["created_utc"]=utc();
+    plan["target_identity"]=target.identity; plan["firmware_profile"]=profile; plan["stock_lun"]=lun;
+    plan["stock_inputs_directory"]=fs::absolute(inputs).lexically_normal().string(); plan["stock_source"]=source;
+    plan["backup_directory"]=identity_backup.empty() ? "" : fs::absolute(identity_backup).lexically_normal().string();
+    plan["backup_manifest_sha256"]=source["manifest_sha256"]; plan["before"]=descriptions(before); plan["after"]=descriptions(after);
+    plan["untouched"]=Value(Json::arrayValue); plan["risk"]="MODIFIES_PARTITION_TABLE_AND_OS_VISIBILITY";
+    plan["backup_required"]=true; plan["private_record"]=true; plan["physical_test_record"]=false;
+    plan["live_write_backend_ready"]=false; plan["restores_partition_contents"]=false; plan["data_migration_performed"]=false;
+    plan["cancel_semantics"]="cancel-before-executing; interrupted execution requires inspection/rollback";
+    plan["current_table"]=gpt_inspect(target.descriptor.get(),4096); plan["desired_table"]=proposed_table(target,after);
+    plan["layout_changes"]=Value(Json::arrayValue);
+    std::map<std::string,Value> old,proposed;
+    for(const auto& part:plan["current_table"]["partitions"])old.emplace(part["label"].asString(),part);
+    for(const auto& part:plan["desired_table"]["partitions"])proposed.emplace(part["label"].asString(),part);
+    for(const auto& part:plan["current_table"]["reserved_records"])old.emplace(part["label"].asString(),part);
+    for(const auto& part:plan["desired_table"]["reserved_records"])proposed.emplace(part["label"].asString(),part);
+    std::set<std::string> labels; for(const auto& [name,part]:old) { (void)part; labels.insert(name); }
+    for(const auto& [name,part]:proposed) { (void)part; labels.insert(name); }
+    for(const auto& name:labels) {
+        const auto a=old.find(name),b=proposed.find(name);
+        const Value original=a==old.end() ? Value() : a->second,changed=b==proposed.end() ? Value() : b->second;
+        if(json(original)==json(changed))continue;
+        Value item; item["label"]=name; item["before"]=original; item["after"]=changed;
+        item["effect"]=changed.isNull() ? "REMOVED_FROM_TABLE_DATA_RETAINED" : original.isNull() ? "RESTORED_ENTRY_CONTENT_NOT_VERIFIED" : "METADATA_CHANGED_CONTENT_NOT_MOVED";
+        plan["layout_changes"].append(item);
+    }
+    plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,system); return plan;
+}
 Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Root* system) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact GPT plan checksum");
     require(json(target.identity)==json(plan["target_identity"]),"stale-plan","GPT target identity changed since planning");
     write_gate(target);
     TargetLock target_lock(target.descriptor.get());
     storage_revalidate(target,system); Value source;
-    auto after=desired(target,plan["operation"].asString(),plan["backup_directory"].asString(),plan["firmware_profile"].asString(),source);
+    auto after=plan_desired(target,plan,source);
     const auto before=read_original(target.descriptor.get(),after);
     require(json(descriptions(before))==json(plan["before"]) && json(descriptions(after))==json(plan["after"]) &&
         source["manifest_sha256"]==plan["backup_manifest_sha256"],"stale-plan","GPT metadata or restore source changed since planning");
     protect_usable(target.descriptor.get(),plan["after"],target.identity["logical_sector_bytes"].asUInt());
-    require(json(proposed_table(target,after))==json(plan["desired_table"]),"invalid-gpt-plan","Proposed GPT differs from the reviewed table");
+    require(tables_equal(proposed_table(target,after),plan["desired_table"]),"invalid-gpt-plan","Proposed GPT differs from the reviewed table");
     verify_descriptions(target.descriptor.get(),plan["untouched"]);
     auto journal=private_directory(directory,true); auto lock=lock_journal(journal); journal.save_record("plan.json",plan);
     Value state; state["schema"]=1; state["operation_id"]=plan["operation_id"]; state["plan_sha256"]=plan["plan_sha256"];
@@ -343,7 +420,7 @@ Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& direct
             state["completed_ranges"].append(range.name); boundary(journal,state,"EXECUTING");
         }
         boundary(journal,state,"VERIFYING"); verify_ranges(target.descriptor.get(),after); verify_descriptions(target.descriptor.get(),plan["untouched"]);
-        require(json(gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()))==json(plan["desired_table"]),"verification-error","Resulting GPT differs from the reviewed table");
+        require(tables_equal(gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()),plan["desired_table"]),"verification-error","Resulting GPT differs from the reviewed table");
         state["verified"]=true; boundary(journal,state,"COMMITTED"); return state;
     } catch(const Error& error) {
         state["error_code"]=error.code; try { boundary(journal,state,execution ? "FAILED_UNCERTAIN" : "FAILED_SAFE"); } catch(...) {} throw;

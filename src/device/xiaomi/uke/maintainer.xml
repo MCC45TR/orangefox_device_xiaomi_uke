@@ -19,6 +19,9 @@
     <variable name="ure_gpt_kind" value="image"/>
     <variable name="ure_gpt_source" value=""/>
     <variable name="ure_gpt_sector" value="4096"/>
+    <variable name="ure_stock_inputs" value="/mnt/stock-gpt/global-os3.0.303.0"/>
+    <variable name="ure_stock_lun" value="0"/>
+    <variable name="ure_stock_identity_backup" value=""/>
     <variable name="ure_gpt_backup_dir" value="/mnt/uke-linux/ure-gpt-backup"/>
     <variable name="ure_gpt_journal" value=""/>
     <variable name="ure_gpt_plan_hash" value=""/>
@@ -357,9 +360,31 @@
           <listitem name="Compare selected target with backup"><action function="uremanager">gpt-compare</action><action function="page">ure_output</action></listitem>
           <listitem name="Review repair from the sole valid GPT copy"><action function="uremanager">gpt-repair-plan</action><action function="page">ure_gpt_plan_review</action></listitem>
           <listitem name="Review restore from verified same-target backup"><action function="uremanager">gpt-restore-plan</action><action function="page">ure_gpt_plan_review</action></listitem>
+          <listitem name="Reconstruct and review the original stock layout"><action function="page">ure_stock_gpt</action></listitem>
           <listitem name="Select journal parent or inspect interrupted operation"><action function="page">ure_gpt_journals</action></listitem>
         </listbox>
       </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_gpt_source</action></action>
+    </page>
+    <page name="ure_stock_gpt">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Stock GPT: Global OS3.0.303.0</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_2_y%"/><text>Verified OEM GPT input directory</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_inputs%</text><data name="ure_stock_inputs"/><restrict minlen="1" maxlen="4096"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>UFS LUN number, 0 through 5; sectors must be 4096 bytes</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_lun%</text><data name="ure_stock_lun"/><restrict minlen="1" maxlen="1"/></input>
+      <listbox style="group_list"><placement x="0" y="%row6_1_y%" w="%screen_w%" h="300"/>
+        <listitem name="Select original identity backup and review effects"><action function="page">ure_stock_identity</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_gpt_tools</action></action>
+    </page>
+    <page name="ure_stock_identity">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Original stock partition identities</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_2_y%"/><text>Optional verified GPT backup from this target; required for missing identities</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_identity_backup%</text><data name="ure_stock_identity_backup"/><restrict maxlen="4096"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Metadata restore can hide OS partitions. It does not restore Android contents.</text></text>
+      <listbox style="group_list"><placement x="0" y="%row6_1_y%" w="%screen_w%" h="300"/>
+        <listitem name="Build and review capacity-derived stock metadata plan"><action function="uremanager">gpt-stock-plan</action><action function="page">ure_gpt_plan_review</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_stock_gpt</action></action>
     </page>
     <page name="ure_gpt_backup_destination">
       <template name="base_ex_key"/>

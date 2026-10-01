@@ -223,13 +223,12 @@ static std::pair<std::string,bool> partition_name(const unsigned char* entry) {
     return {name,true};
 }
 static Value partition_layout(const Header& header, std::uint32_t sector) {
-    Value output; output["valid"]=true; output["partitions"]=Value(Json::arrayValue);
+    Value output; output["valid"]=true; output["partitions"]=Value(Json::arrayValue); output["reserved_records"]=Value(Json::arrayValue);
     bool valid=true; std::vector<std::pair<std::uint64_t,std::uint64_t>> ranges; std::set<std::string> ids;
     for(std::uint32_t i=0;i<header.count;++i) {
         const auto* p=header.entries.data()+static_cast<std::size_t>(i)*header.entry_size;
-        if(std::all_of(p,p+16,[](unsigned char c){return c==0;})) {
-            valid=valid && std::all_of(p,p+header.entry_size,[](unsigned char c){return c==0;}); continue;
-        }
+        const bool unused=std::all_of(p,p+16,[](unsigned char c){return c==0;});
+        if(unused && std::all_of(p,p+header.entry_size,[](unsigned char c){return c==0;}))continue;
         Value item; item["index"]=i+1; item["type_guid"]=guid(p); item["partuuid"]=guid(p+16);
         const auto first=le64(p+32),last=le64(p+40); const auto name=partition_name(p);
         item["start_lba"]=Json::UInt64(first); item["end_lba"]=Json::UInt64(last); item["attributes"]=Json::UInt64(le64(p+48));
@@ -238,9 +237,16 @@ static Value partition_layout(const Header& header, std::uint32_t sector) {
         const bool range=first>=header.first && last<=header.last && first<=last && uuid(item["partuuid"].asString()) &&
             ids.insert(item["partuuid"].asString()).second && name.second &&
             std::all_of(p+128,p+header.entry_size,[](unsigned char c){return c==0;});
-        item["range_valid"]=range; valid=valid && range;
+        // Pinned Uke OEM tables carry one non-partition last_parti reservation:
+        // zero type GUID, a nonzero unique GUID and vendor attribute bit 60.
+        // Preserve and expose its range separately. Other nonzero unused
+        // records remain invalid rather than silently becoming free space.
+        const bool reserved=unused && sector==4096 && (header.count==32 || header.count==96) && name.first=="last_parti" &&
+            name.second && le64(p+48)==(1ULL<<60) && last==header.last;
+        item["range_valid"]=range; valid=valid && range && (!unused || reserved);
         if(range) { item["bytes"]=Json::UInt64((last-first+1)*sector); ranges.emplace_back(first,last); }
-        output["partitions"].append(item);
+        if(reserved) { item["kind"]="OEM_ZERO_TYPE_RESERVED_RECORD"; item["is_partition"]=false; output["reserved_records"].append(item); }
+        else output["partitions"].append(item);
     }
     std::sort(ranges.begin(),ranges.end());
     for(std::size_t i=1;i<ranges.size();++i)if(ranges[i].first<=ranges[i-1].second)valid=false;
@@ -274,11 +280,12 @@ Value gpt_inspect(int fd, std::uint32_t sector) {
     const auto backup_layout=backup.valid ? partition_layout(backup,sector) : Value();
     primary.valid=primary.valid && primary_layout["valid"]==true; backup.valid=backup.valid && backup_layout["valid"]==true;
     output["primary"]["valid"]=primary.valid; output["backup"]["valid"]=backup.valid;
-    output["healthy"]=false; output["partitions"]=Value(Json::arrayValue);
+    output["healthy"]=false; output["partitions"]=Value(Json::arrayValue); output["reserved_records"]=Value(Json::arrayValue);
     if(!primary.valid && !backup.valid) { output["state"]="NO_VALID_GPT"; return output; }
     const auto& header=primary.valid ? primary : backup;
     output["disk_guid"]=header.data["disk_guid"];
-    output["partitions"]=(primary.valid ? primary_layout : backup_layout)["partitions"]; output["layout_valid"]=true;
+    output["partitions"]=(primary.valid ? primary_layout : backup_layout)["partitions"];
+    output["reserved_records"]=(primary.valid ? primary_layout : backup_layout)["reserved_records"]; output["layout_valid"]=true;
     const bool matching=primary.valid && backup.valid && primary.entries==backup.entries && primary.count==backup.count &&
         primary.entry_size==backup.entry_size && primary.data["disk_guid"]==backup.data["disk_guid"] && primary.first==backup.first && primary.last==backup.last;
     output["copies_match"]=matching; output["healthy"]=matching && output["protective_mbr_valid"].asBool();
