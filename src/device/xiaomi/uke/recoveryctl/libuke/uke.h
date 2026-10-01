@@ -84,6 +84,7 @@ struct StorageTarget {
 StorageTarget storage_image(const fs::path& path, std::uint32_t sector, bool writable = false);
 StorageTarget storage_select(const Root& system, const std::string& stable_id, bool exclusive_claim = false);
 void storage_revalidate(const StorageTarget& target, const Root* system = nullptr);
+void storage_write_gate(const StorageTarget& target);
 std::uint64_t storage_bytes(int fd);
 std::string storage_read(int fd, std::uint64_t offset, std::size_t bytes);
 struct StorageRange { std::string name; std::uint64_t offset; std::string bytes; };
@@ -138,6 +139,17 @@ Value backup_storage_plan(const Root& system, const StorageTarget& source, const
 Value backup_capture(const Root& root, const Value& plan, const fs::path& directory, bool resume);
 Value backup_verify(const fs::path& directory);
 void backup_export(const Root& root, const Value& plan, std::uint64_t index, int output_fd);
+Value restore_plan(const Root& system, const StorageTarget& target, const fs::path& backup,
+                   const std::string& profile);
+Value restore_execute(const Root& system, StorageTarget& target, const Value& plan,
+                      const fs::path& journal, const std::string& confirmation);
+Value restore_inspect(const Root& system, const StorageTarget& target, const fs::path& journal);
+Value restore_resume(const Root& system, StorageTarget& target, const fs::path& journal,
+                     const std::string& confirmation);
+Value restore_rollback(const Root& system, StorageTarget& target, const fs::path& journal,
+                       const std::string& confirmation);
+Value restore_cancel(const Root& system, const StorageTarget& target, const fs::path& journal,
+                     const std::string& confirmation);
 class Editor {
     std::string original_, text_, path_, profile_;
     Value original_identity_;

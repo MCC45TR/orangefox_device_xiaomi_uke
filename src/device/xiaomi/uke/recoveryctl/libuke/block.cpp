@@ -2,6 +2,7 @@
 #include "uke.h"
 #include <algorithm>
 #include <charconv>
+#include <cerrno>
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <sys/ioctl.h>
@@ -134,6 +135,31 @@ void storage_revalidate(const StorageTarget& target,const Root* system) {
         struct stat old{},now{};
         require(::fstat(target.descriptor.get(),&old)==0 && ::fstat(current.descriptor.get(),&now)==0 && S_ISBLK(old.st_mode) &&
             old.st_rdev==now.st_rdev && storage_bytes(target.descriptor.get())==target.identity["bytes"].asUInt64(),"stale-device","Retained block descriptor no longer matches selected storage");
+    }
+}
+void storage_write_gate(const StorageTarget& target) {
+    struct stat st{}; require(::fstat(target.descriptor.get(),&st)==0,"io-error","Cannot inspect write target");
+    require(!S_ISBLK(st.st_mode) && target.identity["kind"]!="live-block","firmware-unverified",
+        "Live storage writes require the unfinished common firmware/slot/snapshot and ownership backend");
+    require(S_ISREG(st.st_mode) && st.st_nlink==1 && target.identity["kind"]=="regular-image","invalid-target","Write target is not the selected regular image");
+    require((::fcntl(target.descriptor.get(),F_GETFL)&O_ACCMODE)==O_RDWR,"read-only-target","Select writable image access only after plan review");
+    Root system("/");
+    require(system.exists("sys/class/block"),"ownership-unavailable","Cannot exclude live loop aliases without the kernel block inventory");
+    for(const auto& name:system.list("sys/class/block"))if(name.starts_with("loop")) {
+        const auto base=(fs::path("sys/class/block")/system.link("sys/class/block/"+name)).lexically_normal().generic_string();
+        require(base.starts_with("sys/devices/"),"invalid-sysfs","Loop link escapes sys/devices");
+        // A live loop alias must be excluded even if no mount is visible.
+        // Kernel loop directories without a backing_file are unbound devices.
+        auto directory=system.open(base,O_RDONLY|O_DIRECTORY); struct stat loop{};
+        if(::fstatat(directory.get(),"loop",&loop,AT_SYMLINK_NOFOLLOW)<0) {
+            require(errno==ENOENT,"ownership-unavailable","Cannot inspect loop attachment state"); continue;
+        }
+        require(S_ISDIR(loop.st_mode),"invalid-sysfs","Unexpected loop metadata type");
+        auto path=system.read(base+"/loop/backing_file",4096);
+        while(!path.empty() && path.back()=='\n')path.pop_back();
+        struct stat backing{};
+        require(path.empty() || ::stat(path.c_str(),&backing)==0,"ownership-unavailable","Cannot prove loop backing identity");
+        require(path.empty() || backing.st_dev!=st.st_dev || backing.st_ino!=st.st_ino,"busy-target","Image is attached to a live loop device");
     }
 }
 } // namespace ure

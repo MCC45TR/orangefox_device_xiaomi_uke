@@ -105,7 +105,7 @@ Value capabilities(const Root& system) {
     struct Entry { const char* id; const char* name; const char* tool; const char* filesystem; const char* state; };
     static const std::vector<Entry> entries{
         {"URE-C01","Storage Graph and JSON API","","","SOURCE_PRESENT"},
-        {"URE-C02","File transactions, backup, journal and rollback","","","SOURCE_PRESENT"},
+        {"URE-C02","File/raw-image transactions, verified backups, interrupted resume and rollback","","","SOURCE_PRESENT"},
         {"URE-C03","Read-only diagnostics and redacted reports","","","SOURCE_PRESENT"},
         {"URE-C04","Linux distribution and package-db discovery","","","SOURCE_PRESENT"},
         {"URE-C05","Kernel/initramfs/module/BLS consistency","","","SOURCE_PRESENT"},

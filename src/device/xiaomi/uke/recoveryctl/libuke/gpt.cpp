@@ -184,26 +184,7 @@ void boundary(const Root& journal,Value& state,const std::string& next) {
 void verify_ranges(int fd,const std::vector<StorageRange>& ranges) {
     for(const auto& range:ranges)require(storage_read(fd,range.offset,range.bytes.size())==range.bytes,"verification-error","GPT range readback differs");
 }
-void write_gate(const StorageTarget& target) {
-    struct stat st{};
-    require(::fstat(target.descriptor.get(),&st)==0,"io-error","Cannot inspect GPT target descriptor");
-    if(S_ISBLK(st.st_mode))throw Error("firmware-unverified","Live GPT writes require the firmware/slot/snapshot ownership backend; this backend is still being integrated");
-    require(S_ISREG(st.st_mode) && st.st_nlink==1 && target.identity["kind"]=="regular-image", "invalid-target","GPT write target is not the selected image");
-    require((::fcntl(target.descriptor.get(),F_GETFL)&O_ACCMODE)==O_RDWR,"read-only-target","GPT execution requires a writable descriptor selected after review");
-    // A mounted loop image is still live storage, even though its backing file
-    // is regular. Detect aliases by inode rather than relying on path spelling.
-    Root system("/");
-    if(system.exists("sys/class/block"))for(const auto& name:system.list("sys/class/block"))if(name.starts_with("loop")) {
-        try {
-            const auto base=(fs::path("sys/class/block")/system.link("sys/class/block/"+name)).lexically_normal().generic_string();
-            require(base.starts_with("sys/devices/"),"invalid-sysfs","Loop link escapes sys/devices");
-            auto path=system.read(base+"/loop/backing_file",4096); while(!path.empty() && path.back()=='\n')path.pop_back();
-            struct stat backing{};
-            require(path.empty() || ::stat(path.c_str(),&backing)==0,"ownership-unavailable","Cannot prove loop backing-file identity");
-            require(path.empty() || backing.st_dev!=st.st_dev || backing.st_ino!=st.st_ino,"busy-target","GPT image is attached to a live loop device");
-        } catch(const Error& error) { if(error.code!="path-unavailable")throw; }
-    }
-}
+void write_gate(const StorageTarget& target) { storage_write_gate(target); }
 void check_plan(const Value& plan) {
     require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore") &&
         plan["target_identity"].isObject() && plan["target_identity"]["bytes"].isUInt64() &&

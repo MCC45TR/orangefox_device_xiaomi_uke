@@ -56,6 +56,10 @@ static Value usage() {
         "backup storage-plan --image IMAGE|--object STABLE_ID --profile PROFILE [--sector-size 4096] [--chunk-size BYTES] --output PLAN",
         "backup capture PLAN --journal DIR [--root ROOT for file plans]", "backup resume DIR [--root ROOT for file plans]", "backup verify DIR",
         "backup export PLAN --chunk INDEX [--root ROOT for file plans] (binary stdout; JSON errors on stderr)",
+        "restore plan BACKUP_DIR --image IMAGE|--object STABLE_ID --profile PROFILE --output PLAN [--sector-size 4096]",
+        "restore execute PLAN --image IMAGE|--object STABLE_ID --journal DIR --confirm SHA256",
+        "restore inspect JOURNAL --image IMAGE|--object STABLE_ID",
+        "restore resume|rollback|cancel JOURNAL --image IMAGE|--object STABLE_ID --confirm SHA256",
         "boot plan linux|windows ENTRY --root ROOT --esp ESP --output REQUEST",
         "diagnose all|recovery|kernel|display|touch|usb|storage|boot|power|thermal|network|android",
         "report --output REPORT.json", "crypto detect|info --image IMAGE", "btrfs capabilities|subvolumes|usage|scrub-status|balance-status|device-stats --root ROOT",
@@ -78,17 +82,21 @@ int dispatch(std::vector<std::string> args) {
         require(!args.empty(),"usage","A command is required");
         const auto operation=args.size()>1 ? args[1] : std::string();
         const bool storage_backup=args[0]=="backup" && operation=="storage-plan";
-        require(!sector_option || ((args[0]=="gpt" || storage_backup) && image_option && operation!="verify"),"invalid-options","Sector size applies only to storage image operations");
-        require(!object_option || ((args[0]=="gpt" || storage_backup) && !image_option && operation!="verify"),"invalid-options","Select one storage image or live object");
+        const bool restore=args[0]=="restore";
+        require(!restore || (!root_option && !esp_option),"invalid-options","Raw restore selects a storage object, not a filesystem root or ESP");
+        require(!restore || !output_option || operation=="plan","invalid-options","Restore output applies only to planning");
+        require(!sector_option || ((args[0]=="gpt" || storage_backup || restore) && image_option && operation!="verify"),"invalid-options","Sector size applies only to storage image operations");
+        require(!object_option || ((args[0]=="gpt" || storage_backup || restore) && !image_option && operation!="verify"),"invalid-options","Select one storage image or live object");
         require(!content_option || (args[0]=="editor" && operation=="plan"),"invalid-options","Content file applies only to editor plans");
-        require(!profile_option || storage_backup || ((args[0]=="editor" || args[0]=="backup") && operation=="plan") ||
+        require(!profile_option || storage_backup || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
             (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan")),"invalid-options","Profile does not apply to this operation");
-        require(!journal_option || ((args[0]=="transaction" || args[0]=="gpt") && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
+        require(!journal_option || ((args[0]=="transaction" || args[0]=="gpt" || restore) && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
         require(!confirm_option || (args[0]=="transaction" && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")) ||
-            (args[0]=="gpt" && (operation=="execute" || operation=="rollback" || operation=="resume")),"invalid-options","Confirmation applies only to transaction mutation");
+            (args[0]=="gpt" && (operation=="execute" || operation=="rollback" || operation=="resume")) ||
+            (restore && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")),"invalid-options","Confirmation applies only to transaction mutation");
         require(!chunk_size || storage_backup || (args[0]=="backup" && operation=="plan"),"invalid-options","Chunk size applies only to backup planning");
         require(!chunk_index || binary_output,"invalid-options","Chunk index applies only to backup export");
-        require(!image_option || storage_backup || args[0]=="gpt" || args[0]=="filesystem" || args[0]=="crypto" || args[0]=="ntfs" || args[0]=="wim" || args[0]=="btrfs","invalid-options","Image applies only to image operations");
+        require(!image_option || storage_backup || restore || args[0]=="gpt" || args[0]=="filesystem" || args[0]=="crypto" || args[0]=="ntfs" || args[0]=="wim" || args[0]=="btrfs","invalid-options","Image applies only to image operations");
         if(args[0]=="btrfs" && !image_option && operation!="capabilities")require(root_option.has_value(),"root-required","Select an already mounted Btrfs root explicitly");
         Root system(system_option.value_or("/"));
         Root root(root_option.value_or("/"));
@@ -110,6 +118,18 @@ int dispatch(std::vector<std::string> args) {
             data["content"]=selected.identity["partition"]==true ? filesystem_probe(selected.descriptor.get()) :
                 gpt_inspect(selected.descriptor.get(),selected.identity["logical_sector_bytes"].asUInt());
             data["read_only"]=true; data["private_record"]=true;
+        } else if(restore && args.size()==3 && (image_option || object_option)) {
+            const auto sector=sector_option.value_or("4096");
+            require(sector=="512" || sector=="4096","invalid-sector","Image sector size must be 512 or 4096");
+            const bool write=operation=="execute" || operation=="resume" || operation=="rollback";
+            auto selected=image_option ? storage_image(*image_option,sector=="512" ? 512U : 4096U,write) : storage_select(system,*object_option,true);
+            if(operation=="plan" && profile_option && output_option) { data=restore_plan(system,selected,args[2],*profile_option); save_json(*output_option,data); }
+            else if(operation=="execute" && journal_option && confirm_option)data=restore_execute(system,selected,json_file(args[2]),*journal_option,*confirm_option);
+            else if(operation=="inspect")data=restore_inspect(system,selected,args[2]);
+            else if(operation=="resume" && confirm_option)data=restore_resume(system,selected,args[2],*confirm_option);
+            else if(operation=="rollback" && confirm_option)data=restore_rollback(system,selected,args[2],*confirm_option);
+            else if(operation=="cancel" && confirm_option)data=restore_cancel(system,selected,args[2],*confirm_option);
+            else throw Error("unknown-command","Incomplete or unsupported raw restore command");
         } else if(command=="gpt" && operation=="verify" && args.size()==3 && !image_option && !object_option)data=gpt_backup_verify(args[2]);
         else if(command=="gpt" && (image_option || object_option)) {
             const auto sector=sector_option.value_or("4096");
