@@ -354,6 +354,7 @@
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Live writes are gated. Backup records are private. /tmp journals are volatile.</text></text>
         <listbox style="group_list"><placement x="0" y="80" w="%screen_w%" h="1000"/>
           <listitem name="Inspect selected target and both GPT copies"><action function="uremanager">gpt-inspect</action><action function="page">ure_output</action></listitem>
+          <listitem name="Inspect partition map, gaps and filesystem signatures"><action function="uremanager">gpt-map</action><action function="page">ure_output</action></listitem>
           <listitem name="Select private backup destination"><action function="page">ure_gpt_backup_destination</action></listitem>
           <listitem name="Back up GPT metadata and partition map"><action function="uremanager">gpt-backup</action><action function="page">ure_output</action></listitem>
           <listitem name="Verify stored GPT backup"><action function="uremanager">gpt-verify</action><action function="page">ure_output</action></listitem>

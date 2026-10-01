@@ -337,10 +337,11 @@ std::vector<StorageRange> gpt_repair_regions(int fd, std::uint32_t sector) {
     return {{side+"_table",table*sector,std::move(entries)},
         {side+"_header",(repair_primary ? 1 : sectors-1)*sector,std::string(reinterpret_cast<const char*>(header.data()),header.size())}};
 }
-Value filesystem_probe(int fd) {
-    const auto bytes=storage_bytes(fd);
+Value filesystem_probe_range(int fd,std::uint64_t offset,std::uint64_t bytes) {
+    const auto capacity=storage_bytes(fd);
+    require(offset<=capacity && bytes<=capacity-offset,"invalid-range","Filesystem signature range is outside selected storage");
     require(bytes>=512, "truncated-image", "Image is smaller than a sector");
-    const auto head=read_at(fd,0,static_cast<std::size_t>(std::min<std::uint64_t>(4096,bytes)));
+    const auto head=read_at(fd,offset,static_cast<std::size_t>(std::min<std::uint64_t>(4096,bytes)));
     Value output; output["bytes"]=Json::UInt64(bytes); output["type"]="unknown"; output["encryption"]="none";
     if(head.size()>=8 && std::memcmp(head.data(),"LUKS\xba\xbe",6)==0) {
         output["type"]="encrypted"; output["encryption"]="LUKS";
@@ -355,10 +356,11 @@ Value filesystem_probe(int fd) {
     else if(head.size()>1028 && le32(head.data()+1024)==0xe0f5e1e2U)output["type"]="erofs";
     else if(std::memcmp(head.data(),"MSWIM",5)==0)output["type"]="wim";
     else if(bytes>=65536+4096) {
-        const auto btrfs=read_at(fd,65536,4096);
+        const auto btrfs=read_at(fd,offset+65536,4096);
         if(std::memcmp(btrfs.data()+64,"_BHRfS_M",8)==0) { output["type"]="btrfs"; output["uuid"]=guid(btrfs.data()+32,false); output["generation"]=Json::UInt64(le64(btrfs.data()+72)); }
     }
     output["read_only"]=true; output["signature_only"]=true;
     return output;
 }
+Value filesystem_probe(int fd) { return filesystem_probe_range(fd,0,storage_bytes(fd)); }
 } // namespace ure

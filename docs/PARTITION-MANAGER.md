@@ -20,6 +20,41 @@ Reviewed per-image stock metadata execution/readback/rollback uses the shared
 GPT journal. Physical writes, layout migration, multi-LUN orchestration and
 comprehensive partition-management pages remain unfinished.
 
+`gpt map` now reports every partition and OEM reserved record, actual byte
+ranges, protected label hints and signature observations relative to each
+partition. Healthy, agreeing GPT copies are required before free gaps are
+calculated. Reservations are never free space. Probing uses at most 8192 bytes
+per partition and 128 partitions; additional rows remain visible as unprobed.
+Label hints do not establish OS ownership, Android FBE access or write
+eligibility. Invalid GPT geometry yields no inferred free-space map. Private
+JSON exports retain unit information and must not be published.
+
+## Required Linux backup workflows
+
+The additional 1 October requirement includes three distinct backup types:
+
+* Whole Linux partition content, with source identity, geometry, filesystem
+  observations, verified chunks and restart/recovery behavior. The existing raw
+  storage backup is a foundation; installed-system selection and review remain
+  required.
+* A selected Linux home tree, preserving numeric ownership, permissions, POSIX
+  ACLs and accessible extended attributes, symlinks, hardlinks, sparse files and
+  timestamps. Traversal must stay beneath the selected root, disclose mount
+  boundaries and unsupported special files, refuse inaccessible metadata and
+  detect changes without claiming an atomic snapshot of a running home tree.
+* Btrfs subvolume backups as verified full or incremental send streams from
+  read-only snapshots. Incremental backups bind the exact parent identity and
+  require the corresponding unchanged receiver parent. Snapshot-only local
+  copies do not replace external backups. Kernel support, stream validation,
+  destination isolation, receive/restore and physical acceptance are separate
+  requirements.
+
+Backups are private data. Output must remain outside the selected source tree,
+use private durable records and bounded streaming buffers, and distinguish an
+incomplete capture from a verified complete backup. Current stock recovery
+kernel Btrfs support remains unavailable; userspace implementation does not
+change that fact.
+
 ## Device-derived stock inputs
 
 The measured Global `OS3.0.303.0.WOZMIXM` archive has SHA-256

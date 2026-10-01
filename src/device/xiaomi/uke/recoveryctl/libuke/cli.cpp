@@ -71,6 +71,7 @@ static Value usage() {
         "boot plan linux|windows ENTRY --root ROOT --esp ESP --output REQUEST",
         "diagnose all|recovery|kernel|display|touch|usb|storage|boot|power|thermal|network|android",
         "gpt stock-preview INPUTS --capacity-bytes BYTES --lun 0..5 --profile PROFILE --output DIRECTORY",
+        "gpt map --image IMAGE --sector-size 512/4096 or --object WHOLE_DISK_ID",
         "gpt stock-plan INPUTS --image IMAGE --lun 0..5 --profile PROFILE [--identity-backup ORIGINAL_GPT] --output PLAN",
         "report --output REPORT.json", "crypto detect|info --image IMAGE", "btrfs capabilities|subvolumes|usage|scrub-status|balance-status|device-stats --root ROOT",
         "wim info|verify --image IMAGE", "ntfs info --image IMAGE", "btrfs check --image IMAGE",
@@ -186,6 +187,7 @@ int dispatch(std::vector<std::string> args) {
             require(sector=="512" || sector=="4096","invalid-sector","Image sector size must be 512 or 4096");
             auto selected=image_option ? storage_image(*image_option,sector=="512" ? 512U : 4096U,operation=="execute" || operation=="rollback") : storage_select(system,*object_option);
             if(operation=="inspect" && args.size()==2)data=gpt_inspect(selected.descriptor.get(),selected.identity["logical_sector_bytes"].asUInt());
+            else if(operation=="map" && args.size()==2) { data=partition_map(selected,&system); if(output_option)save_json(*output_option,data); }
             else if(operation=="backup" && args.size()==2 && profile_option && output_option)data=gpt_backup(selected,*output_option,*profile_option,&system);
             else if(operation=="compare" && args.size()==3 && profile_option)data=gpt_compare(selected,args[2],*profile_option,&system);
             else if(operation=="repair-plan" && args.size()==2 && profile_option && output_option) {

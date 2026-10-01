@@ -7,5 +7,5 @@ cd "$component"
     find src/device/xiaomi/uke/recoveryctl tests/ure -type f -print0
     printf '%s\0' scripts/native-inputs.sh tests/run-native.sh tests/check-ure.sh \
         tests/check-recoveryctl.sh tests/check-installer.sh tests/check-payload.sh \
-        tests/check-nested-payloads.sh tests/check-payload-fixtures.sh tests/check-backup.sh tests/check-storage-backup.sh tests/check-restore.sh tests/check-stream-restore.sh tests/check-gpt.sh tests/check-stock-gpt.sh scripts/receive-backup.sh scripts/restore-from-host.sh
+        tests/check-nested-payloads.sh tests/check-payload-fixtures.sh tests/check-backup.sh tests/check-storage-backup.sh tests/check-restore.sh tests/check-stream-restore.sh tests/check-gpt.sh tests/check-stock-gpt.sh tests/check-partition-map.sh scripts/receive-backup.sh scripts/restore-from-host.sh
 } | sort -z | xargs -0 sha256sum

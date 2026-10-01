@@ -22,6 +22,7 @@ status and returns failure rather than silently reporting success.
 | `storage inspect STABLE_ID` | Read-only live selection by full sysfs/PARTUUID/GPT identity, device-number and capacity checks, sector ioctls, parent-GPT partition correspondence and private unit/LUN evidence; positive live-device acceptance is pending |
 | `storage usage STABLE_ID` | Bounded mount-namespace, writable-FD, swap, configfs backing and mapper/parent ownership observations; missing evidence, unknown dependencies and cycles refuse a quiescent classification |
 | `gpt inspect --image FILE --sector-size 512/4096` or `--object STABLE_ID` | Both headers/tables, CRCs, reciprocal positions, reserved metadata, GUID/range overlap, UTF-16 labels and protective MBR inspection |
+| `gpt map [--output PRIVATE_JSON]` | Private partition map with allocated ranges, OEM reservations, GPT-unallocated gaps/alignment and bounded offset filesystem/container signatures; unhealthy GPT suppresses gap/probe inference, labels remain ownership hints and Android FBE trust remains unverified |
 | `gpt backup/verify/compare` | Private five-region raw metadata backup, partition-map JSON, identity/profile manifest, checksums and sparse reconstruction of the actual saved GPT; image or read-only whole-LUN source |
 | `gpt repair-plan/restore-plan/execute/rollback` | Sealed current/desired table review, same-target backup checks, durable original/target metadata journal and ordered readback writes for regular images; live UFS writes remain gated |
 | `gpt journal-inspect/resume` | Verified backup/payload reads, original/target/partial/divergent classification and explicit readback-only commit; interrupted metadata writes are never replayed |
@@ -139,7 +140,7 @@ comparison, plan review and journal recovery. Its image sector setting accepts
 512 or 4096; live geometry is detected. A live target has no execute button, and
 the backend independently refuses all real block writes pending common
 firmware/slot/snapshot and storage-ownership integration. This checkpoint does
-not resize partitions, format filesystems, reread a live kernel partition map or
+not migrate partition contents, format/resize filesystems, reread a live kernel partition map or
 write stock boot firmware.
 
 Example on an explicitly selected regular image (the journal/backup parent

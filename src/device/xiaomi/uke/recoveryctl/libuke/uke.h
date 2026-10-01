@@ -112,6 +112,8 @@ Value gpt_journal_inspect(const StorageTarget& target, const fs::path& journal,
 Value gpt_resume(const StorageTarget& target, const fs::path& journal, const std::string& confirmation,
                  const Root* system = nullptr);
 Value filesystem_probe(int fd);
+Value filesystem_probe_range(int fd, std::uint64_t offset, std::uint64_t bytes);
+Value partition_map(const StorageTarget& target, const Root* system = nullptr);
 Value filesystem_check(int fd);
 Value image_tool(const std::string& command, const std::string& operation, int fd);
 Value gpt_inspect(int fd, std::uint32_t sector_size);

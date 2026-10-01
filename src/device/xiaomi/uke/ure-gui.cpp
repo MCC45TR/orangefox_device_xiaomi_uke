@@ -263,7 +263,8 @@ int GUIAction::uremanager(std::string command) {
                 if(command=="gpt-inspect") {
                     ure::Value result; result["identity"]=target.identity;
                     result["table"]=ure::gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()); publish(result);
-                } else if(command=="gpt-backup")publish(ure::gpt_backup(target,value("ure_gpt_backup_dir"),"global-os3.0.303.0",&system));
+                } else if(command=="gpt-map")publish(ure::partition_map(target,&system));
+                else if(command=="gpt-backup")publish(ure::gpt_backup(target,value("ure_gpt_backup_dir"),"global-os3.0.303.0",&system));
                 else if(command=="gpt-compare")publish(ure::gpt_compare(target,value("ure_gpt_backup_dir"),"global-os3.0.303.0",&system));
                 else if(command=="gpt-repair-plan" || command=="gpt-restore-plan" || command=="gpt-stock-plan") {
                     ure::Root parent(value("ure_journal_parent"));

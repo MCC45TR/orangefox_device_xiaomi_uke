@@ -114,6 +114,9 @@ fi
 if [[ -f $component/reports/URE-STOCK-GPT-BUILD.md ]]; then
     cp -- "$component/reports/URE-STOCK-GPT-BUILD.md" "$source_work/project/STOCK-GPT-BUILD-REPORT.md"
 fi
+if [[ -f $component/reports/URE-PARTITION-MAP-BUILD.md ]]; then
+    cp -- "$component/reports/URE-PARTITION-MAP-BUILD.md" "$source_work/project/PARTITION-MAP-BUILD-REPORT.md"
+fi
 cp -a -- "$tree/out-public/target/product/uke/recovery/root/FFiles" "$source_work/project/payload-script-sources"
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"
