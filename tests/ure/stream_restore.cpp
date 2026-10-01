@@ -74,12 +74,26 @@ int main() {
             reject([&]{ure::restore_stream_chunk(system,target,journal,0,valid.get(),confirm);},"stream-corrupt");
             check(hash(image)==ure::sha256(original),"Invalid packet changed the target");
             valid=packet(input,before,after,0); status=ure::restore_stream_chunk(system,target,journal,0,valid.get(),confirm);
-            check(status["next_chunk"].asUInt64()==1,"Verified chunk did not advance inspected progress");
+            check(status["next_chunk"].asUInt64()==1 && status["verification_scope"]=="unchanged-image-metadata-and-per-chunk-readback" && status["current_sha256"].isNull(),
+                "Verified chunk did not advance bounded readback proof or overclaimed a full scan");
             reject([&]{ure::restore_stream_cancel(system,target,journal,confirm);},"unsafe-cancel");
             reject([&]{ure::restore_stream_finish(system,target,journal,confirm);},"unsafe-finish");
             // Journal counters are advisory; readback must derive the next chunk.
             auto state=ure::json_file(journal/"journal.json"); state["last_verified_chunk"]=Json::UInt64(UINT64_MAX); ure::save_json(journal/"journal.json",state,true);
             check(ure::restore_stream_status(system,target,journal)["next_chunk"].asUInt64()==1,"Journal counter bypassed readback");
+            // A change outside the incoming range invalidates the metadata cache
+            // even when its mtime is restored. A full scan must find divergence.
+            auto unrelated=desired.substr(0,65536)+original.substr(65536); unrelated.back()='Z'; bytes(image,unrelated);
+            const auto& identity=state["readback_proof"]["image_identity"];
+            const std::array<struct timespec,2> times{{{0,UTIME_OMIT},{static_cast<time_t>(identity["mtime_seconds"].asInt64()),static_cast<long>(identity["mtime_nanoseconds"].asInt64())}}};
+            check(::utimensat(AT_FDCWD,image.c_str(),times.data(),0)==0,"Cannot restore fixture mtime");
+            valid=packet(input,before,after,1);
+            reject([&]{ure::restore_stream_chunk(system,target,journal,1,valid.get(),confirm);},"unsafe-resume");
+            check(hash(image)==ure::sha256(unrelated),"Unrelated changes were overwritten through cached proof");
+            bytes(image,desired.substr(0,65536)+original.substr(65536));
+            state["readback_proof"]["chunk_classes"]="TTT"; ure::save_json(journal/"journal.json",state,true);
+            // A corrupted cache proof falls back to current bytes instead of
+            // claiming all desired chunks have been written.
             stream_all(system,target,journal,plan,before,after,input);
             check(ure::restore_stream_finish(system,target,journal,confirm)["state"]=="COMMITTED" && hash(image)==ure::sha256(desired),"Full stream restore failed");
             reject([&]{ure::restore_stream_chunk(system,target,journal,0,valid.get(),confirm);},"unsafe-resume");

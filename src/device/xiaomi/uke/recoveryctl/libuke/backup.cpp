@@ -764,8 +764,17 @@ void clean_stream_cache(const Root& journal,const Value& active) {
     }
     if(changed)require(::fsync(journal.fd())==0,"io-error","Cannot sync stream cache cleanup");
 }
-struct StreamReview { Value plan,state,result; std::vector<std::string> hashes; };
-StreamReview review_stream(const Root& system,const StorageTarget& target,const Root& journal) {
+std::string stream_proof_seal(Value proof) { proof.removeMember("sha256"); return sha256(json(proof)); }
+void save_stream_proof(Value& state,const Value& plan,const Value& identity,const std::string& classes) {
+    auto& proof=state["readback_proof"]; proof=Value(); proof["plan_sha256"]=plan["plan_sha256"];
+    proof["image_identity"]=identity; proof["chunk_classes"]=classes; proof["sha256"]=stream_proof_seal(proof);
+}
+Value stream_image_identity(const StorageTarget& target) {
+    if(target.identity["kind"]!="regular-image")return Value();
+    return storage_image(target.identity["path"].asString(),target.identity["logical_sector_bytes"].asUInt()).identity;
+}
+struct StreamReview { Value plan,state,result,observed_identity; std::vector<std::string> hashes; std::string classes; };
+StreamReview review_stream(const Root& system,const StorageTarget& target,const Root& journal,bool allow_cache=false) {
     StreamReview review; review.plan=restore_record(journal,"plan.json"); check_stream_plan(review.plan);
     const auto receipt=restore_record(journal,"receipt.json"); check_host_receipt(review.plan,receipt);
     review.state=restore_record(journal,"journal.json"); const auto& plan=review.plan; const auto& state=review.state;
@@ -777,6 +786,15 @@ StreamReview review_stream(const Root& system,const StorageTarget& target,const 
         state["active"]["index"].isUInt64() && state["active"]["index"].asUInt64()<plan["before"]["chunks"].size())),
         "invalid-journal","Stream journal phase, cache index or plan binding differs");
     restore_target(system,target,plan["target_identity"]);
+    review.observed_identity=stream_image_identity(target);
+    const auto& proof=state["readback_proof"];
+    const auto cached_classes=proof.isObject() && proof["chunk_classes"].isString() ? proof["chunk_classes"].asString() : std::string();
+    const bool cached=allow_cache && state["active"].isNull() && !review.observed_identity.isNull() && proof.isObject() &&
+        proof["plan_sha256"]==plan["plan_sha256"] && proof["chunk_classes"].isString() &&
+        cached_classes.size()==plan["before"]["chunks"].size() && proof["sha256"].isString() &&
+        proof["sha256"].asString()==stream_proof_seal(proof) &&
+        json(proof["image_identity"])==json(review.observed_identity) &&
+        std::all_of(cached_classes.begin(),cached_classes.end(),[](char c){return c=='O' || c=='T' || c=='B';});
     Fd old_cache,new_cache;
     if(!state["active"].isNull()) {
         const auto i=static_cast<Json::ArrayIndex>(state["active"]["index"].asUInt64());
@@ -789,11 +807,17 @@ StreamReview review_stream(const Root& system,const StorageTarget& target,const 
     result["device_verified_host_persistence"]=false; result["live_write_backend_ready"]=false; result["physical_test_record"]=false;
     result["private_record"]=true; result["atomic_snapshot"]=false; result["cooperating_locks_only"]=true;
     result["host_required_for_remaining_chunks"]=true; result["chunks"]=Value(Json::arrayValue); result["recovery_actions"]=Value(Json::arrayValue);
+    result["verification_scope"]=cached ? "unchanged-image-metadata-and-per-chunk-readback" : "full-current-content-scan";
     bool original=true,wanted=true,expected=true; std::uint64_t next=plan["before"]["chunks"].size(),partial_index=next,completed=0; Digest whole;
     for(Json::ArrayIndex i=0;i<plan["before"]["chunks"].size();++i) {
         const auto& before=plan["before"]["chunks"][i]; const auto& after=plan["after"]["chunks"][i];
-        const auto hash=transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1,&whole); review.hashes.push_back(hash);
+        const auto saved=cached ? cached_classes[i] : '\0';
+        const auto hash=cached ? (saved=='O' ? before : after)["sha256"].asString() :
+            transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1,&whole);
+        review.hashes.push_back(hash);
         const bool was=hash==before["sha256"].asString(),will=hash==after["sha256"].asString(); bool known=was || will;
+        require(!cached || (saved=='B' ? was && will : saved=='O' ? was : will),"invalid-journal","Cached readback classes differ from their sealed manifests");
+        review.classes+=was && will ? 'B' : was ? 'O' : will ? 'T' : 'P';
         if(!known && !state["active"].isNull() && state["active"]["index"].asUInt64()==i) {
             known=true; Digest partial;
             for(std::uint64_t offset=0;offset<before["bytes"].asUInt64();) {
@@ -809,13 +833,15 @@ StreamReview review_stream(const Root& system,const StorageTarget& target,const 
         if(done)completed+=before["bytes"].asUInt64(); else if(next==plan["before"]["chunks"].size())next=i;
         if(i<128) { Value row; row["index"]=i; row["classification"]=will ? "TARGET" : was ? "ORIGINAL" : known ? "PARTIAL_EXPECTED_WRITE" : "DIVERGED"; result["chunks"].append(row); }
     }
-    result["current_sha256"]=whole.finish(); result["classification"]=wanted ? "TARGET" : original ? "ORIGINAL" : expected ? "PARTIAL_EXPECTED_WRITE" : "DIVERGED";
+    result["current_sha256"]=cached ? Value() : Value(whole.finish()); result["classification"]=wanted ? "TARGET" : original ? "ORIGINAL" : expected ? "PARTIAL_EXPECTED_WRITE" : "DIVERGED";
     // Repair an active partial chunk before replacing its sole durable cache
     // proof, even when rollback has earlier complete chunks left to restore.
     if(partial_index<plan["before"]["chunks"].size())next=partial_index;
     result["next_chunk"]=Json::UInt64(next); result["completed_bytes"]=Json::UInt64(completed); result["total_bytes"]=plan["target_identity"]["bytes"];
     result["chunk_count"]=plan["before"]["chunks"].size(); result["chunks_truncated"]=plan["before"]["chunks"].size()>128;
     restore_target(system,target,plan["target_identity"]);
+    if(!review.observed_identity.isNull())require(json(stream_image_identity(target))==json(review.observed_identity),
+        "changed-target","Image metadata changed during stream inspection");
     const bool terminal=state["state"]=="COMMITTED" || state["state"]=="ROLLED_BACK" || state["state"]=="CANCELLED_SAFE";
     if(expected && !terminal && plan["target_identity"]["kind"]=="regular-image")result["recovery_actions"].append("host-resume");
     if(expected && state["state"]!="ROLLED_BACK" && state["state"]!="CANCELLED_SAFE" && plan["target_identity"]["kind"]=="regular-image")result["recovery_actions"].append("host-rollback");
@@ -879,6 +905,10 @@ Value restore_stream_begin(const Root& system,const StorageTarget& target,const 
     state["plan_sha256"]=plan["plan_sha256"]; state["receipt_sha256"]=receipt["receipt_sha256"]; state["direction"]="restore";
     state["active"]=Value(); state["private_record"]=true; state["physical_test_record"]=false; state["verified"]=false;
     restore_target(system,target,plan["target_identity"]); verified_target(target.descriptor.get(),plan["before"],"stale-source");
+    storage_revalidate(target,&system);
+    std::string classes;
+    for(Json::ArrayIndex i=0;i<plan["before"]["chunks"].size();++i)classes+=plan["before"]["chunks"][i]["sha256"]==plan["after"]["chunks"][i]["sha256"] ? 'B' : 'O';
+    save_stream_proof(state,plan,stream_image_identity(target),classes);
     journal_binding(directory,journal); restore_boundary(journal,state,"READY"); return state;
 }
 Value restore_stream_status(const Root& system,const StorageTarget& target,const fs::path& directory) {
@@ -886,7 +916,7 @@ Value restore_stream_status(const Root& system,const StorageTarget& target,const
 }
 Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::path& directory,std::uint64_t index,int input_fd,const std::string& confirmation) {
     auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
-    auto review=review_stream(system,target,journal); stream_confirm(review,confirmation); storage_write_gate(target);
+    auto review=review_stream(system,target,journal,true); stream_confirm(review,confirmation); storage_write_gate(target);
     require(restore_action(review.result,"host-resume"),"unsafe-resume","Stream target diverged or journal is terminal");
     require(index<review.plan["before"]["chunks"].size() && index==review.result["next_chunk"].asUInt64(),"invalid-chunk","Send the earliest unverified target chunk reported by inspection");
     auto state=review.state; const auto i=static_cast<Json::ArrayIndex>(index); const bool rollback=state["direction"]=="rollback";
@@ -899,6 +929,7 @@ Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::pa
         auto next=journal.open(incoming["after"].asString(),O_RDWR|O_CREAT|O_EXCL,0600); packet.chunk(next.get(),after); packet.end();
         require(::fsync(journal.fd())==0,"io-error","Cannot sync received stream cache directory");
         journal_binding(directory,journal); restore_target(system,target,review.plan["target_identity"]); storage_write_gate(target);
+        require(json(stream_image_identity(target))==json(review.observed_identity),"changed-target","Image metadata changed while receiving its chunk pair");
         const auto current=transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1);
         require(current==review.hashes[i],"changed-target","Stream target chunk changed while receiving its verified pair");
         state["active"]=incoming; restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
@@ -906,10 +937,12 @@ Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::pa
         restore_write(target.descriptor.get(),rollback ? old.get() : next.get(),before["offset"].asUInt64(),before["bytes"].asUInt64());
         require(transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1)==(rollback ? before : after)["sha256"].asString(),
             "verification-error","Streamed target chunk readback differs");
+        review.classes[i]=before["sha256"]==after["sha256"] ? 'B' : rollback ? 'O' : 'T';
+        save_stream_proof(state,review.plan,stream_image_identity(target),review.classes);
         state["active"]=Value(); state["last_verified_chunk"]=Json::UInt64(index); restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
         clean_stream_cache(journal,state["active"]);
         if(target.identity["kind"]=="regular-image")target.identity=storage_image(target.identity["path"].asString(),target.identity["logical_sector_bytes"].asUInt()).identity;
-        return review_stream(system,target,journal).result;
+        return review_stream(system,target,journal,true).result;
     } catch(const Error& error) { failed_restore(journal,state,attempted,error.code); try { clean_stream_cache(journal,state["active"]); } catch(...) {} throw; }
     catch(...) { failed_restore(journal,state,attempted,"unexpected-error"); throw; }
 }
