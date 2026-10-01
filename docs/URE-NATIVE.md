@@ -35,7 +35,8 @@ status and returns failure rather than silently reporting success.
 | `transaction inspect/list/resume/cancel --root ROOT` | Read-only journal discovery and current-state classification; explicit confirmed recovery or cancellation only when the recorded phase, identities and verified backup permit it |
 | `backup file --root ROOT` | Private, exclusive-create backup and manifest for a bounded regular file; not a partition/image backup service |
 | `backup plan/storage-plan/capture/resume/verify/export` | Bounded-memory regular-file or identity-bound storage streams, chunk/full SHA-256, durable exclusive publication, verified resume and binary host export; live software requires complete usage/unit/boot evidence and a retained read-only kernel claim; physical acceptance remains pending |
-| `restore plan/execute/inspect/resume/rollback/cancel` | Identity-bound raw image restoration with original/target chunk mirrors, durable journals, full readback, inspected partial-write continuation and verified rollback; real block writes and host-streamed restore remain unavailable |
+| `restore plan/execute/inspect/resume/rollback/cancel` | Identity-bound raw image restoration with original/target chunk mirrors, durable journals, full readback, inspected partial-write continuation and verified rollback; real block writes remain unavailable |
+| `restore stream-plan/stream-backup-plan/host-receipt/stream-begin/stream-status/stream-chunk/stream-finish/stream-rollback/stream-cancel` | Reviewed raw-image streaming from complete host backups, explicit host attestation, bounded verified cache pairs, current-byte reconnect progress and full restore/rollback readback; live writes and physical acceptance remain open |
 | `boot targets/plan` | Detects candidate components and serializes a one-shot request; execution remains blocked without an accepted Uke boot backend |
 | `diagnose SCOPE` | Private bounded kernel, module, pstore, display, input, USB, network, power, thermal and property observations; preserves pstore and does not assert a root cause |
 | `report --output FILE` | Public allowlist summary; omits raw pstore, command lines, module addresses, UUIDs, mounts, stage text and raw class fields |
@@ -174,7 +175,7 @@ cooperating target lock. It rechecks the original bytes before creating the
 private journal. Before writing, it durably saves verified `before/` and `after/`
 chunk mirrors in the journal, including the sealed manifests. The local journal
 requires space for both complete raw objects plus a 32 MiB margin. This is a
-local restore path; the separately planned host-streamed restore must avoid that
+local restore path; the separate host-assisted path in [HOST-RESTORE.md](HOST-RESTORE.md) avoids that
 tablet space requirement. Once both mirrors are complete, recovery can operate
 without the original external backup directory.
 
@@ -318,8 +319,10 @@ bash scripts/receive-backup.sh --manifest storage-plan.json --output host-store 
 ```
 
 Resume on another recovery boot refuses if the root/file or sealed live boot
-identity changed. Stable cross-boot backup plans and live/host-streamed restores
-still require further storage backend work. SIGKILL tests prove process recovery at a durable
+identity changed. Stable cross-boot backup plans and live restores
+still require further storage backend work. Host-assisted image restore is
+implemented separately with complete host stores and bounded local caches.
+SIGKILL tests prove process recovery at a durable
 chunk boundary, not storage-controller behavior during electrical power loss.
 
 ## Build tools and source boundaries
@@ -359,7 +362,7 @@ upstream build dependencies; no project Python or tablet interpreter is added.
 | C10–C13 | Packaged cryptsetup and secure LUKS/BITLK lifecycle, header/key workflows, Btrfs kernel/userspace, snapshots, rollback, scrub/balance and send/receive transactions |
 | C14–C15 | Multi-LUN GPT and boot-chain orchestration, live restore/repair, layout changes, formatting/resizing transactions, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; GPT image backup/repair/restore and read-only live selection are implemented |
 | C16–C17 | Accepted Uke Aloha/stock boot backend, request consumption, boot history, retry/rollback policy and default preservation |
-| C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance, host-streamed and live restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local raw-image restore and a host receiver are implemented |
+| C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance, live restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local and host-assisted raw-image restore and a host companion are implemented |
 | C22–C24 | Signed update/profile lifecycle, persistent UI/session policy, full reproducibility/CI, optional web/NAS/extensions/forensics/hardware-test tools |
 
 The supplied 103 topics remain design targets. No contract or full phase is
@@ -379,6 +382,7 @@ bash tests/check-ure.sh
 bash tests/check-backup.sh
 bash tests/check-storage-backup.sh
 bash tests/check-restore.sh
+bash tests/check-stream-restore.sh
 bash tests/check-gpt.sh
 UKE_RECOVERYCTL_BINARY=build/ure-host/uke-recoveryctl bash tests/check-recoveryctl.sh
 bash tests/check-installer.sh
@@ -403,6 +407,18 @@ EFBIG partial-write uncertainty, source-independent mirror recovery, exact targe
 binding, verified partial continuation, safe pre-execution cancellation and
 original-data rollback. The CLI fixtures round-trip persisted JSON plans and
 exercise the same 512/4096-byte image workflows.
+
+The sixth executable checks host-store verification, exact paired-packet input,
+bounded caches, safe cancellation, real EFBIG write failure, active partial-byte
+proof, failed reconnect retaining that proof, rollback ordering, divergence and
+an actual SIGKILL during receive. CLI fixtures use regular images and mocked
+strict SSH/serial-bound duplex ADB to test transfer, disconnect/resume and full
+rollback. They do not establish host trust, physical USB or live block acceptance.
+Ordinary image steps reuse compact readback classes only while the complete
+metadata fingerprint agrees. Tests invalidate that fast path with unrelated
+changes, restored mtime/changed ctime and corrupt proof records; responses do
+not label a cached step as a full SHA-256 scan. Planning, explicit reconnect and
+final verification retain full scans.
 
 `bash tests/run-native.sh` records these host gates against their exact source
 inputs. `scripts/audit-recovery-image.sh IMAGE REPORT_JSON --qemu` extracts the

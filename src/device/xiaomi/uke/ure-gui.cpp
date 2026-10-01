@@ -20,6 +20,7 @@ std::string pending_gpt_journal;
 std::string reviewed_gpt_journal;
 ure::Value pending_restore_plan;
 std::string pending_restore_journal,pending_restore_backup,reviewed_restore_journal;
+std::string reviewed_stream_journal;
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
 void publish(const ure::Value& data) { DataManager::SetValue("ure_output",ure::json(data)); }
@@ -68,6 +69,10 @@ void clear_restore_review() {
     pending_restore_plan=ure::Value(); pending_restore_journal.clear(); pending_restore_backup.clear(); reviewed_restore_journal.clear();
     for(const auto* name:{"ure_restore_plan_hash","ure_restore_journal_hash","ure_restore_can_execute","ure_restore_can_resume","ure_restore_can_rollback","ure_restore_can_cancel"})
         DataManager::SetValue(name,"");
+}
+void clear_stream_review() {
+    reviewed_stream_journal.clear();
+    for(const auto* name:{"ure_stream_journal_hash","ure_stream_can_rollback","ure_stream_can_finish","ure_stream_can_cancel"})DataManager::SetValue(name,"");
 }
 void refresh_editor() {
     const auto rows=editor->lines();
@@ -119,6 +124,38 @@ int GUIAction::uremanager(std::string command) {
                 DataManager::SetValue("ure_journal_hash","");
                 for(const auto* action:{"resume","cancel","rollback"})DataManager::SetValue(std::string("ure_can_")+action,"0");
             }
+        } else if(command.rfind("stream-",0)==0) {
+            if(command=="stream-plan" || command=="stream-inspect")clear_stream_review();
+            if(command=="stream-plan") {
+                auto target=backup_target(system); ure::Root parent(value("ure_journal_parent"));
+                const auto plan=ure::restore_stream_plan(system,target,ure::json_file(value("ure_stream_manifest")),"global-os3.0.303.0");
+                const auto file="/tmp/ure-stream-plan-"+plan["operation_id"].asString()+".json";
+                const auto before="/tmp/ure-stream-before-"+plan["operation_id"].asString()+".json";
+                ure::save_json(file,plan); ure::save_json(before,ure::restore_stream_backup_plan(plan));
+                auto review=plan;
+                for(const auto* name:{"before","after"}) { review[name]["chunk_count"]=review[name]["chunks"].size(); review[name].removeMember("chunks"); }
+                review["plan_file"]=file; review["before_manifest_file"]=before;
+                review["journal_directory"]=(ure::fs::path(value("ure_journal_parent"))/("ure-stream-"+plan["operation_id"].asString())).string();
+                review["host_required"]=true; publish(review);
+                DataManager::SetValue("ure_status","Review this plan on the host; verify both complete host backups before starting transfer");
+            } else if(command=="stream-inspect") {
+                auto target=backup_target(system); const auto review=ure::restore_stream_status(system,target,value("ure_stream_journal")); publish(review);
+                reviewed_stream_journal=value("ure_stream_journal"); DataManager::SetValue("ure_stream_journal_hash",review["plan_sha256"].asString());
+                for(const auto& action:review["recovery_actions"]) {
+                    if(action=="host-rollback")DataManager::SetValue("ure_stream_can_rollback","1");
+                    if(action=="finish" || action=="cancel")DataManager::SetValue("ure_stream_can_"+action.asString(),"1");
+                }
+                DataManager::SetValue("ure_status","Review current bytes; reconnect the host for remaining restore or rollback chunks");
+            } else if(command=="stream-rollback" || command=="stream-finish" || command=="stream-cancel") {
+                ure::require(!reviewed_stream_journal.empty() && reviewed_stream_journal==value("ure_stream_journal") && !value("ure_stream_journal_hash").empty(),
+                    "confirmation-required","Inspect and review this host-assisted journal first");
+                auto target=backup_target(system,command=="stream-rollback"); const auto confirmation=value("ure_stream_journal_hash");
+                if(command=="stream-rollback")publish(ure::restore_stream_rollback(system,target,reviewed_stream_journal,confirmation));
+                else if(command=="stream-finish")publish(ure::restore_stream_finish(system,target,reviewed_stream_journal,confirmation));
+                else publish(ure::restore_stream_cancel(system,target,reviewed_stream_journal,confirmation));
+                clear_stream_review();
+                DataManager::SetValue("ure_status",command=="stream-rollback" ? "Rollback direction recorded; reconnect the host to transfer original chunks" : "Journal action completed and verified");
+            } else throw ure::Error("unknown-action","Unknown host-assisted restore action");
         } else if(command.rfind("restore-",0)==0) {
             if(command=="restore-plan" || command=="restore-inspect")clear_restore_review();
             if(command=="restore-plan") {

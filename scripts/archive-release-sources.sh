@@ -92,6 +92,7 @@ cp -a -- "$component/patches" "$component/manifests" "$component/scripts" "$comp
 cp -a -- "$component/configs" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
+cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"
 cp -- "$component/docs/COMPREHENSIVE-ROADMAP.md" "$component/docs/FEATURE-PARITY.md" \
     "$component/docs/ARCHITECTURE.md" "$source_work/project/"
 cp -- "$component/reports/URE-NATIVE-BUILD.md" "$source_work/project/BUILD-REPORT.md"
@@ -106,6 +107,9 @@ if [[ -f $component/reports/URE-STORAGE-BUILD.md ]]; then
 fi
 if [[ -f $component/reports/URE-RESTORE-BUILD.md ]]; then
     cp -- "$component/reports/URE-RESTORE-BUILD.md" "$source_work/project/RESTORE-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-HOST-RESTORE-BUILD.md ]]; then
+    cp -- "$component/reports/URE-HOST-RESTORE-BUILD.md" "$source_work/project/HOST-RESTORE-BUILD-REPORT.md"
 fi
 cp -a -- "$tree/out-public/target/product/uke/recovery/root/FFiles" "$source_work/project/payload-script-sources"
 tar -rf "$source_work/recovery.tar" -C "$source_work" project

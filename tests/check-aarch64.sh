@@ -4,6 +4,14 @@ set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 payload=$(realpath -- "${1:?Usage: check-aarch64.sh EXTRACTED_RAMDISK}")
 command -v qemu-aarch64 >/dev/null
+if [[ ${UKE_QEMU_HOST_KERNEL_BOUND:-0} != 1 ]]; then
+    # QEMU's prefix can redirect Root("/") to the extracted ramdisk, whose
+    # sys/proc mountpoints are empty on the host. Bind the real host kernel
+    # observations read-only so image write gates still exclude live aliases.
+    [[ -d $payload/sys && ! -L $payload/sys && -d $payload/proc && ! -L $payload/proc ]]
+    exec bwrap --ro-bind / / --dev-bind /dev /dev --bind /tmp /tmp --ro-bind /sys "$payload/sys" --ro-bind /proc "$payload/proc" \
+        --setenv UKE_QEMU_HOST_KERNEL_BOUND 1 bash "$component/tests/check-aarch64.sh" "$payload"
+fi
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
 export UKE_TEST_RAMDISK="$payload"
@@ -66,4 +74,4 @@ target mkfs.ntfs -F -Q "$work/ntfs.img" > "$work/ntfs-mkfs" 2>&1
 before=$(sha256sum "$work/ntfs.img" | cut -d' ' -f1)
 target ntfsresize --info --no-action "$work/ntfs.img" > "$work/ntfs-info" 2>&1
 [[ $before == "$(sha256sum "$work/ntfs.img" | cut -d' ' -f1)" ]]
-printf 'AArch64 QEMU: file/GPT/raw-image journal recovery, verified raw restore/readback/rollback, GPT backup/repair/restore, streamed backups/receivers, WIM round trip, ext4/exFAT/NTFS no-action checks and SSH key generation passed; no hardware evidence.\n'
+printf 'AArch64 QEMU: file/GPT/raw-image journals, local and host-streamed restore/readback/rollback, GPT backup/repair/restore, verified host receivers and duplex transport mocks, WIM round trip, ext4/exFAT/NTFS no-action checks and SSH key generation passed; no hardware evidence.\n'

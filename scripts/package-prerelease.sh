@@ -54,13 +54,14 @@ cp -- "$instructions" "$package_work/INSTALL.md"
 cp -- "$component/docs/PRE-RELEASE.md" "$package_work/STOCK-RETURN.md"
 cp -- "$component/src/device/xiaomi/uke/ure-tools.lock.json" "$package_work/URE-TOOLS.json"
 cp -- "$component/docs/URE-NATIVE.md" "$package_work/URE-NATIVE.md"
+cp -- "$component/docs/HOST-RESTORE.md" "$package_work/HOST-RESTORE.md"
 cp -- "$component/LICENSE" "$package_work/LICENSE"
 # All files receive a deterministic timestamp. Replacing this generated asset is intentional.
 find "$package_work" -type f -exec touch -d '@1790726400' {} +
 zipfile="$destination/OrangeFox-uke-flashable.zip"
 [[ ! -e $zipfile ]] || mv -- "$zipfile" "$package_work/previous.zip"
 (cd -- "$package_work" && zip -X -9 "$zipfile" META-INF/com/google/android/update-binary \
-    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md LICENSE >/dev/null)
+    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md LICENSE >/dev/null)
 unzip -t "$zipfile" >/dev/null
 cp -- "$component/manifests/orangefox-android16-uke.lock.xml" "$destination/ORANGEFOX-SOURCE-PINS.xml"
 cp -- "$component/manifests/stock-kernel-source.json" "$destination/STOCK-KERNEL-SOURCE.json"

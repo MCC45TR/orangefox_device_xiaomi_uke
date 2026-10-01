@@ -58,6 +58,10 @@ remaining work for all 24 contracts. No full roadmap phase is marked complete.
 Raw-image restore has separate target/backup selection and review pages. It
 preserves current and desired chunks before writes, checks the complete result,
 and offers explicit recovery only after inspecting actual bytes. The journal
-requires two raw-object sizes plus a 32 MiB margin. Host-streamed restore,
-compression and real block writes remain unfinished. A volatile `/tmp` journal
+requires two raw-object sizes plus a 32 MiB margin. A separate host-assisted
+image restore path keeps complete original/desired stores on the host and only
+bounded verified chunk pairs locally. It requires an explicit host attestation,
+reviewed target identity and authenticated transport. See `HOST-RESTORE.md` for
+the protocol, trust boundary and reconnect/rollback procedure. Compression and
+real block writes remain unfinished. A volatile `/tmp` journal
 cannot provide recovery across reboot. Choose a verified persistent destination.

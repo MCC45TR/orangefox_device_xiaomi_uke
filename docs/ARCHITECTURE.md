@@ -29,7 +29,10 @@ Raw-image restoration now extends that shared engine with a sealed current-byte
 manifest, private original/desired chunk mirrors, full readback and inspected
 partial-write continuation or rollback. The CLI and native GUI use the same
 policy. All physical block writes remain gated; local restore currently requires
-both raw objects in the journal, while host-streamed restore remains unfinished.
+both raw objects in the journal. The separate host-assisted image path binds
+complete host backups to a reviewed plan, receives verified original/desired
+chunk pairs and keeps only bounded local caches. Host persistence remains an
+explicit attestation; live writes and physical acceptance remain unfinished.
 
 The first `uke` BoardConfig and read-only recovery fstab derive from the verified
 Global stock package. `scripts/prepare-build-tree.sh` stages the device tree and

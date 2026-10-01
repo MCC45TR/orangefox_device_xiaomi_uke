@@ -33,6 +33,12 @@
     <variable name="ure_restore_can_resume" value="0"/>
     <variable name="ure_restore_can_rollback" value="0"/>
     <variable name="ure_restore_can_cancel" value="0"/>
+    <variable name="ure_stream_manifest" value=""/>
+    <variable name="ure_stream_journal" value=""/>
+    <variable name="ure_stream_journal_hash" value=""/>
+    <variable name="ure_stream_can_rollback" value="0"/>
+    <variable name="ure_stream_can_finish" value="0"/>
+    <variable name="ure_stream_can_cancel" value="0"/>
   </variables>
   <pages>
     <page name="maintainer">
@@ -228,6 +234,7 @@
       <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_raw_sector%</text><data name="ure_raw_sector"/><restrict minlen="3" maxlen="4"/></input>
       <listbox style="group_list"><placement x="0" y="%row7_1_y%" w="%screen_w%" h="%files_np_w%"/>
         <listitem name="Select image restore inputs"><action function="set">ure_raw_kind=image</action><action function="page">ure_restore_inputs</action></listitem>
+        <listitem name="Select host-assisted restore inputs"><action function="set">ure_raw_kind=image</action><action function="page">ure_stream_inputs</action></listitem>
       </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_home</action></action>
     </page>
     <page name="ure_restore_inputs">
@@ -273,6 +280,49 @@
           <listitem name="Confirm safe cancellation before image writes"><condition var1="ure_restore_can_cancel" var2="1"/><action function="uremanager">restore-cancel</action><action function="page">ure_output</action></listitem>
         </listbox>
       </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_restore_journals</action></action>
+    </page>
+    <page name="ure_stream_inputs">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Host-assisted restore</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Desired storage backup manifest copied from your host</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stream_manifest%</text><data name="ure_stream_manifest"/><restrict minlen="1" maxlen="4096"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Journal parent; /tmp is lost on reboot</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_journal_parent%</text><data name="ure_journal_parent"/><restrict minlen="1" maxlen="4096"/></input>
+      <listbox style="group_list"><placement x="0" y="%row7_1_y%" w="%screen_w%" h="%files_np_w%"/>
+        <listitem name="Create plan; keep both complete backups on your host"><action function="uremanager">stream-plan</action><action function="page">ure_stream_plan_review</action></listitem>
+        <listitem name="Inspect existing host-assisted journal"><action function="page">ure_stream_journals</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_restore_select</action></action>
+    </page>
+    <page name="ure_stream_plan_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review host-assisted restore plan</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="800"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_output%</text></textbox>
+        <listbox style="group_list"><placement x="0" y="820" w="%screen_w%" h="400"/>
+          <listitem name="Return; use the reviewed plan with your host companion"><action function="page">ure_stream_inputs</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stream_inputs</action></action>
+    </page>
+    <page name="ure_stream_journals">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Host-assisted journal</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Inspect before reconnecting or selecting a recovery action</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stream_journal%</text><data name="ure_stream_journal"/><restrict minlen="1" maxlen="4096"/></input>
+      <listbox style="group_list"><placement x="0" y="%row5_1_y%" w="%screen_w%" h="%files_np_w%"/>
+        <listitem name="Inspect current bytes and available recovery actions"><action function="uremanager">stream-inspect</action><action function="page">ure_stream_journal_review</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_stream_inputs</action></action>
+    </page>
+    <page name="ure_stream_journal_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review host-assisted recovery</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="800"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_output%</text></textbox>
+        <listbox style="group_list"><placement x="0" y="820" w="%screen_w%" h="600"/>
+          <listitem name="Confirm rollback direction; host transfer required"><condition var1="ure_stream_can_rollback" var2="1"/><action function="uremanager">stream-rollback</action><action function="page">ure_output</action></listitem>
+          <listitem name="Confirm full readback and finish journal"><condition var1="ure_stream_can_finish" var2="1"/><action function="uremanager">stream-finish</action><action function="page">ure_output</action></listitem>
+          <listitem name="Confirm safe cancellation before image writes"><condition var1="ure_stream_can_cancel" var2="1"/><action function="uremanager">stream-cancel</action><action function="page">ure_output</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stream_journals</action></action>
     </page>
     <page name="ure_gpt_select">
       <template name="base_ex"/>
