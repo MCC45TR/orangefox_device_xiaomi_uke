@@ -60,6 +60,49 @@ by the current recovery build even though a future read-only mount plan is
 defined. OrangeFox's generic flashlight control is disabled for Uke until a
 real, safe LED path is verified on each model. See [Linux/ESP tools](LINUX-ESP-TOOLS.md).
 
+## URE capability extension
+
+The following 24 contracts extend REC-01–REC-34 without replacing the donor
+minimum. They cover the supplied [comprehensive roadmap](COMPREHENSIVE-ROADMAP.md)
+and link to the workspace's URE-00–URE-15 milestones. The [native checkpoint](URE-NATIVE.md)
+records source and host-tested parts of C01–C07/C14–C16/C18/C20/C23. Bounded
+usage/mapper policy and identity-bound storage stream software extend C01/C18;
+live block-claim/ownership acceptance and managed USB/SSH remain unfinished. The full contracts
+below remain acceptance targets; no whole contract is complete. Optional P3 work remains optional.
+Physical results continue to use the workspace hardware ledger and test records.
+
+| ID | Capability / roadmap sections | Phase / priority | Acceptance contract and current dependency |
+|---|---|---|---|
+| URE-C01 | Native shared library, structured API and Storage Graph (§2–6,71) | URE-01 / P0 | Preserve current CLI behavior, bound JSON, identify every parent LUN/GUID/range/owner and reject duplicates at U0/U1; library/API and a bounded graph now have host fixtures; full live identity closure remains open. |
+| URE-C02 | Durable transaction engine (§7,48–49,67–69,90) | URE-03 / P0 | Reject stale plans and changed artifacts; verify backups, journal boundaries and readback; U1 interruption/partial-write cases distinguish FAILED_SAFE/FAILED_UNCERTAIN before H2. |
+| URE-C03 | Recovery diagnostics and report export (§31–44,64–66,86,95) | URE-02 / P0 | Correlate R000–R100 stages, available pstore and kernel/module/display/touch/USB/UFS/power evidence; preserve crash records, bound collection and test public redaction at U1/H1. |
+| URE-C04 | Linux distribution/package discovery (§10,39,42,53–55,70) | URE-05 / P1 | Bound os-release/package-db parsing, support multiple roots, distinguish observations from hypotheses; do not claim current partition fixtures prove distro detection. |
+| URE-C05 | Installed Linux kernel and boot consistency (§10,25,52–54) | URE-05,URE-09 / P1 | Match kernel/initramfs/modules/DT/BLS/UKI/root identity and detect missing/stale entries on U1 images; recovery uname is not the installed kernel. |
+| URE-C06 | Native GUI text editor and config validation (§12,61–63) | URE-05 / P1 | UTF-8, bounded files, search/replace/undo, binary rejection, external-change detection and backup; atomic fsync save preserves metadata and validates fstab/crypttab/BLS at U1/H2. |
+| URE-C07 | Linux files, snapshot compare and bounded search (§13,59–63) | URE-05 / P1; forensics P3 | Preserve UID/GID/mode/ACL/xattrs/SELinux/capabilities, safe symlink rules and checksums; snapshot file restore/search/diff use explicit sources and destinations. |
+| URE-C08 | Controlled chroot and Fedora rescue (§11,54–55,63) | URE-05 / P1 | Track nested mounts, processes, DNS and cleanup; enforce target interpreter/dependency policy; fixture/emulation tests precede H2 initramfs/package/SELinux repairs. |
+| URE-C09 | Recovery kernel capability expansion (§9,16,50–51) | URE-06 / P1 | Profile-matched kernel/modules expose actual filesystem/crypto/gadget/pstore capabilities; U1/U2 images precede H1; current Btrfs mount is BLOCKED by stock kernel. |
+| URE-C10 | LUKS/dm-crypt lifecycle (§14,30,85) | URE-07 / P1 | Explicit unlock/lock, metadata and header backup; wrong-key/header/mapping fixtures, bounded zeroed secret input without argv/log leakage; advanced key changes require H2. |
+| URE-C11 | Existing BitLocker volume access (§15,20–23,85,98) | URE-07,URE-12 / P2 | Validate pinned BITLK/kernel crypto, supported password/recovery/startup-key inputs and RO first; no TPM/SmartCard/header-edit promise; wrong keys and malformed volumes at U1 before H1/H2. |
+| URE-C12 | Btrfs subvolumes, snapshots and rollback (§16,60,97) | URE-08,URE-09 / P1 | Inspect hierarchy/UUIDs/features, test file restore and emergency snapshot, validate kernel/rootflags and one-shot boot before permanent changes; BLOCKED by current kernel. |
+| URE-C13 | Btrfs scrub, balance, streams and expert rescue (§16,29,67–68) | URE-08 / P1; expert rescue later | Filter balance, define cancellation, verify full/incremental RO snapshot streams and interrupted receive; separate read-only check from expert repair; kernel dependency remains BLOCKED. |
+| URE-C14 | GPT, filesystem framework and boot-chain backups (§8–9,17–20,30,58,75–77) | URE-04 / P0; write tools follow URE-03/06 | Compare both GPT CRCs/geometry, retain slot/profile/hash manifests, reject another device's backup; native GPT metadata backups and image repair/restore/journal recovery have host fixtures, while live write/ownership and multi-LUN orchestration remain open. Exact ext4/FAT/F2FS/exFAT/EROFS/NTFS operations need U1 and H2, not only tool presence. |
+| URE-C15 | Android A/B, Virtual A/B, super, OTA and FBE (§24,41,76–77) | URE-11 / P1 | Distinguish slot/snapshot/logical metadata, reject active or unknown merges and unsafe OTA inputs; installed-firmware KeyMint/TEE trust plus credential/RO evidence required; FBE BLOCKED. |
+| URE-C16 | Direct one-shot OS boot and Aloha contract (§25–27,52,70) | URE-09 / P1/P2 | Versioned exact target/entry IDs, validated boot components, consumed request, default preservation and Android/recovery fallback; malformed/stale/replayed requests at U1 and real routing at H2. |
+| URE-C17 | Boot history and known-good restoration (§26,75,95.7) | URE-09 / P1 | Correlate request/acknowledgment/crash/re-entry; no invented successful boot; restore named stock/Linux/Windows boot sets only after matching identity and backup verification. |
+| URE-C18 | USB network, SSH/SFTP and host backups (§28–29,56–58,83–85,99) | URE-10 / P1/P2 | Opt-in key authentication, visible fingerprint, reviewed SFTP helper, exclusive gadget/storage ownership, chunk/final hashes and reconnect tests; U1/U2/H1/H3 without exposing unlocked content implicitly. |
+| URE-C19 | Wi-Fi rescue (§28.5,83–85) | URE-14 / P2 | Matched WLAN firmware/driver/regulatory state, secure credentials, DHCP/static addressing, forget and long-transfer/reconnect evidence; separate from USB-network acceptance. |
+| URE-C20 | Windows detection, NTFS/WIM and ESP/BCD rescue (§20–23,40,98) | URE-12 / P2; rich BCD editing P3 | Reliable offline edition/build or unknown; metadata-preserving WIM/ESD and NTFS fixtures, bounded archive extraction, isolated H2 restore, BCD/Microsoft EFI backups; ntfsfix is not chkdsk. |
+| URE-C21 | Multi-OS layout designer and shared ESP (§8.4,70–74) | URE-13 / P2 | Capacity-derived Android/Fedora/Windows combinations and Fedora-only user layout; show every affected OS, preserve unknown/other EFI files and firmware/calibration, require mature restore and H2 plans. |
+| URE-C22 | Profiles, signed recovery update and provenance (§78–80,87–94) | URE-00,URE-15 / P0/P1 | Separate model/SKU/region/DTBO/ABI evidence, source/toolchain/config hashes, transitive licenses/SBOM, target no-Python/privacy checks and old recovery preservation; support needs exact physical gates. |
+| URE-C23 | UI profiles, session/long-operation management and guided tests (§44–49,64–69,95.4–7) | URE-02/03/05/15 / P1 | Detected-system/risk/lock state, safe vs engineering profiles, progress and explicit cancel boundaries, mount/mapper/chroot/remote-client cleanup, self-test and per-test result manifests. |
+| URE-C24 | Optional extensions and later rescue tools (§81–82,89,92,95) | URE-15 / P3 | Permissioned reviewed extensions, QR address/fingerprint without secrets, local remote UI, serial evidence, extra distro/filesystem/forensic modules; parser fuzzing and privacy/security review before exposure. |
+
+Read/source/build/host/emulation/device evidence stays independent. No row
+becomes SUPPORTED through tool packaging or menu presence. Broad transaction
+and UI integration require new implementation work; current generic upstream
+actions are not universally protected by the native installer.
+
 ## Portability findings
 
 `common`, `partition`, `dualpart` and `switch` use Nabu partition numbers and fixed offsets. Sourcing common code can unmount filesystems or manipulate device-mapper state. Those files cannot serve as a read-only Uke discovery library.

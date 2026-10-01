@@ -1,0 +1,55 @@
+# Experimental native URE candidate
+
+This local candidate adds the C++ library/JSON CLI, Storage Graph and image
+inspection, Linux/Windows discovery, diagnostics/report export, regular-file
+transactions, inspected journal recovery, storage usage checks, identity-bound
+chunked file/image/live-source backup software, host
+reception and native OrangeFox management/editor pages. Source-built NTFS/exFAT/F2FS,
+WIM/ESD and key-authenticated Dropbear tools accompany it. SSH is not started at
+boot; no host key is persisted. SFTP, cryptsetup and Btrfs tools are not packaged.
+
+**The complete roadmap is not implemented. Neither tablet model has a boot,
+display/touch, storage-write or rollback acceptance record.** These unsigned
+artifacts are an engineering checkpoint, not a supported recovery release.
+
+Only **Global OS3.0.303.0.WOZMIXM** is targeted. The stock kernel and boot stack
+are preserved. CN, Turkey, other firmware and Android-version combinations are
+not targets. Stock Btrfs is disabled; FBE remains disabled pending installed
+KeyMint/TEE trust. Linux/Windows boot execution requires an accepted Uke backend.
+
+The three image/ZIP roles, exact installer preflight, active-slot policy and
+stock-return instructions are in the accompanying `STOCK-RETURN.md`. Read it
+before considering a device experiment. The temporary-boot image must never be
+flashed. Preserve the firmware-matched stock recovery and inactive stock slot.
+
+Verify `SHA256SUMS` from the host. A hash/build/QEMU pass is not a tablet boot
+result. The build report records the exact scope of each verification stage.
+
+The GUI is under Advanced → Uke Recovery Environment. OS discovery/editor
+operations require an already mounted root; there is no implicit mount,
+decryption, mapper creation or slot change. The editor accepts valid UTF-8 up to
+1 MiB with lines up to 8192 bytes. Save requires review and confirmation of the
+sealed file plan and preserves ownership, permissions and attributes.
+
+The GUI journal parent defaults to volatile `/tmp`; select a verified persistent
+parent before relying on rollback across reboot. Backup plans in `/tmp` contain
+only private metadata; captured chunks use the explicitly selected destination.
+The CLI can select a persistent journal. Resume requires current identity and
+backup verification; it does not replay automatically. Host SIGKILL recovery
+passes, while electrical power-loss and hostile concurrent-write acceptance
+remain open. Live-source backup software requires complete unit/boot and usage
+evidence plus a retained kernel claim; positive tablet acceptance, atomic
+snapshots, cross-boot continuation and restores remain open. Upstream
+tool binaries expose their own commands; only documented
+URE wrappers share the native validation policy.
+
+The GPT pages add private metadata backup/verification/comparison and reviewed
+repair/restore/rollback for regular disk images. Live whole-LUN sources are
+read-only; real block writes remain gated pending firmware/slot/snapshot and
+ownership integration. Plans seal current and desired tables. GPT recovery
+verifies original/target data and rejects unrelated changes; resume only finishes
+a verified commit record. Layout design, migration and live power-loss acceptance
+remain unfinished. No GPT write authorizes stock boot-stack changes.
+
+See `URE-NATIVE.md` in the source snapshot for implemented interfaces and the
+remaining work for all 24 contracts. No full roadmap phase is marked complete.

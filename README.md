@@ -13,8 +13,28 @@ Release candidates use [separate fastboot-boot, recovery-flash and ZIP assets](d
 - Storage and boot-profile planning for Android with Fedora or Fedora as the single user OS.
 - Screen rotation, touch, brightness, language and battery integration adapted to Uke.
 - Conditional advanced tools for Linux partitions, ESP, OTA payloads and additional operating systems, enabled only when their dependencies are proven.
+- Linux distribution/kernel discovery, metadata-aware file management and a native GUI text editor, controlled chroot and offline boot diagnosis.
+- LUKS/BitLocker access, Btrfs subvolumes/snapshots/rescue, NTFS/WIM and Windows ESP/BCD recovery behind kernel and transaction gates.
+- Consumed one-shot Android/Linux/Windows boot requests, USB networking and opt-in key-authenticated SSH/SFTP, followed by Wi-Fi rescue.
 
-The [34-group feature matrix](docs/FEATURE-PARITY.md) captures the minimum functionality requested from the Nabu reference. Its partition offsets, GPT backups, security binaries and kernel images are not Uke inputs.
+The [feature matrix](docs/FEATURE-PARITY.md) retains the 34-group Nabu minimum
+and adds 24 URE capability contracts. The [comprehensive roadmap](docs/COMPREHENSIVE-ROADMAP.md)
+preserves all supplied topics 0–102, with sixteen phases, proposed API/UI designs,
+transactions, negative tests and acceptance rules. The [native implementation
+checkpoint](docs/URE-NATIVE.md) records the new library, JSON CLI, file transaction
+engine, diagnostics and OrangeFox editor adapter. The published first alpha
+predates this work. The [native build report](reports/URE-NATIVE-BUILD.md)
+separates source, host, extracted-payload, QEMU and hardware evidence. Most roadmap
+contracts remain incomplete. The [streaming and journal checkpoint](reports/URE-STREAMING-BUILD.md)
+adds verified chunk transfer, host reception and explicit interrupted-file recovery.
+The [GPT checkpoint](reports/URE-GPT-BUILD.md) adds metadata backup/verification,
+image repair/restore, inspected journals and read-only live selection. Real UFS
+writes and full phase acceptance remain open.
+The [storage checkpoint](reports/URE-STORAGE-BUILD.md) adds bounded ownership
+observations and identity-bound storage backup software with shared CLI/GUI/host
+reception. Positive live-source acceptance, atomic snapshots and restore remain open.
+Nabu partition offsets,
+GPT backups, security binaries and kernel images are not Uke inputs.
 
 ## Downloads
 

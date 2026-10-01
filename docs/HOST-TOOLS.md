@@ -15,3 +15,25 @@ The host-only `prepare-public-ramdisk.sh` callback stages the compiled Bash expl
 Font assets with unestablished redistribution terms are replaced in the generated ramdisk by aliases of `external/roboto-fonts/RobotoStatic-Regular.ttf` at commit `c50938f329a44707b06b336166c95ec2aa49c331`, with its Apache-2.0 notice retained. Distinct font-family selection is therefore not supported in this alpha. Recovery source snapshots exclude the original font binaries and unrelated vendor prebuilt/addon archives; the pinned repositories remain the acquisition references.
 
 The nested ZIP audit found a private build prefix in a legacy addon updater. All generic bundled addon ZIPs are omitted from the alpha, with their optional UI actions unsupported. The shipped script sources are included directly in the source snapshot; the upstream binary installer directory is excluded. The project installation ZIP is audited separately and contains only its C++ helper, recovery image, POSIX wrapper, hash and documentation.
+
+The native candidate adds reviewed host adapters for wimlib 1.14.5 and Dropbear
+2025.89. Their original sources are read from immutable reference snapshots;
+only the active build tree receives project configuration. NTFS resizing uses
+a reviewed Android module patch against the locked ntfs-3g source. Exact pins,
+licenses and build limitations are in `src/device/xiaomi/uke/ure-tools.lock.json`.
+No upstream reference configure/build script is executed. Cryptsetup remains a
+reference, and Btrfs is absent from the candidate userspace and stock kernel.
+
+An incremental build exposed a callback failure when AOSP's absolute `/bin`
+symlink was treated as a host directory. The callback now verifies that link
+without following it, and a reviewed OrangeFox patch propagates callback
+failures to the build. ELF closure checks also require the lpdump snapshot/binder
+libraries and the Bionic bootstrap-loader alias. The vendor `ps` command path
+uses source-built Toybox; an unused generic KeyMint helper is omitted from this
+FBE-disabled profile. Final compressed-ramdisk audits verify these changes.
+
+Packaging accepts a separate candidate directory name. The existing public
+alpha is preserved. Manifest schema 2 records the base Git commit separately
+from changed working-tree sources and includes exact input-file checksums.
+Source snapshots contain pristine upstream files plus the reviewed patches,
+project adapters, tests and original licenses needed to reconstruct this build.
