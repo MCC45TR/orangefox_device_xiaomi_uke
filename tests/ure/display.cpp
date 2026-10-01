@@ -72,11 +72,17 @@ int main() {
         { std::ofstream bad(directory/"display.json"); bad<<"{\"schema\":1,\"format\":\"ure-display-settings\",\"scale_percent\":101,\"uniform_density\":true}"; }
         reject([&]{ure::display_settings_load(directory);},"invalid-scale");
         DataManager::SetValue("ure_ui_scale_applied",75); DataManager::SetValue("ure_ui_scale_percent",50);
+        DataManager::SetValue("ure_root","/selected-fixture-root");
+        DataManager::SetValue("ure_future_selection","future-fixture");
+        check(ure_gui_keep_variable("ure_root") && ure_gui_keep_variable("ure_future_selection") &&
+            !ure_gui_keep_variable("ure_absent") && !ure_gui_keep_variable("tw_language"),"URE defaults overwrite selections or capture unrelated variables");
         PageManager::RequestUreReload();
         check(PageManager::reloads==0 && DataManager::flushes==0,"Reload destroyed resources or flushed settings in the action thread");
         check(PageManager::RunReload()==0 && PageManager::reloads==1 && PageManager::current_page=="ure_display" &&
             DataManager::GetIntValue("ure_ui_scale_applied")==50 && PageManager::paths.back()=="/twres/ui.xml","Deferred scale reload did not use the stock theme");
         check(PageManager::mounts==0 && DataManager::settings_reads==0 && DataManager::flushes==0,"Scale reload mounted or wrote upstream settings storage");
+        check(PageManager::main_page_side_effects==0 && PageManager::mStartPage=="main" &&
+            DataManager::GetStrValue("ure_root")=="/selected-fixture-root","Reload repeated startup actions, changed routing or lost selected OS state");
         check(DataManager::GetStrValue("pass_open")=="unlocked-fixture","Scale reload changed lock state");
         const auto reloads=PageManager::reloads; check(PageManager::RunReload()==0 && PageManager::reloads==reloads,"Renderer repeated a completed reload");
         DataManager::SetValue("ure_ui_scale_percent",90); PageManager::failures=1; PageManager::RequestUreReload();
@@ -85,6 +91,8 @@ int main() {
         PageManager::failures=2; DataManager::SetValue("ure_ui_scale_percent",90); PageManager::RequestUreReload();
         check(PageManager::RunReload()!=0 && DataManager::GetStrValue("ure_scale_status").find("restart recovery")!=std::string::npos,"Double reload failure falsely claimed restoration");
         check(PageManager::mounts==0 && DataManager::flushes==0,"Failure recovery touched Android or calibration storage");
+        check(PageManager::main_page_side_effects==0 && PageManager::mStartPage=="main" &&
+            DataManager::GetStrValue("ure_root")=="/selected-fixture-root","Failure recovery repeated startup actions or lost URE selection");
         ure::fs::remove_all(work); std::cout<<"Display presets, actual density/coordinate hooks, deferred reload/fallback and private settings fixtures passed; no rendering or tablet evidence.\n"; return 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; ure::fs::remove_all(work); return 1; }
 }

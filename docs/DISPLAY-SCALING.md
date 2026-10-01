@@ -18,10 +18,14 @@ inverse touch transform is applied. Rotation and brightness are independent.
 
 Applying a scale defers resource rebuilding to the render thread and returns to
 the scale page. The density reload uses the built-in reviewed theme, with no
-upstream settings flush, userdata mount, custom-theme lookup or calibration
+upstream settings flush, userdata mount, custom ZIP-theme lookup or calibration
 write. A failed reload retries the previously applied percentage. If that also
 fails, the result explicitly requests a recovery restart rather than claiming
 that the old interface was restored. Reload requests use atomic flags.
+Package recreation starts directly on the scale page, so main-page reboot,
+ADB/MTP and startup actions are not replayed. Existing URE selections and
+review fields survive theme-variable loading; the original future start-page
+route is restored after the reload.
 
 The active setting is held in memory until explicitly saved. In **Custom
 percentage and settings directory**, select a dedicated directory on an already

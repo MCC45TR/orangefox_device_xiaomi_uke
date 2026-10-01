@@ -20,10 +20,10 @@ index a3eb4fd4..db423015 100644
  		}
  
 diff --git a/gui/pages.cpp b/gui/pages.cpp
-index 1b0444bb..31114030 100755
+index 1b0444bb..d5215887 100755
 --- a/gui/pages.cpp
 +++ b/gui/pages.cpp
-@@ -73,7 +73,10 @@ std::map<std::string, PageSet*> PageManager::mPageSets;
+@@ -73,7 +73,11 @@ std::map<std::string, PageSet*> PageManager::mPageSets;
  PageSet* PageManager::mCurrentSet;
  MouseCursor *PageManager::mMouseCursor = NULL;
  HardwareKeyboard *PageManager::mHardwareKeyboard = NULL;
@@ -32,10 +32,11 @@ index 1b0444bb..31114030 100755
 +static std::atomic<bool> ure_reload_theme{false};
 +void ure_gui_density(float&, float&, int, int);
 +bool ure_gui_variable(const std::string&, std::string&);
++bool ure_gui_keep_variable(const std::string&);
  std::string PageManager::mStartPage = "main";
  std::vector<language_struct> Language_List;
  long mime;
-@@ -1421,6 +1424,7 @@ int PageSet::LoadDetails(LoadingContext& ctx, xml_node<>* root)
+@@ -1421,6 +1425,7 @@ int PageSet::LoadDetails(LoadingContext& ctx, xml_node<>* root)
  					tw_x_offset = offx * scale_off_w;
  					tw_y_offset = offy * scale_off_h;
  #endif
@@ -43,7 +44,18 @@ index 1b0444bb..31114030 100755
  					if (scale_w != 1 || scale_h != 1) {
  						LOGINFO("Scaling theme width %fx and height %fx, offsets x: %i y: %i w: %i h: %i\n",
  							scale_w, scale_h, tw_x_offset, tw_y_offset, tw_w_offset, tw_h_offset);
-@@ -1566,6 +1570,9 @@ int PageSet::LoadVariables(xml_node<>* vars)
+@@ -1543,6 +1548,10 @@ int PageSet::LoadVariables(xml_node<>* vars)
+ 		persist = child->first_attribute("persist");
+ 		if (name && value)
+ 		{
++			if (ure_gui_keep_variable(name->value())) {
++				child = child->next_sibling("variable");
++				continue;
++			}
+ 			if (strcmp(name->value(), "tw_x_offset") == 0) {
+ 				tw_x_offset = atoi(value->value());
+ 				child = child->next_sibling("variable");
+@@ -1566,6 +1575,9 @@ int PageSet::LoadVariables(xml_node<>* vars)
  			p = persist ? atoi(persist->value()) : 0;
  			string temp = value->value();
  			string valstr = gui_parse_text(temp);
@@ -53,7 +65,7 @@ index 1b0444bb..31114030 100755
  
  			if (valstr.find("+") != string::npos) {
  				string val1str = valstr;
-@@ -2036,10 +2043,24 @@ int PageManager::RunReload() {
+@@ -2036,10 +2048,29 @@ int PageManager::RunReload() {
  	//[f/d] save pass open var so we don't need to retype pass after theme changing
  	DataManager::GetValue("pass_open", isPassOpen);
  
@@ -64,12 +76,17 @@ index 1b0444bb..31114030 100755
 -	mReloadTheme = false;
 +	if (ure_reload_theme.exchange(false)) {
 +		int previous = DataManager::GetIntValue("ure_ui_scale_applied");
++		const std::string previous_start = mStartPage;
++		// Package loading focuses its start page. Skip main-page startup
++		// actions during a display-only reload and preserve future routing.
++		mStartPage = "ure_display";
 +		if (ReloadPackage("OrangeFox", TWRES "ui.xml") != 0) {
 +			DataManager::SetValue("ure_ui_scale_percent", previous);
 +			ret_val = ReloadPackage("OrangeFox", TWRES "ui.xml");
 +			DataManager::SetValue("ure_scale_status", ret_val == 0 ? "Scale reload failed; previous setting restored" :
 +				"Unable to reload the interface; restart recovery to use the saved or default scale");
 +		}
++		mStartPage = previous_start;
 +		if (DataManager::GetStrValue("tw_language") != "en")
 +			LoadLanguage(DataManager::GetStrValue("tw_language"));
 +		DataManager::SetValue("pass_open", isPassOpen);
@@ -80,7 +97,7 @@ index 1b0444bb..31114030 100755
  	theme_path = DataManager::GetSettingsStoragePath();
  	if (PartitionManager.Mount_By_Path(theme_path.c_str(), 1) < 0) {
  		LOGERR("Unable to mount %s during gui_reload_theme function.\n", theme_path.c_str());
-@@ -2085,6 +2106,13 @@ void PageManager::RequestReload() {
+@@ -2085,6 +2116,13 @@ void PageManager::RequestReload() {
  	mReloadTheme = true;
  }
  

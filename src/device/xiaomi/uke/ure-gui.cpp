@@ -112,6 +112,7 @@ void ure_gui_density(float& scale_w,float& scale_h,int width,int height) {
     }
 }
 bool ure_gui_variable(const std::string& name,std::string& output) {
+    if(name!="screen_w" && name!="screen_h" && name!="screen_original_h" && name!="center_x" && name!="center_y" && name!="input_w")return false;
     int width=0,height=0; DataManager::GetValue("ure_canvas_width",width); DataManager::GetValue("ure_canvas_height",height);
     if(width<=0 || height<=0)return false;
     if(name=="screen_w")output=std::to_string(width);
@@ -121,6 +122,11 @@ bool ure_gui_variable(const std::string& name,std::string& output) {
     else if(name=="input_w")output=std::to_string(std::max(1,width-96));
     else return false;
     return true;
+}
+bool ure_gui_keep_variable(const std::string& name) {
+    if(name.compare(0,4,"ure_")!=0)return false;
+    std::string existing;
+    return DataManager::GetValue(name,existing)==0;
 }
 int GUIAction::uremanager(std::string command) {
     std::lock_guard<std::mutex> guard(session_mutex);

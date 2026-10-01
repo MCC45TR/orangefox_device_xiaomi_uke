@@ -1,0 +1,3 @@
+# Unified-diff context has a leading space before the source's original tabs.
+# Keep the ordinary whitespace checks for every actual source file.
+patches/*.patch whitespace=-space-before-tab

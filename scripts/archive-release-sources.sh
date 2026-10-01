@@ -90,6 +90,7 @@ for path in device installer inventory; do
 done
 cp -a -- "$component/patches" "$component/manifests" "$component/scripts" "$component/tests" "$source_work/project/"
 cp -a -- "$component/configs" "$source_work/project/"
+cp -- "$component/.gitattributes" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"

@@ -33,6 +33,7 @@ public:
 inline std::string value(const std::string& name) { return DataManager::GetStrValue(name); }
 void ure_gui_density(float&,float&,int,int);
 bool ure_gui_variable(const std::string&,std::string&);
+bool ure_gui_keep_variable(const std::string&);
 std::string gui_parse_text(std::string);
 extern "C" void set_scale_values(float,float);
 extern "C" int scale_theme_x(int);
@@ -49,6 +50,8 @@ class PageManager {
 public:
     inline static std::atomic<bool> mReloadTheme{false};
     inline static int reloads=0,failures=0,renders=0,mounts=0;
+    inline static int main_page_side_effects=0;
+    inline static std::string mStartPage="main";
     inline static std::string current_page;
     inline static std::vector<std::string> paths;
     static int RunReload();
@@ -56,6 +59,8 @@ public:
     static void RequestUreReload();
     static int ReloadPackage(const std::string&,const std::string& path) {
         ++reloads; paths.push_back(path);
+        if(mStartPage!="ure_display")++main_page_side_effects;
+        if(!ure_gui_keep_variable("ure_root"))DataManager::SetValue("ure_root","/default-fixture-root");
         float width=2136.0F/1080.0F,height=1.0F;
         ure_gui_density(width,height,2136,3200); set_scale_values(width,height);
         // Simulate a failure after theme density was already recomputed.

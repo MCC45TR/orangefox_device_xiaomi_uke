@@ -27,7 +27,7 @@ cmp <(bash "$component/scripts/native-inputs.sh") "$component/reports/private/na
 cp -- "$component/reports/private/native-verification.json" "$destination/NATIVE-HOST-VERIFICATION.json"
 cp -- "$component/reports/private/native-test-inputs.sha256" "$destination/NATIVE-TEST-INPUTS.sha256"
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
-(cd "$component" && find src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
+(cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
 [[ $(stat -c %s "$recovery") == 104857600 && $(stat -c %s "$temporary") == 100663296 ]]
 kernel_bytes=$(od -An -tu4 -j8 -N4 "$temporary" | tr -d ' ')
 ramdisk_bytes=$(od -An -tu4 -j12 -N4 "$recovery" | tr -d ' ')
