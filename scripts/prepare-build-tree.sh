@@ -10,6 +10,7 @@ device_target="$tree/device/xiaomi/uke"
 firmware_manifest="$component/manifests/firmware.lock.json"
 build_make="$tree/build/make"
 vendor_directory_patch="$component/patches/0001-preserve-recovery-vendor-directory.patch"
+copy_changed() { cmp -s -- "$1" "$2" || cp -- "$1" "$2"; }
 
 entry=$(jq -ce --arg id "$profile" '.profiles[] | select(.id==$id and .download_status=="verified")' "$firmware_manifest") || {
   echo 'Unknown or unverified firmware profile' >&2
@@ -26,6 +27,43 @@ else
   echo 'Unexpected build/make source; refusing to stage an unverified patch' >&2
   exit 1
 fi
+
+# Extract an immutable source snapshot into the active build tree. Do not run
+# reference scripts. Only the project-owned Android adapter is staged with it.
+wim_reference="$component/referances/upstream/wimlib"
+wim_pin=cd5e231c348c255ae5088873b5a66ee0eb96fa07
+wim_target="$tree/external/ure-wimlib"
+[[ $(git -C "$wim_reference" rev-parse HEAD) == "$wim_pin" && -z $(git -C "$wim_reference" status --porcelain --untracked-files=no) ]]
+if [[ ! -d $wim_target ]]; then
+  mkdir -p "$wim_target"
+  git -C "$wim_reference" archive "$wim_pin" | tar -xf - -C "$wim_target"
+  printf '%s\n' "$wim_pin" > "$wim_target/.uke-linux-owned"
+fi
+[[ $(cat "$wim_target/.uke-linux-owned") == "$wim_pin" ]]
+copy_changed "$component/configs/ure/wimlib-Android.bp" "$wim_target/Android.bp"
+copy_changed "$component/configs/ure/wimlib-config.h" "$wim_target/config.h"
+
+dropbear_reference="$component/referances/upstream/dropbear"
+dropbear_pin=179de98f7b9584a309ffc48e39c61da940760740
+dropbear_target="$tree/external/ure-dropbear"
+[[ $(git -C "$dropbear_reference" rev-parse HEAD) == "$dropbear_pin" && -z $(git -C "$dropbear_reference" status --porcelain --untracked-files=no) ]]
+if [[ ! -d $dropbear_target ]]; then
+  mkdir -p "$dropbear_target"
+  git -C "$dropbear_reference" archive "$dropbear_pin" | tar -xf - -C "$dropbear_target"
+  printf '%s\n' "$dropbear_pin" > "$dropbear_target/.uke-linux-owned"
+fi
+[[ $(cat "$dropbear_target/.uke-linux-owned") == "$dropbear_pin" ]]
+copy_changed "$component/configs/ure/dropbear-Android.bp" "$dropbear_target/Android.bp"
+copy_changed "$component/configs/ure/dropbear-config.h" "$dropbear_target/config.h"
+copy_changed "$component/configs/ure/dropbear-localoptions.h" "$dropbear_target/localoptions.h"
+# The pinned defaults contain no multiline macro definitions. Match upstream's
+# documented guard transform without executing the reference wrapper script.
+if grep -E '^ *#define .*\\$' "$dropbear_target/src/default_options.h" >/dev/null; then
+  echo 'Unexpected multiline Dropbear default macro' >&2; exit 1
+fi
+awk '/^ *#define / { print "#ifndef " $2; print; print "#endif"; next } { print }' \
+  "$dropbear_target/src/default_options.h" > "$component/build/dropbear-options-guard.h"
+copy_changed "$component/build/dropbear-options-guard.h" "$dropbear_target/default_options_guard.h"
 
 region=$(jq -r .region <<<"$entry" | tr '[:upper:]' '[:lower:]')
 archive_name=$(jq -r .url <<<"$entry")
@@ -48,6 +86,50 @@ fi
 mkdir -p "$device_target"
 cp -a "$device_source/." "$device_target/"
 : > "$device_target/.uke-linux-owned"
+
+# Apply the reviewed adapter patch only to the active, pinned source checkout.
+# The reference archive remains unmodified and is never used as executable code.
+recovery_source="$tree/bootable/recovery"
+ui_patch="$component/patches/0002-native-ure-ui.patch"
+if git -C "$recovery_source" apply --unidiff-zero --reverse --check "$ui_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --unidiff-zero --check "$ui_patch"; then
+  git -C "$recovery_source" apply --unidiff-zero "$ui_patch"
+else
+  echo 'Unexpected OrangeFox GUI source; refusing an unverified adapter patch' >&2
+  exit 1
+fi
+cp -- "$device_source/ure-gui.cpp" "$recovery_source/gui/ure.cpp"
+link_patch="$component/patches/0004-link-native-ure.patch"
+if git -C "$recovery_source" apply --unidiff-zero --reverse --check "$link_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --unidiff-zero --check "$link_patch"; then
+  git -C "$recovery_source" apply --unidiff-zero "$link_patch"
+else
+  echo 'Unexpected OrangeFox link configuration; refusing adapter patch' >&2
+  exit 1
+fi
+ntfs_source="$tree/external/ntfs-3g"
+ntfs_patch="$component/patches/0003-build-ntfsresize.patch"
+if git -C "$ntfs_source" apply --reverse --check "$ntfs_patch" 2>/dev/null; then
+  :
+elif git -C "$ntfs_source" apply --check "$ntfs_patch"; then
+  git -C "$ntfs_source" apply "$ntfs_patch"
+else
+  echo 'Unexpected NTFS source; refusing an unverified build patch' >&2
+  exit 1
+fi
+
+vendor_source="$tree/vendor/recovery"
+callback_patch="$component/patches/0005-propagate-callback-failure.patch"
+if git -C "$vendor_source" apply --unidiff-zero --reverse --check "$callback_patch" 2>/dev/null; then
+  :
+elif git -C "$vendor_source" apply --unidiff-zero --check "$callback_patch"; then
+  git -C "$vendor_source" apply --unidiff-zero "$callback_patch"
+else
+  echo 'Unexpected OrangeFox packaging source; refusing callback patch' >&2
+  exit 1
+fi
 
 stage="$component/build/stock-$region/boot"
 mkdir -p "$stage" "$device_target/prebuilt" "$component/reports/private"

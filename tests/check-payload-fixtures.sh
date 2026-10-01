@@ -1,25 +1,22 @@
 #!/usr/bin/env bash
+# Host-only negative fixtures for renamed runtimes and nested archive content.
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-fixture=$(mktemp -d)
-trap 'rm -rf -- "$fixture"' EXIT
-mkdir -p "$fixture/system/bin"
-"$component/tests/check-payload.sh" "$fixture" >/dev/null
-reject() {
-    if "$component/tests/check-payload.sh" "$fixture" >/dev/null 2>&1; then
-        echo 'Unsafe payload fixture was accepted' >&2; exit 1
-    fi
-}
-touch "$fixture/system/bin/python3"
-reject
-rm "$fixture/system/bin/python3"
-ln -s /system/bin/python3 "$fixture/system/bin/python3"
-reject
-rm "$fixture/system/bin/python3"
-printf '/%s/%s/source.cc\n' home fixture > "$fixture/system/bin/test"
-reject
-rm "$fixture/system/bin/test"
-private_root=home
-ln -s "/$private_root/fixture/source" "$fixture/system/bin/test"
-reject
-echo 'Payload path and Python rejection fixtures passed.'
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+mkdir "$work/clean" "$work/bad" "$work/outer" "$work/payload"
+printf '#!/bin/sh\nexit 0\n' > "$work/clean/helper"
+bash "$component/tests/check-payload.sh" "$work/clean" >/dev/null
+printf '#!/usr/bin/env python3\n' > "$work/bad/renamed-helper"
+if bash "$component/tests/check-payload.sh" "$work/bad" >/dev/null 2>&1; then echo 'Renamed interpreter script accepted' >&2; exit 1; fi
+printf 'PYTHONHOME\n' > "$work/bad/renamed-helper"
+if bash "$component/tests/check-payload.sh" "$work/bad" >/dev/null 2>&1; then echo 'Renamed runtime identity accepted' >&2; exit 1; fi
+(cd "$work/bad" && zip -q "$work/outer/inner.archive" renamed-helper)
+(cd "$work/outer" && zip -q "$work/payload/outer.archive" inner.archive)
+if bash "$component/tests/check-nested-payloads.sh" "$work/payload" >/dev/null 2>&1; then echo 'Nested forbidden payload accepted' >&2; exit 1; fi
+printf 'ordinary safe content\n' > "$work/bad/renamed-helper"
+rm "$work/outer/inner.archive" "$work/payload/outer.archive"
+(cd "$work/bad" && zip -q "$work/outer/inner.archive" renamed-helper)
+(cd "$work/outer" && zip -q "$work/payload/outer.archive" inner.archive)
+bash "$component/tests/check-nested-payloads.sh" "$work/payload" | rg -q '2 archives'
+printf 'Renamed Python/runtime and recursive archive fixtures: passed\n'

@@ -5,7 +5,11 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 tree="$component/src/upstream/orangefox-android16"
 out="$tree/out-public"
 product="$out/target/product/uke"
-destination="$component/artifacts/prerelease"
+candidate=${1:-prerelease}
+[[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
+destination="$component/artifacts/$candidate"
+instructions="$component/docs/PRE-RELEASE.md"
+if [[ $candidate != prerelease ]]; then instructions="$component/docs/URE-NATIVE-CANDIDATE.md"; fi
 kernel="$component/build/stock-global/boot/kernel"
 installer="$product/recovery/root/system/bin/uke-recovery-install"
 mkboot="$out/host/linux-x86/bin/mkbootimg"
@@ -46,18 +50,23 @@ mkdir -p "$package_work/META-INF/com/google/android"
 cp -- "$component/src/installer/update-binary" "$package_work/META-INF/com/google/android/update-binary"
 chmod 755 "$package_work/META-INF/com/google/android/update-binary" "$package_work/uke-recovery-install"
 sha256sum "$product/recovery.img" | cut -d' ' -f1 > "$package_work/recovery.sha256"
-cp -- "$component/docs/PRE-RELEASE.md" "$package_work/INSTALL.md"
+cp -- "$instructions" "$package_work/INSTALL.md"
+cp -- "$component/docs/PRE-RELEASE.md" "$package_work/STOCK-RETURN.md"
+cp -- "$component/src/device/xiaomi/uke/ure-tools.lock.json" "$package_work/URE-TOOLS.json"
+cp -- "$component/docs/URE-NATIVE.md" "$package_work/URE-NATIVE.md"
 cp -- "$component/LICENSE" "$package_work/LICENSE"
 # All files receive a deterministic timestamp. Replacing this generated asset is intentional.
 find "$package_work" -type f -exec touch -d '@1790726400' {} +
 zipfile="$destination/OrangeFox-uke-flashable.zip"
 [[ ! -e $zipfile ]] || mv -- "$zipfile" "$package_work/previous.zip"
 (cd -- "$package_work" && zip -X -9 "$zipfile" META-INF/com/google/android/update-binary \
-    recovery.img uke-recovery-install recovery.sha256 INSTALL.md LICENSE >/dev/null)
+    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md LICENSE >/dev/null)
 unzip -t "$zipfile" >/dev/null
 cp -- "$component/manifests/orangefox-android16-uke.lock.xml" "$destination/ORANGEFOX-SOURCE-PINS.xml"
 cp -- "$component/manifests/stock-kernel-source.json" "$destination/STOCK-KERNEL-SOURCE.json"
-cp -- "$component/docs/PRE-RELEASE.md" "$destination/INSTALL.md"
+cp -- "$instructions" "$destination/INSTALL.md"
+cp -- "$component/docs/PRE-RELEASE.md" "$destination/STOCK-RETURN.md"
+cp -- "$component/src/device/xiaomi/uke/ure-tools.lock.json" "$destination/URE-TOOLS.json"
 (cd -- "$destination" && sha256sum OrangeFox-uke-fastboot-boot.img OrangeFox-uke-recovery.img \
     OrangeFox-uke-flashable.zip ORANGEFOX-SOURCE-PINS.xml STOCK-KERNEL-SOURCE.json INSTALL.md > SHA256SUMS)
 echo 'Three experimental assets packaged; no device boot or flash has been performed.'

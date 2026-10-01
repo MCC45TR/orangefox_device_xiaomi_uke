@@ -3,7 +3,9 @@
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 tree="$component/src/upstream/orangefox-android16"
-destination="$component/artifacts/prerelease"
+candidate=${1:-prerelease}
+[[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
+destination="$component/artifacts/$candidate"
 gki="$component/../senemos-uke-kernel/referances/android/gki-stock-14529422"
 magisk="$component/referances/tools/magiskboot-v26.5-vb-beta"
 source_work=$(mktemp -d "$component/build/release-sources-XXXXXX")
@@ -38,12 +40,34 @@ sources=(bootable/recovery vendor/recovery vendor/twrp external/bash external/na
     external/lzma external/magisk-prebuilt external/libncurses
     external/lz4 external/zlib external/zstd external/boringssl
     external/toybox external/selinux external/roboto-fonts bionic system/core system/extras
-    system/libbase system/libziparchive system/update_engine)
+    system/libbase system/libziparchive system/update_engine external/ntfs-3g external/jsoncpp)
+verify_reviewed_patch() {
+    local source_path=$1; shift
+    local index="$source_work/verification-index" file expected actual
+    [[ ! -e $index ]] || { echo 'Unexpected temporary verification index' >&2; exit 1; }
+    GIT_INDEX_FILE="$index" git -C "$source_path" read-tree HEAD
+    for file in "$@"; do GIT_INDEX_FILE="$index" git -C "$source_path" apply --cached --unidiff-zero "$component/patches/$file"; done
+    GIT_INDEX_FILE="$index" git -C "$source_path" diff --cached --name-only HEAD > "$source_work/expected-paths"
+    git -C "$source_path" diff --name-only HEAD > "$source_work/actual-paths"
+    cmp "$source_work/expected-paths" "$source_work/actual-paths"
+    while IFS= read -r file; do
+        expected=$(GIT_INDEX_FILE="$index" git -C "$source_path" show ":$file" | sha256sum | cut -d' ' -f1)
+        actual=$(sha256sum "$source_path/$file" | cut -d' ' -f1)
+        [[ $expected == "$actual" ]] || { echo 'Active source differs from reviewed patches' >&2; exit 1; }
+    done < "$source_work/expected-paths"
+    unlink -- "$index"
+}
 for path in "${sources[@]}"; do
     [[ -d "$tree/$path/.git" || -f "$tree/$path/.git" ]] || { echo "Missing source: $path" >&2; exit 1; }
-    [[ -z $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]] || {
-        echo "Unexpected modification in source: $path" >&2; exit 1;
-    }
+    if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
+        case "$path" in
+            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch
+                cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp";;
+            external/ntfs-3g) verify_reviewed_patch "$tree/$path" 0003-build-ntfsresize.patch;;
+            vendor/recovery) verify_reviewed_patch "$tree/$path" 0005-propagate-callback-failure.patch;;
+            *) echo "Unexpected modification in source: $path" >&2; exit 1;;
+        esac
+    fi
     exclusions=()
     case "$path" in
         bootable/recovery) exclusions=(':(exclude)gui/theme/common/fonts/*.ttf');;
@@ -52,12 +76,34 @@ for path in "${sources[@]}"; do
     git -C "$tree/$path" archive --format=tar --prefix="android/$path/" HEAD . "${exclusions[@]}" > "$source_work/part.tar"
     tar --concatenate --file="$source_work/recovery.tar" "$source_work/part.tar"
 done
+# Preserve pristine upstream snapshots and the adapters that reconstruct the
+# actual source build, including original component/dependency licenses.
+for tool in wimlib dropbear; do
+    reference="$component/referances/upstream/$tool"
+    [[ -z $(git -C "$reference" status --porcelain --untracked-files=no) ]]
+    git -C "$reference" archive --format=tar --prefix="ure-upstream/$tool/" HEAD > "$source_work/part.tar"
+    tar --concatenate --file="$source_work/recovery.tar" "$source_work/part.tar"
+done
 mkdir -p "$source_work/project/src"
 for path in device installer inventory; do
     cp -a -- "$component/src/$path" "$source_work/project/src/"
 done
 cp -a -- "$component/patches" "$component/manifests" "$component/scripts" "$component/tests" "$source_work/project/"
+cp -a -- "$component/configs" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
+cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
+cp -- "$component/docs/COMPREHENSIVE-ROADMAP.md" "$component/docs/FEATURE-PARITY.md" \
+    "$component/docs/ARCHITECTURE.md" "$source_work/project/"
+cp -- "$component/reports/URE-NATIVE-BUILD.md" "$source_work/project/BUILD-REPORT.md"
+if [[ -f $component/reports/URE-STREAMING-BUILD.md ]]; then
+    cp -- "$component/reports/URE-STREAMING-BUILD.md" "$source_work/project/STREAMING-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-GPT-BUILD.md ]]; then
+    cp -- "$component/reports/URE-GPT-BUILD.md" "$source_work/project/GPT-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-STORAGE-BUILD.md ]]; then
+    cp -- "$component/reports/URE-STORAGE-BUILD.md" "$source_work/project/STORAGE-BUILD-REPORT.md"
+fi
 cp -a -- "$tree/out-public/target/product/uke/recovery/root/FFiles" "$source_work/project/payload-script-sources"
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"

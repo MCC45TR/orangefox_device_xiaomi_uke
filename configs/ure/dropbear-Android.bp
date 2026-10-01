@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0
+// Dropbear 2025.89; no service is started automatically.
+cc_defaults {
+    name: "ure-dropbear-defaults",
+    c_std: "gnu99",
+    cflags: ["-DDROPBEAR_SERVER", "-DDROPBEAR_MULTI", "-DDBMULTI_dropbear",
+             "-DDBMULTI_dropbearkey", "-DLOCALOPTIONS_H_EXISTS",
+             "-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-pointer-sign"],
+    local_include_dirs: [".", "src", "libtomcrypt/src/headers", "libtommath"],
+}
+cc_library_static {
+    name: "libure-tommath",
+    defaults: ["ure-dropbear-defaults"],
+    srcs: ["libtommath/bn_*.c"],
+}
+cc_library_static {
+    name: "libure-tomcrypt",
+    defaults: ["ure-dropbear-defaults"],
+    cflags: ["-DLTC_SOURCE"],
+    srcs: ["libtomcrypt/src/**/*.c"],
+    exclude_srcs: ["libtomcrypt/src/**/*tab.c"],
+}
+cc_binary {
+    name: "dropbear",
+    defaults: ["ure-dropbear-defaults"],
+    srcs: ["src/*.c"],
+    exclude_srcs: ["src/cli-*.c", "src/scp.c", "src/scpmisc.c", "src/progressmeter.c",
+                   "src/dropbearconvert.c", "src/keyimport.c", "src/signkey_ossh.c"],
+    static_libs: ["libure-tomcrypt", "libure-tommath"],
+}

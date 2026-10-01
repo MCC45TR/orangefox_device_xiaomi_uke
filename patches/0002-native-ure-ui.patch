@@ -1,0 +1,22 @@
+diff --git a/gui/Android.bp b/gui/Android.bp
+index 4472bc8c..ed893bab 100644
+--- a/gui/Android.bp
++++ b/gui/Android.bp
+@@ -26,0 +27 @@ cc_library_static {
++    cppflags: ["-fexceptions"],
+@@ -64,0 +66 @@ cc_library_static {
++        "ure.cpp",
+@@ -102,0 +105 @@ cc_library_static {
++        "libuke-recovery",
+diff --git a/gui/action.cpp b/gui/action.cpp
+index bd5da251..91caa0d8 100644
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -287,0 +288 @@ GUIAction::GUIAction(xml_node <> *node):GUIObject(node)
++      ADD_ACTION(uremanager);
+diff --git a/gui/objects.hpp b/gui/objects.hpp
+index 998a0bec..939b9d9d 100644
+--- a/gui/objects.hpp
++++ b/gui/objects.hpp
+@@ -617,0 +618 @@ protected:
++	int uremanager(std::string arg);

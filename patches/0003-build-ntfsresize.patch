@@ -1,0 +1,16 @@
+diff --git a/Android.bp b/Android.bp
+index aef32e0d..a9d654f5 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -121,3 +121,11 @@ cc_binary {
+         "libntfs-3g",
+     ],
+ }
++
++// URE uses the upstream information/no-action modes through a read-only FD.
++cc_binary {
++    name: "ntfsresize",
++    defaults: ["ntfs-3g_defaults"],
++    srcs: ["ntfsprogs/ntfsresize.c", "ntfsprogs/utils.c"],
++    shared_libs: ["libfuse-lite", "libntfs-3g"],
++}

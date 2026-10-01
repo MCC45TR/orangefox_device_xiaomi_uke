@@ -69,7 +69,18 @@ TW_INCLUDE_UPDATE_ENGINE_SIDELOAD := true
 TW_INCLUDE_REPACKTOOLS := true
 TW_INCLUDE_LPDUMP := true
 TW_INCLUDE_LPTOOLS := true
-TARGET_RECOVERY_DEVICE_MODULES += bootctl
+TARGET_RECOVERY_DEVICE_MODULES += bootctl fsck.f2fs fsck.exfat dump.exfat mkfs.exfat ntfsresize wimlib-imagex dropbear
+TW_INCLUDE_NTFS_3G := true
+TW_RECOVERY_ADDITIONAL_RELINK_BINARY_FILES += \
+    $(TARGET_OUT_EXECUTABLES)/ntfsresize \
+    $(TARGET_OUT_EXECUTABLES)/fsck.exfat \
+    $(TARGET_OUT_EXECUTABLES)/dump.exfat \
+    $(TARGET_OUT_EXECUTABLES)/mkfs.exfat \
+    $(TARGET_OUT_EXECUTABLES)/wimlib-imagex \
+    $(TARGET_OUT_EXECUTABLES)/dropbear
+TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
+    $(TARGET_OUT_SHARED_LIBRARIES)/libsnapshot.so \
+    $(TARGET_OUT_SHARED_LIBRARIES)/libfs_mgr_binder.so
 TARGET_USES_LOGD := true
 TWRP_INCLUDE_LOGCAT := true
 

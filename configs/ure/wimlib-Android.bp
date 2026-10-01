@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+// Source snapshot: wimlib 1.14.5, cd5e231c348c255ae5088873b5a66ee0eb96fa07.
+cc_defaults {
+    name: "ure-wimlib-defaults",
+    c_std: "gnu99",
+    cflags: ["-DHAVE_CONFIG_H", "-D_GNU_SOURCE", "-D_LARGEFILE_SOURCE",
+             "-D_FILE_OFFSET_BITS=64", "-Wno-unused-parameter",
+             "-Wno-sign-compare", "-Wno-pointer-sign", "-Wno-gnu-pointer-arith"],
+    // Upstream's GNU99 implementation intentionally uses void-pointer arithmetic.
+    local_include_dirs: [".", "include"],
+    include_dirs: ["external/ntfs-3g/include"],
+}
+cc_library_static {
+    name: "libure-wim",
+    defaults: ["ure-wimlib-defaults"],
+    srcs: ["src/*.c"],
+    exclude_srcs: ["src/win32_*.c", "src/wimboot.c", "src/test_support.c"],
+    export_include_dirs: ["include"],
+    shared_libs: ["libntfs-3g"],
+}
+cc_binary {
+    name: "wimlib-imagex",
+    defaults: ["ure-wimlib-defaults"],
+    srcs: ["programs/imagex.c"],
+    static_libs: ["libure-wim"],
+    shared_libs: ["libntfs-3g"],
+}

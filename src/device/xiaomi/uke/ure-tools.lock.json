@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "classification": "experimental-native-candidate",
+  "firmware_profile": "global-os3.0.303.0",
+  "physical_validation": false,
+  "tools": [
+    {"name": "libuke-recovery", "language": "C++20", "owner": "recovery-uke-ofox", "api_schema": 1, "license": "Apache-2.0", "block_transactions": false},
+    {"name": "JsonCpp", "commit": "8f65e4b14b9946910e1519231097870b5953b00f", "license": "MIT", "source": "external/jsoncpp"},
+    {"name": "ntfs-3g", "commit": "e2415df401538976fb89aa20370903e0c46e51ff", "license": "GPL-2.0-or-later", "source": "external/ntfs-3g", "adapter": "patches/0003-build-ntfsresize.patch"},
+    {"name": "wimlib-imagex", "version": "1.14.5", "commit": "cd5e231c348c255ae5088873b5a66ee0eb96fa07", "license": "GPL-3.0-or-later", "ntfs_support": true, "fuse_support": false, "adapter": "configs/ure/wimlib-Android.bp"},
+    {"name": "Dropbear", "version": "2025.89", "commit": "179de98f7b9584a309ffc48e39c61da940760740", "license": "MIT and bundled original notices", "password_auth": false, "pam_auth": false, "forwarding": false, "sftp": false, "automatic_start": false, "adapter": "configs/ure/dropbear-Android.bp"},
+    {"name": "cryptsetup", "version": "2.8.8", "commit": "f1dbcce190719c9e177e8fbaf3df0b908f87d920", "role": "reference-only", "packaged": false},
+    {"name": "btrfs-progs", "version": "7.1", "commit": "4ab0e80be9e3bb1db2e6038e6d4316d35fb7ba8b", "role": "reference-only", "packaged": false, "kernel_filesystem_support": false}
+  ],
+  "other_tool_pins": "manifests/orangefox-android16-uke.lock.xml",
+  "host_only_python_policy": "docs/HOST-TOOLS.md"
+}

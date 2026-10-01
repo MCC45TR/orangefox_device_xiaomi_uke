@@ -1,0 +1,15 @@
+diff --git a/OrangeFox_vendor.sh b/OrangeFox_vendor.sh
+--- a/OrangeFox_vendor.sh
++++ b/OrangeFox_vendor.sh
+@@ -786,1 +786,4 @@
+-	bash $FOX_LOCAL_CALLBACK_SCRIPT "$FOX_TMP_WORKING_DIR" "--last-call"
++	if ! bash "$FOX_LOCAL_CALLBACK_SCRIPT" "$FOX_TMP_WORKING_DIR" "--last-call"; then
++		echo 'Local packaging callback failed' >&2
++		exit 1
++	fi
+@@ -1720,1 +1723,4 @@
+-	bash $FOX_LOCAL_CALLBACK_SCRIPT "$FOX_RAMDISK" "--first-call"
++	if ! bash "$FOX_LOCAL_CALLBACK_SCRIPT" "$FOX_RAMDISK" "--first-call"; then
++		echo 'Local ramdisk callback failed' >&2
++		exit 1
++	fi

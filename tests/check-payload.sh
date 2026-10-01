@@ -10,6 +10,12 @@ while IFS= read -r -d '' file; do
         *.py|*.pyc|*.pyo|*/python|*/python[0-9]*|*/libpython*|*/site-packages/*)
             printf 'Forbidden Python payload: %s\n' "$relative" >&2; failed=1;;
     esac
+    if head -c 256 -- "$file" | LC_ALL=C grep -aE '^#!.*(python|pypy)' >/dev/null; then
+        printf 'Renamed Python launcher in payload: %s\n' "$relative" >&2; failed=1
+    fi
+    if LC_ALL=C strings -a "$file" | grep -E '^Py_Initialize(Ex)?$|^Py_Main$|^PYTHONHOME$|^PYTHONPATH$' >/dev/null; then
+        printf 'Python runtime identity in payload: %s\n' "$relative" >&2; failed=1
+    fi
     if LC_ALL=C strings -a "$file" | grep -E '/home/|/root/|/run/user/|/var/home/|/Users/' >/dev/null; then
         printf 'Private absolute path in payload: %s\n' "$relative" >&2; failed=1
     fi
