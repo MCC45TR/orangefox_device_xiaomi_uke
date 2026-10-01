@@ -15,7 +15,7 @@
 This roadmap incorporates the supplied `UKE_Recovery_Comprehensive_Roadmap.md`
 dated 30 September 2026, retaining all numbered topics 0–102. The input SHA-256
 is `d9f5787316736eca07b93c47931c9d86ffd2d2a3d068b6c7bba137a34466a4ca`.
-The workspace [development plan](https://github.com/MCC45TR/uke-linux/blob/main/PLAN.md#61-ure-implementation-milestones)
+The workspace [development plan](https://github.com/MCC45TR/uke-linux/blob/codex/ure-roadmap-integration/PLAN.md#61-ure-implementation-milestones)
 tracks its sixteen phases as URE-00–URE-15, alongside the existing 100 platform
 steps. [Feature coverage](FEATURE-PARITY.md#ure-capability-extension) provides
 stable acceptance IDs for the additional capabilities.
@@ -3435,8 +3435,8 @@ Every release candidate should record:
 
 ## 88. CI Test Classes
 
-Use the workspace [test contract](https://github.com/MCC45TR/uke-linux/blob/main/docs/testing/TEST-CONTRACT.md)
-and [PLAN.md section 8](https://github.com/MCC45TR/uke-linux/blob/main/PLAN.md#8-human-and-unattended-testing).
+Use the workspace [test contract](https://github.com/MCC45TR/uke-linux/blob/codex/ure-roadmap-integration/docs/testing/TEST-CONTRACT.md)
+and [PLAN.md section 8](https://github.com/MCC45TR/uke-linux/blob/codex/ure-roadmap-integration/PLAN.md#8-human-and-unattended-testing).
 The recovery-specific cases below extend those classes without changing their
 authorization or evidence boundaries. U0/U1/U2 are host/disposable/emulation
 work; controlled device writes require H2.
