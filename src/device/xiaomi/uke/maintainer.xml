@@ -26,6 +26,13 @@
     <variable name="ure_gpt_can_execute" value="0"/>
     <variable name="ure_gpt_can_rollback" value="0"/>
     <variable name="ure_gpt_can_resume" value="0"/>
+    <variable name="ure_restore_journal" value=""/>
+    <variable name="ure_restore_plan_hash" value=""/>
+    <variable name="ure_restore_journal_hash" value=""/>
+    <variable name="ure_restore_can_execute" value="0"/>
+    <variable name="ure_restore_can_resume" value="0"/>
+    <variable name="ure_restore_can_rollback" value="0"/>
+    <variable name="ure_restore_can_cancel" value="0"/>
   </variables>
   <pages>
     <page name="maintainer">
@@ -51,6 +58,7 @@
           <listitem name="Interrupted transactions and rollback"><icon res="wrench"/><action function="page">ure_journals</action></listitem>
           <listitem name="File backup"><icon res="overview"/><action function="page">ure_backup</action></listitem>
           <listitem name="Storage image and live partition backup"><icon res="partitions"/><action function="page">ure_raw_select</action></listitem>
+          <listitem name="Raw image restore and interrupted operation recovery"><icon res="partitions"/><action function="page">ure_restore_select</action></listitem>
           <listitem name="GPT backup, image repair and journal recovery"><icon res="partitions"/><action function="page">ure_gpt_select</action></listitem>
         </listbox>
       </scroll>
@@ -210,6 +218,61 @@
           <listitem name="Return; transfer saved manifest to host receiver"><action function="page">ure_raw_tools</action></listitem>
         </listbox>
       </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_raw_tools</action></action>
+    </page>
+    <page name="ure_restore_select">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Raw restore target</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Restore the selected image. Live storage writes are unavailable.</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_raw_source%</text><data name="ure_raw_source"/><restrict minlen="1" maxlen="4096"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Image sector bytes: 512 or 4096</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_raw_sector%</text><data name="ure_raw_sector"/><restrict minlen="3" maxlen="4"/></input>
+      <listbox style="group_list"><placement x="0" y="%row7_1_y%" w="%screen_w%" h="%files_np_w%"/>
+        <listitem name="Select image restore inputs"><action function="set">ure_raw_kind=image</action><action function="page">ure_restore_inputs</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_restore_inputs">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Restore source and journal</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Verified chunked backup directory</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_backup_dir%</text><data name="ure_backup_dir"/><restrict minlen="1" maxlen="4096"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Journal parent with room for original and target bytes</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_journal_parent%</text><data name="ure_journal_parent"/><restrict minlen="1" maxlen="4096"/></input>
+      <listbox style="group_list"><placement x="0" y="%row7_1_y%" w="%screen_w%" h="%files_np_w%"/>
+        <listitem name="Create and review a restore plan"><action function="uremanager">restore-plan</action><action function="page">ure_restore_plan_review</action></listitem>
+        <listitem name="Inspect an existing restore journal"><action function="page">ure_restore_journals</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_restore_select</action></action>
+    </page>
+    <page name="ure_restore_plan_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review complete image overwrite</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="800"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_output%</text></textbox>
+        <listbox style="group_list"><placement x="0" y="820" w="%screen_w%" h="400"/>
+          <listitem name="Confirm reviewed plan, preserve rollback data and restore"><condition var1="ure_restore_can_execute" var2="1"/><action function="uremanager">restore-execute</action><action function="page">ure_output</action></listitem>
+          <listitem name="Return without writing image bytes"><action function="page">ure_restore_inputs</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_restore_inputs</action></action>
+    </page>
+    <page name="ure_restore_journals">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Restore journal directory</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Inspect current target bytes before any recovery action</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_restore_journal%</text><data name="ure_restore_journal"/><restrict minlen="1" maxlen="4096"/></input>
+      <listbox style="group_list"><placement x="0" y="%row5_1_y%" w="%screen_w%" h="%files_np_w%"/>
+        <listitem name="Inspect and review the selected journal"><action function="uremanager">restore-inspect</action><action function="page">ure_restore_journal_review</action></listitem>
+      </listbox><template name="gestures_key"/><action><touch key="back"/><action function="page">ure_restore_inputs</action></action>
+    </page>
+    <page name="ure_restore_journal_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review restore recovery</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="800"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_output%</text></textbox>
+        <listbox style="group_list"><placement x="0" y="820" w="%screen_w%" h="600"/>
+          <listitem name="Confirm continuation from verified current bytes"><condition var1="ure_restore_can_resume" var2="1"/><action function="uremanager">restore-resume</action><action function="page">ure_output</action></listitem>
+          <listitem name="Confirm rollback to verified pre-operation bytes"><condition var1="ure_restore_can_rollback" var2="1"/><action function="uremanager">restore-rollback</action><action function="page">ure_output</action></listitem>
+          <listitem name="Confirm safe cancellation before image writes"><condition var1="ure_restore_can_cancel" var2="1"/><action function="uremanager">restore-cancel</action><action function="page">ure_output</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_restore_journals</action></action>
     </page>
     <page name="ure_gpt_select">
       <template name="base_ex"/>

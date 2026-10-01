@@ -18,15 +18,21 @@ std::string pending_journal;
 ure::Value pending_gpt_plan;
 std::string pending_gpt_journal;
 std::string reviewed_gpt_journal;
+ure::Value pending_restore_plan;
+std::string pending_restore_journal,pending_restore_backup,reviewed_restore_journal;
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
 void publish(const ure::Value& data) { DataManager::SetValue("ure_output",ure::json(data)); }
-ure::StorageTarget backup_target(const ure::Root& system) {
-    if(value("ure_raw_kind")=="live")return ure::storage_select(system,value("ure_raw_source"),true);
+ure::StorageTarget backup_target(const ure::Root& system,bool writable=false) {
+    if(value("ure_raw_kind")=="live") {
+        ure::require(!writable,"firmware-unverified","Live restore awaits the firmware/slot/snapshot and ownership backend");
+        return ure::storage_select(system,value("ure_raw_source"),true);
+    }
     ure::require(value("ure_raw_kind")=="image","invalid-target","Select an image or a Storage Graph identity");
     const auto sector=value("ure_raw_sector");
     ure::require(sector=="512" || sector=="4096","invalid-sector","Image sector size must be 512 or 4096");
-    return ure::storage_image(value("ure_raw_source"),sector=="512" ? 512U : 4096U);
+    ure::require(ure::fs::path(value("ure_raw_source")).is_absolute(),"invalid-path","Select an absolute storage image path");
+    return ure::storage_image(value("ure_raw_source"),sector=="512" ? 512U : 4096U,writable);
 }
 void review_backup() {
     const auto manifest="/tmp/ure-backup-plan-"+pending_backup["operation_id"].asString()+".json";
@@ -51,11 +57,17 @@ ure::StorageTarget gpt_target(const ure::Root& system,bool writable=false) {
     ure::require(value("ure_gpt_kind")=="image","invalid-target","Select an image or a live Storage Graph identity");
     const auto sector=value("ure_gpt_sector");
     ure::require(sector=="512" || sector=="4096","invalid-sector","Image sector size must be 512 or 4096");
+    ure::require(ure::fs::path(value("ure_gpt_source")).is_absolute(),"invalid-path","Select an absolute GPT image path");
     return ure::storage_image(value("ure_gpt_source"),sector=="512" ? 512U : 4096U,writable);
 }
 void clear_gpt_review() {
     pending_gpt_plan=ure::Value(); pending_gpt_journal.clear(); reviewed_gpt_journal.clear();
     for(const auto* name:{"ure_gpt_plan_hash","ure_gpt_journal_hash","ure_gpt_can_execute","ure_gpt_can_rollback","ure_gpt_can_resume"})DataManager::SetValue(name,"");
+}
+void clear_restore_review() {
+    pending_restore_plan=ure::Value(); pending_restore_journal.clear(); pending_restore_backup.clear(); reviewed_restore_journal.clear();
+    for(const auto* name:{"ure_restore_plan_hash","ure_restore_journal_hash","ure_restore_can_execute","ure_restore_can_resume","ure_restore_can_rollback","ure_restore_can_cancel"})
+        DataManager::SetValue(name,"");
 }
 void refresh_editor() {
     const auto rows=editor->lines();
@@ -107,6 +119,40 @@ int GUIAction::uremanager(std::string command) {
                 DataManager::SetValue("ure_journal_hash","");
                 for(const auto* action:{"resume","cancel","rollback"})DataManager::SetValue(std::string("ure_can_")+action,"0");
             }
+        } else if(command.rfind("restore-",0)==0) {
+            if(command=="restore-plan" || command=="restore-inspect")clear_restore_review();
+            if(command=="restore-plan") {
+                auto target=backup_target(system); ure::Root parent(value("ure_journal_parent"));
+                pending_restore_backup=value("ure_backup_dir");
+                pending_restore_plan=ure::restore_plan(system,target,pending_restore_backup,"global-os3.0.303.0");
+                pending_restore_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-restore-"+pending_restore_plan["operation_id"].asString())).string();
+                const auto file="/tmp/ure-restore-plan-"+pending_restore_plan["operation_id"].asString()+".json";
+                ure::save_json(file,pending_restore_plan); auto review=pending_restore_plan;
+                review["before"]["chunk_count"]=review["before"]["chunks"].size(); review["before"].removeMember("chunks");
+                review["plan_file"]=file; review["journal_directory"]=pending_restore_journal; publish(review);
+                DataManager::SetValue("ure_restore_plan_hash",pending_restore_plan["plan_sha256"].asString());
+                DataManager::SetValue("ure_restore_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
+                DataManager::SetValue("ure_status","Review complete-object overwrite, required free space and rollback destination");
+            } else if(command=="restore-execute") {
+                ure::require(pending_restore_plan.isObject() && value("ure_restore_plan_hash")==pending_restore_plan["plan_sha256"].asString(),"confirmation-required","Create and review this restore plan first");
+                ure::require(value("ure_backup_dir")==pending_restore_backup && ure::fs::path(pending_restore_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),"stale-plan","Backup or journal destination changed; review a new plan");
+                auto target=backup_target(system,true);
+                DataManager::SetValue("ure_restore_journal",pending_restore_journal);
+                publish(ure::restore_execute(system,target,pending_restore_plan,pending_restore_journal,value("ure_restore_plan_hash")));
+                DataManager::SetValue("ure_restore_journal",pending_restore_journal); clear_restore_review();
+            } else if(command=="restore-inspect") {
+                auto target=backup_target(system); const auto review=ure::restore_inspect(system,target,value("ure_restore_journal")); publish(review);
+                reviewed_restore_journal=value("ure_restore_journal"); DataManager::SetValue("ure_restore_journal_hash",review["plan_sha256"].asString());
+                for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_restore_can_"+action.asString(),"1");
+                DataManager::SetValue("ure_status","Review verified current bytes and available recovery actions");
+            } else if(command=="restore-resume" || command=="restore-rollback" || command=="restore-cancel") {
+                ure::require(!reviewed_restore_journal.empty() && reviewed_restore_journal==value("ure_restore_journal") && !value("ure_restore_journal_hash").empty(),"confirmation-required","Inspect and review the selected restore journal first");
+                auto target=backup_target(system,command!="restore-cancel"); const auto confirmation=value("ure_restore_journal_hash");
+                if(command=="restore-resume")publish(ure::restore_resume(system,target,reviewed_restore_journal,confirmation));
+                else if(command=="restore-rollback")publish(ure::restore_rollback(system,target,reviewed_restore_journal,confirmation));
+                else publish(ure::restore_cancel(system,target,reviewed_restore_journal,confirmation));
+                clear_restore_review();
+            } else throw ure::Error("unknown-action","Unknown raw restore action");
         } else if(command.rfind("raw-",0)==0) {
             if(command=="raw-image" || command=="raw-live") {
                 pending_backup=ure::Value(); pending_backup_directory.clear(); DataManager::SetValue("ure_backup_hash","");
@@ -117,6 +163,7 @@ int GUIAction::uremanager(std::string command) {
             } else if(command=="raw-plan") {
                 pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
                 auto target=backup_target(system); pending_backup_directory=value("ure_backup_dir");
+                DataManager::SetValue("ure_raw_source",target.identity[value("ure_raw_kind")=="live" ? "stable_id" : "path"].asString());
                 pending_backup=ure::backup_storage_plan(system,target,"global-os3.0.303.0",64*1024*1024); review_backup();
             } else if(command=="raw-capture") {
                 ure::require(pending_backup.isObject() && pending_backup["plan_sha256"].asString()==value("ure_backup_hash"),"plan-required","Review a storage backup plan first");
@@ -126,6 +173,9 @@ int GUIAction::uremanager(std::string command) {
                 pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
             } else if(command=="raw-resume") {
                 const auto directory=value("ure_backup_dir"); const auto plan=ure::json_file(ure::fs::path(directory)/"plan.json");
+                if(value("ure_raw_kind")=="live") {
+                    const auto selected=backup_target(system); DataManager::SetValue("ure_raw_source",selected.identity["stable_id"].asString());
+                }
                 validate_backup_selection(plan); publish(ure::backup_capture(system,plan,directory,true));
             } else throw ure::Error("unknown-command","Unknown storage backup action");
         } else if(command=="backup-plan" || command=="backup-capture" || command=="backup-resume" || command=="backup-verify") {

@@ -18,6 +18,7 @@ chmod 755 "$work/recoveryctl"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-ure.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-backup.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-storage-backup.sh"
+UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-restore.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-gpt.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-recoveryctl.sh"
 target() {
@@ -64,4 +65,4 @@ target mkfs.ntfs -F -Q "$work/ntfs.img" > "$work/ntfs-mkfs" 2>&1
 before=$(sha256sum "$work/ntfs.img" | cut -d' ' -f1)
 target ntfsresize --info --no-action "$work/ntfs.img" > "$work/ntfs-info" 2>&1
 [[ $before == "$(sha256sum "$work/ntfs.img" | cut -d' ' -f1)" ]]
-printf 'AArch64 QEMU: file/GPT journal readback recovery, GPT backup/repair/restore/rollback, streamed backups/receivers, WIM round trip, ext4/exFAT/NTFS no-action checks and SSH key generation passed; no hardware evidence.\n'
+printf 'AArch64 QEMU: file/GPT/raw-image journal recovery, verified raw restore/readback/rollback, GPT backup/repair/restore, streamed backups/receivers, WIM round trip, ext4/exFAT/NTFS no-action checks and SSH key generation passed; no hardware evidence.\n'
