@@ -15,7 +15,7 @@ if [[ $candidate == prerelease ]]; then repeat_record="$component/reports/privat
 [[ -s $repeat_record ]] || {
     echo 'Run and record the package-repeat check before sealing the manifest' >&2; exit 1;
 }
-sha256sum -c "$repeat_record" >/dev/null
+(cd -- "$destination" && sha256sum -c "$repeat_record" >/dev/null)
 [[ -s $destination/EXTRACTED-RAMDISK-AUDIT.json && -s $component/reports/private/native-verification.json ]]
 jq -e '.validation.cpp_storage_ownership_policy_fixtures and .validation.storage_image_backup_cli_fixtures and .validation.cpp_raw_restore_interruption_fixtures and .validation.raw_restore_cli_fixtures and (.validation.physical_device==false)' \
     "$component/reports/private/native-verification.json" >/dev/null
