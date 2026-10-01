@@ -6,7 +6,7 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 host_cli="$component/build/ure-host/uke-recoveryctl"
 transport=local
 source_cli=uke-recoveryctl
-source_root= source_system_root= source_plan= ssh_target= manifest= destination=
+source_root= source_system_root= source_plan= ssh_target= manifest= destination= adb_serial=
 while (($#)); do
     case $1 in
         --host-cli) host_cli=${2:?}; shift 2 ;;
@@ -18,6 +18,7 @@ while (($#)); do
         --output) destination=${2:?}; shift 2 ;;
         --local) transport=local; shift ;;
         --adb) transport=adb; shift ;;
+        --adb-serial) transport=adb; adb_serial=${2:?}; shift 2 ;;
         --ssh) transport=ssh; ssh_target=${2:?}; shift 2 ;;
         *) echo 'Usage: receive-backup.sh --manifest PLAN --output DIR --source-plan PLAN [--source-root ROOT for file plans] [--source-system-root ROOT for storage plans] [--local|--adb|--ssh HOST] [--host-cli CLI] [--source-cli CLI]' >&2; exit 2 ;;
     esac
@@ -25,6 +26,10 @@ done
 [[ -n $manifest && -n $destination && -n $source_plan && -x $host_cli && -f $manifest && ! -L $manifest ]]
 [[ $source_plan == /* && $source_cli != -* ]]
 source_kind=$(jq -er '.source_kind' "$manifest")
+if [[ $transport == adb && -n $adb_serial ]]; then
+    [[ $adb_serial != -* ]]
+    adb -s "$adb_serial" features | awk '$0=="shell_v2" {found=1} END {exit !found}'
+fi
 source_context=()
 case $source_kind in
     regular-file) [[ $source_root == /* && -z $source_system_root ]]; source_context=(--root "$source_root") ;;
@@ -61,7 +66,8 @@ receive_chunk() {
             # argument independently; never evaluate manifest text as code.
             local remote= argument
             for argument in "${command[@]}"; do remote+="$(quote_remote "$argument") "; done
-            if [[ $transport == adb ]]; then adb exec-out "$remote"
+            if [[ $transport == adb && -n $adb_serial ]]; then adb -s "$adb_serial" shell -T -e none "$remote"
+            elif [[ $transport == adb ]]; then adb exec-out "$remote"
             else ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -- "$ssh_target" "$remote"; fi
             ;;
     esac

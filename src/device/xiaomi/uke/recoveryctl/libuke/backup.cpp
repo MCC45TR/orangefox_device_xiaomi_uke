@@ -13,6 +13,8 @@
 #include <functional>
 #include <set>
 #include <sys/statvfs.h>
+#include <poll.h>
+#include <chrono>
 
 namespace ure {
 namespace {
@@ -300,6 +302,17 @@ void backup_export(const Root& root, const Value& plan, std::uint64_t index, int
         "stale-source","Transferred chunk differs from planned SHA-256; receiver must discard it");
     source.check(plan);
     if(index+1==plan["chunks"].size())verify_current(source,plan);
+}
+void backup_store_export(const fs::path& directory,std::uint64_t index,int output_fd) {
+    auto store=private_directory(directory,false); auto lock=lock_store(store,false); const auto plan=store_plan(store);
+    require(index<plan["chunks"].size(),"invalid-chunk","Chunk index is outside the stored backup manifest");
+    const auto& chunk=plan["chunks"][static_cast<Json::ArrayIndex>(index)];
+    auto source=store.open(chunk_name(index),O_RDONLY|O_NONBLOCK); struct stat st{};
+    require(::fstat(source.get(),&st)==0 && S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_uid==::geteuid() &&
+        (st.st_mode & 07777)==0600 && st.st_size>=0 && static_cast<std::uint64_t>(st.st_size)==chunk["bytes"].asUInt64(),
+        "backup-corrupt","Stored export chunk identity, permissions or size differs");
+    require(transfer(source.get(),0,chunk["bytes"].asUInt64(),-1)==chunk["sha256"].asString(),"backup-corrupt","Stored export chunk hash differs");
+    require(transfer(source.get(),0,chunk["bytes"].asUInt64(),output_fd)==chunk["sha256"].asString(),"backup-corrupt","Stored export changed during transfer; discard received bytes");
 }
 namespace {
 constexpr std::uint64_t restore_margin=32*1024*1024;
@@ -655,5 +668,273 @@ Value restore_cancel(const Root& system,const StorageTarget& target,const fs::pa
     require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the reviewed restore cancellation SHA-256");
     require(restore_action(review.result,"cancel"),"unsafe-cancel","Only an original, verified pre-execution target permits safe cancellation");
     review.state["verified"]=true; restore_boundary(journal,review.state,"CANCELLED_SAFE"); return review.state;
+}
+namespace {
+constexpr std::uint64_t stream_margin=16*1024*1024;
+void check_stream_plan(const Value& plan) {
+    require(plan["schema"]==1 && plan["operation"]=="storage.stream-restore" &&
+        plan["operation_id"].isString() && identifier(plan["operation_id"].asString()) &&
+        plan["plan_sha256"].isString() && hash_valid(plan["plan_sha256"].asString()) &&
+        plan["plan_sha256"].asString()==plan_seal(plan),"invalid-restore-plan","Invalid sealed host-streamed restore plan");
+    check_plan(plan["before"]); check_plan(plan["after"]);
+    require(plan["before"]["schema"]==2 && plan["after"]["schema"]==2 &&
+        plan["firmware_profile"]==plan["before"]["firmware_profile"] && plan["firmware_profile"]==plan["after"]["firmware_profile"] &&
+        json(plan["target_identity"])==json(plan["before"]["source_identity"]) &&
+        storage_binding(plan["target_identity"],plan["after"]["source_identity"]) &&
+        json(plan["before"]["chunk_bytes"])==json(plan["after"]["chunk_bytes"]) &&
+        plan["target_identity"]["bytes"].asUInt64()>0 && plan["live_write_backend_ready"]==false && plan["host_streamed_restore"]==true &&
+        plan["estimated_journal_bytes"].isUInt64() &&
+        plan["estimated_journal_bytes"].asUInt64()==4*plan["before"]["chunk_bytes"].asUInt64()+stream_margin,
+        "invalid-restore-plan","Stream restore identity, profile, geometry or cache boundary differs");
+    const auto& identity=plan["target_identity"];
+    if(identity["kind"]=="regular-image")require(identity["file_device"].isUInt64() && identity["file_inode"].isUInt64() &&
+        identity["uid"].isUInt() && identity["gid"].isUInt() && identity["mode"].isUInt(),"invalid-restore-plan","Stream image lacks inode and metadata binding");
+    require(identity["disk_guid"].isNull() || identity["disk_guid"]==plan["after"]["source_identity"]["disk_guid"],
+        "invalid-restore-plan","Known stream target disk GUID differs from the desired manifest");
+    require(json(plan).size()<=4*1024*1024,"size-limit","Stream restore plan exceeds the JSON budget");
+}
+std::string receipt_seal(Value receipt) { receipt.removeMember("receipt_sha256"); return sha256(json(receipt)); }
+void check_host_receipt(const Value& plan,const Value& receipt) {
+    require(receipt["schema"]==1 && receipt["format"]=="ure-host-restore-backups" &&
+        receipt["operation_id"]==plan["operation_id"] && receipt["plan_sha256"]==plan["plan_sha256"] &&
+        receipt["trust"]=="HOST_ATTESTED" && receipt["device_verified_host_persistence"]==false &&
+        receipt["receipt_sha256"].isString() && hash_valid(receipt["receipt_sha256"].asString()) &&
+        receipt["receipt_sha256"].asString()==receipt_seal(receipt),"invalid-host-receipt","Host backup attestation does not match the reviewed restore plan");
+    for(const auto* name:{"before","after"})require(receipt[name]["verified"]==true &&
+        receipt[name]["plan_sha256"]==plan[name]["plan_sha256"] && receipt[name]["sha256"]==plan[name]["sha256"] &&
+        json(receipt[name]["bytes"])==json(plan[name]["source_identity"]["bytes"]) &&
+        receipt[name]["root_identity"]["device"].isUInt64() && receipt[name]["root_identity"]["inode"].isUInt64(),
+        "invalid-host-receipt","Host attestation lacks complete original and target backup identities");
+    require(json(receipt).size()<=65536,"size-limit","Host attestation exceeds the input budget");
+}
+class PacketInput {
+    int fd_;
+    std::chrono::steady_clock::time_point deadline_=std::chrono::steady_clock::now()+std::chrono::minutes(10);
+public:
+    explicit PacketInput(int fd) : fd_(fd) {
+        struct stat st{}; require(::fstat(fd_,&st)==0 && (S_ISREG(st.st_mode) || S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode)),
+            "invalid-input","Binary restore input requires a regular file, pipe or socket");
+    }
+    std::string read(std::size_t maximum) {
+        require(maximum>0 && maximum<=65536,"size-limit","Restore input buffer is outside its bounded size");
+        while(true) {
+            const auto remaining=std::chrono::duration_cast<std::chrono::milliseconds>(deadline_-std::chrono::steady_clock::now()).count();
+            require(remaining>0,"stream-timeout","Restore packet exceeded its total receive deadline");
+            struct pollfd ready{fd_,POLLIN,0}; const auto result=::poll(&ready,1,static_cast<int>(std::min<std::int64_t>(remaining,30000)));
+            if(result<0 && errno==EINTR)continue;
+            require(result>0 && (ready.revents & (POLLIN|POLLHUP))!=0,"stream-timeout","Restore input stalled or disconnected");
+            std::string data(maximum,'\0'); const auto count=::read(fd_,data.data(),data.size());
+            if(count<0 && errno==EINTR)continue;
+            require(count>=0,"io-error","Cannot read restore packet"); data.resize(static_cast<std::size_t>(count)); return data;
+        }
+    }
+    void chunk(int output,const Value& chunk) {
+        auto left=chunk["bytes"].asUInt64(); Digest digest;
+        while(left>0) {
+            const auto data=read(static_cast<std::size_t>(std::min<std::uint64_t>(left,65536)));
+            require(!data.empty(),"truncated-stream","Restore packet ended before both planned chunks arrived");
+            digest.add(data); write_all(output,data); left-=data.size();
+        }
+        require(digest.finish()==chunk["sha256"].asString(),"stream-corrupt","Received restore chunk hash differs from the reviewed manifest");
+        require(::fsync(output)==0 && sha256(output)==chunk["sha256"].asString(),"verification-error","Received restore cache readback failed");
+    }
+    void end() { require(read(1).empty(),"extra-stream-data","Restore packet contains bytes outside the exact two-chunk boundary"); }
+};
+bool cache_name(const std::string& name,const std::string& direction) {
+    const auto prefix=".stream-"+direction+"-";
+    return name.starts_with(prefix) && name.ends_with(".bin") && name.size()>prefix.size()+4 &&
+        identifier(name.substr(prefix.size(),name.size()-prefix.size()-4));
+}
+Fd cached_chunk(const Root& journal,const Value& active,const std::string& name,const Value& chunk) {
+    require(active[name].isString() && cache_name(active[name].asString(),name),"invalid-journal","Invalid stream cache reference");
+    auto file=journal.open(active[name].asString(),O_RDONLY|O_NONBLOCK); struct stat st{};
+    require(::fstat(file.get(),&st)==0 && S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_uid==::geteuid() &&
+        (st.st_mode & 07777)==0600 && st.st_size>=0 && static_cast<std::uint64_t>(st.st_size)==chunk["bytes"].asUInt64() &&
+        sha256(file.get())==chunk["sha256"].asString(),"backup-corrupt","Active stream cache type, size or hash differs"); return file;
+}
+void clean_stream_cache(const Root& journal,const Value& active) {
+    bool changed=false;
+    for(const auto& name:journal.list(".",1024)) {
+        if(!cache_name(name,"before") && !cache_name(name,"after"))continue;
+        if(active["before"]==name || active["after"]==name)continue;
+        const auto st=journal.stat(name);
+        require(S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_uid==::geteuid() && (st.st_mode & 07777)==0600 &&
+            st.st_size>=0 && static_cast<std::uint64_t>(st.st_size)<=max_chunk,"unsafe-journal","Unreferenced stream cache is not a private bounded file");
+        require(::unlinkat(journal.fd(),name.c_str(),0)==0,"io-error","Cannot remove unreferenced stream cache"); changed=true;
+    }
+    if(changed)require(::fsync(journal.fd())==0,"io-error","Cannot sync stream cache cleanup");
+}
+struct StreamReview { Value plan,state,result; std::vector<std::string> hashes; };
+StreamReview review_stream(const Root& system,const StorageTarget& target,const Root& journal) {
+    StreamReview review; review.plan=restore_record(journal,"plan.json"); check_stream_plan(review.plan);
+    const auto receipt=restore_record(journal,"receipt.json"); check_host_receipt(review.plan,receipt);
+    review.state=restore_record(journal,"journal.json"); const auto& plan=review.plan; const auto& state=review.state;
+    const std::set<std::string> phases={"READY","EXECUTING","VERIFYING","COMMITTED","FAILED_SAFE","FAILED_UNCERTAIN","ROLLBACK_REQUIRED","ROLLED_BACK","CANCELLED_SAFE"};
+    require(state["schema"]==1 && state["operation"]==plan["operation"] && state["operation_id"]==plan["operation_id"] &&
+        state["plan_sha256"]==plan["plan_sha256"] && state["receipt_sha256"]==receipt["receipt_sha256"] &&
+        (state["direction"]=="restore" || state["direction"]=="rollback") && state["state"].isString() &&
+        phases.count(state["state"].asString())>0 && (state["active"].isNull() || (state["active"].isObject() &&
+        state["active"]["index"].isUInt64() && state["active"]["index"].asUInt64()<plan["before"]["chunks"].size())),
+        "invalid-journal","Stream journal phase, cache index or plan binding differs");
+    restore_target(system,target,plan["target_identity"]);
+    Fd old_cache,new_cache;
+    if(!state["active"].isNull()) {
+        const auto i=static_cast<Json::ArrayIndex>(state["active"]["index"].asUInt64());
+        old_cache=cached_chunk(journal,state["active"],"before",plan["before"]["chunks"][i]);
+        new_cache=cached_chunk(journal,state["active"],"after",plan["after"]["chunks"][i]);
+    }
+    auto& result=review.result; result["schema"]=1; result["operation"]=plan["operation"]; result["operation_id"]=plan["operation_id"];
+    result["plan_sha256"]=plan["plan_sha256"]; result["receipt_sha256"]=receipt["receipt_sha256"]; result["state"]=state["state"];
+    result["direction"]=state["direction"]; result["target_identity"]=plan["target_identity"]; result["host_backup_trust"]="HOST_ATTESTED";
+    result["device_verified_host_persistence"]=false; result["live_write_backend_ready"]=false; result["physical_test_record"]=false;
+    result["private_record"]=true; result["atomic_snapshot"]=false; result["cooperating_locks_only"]=true;
+    result["host_required_for_remaining_chunks"]=true; result["chunks"]=Value(Json::arrayValue); result["recovery_actions"]=Value(Json::arrayValue);
+    bool original=true,wanted=true,expected=true; std::uint64_t next=plan["before"]["chunks"].size(),partial_index=next,completed=0; Digest whole;
+    for(Json::ArrayIndex i=0;i<plan["before"]["chunks"].size();++i) {
+        const auto& before=plan["before"]["chunks"][i]; const auto& after=plan["after"]["chunks"][i];
+        const auto hash=transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1,&whole); review.hashes.push_back(hash);
+        const bool was=hash==before["sha256"].asString(),will=hash==after["sha256"].asString(); bool known=was || will;
+        if(!known && !state["active"].isNull() && state["active"]["index"].asUInt64()==i) {
+            known=true; Digest partial;
+            for(std::uint64_t offset=0;offset<before["bytes"].asUInt64();) {
+                const auto amount=static_cast<std::size_t>(std::min<std::uint64_t>(65536,before["bytes"].asUInt64()-offset));
+                const auto old=storage_read(old_cache.get(),offset,amount),desired=storage_read(new_cache.get(),offset,amount),current=storage_read(target.descriptor.get(),before["offset"].asUInt64()+offset,amount);
+                partial.add(current); for(std::size_t j=0;j<amount;++j)known=known && (current[j]==old[j] || current[j]==desired[j]); offset+=amount;
+            }
+            require(partial.finish()==hash,"changed-target","Partial target chunk changed during inspection");
+            if(known)partial_index=i;
+        }
+        original=original && was; wanted=wanted && will; expected=expected && known;
+        const bool done=state["direction"]=="rollback" ? was : will;
+        if(done)completed+=before["bytes"].asUInt64(); else if(next==plan["before"]["chunks"].size())next=i;
+        if(i<128) { Value row; row["index"]=i; row["classification"]=will ? "TARGET" : was ? "ORIGINAL" : known ? "PARTIAL_EXPECTED_WRITE" : "DIVERGED"; result["chunks"].append(row); }
+    }
+    result["current_sha256"]=whole.finish(); result["classification"]=wanted ? "TARGET" : original ? "ORIGINAL" : expected ? "PARTIAL_EXPECTED_WRITE" : "DIVERGED";
+    // Repair an active partial chunk before replacing its sole durable cache
+    // proof, even when rollback has earlier complete chunks left to restore.
+    if(partial_index<plan["before"]["chunks"].size())next=partial_index;
+    result["next_chunk"]=Json::UInt64(next); result["completed_bytes"]=Json::UInt64(completed); result["total_bytes"]=plan["target_identity"]["bytes"];
+    result["chunk_count"]=plan["before"]["chunks"].size(); result["chunks_truncated"]=plan["before"]["chunks"].size()>128;
+    restore_target(system,target,plan["target_identity"]);
+    const bool terminal=state["state"]=="COMMITTED" || state["state"]=="ROLLED_BACK" || state["state"]=="CANCELLED_SAFE";
+    if(expected && !terminal && plan["target_identity"]["kind"]=="regular-image")result["recovery_actions"].append("host-resume");
+    if(expected && state["state"]!="ROLLED_BACK" && state["state"]!="CANCELLED_SAFE" && plan["target_identity"]["kind"]=="regular-image")result["recovery_actions"].append("host-rollback");
+    if(original && (state["state"]=="READY" || state["state"]=="FAILED_SAFE"))result["recovery_actions"].append("cancel");
+    if(expected && !terminal && next==plan["before"]["chunks"].size())result["recovery_actions"].append("finish");
+    return review;
+}
+void stream_confirm(const StreamReview& review,const std::string& confirmation) {
+    require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact reviewed host-streamed restore plan SHA-256");
+}
+}
+Value restore_stream_plan(const Root& system,const StorageTarget& target,const Value& desired,const std::string& profile) {
+    require(identifier(profile),"invalid-profile","An explicit firmware/profile identifier is required"); check_plan(desired);
+    require(desired["schema"]==2,"unsupported-backup","Stream restore requires a storage backup manifest");
+    require(desired["firmware_profile"]==profile,"wrong-profile","Stream backup belongs to a different declared firmware profile");
+    require(storage_binding(target.identity,desired["source_identity"]),"wrong-target","Stream backup belongs to a different inode, unit, LUN or geometry");
+    if(!target.identity["disk_guid"].isNull())require(target.identity["disk_guid"]==desired["source_identity"]["disk_guid"],"wrong-target","Current known disk GUID differs from the stream backup");
+    Value plan; plan["schema"]=1; plan["operation"]="storage.stream-restore"; plan["operation_id"]=operation_id(); plan["created_utc"]=utc();
+    plan["firmware_profile"]=profile; plan["target_identity"]=target.identity; plan["after"]=desired;
+    plan["before"]=backup_storage_plan(system,target,profile,desired["chunk_bytes"].asUInt64());
+    plan["estimated_journal_bytes"]=Json::UInt64(4*desired["chunk_bytes"].asUInt64()+stream_margin);
+    plan["private_record"]=true; plan["physical_test_record"]=false; plan["live_write_backend_ready"]=false;
+    plan["firmware_identity_validated"]=false; plan["host_streamed_restore"]=true; plan["confirmation_required"]=true;
+    plan["risk"]="Overwrite the selected raw object after host attestation of complete original and target backups; the device verifies each received pair and full final readback";
+    plan["host_trust"]="Host attestation is not a signature or independent proof of remote persistence; use an authenticated reviewed transport";
+    plan["cache_policy"]="One active original/target pair, plus one incoming pair during replacement; no full local raw mirrors";
+    plan["plan_sha256"]=plan_seal(plan); check_stream_plan(plan); return plan;
+}
+Value restore_stream_backup_plan(const Value& plan) { check_stream_plan(plan); return plan["before"]; }
+Value restore_host_receipt(const Value& plan,const fs::path& before,const fs::path& after) {
+    check_stream_plan(plan); auto original=private_directory(before,false),desired=private_directory(after,false);
+    auto old_lock=lock_store(original,false),new_lock=lock_store(desired,false);
+    Value receipt; receipt["schema"]=1; receipt["format"]="ure-host-restore-backups"; receipt["operation_id"]=plan["operation_id"];
+    receipt["plan_sha256"]=plan["plan_sha256"]; receipt["trust"]="HOST_ATTESTED"; receipt["device_verified_host_persistence"]=false;
+    receipt["created_utc"]=utc(); receipt["private_record"]=true; receipt["physical_test_record"]=false;
+    for(const auto* name:{"before","after"}) {
+        const auto& store=std::string(name)=="before" ? original : desired;
+        require(json(store_plan(store))==json(plan[name]),"wrong-backup","Host store manifest differs from the reviewed stream plan");
+        require(verify_store(store,plan[name])["verified"]==true,"backup-corrupt","Both complete host backups must verify before stream restore");
+        receipt[name]["root_identity"]=root_state(store); receipt[name]["verified"]=true; receipt[name]["plan_sha256"]=plan[name]["plan_sha256"];
+        receipt[name]["sha256"]=plan[name]["sha256"]; receipt[name]["bytes"]=plan[name]["source_identity"]["bytes"];
+    }
+    receipt["receipt_sha256"]=receipt_seal(receipt); check_host_receipt(plan,receipt); return receipt;
+}
+Value restore_receipt_input(int input_fd) {
+    PacketInput input(input_fd); std::string text;
+    while(true) { const auto part=input.read(4096); if(part.empty())break; require(text.size()+part.size()<=65536,"size-limit","Host receipt input exceeds 64 KiB"); text+=part; }
+    return parse_json(text);
+}
+Value restore_stream_begin(const Root& system,const StorageTarget& target,const Value& plan,const Value& receipt,const fs::path& directory,const std::string& confirmation) {
+    check_stream_plan(plan); check_host_receipt(plan,receipt);
+    require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact reviewed stream restore plan SHA-256");
+    storage_write_gate(target); RestoreTargetLock target_lock(target.descriptor.get());
+    require(json(target.identity)==json(plan["target_identity"]),"stale-device","Stream target metadata changed since planning");
+    storage_revalidate(target,&system); verified_target(target.descriptor.get(),plan["before"],"stale-source");
+    auto journal=private_directory(directory,true); auto lock=lock_store(journal); struct statvfs space{};
+    require(::fstatvfs(journal.fd(),&space)==0 && space.f_frsize>0 && plan["estimated_journal_bytes"].asUInt64()/space.f_frsize<space.f_bavail,
+        "insufficient-space","Stream journal lacks bounded cache and metadata space");
+    journal.save_record("plan.json",plan); journal.save_record("receipt.json",receipt);
+    Value state; state["schema"]=1; state["operation"]=plan["operation"]; state["operation_id"]=plan["operation_id"];
+    state["plan_sha256"]=plan["plan_sha256"]; state["receipt_sha256"]=receipt["receipt_sha256"]; state["direction"]="restore";
+    state["active"]=Value(); state["private_record"]=true; state["physical_test_record"]=false; state["verified"]=false;
+    restore_target(system,target,plan["target_identity"]); verified_target(target.descriptor.get(),plan["before"],"stale-source");
+    journal_binding(directory,journal); restore_boundary(journal,state,"READY"); return state;
+}
+Value restore_stream_status(const Root& system,const StorageTarget& target,const fs::path& directory) {
+    auto journal=private_directory(directory,false); auto lock=lock_store(journal,false); return review_stream(system,target,journal).result;
+}
+Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::path& directory,std::uint64_t index,int input_fd,const std::string& confirmation) {
+    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto review=review_stream(system,target,journal); stream_confirm(review,confirmation); storage_write_gate(target);
+    require(restore_action(review.result,"host-resume"),"unsafe-resume","Stream target diverged or journal is terminal");
+    require(index<review.plan["before"]["chunks"].size() && index==review.result["next_chunk"].asUInt64(),"invalid-chunk","Send the earliest unverified target chunk reported by inspection");
+    auto state=review.state; const auto i=static_cast<Json::ArrayIndex>(index); const bool rollback=state["direction"]=="rollback";
+    const auto& before=review.plan["before"]["chunks"][i]; const auto& after=review.plan["after"]["chunks"][i];
+    bool attempted=review.result["classification"]!="ORIGINAL"; state.removeMember("error_code"); state["verified"]=false;
+    try {
+        clean_stream_cache(journal,state["active"]); PacketInput packet(input_fd); Value incoming;
+        const auto id=operation_id(); incoming["index"]=Json::UInt64(index); incoming["before"]=".stream-before-"+id+".bin"; incoming["after"]=".stream-after-"+id+".bin";
+        auto old=journal.open(incoming["before"].asString(),O_RDWR|O_CREAT|O_EXCL,0600); packet.chunk(old.get(),before);
+        auto next=journal.open(incoming["after"].asString(),O_RDWR|O_CREAT|O_EXCL,0600); packet.chunk(next.get(),after); packet.end();
+        require(::fsync(journal.fd())==0,"io-error","Cannot sync received stream cache directory");
+        journal_binding(directory,journal); restore_target(system,target,review.plan["target_identity"]); storage_write_gate(target);
+        const auto current=transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1);
+        require(current==review.hashes[i],"changed-target","Stream target chunk changed while receiving its verified pair");
+        state["active"]=incoming; restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
+        clean_stream_cache(journal,state["active"]); attempted=true;
+        restore_write(target.descriptor.get(),rollback ? old.get() : next.get(),before["offset"].asUInt64(),before["bytes"].asUInt64());
+        require(transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1)==(rollback ? before : after)["sha256"].asString(),
+            "verification-error","Streamed target chunk readback differs");
+        state["active"]=Value(); state["last_verified_chunk"]=Json::UInt64(index); restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
+        clean_stream_cache(journal,state["active"]);
+        if(target.identity["kind"]=="regular-image")target.identity=storage_image(target.identity["path"].asString(),target.identity["logical_sector_bytes"].asUInt()).identity;
+        return review_stream(system,target,journal).result;
+    } catch(const Error& error) { failed_restore(journal,state,attempted,error.code); try { clean_stream_cache(journal,state["active"]); } catch(...) {} throw; }
+    catch(...) { failed_restore(journal,state,attempted,"unexpected-error"); throw; }
+}
+Value restore_stream_finish(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
+    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto review=review_stream(system,target,journal); stream_confirm(review,confirmation);
+    require(restore_action(review.result,"finish"),"unsafe-finish","All desired chunks must verify in an eligible journal before completion");
+    const bool rollback=review.state["direction"]=="rollback"; auto state=review.state;
+    restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "VERIFYING"); journal_binding(directory,journal);
+    restore_target(system,target,review.plan["target_identity"]); verified_target(target.descriptor.get(),review.plan[rollback ? "before" : "after"],"verification-error");
+    state["verified"]=true; state["sha256"]=review.plan[rollback ? "before" : "after"]["sha256"]; state["active"]=Value(); state.removeMember("error_code");
+    restore_boundary(journal,state,rollback ? "ROLLED_BACK" : "COMMITTED"); clean_stream_cache(journal,state["active"]); return state;
+}
+Value restore_stream_rollback(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
+    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto review=review_stream(system,target,journal); stream_confirm(review,confirmation); storage_write_gate(target);
+    require(restore_action(review.result,"host-rollback"),"unsafe-rollback","Stream rollback requires expected bytes and an eligible journal");
+    auto state=review.state; state["direction"]="rollback"; state["verified"]=false; state.removeMember("error_code");
+    journal_binding(directory,journal); restore_boundary(journal,state,"ROLLBACK_REQUIRED"); return review_stream(system,target,journal).result;
+}
+Value restore_stream_cancel(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
+    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto review=review_stream(system,target,journal); stream_confirm(review,confirmation);
+    require(restore_action(review.result,"cancel"),"unsafe-cancel","Safe stream cancellation requires original bytes before execution");
+    auto state=review.state; state["verified"]=true; state["active"]=Value(); state.removeMember("error_code");
+    journal_binding(directory,journal); restore_boundary(journal,state,"CANCELLED_SAFE"); clean_stream_cache(journal,state["active"]); return state;
 }
 } // namespace ure

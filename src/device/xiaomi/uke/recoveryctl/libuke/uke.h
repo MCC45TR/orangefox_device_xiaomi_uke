@@ -139,6 +139,23 @@ Value backup_storage_plan(const Root& system, const StorageTarget& source, const
 Value backup_capture(const Root& root, const Value& plan, const fs::path& directory, bool resume);
 Value backup_verify(const fs::path& directory);
 void backup_export(const Root& root, const Value& plan, std::uint64_t index, int output_fd);
+void backup_store_export(const fs::path& directory, std::uint64_t index, int output_fd);
+Value restore_stream_plan(const Root& system, const StorageTarget& target, const Value& desired,
+                          const std::string& profile);
+Value restore_stream_backup_plan(const Value& plan);
+Value restore_host_receipt(const Value& plan, const fs::path& before, const fs::path& after);
+Value restore_receipt_input(int input_fd);
+Value restore_stream_begin(const Root& system, const StorageTarget& target, const Value& plan,
+                           const Value& receipt, const fs::path& journal, const std::string& confirmation);
+Value restore_stream_status(const Root& system, const StorageTarget& target, const fs::path& journal);
+Value restore_stream_chunk(const Root& system, StorageTarget& target, const fs::path& journal,
+                          std::uint64_t index, int input_fd, const std::string& confirmation);
+Value restore_stream_finish(const Root& system, const StorageTarget& target, const fs::path& journal,
+                           const std::string& confirmation);
+Value restore_stream_rollback(const Root& system, const StorageTarget& target, const fs::path& journal,
+                             const std::string& confirmation);
+Value restore_stream_cancel(const Root& system, const StorageTarget& target, const fs::path& journal,
+                           const std::string& confirmation);
 Value restore_plan(const Root& system, const StorageTarget& target, const fs::path& backup,
                    const std::string& profile);
 Value restore_execute(const Root& system, StorageTarget& target, const Value& plan,

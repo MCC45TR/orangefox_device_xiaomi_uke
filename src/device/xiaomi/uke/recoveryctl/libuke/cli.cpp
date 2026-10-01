@@ -56,10 +56,18 @@ static Value usage() {
         "backup storage-plan --image IMAGE|--object STABLE_ID --profile PROFILE [--sector-size 4096] [--chunk-size BYTES] --output PLAN",
         "backup capture PLAN --journal DIR [--root ROOT for file plans]", "backup resume DIR [--root ROOT for file plans]", "backup verify DIR",
         "backup export PLAN --chunk INDEX [--root ROOT for file plans] (binary stdout; JSON errors on stderr)",
+        "backup store-export DIR --chunk INDEX (verified stored chunk; binary stdout, JSON errors on stderr)",
         "restore plan BACKUP_DIR --image IMAGE|--object STABLE_ID --profile PROFILE --output PLAN [--sector-size 4096]",
         "restore execute PLAN --image IMAGE|--object STABLE_ID --journal DIR --confirm SHA256",
         "restore inspect JOURNAL --image IMAGE|--object STABLE_ID",
         "restore resume|rollback|cancel JOURNAL --image IMAGE|--object STABLE_ID --confirm SHA256",
+        "restore stream-plan MANIFEST --image IMAGE|--object STABLE_ID --profile PROFILE --output PLAN",
+        "restore stream-backup-plan PLAN --output BEFORE_PLAN",
+        "restore host-receipt PLAN --before BEFORE_STORE --after AFTER_STORE --output RECEIPT",
+        "restore stream-begin PLAN --receipt FILE|- --image IMAGE|--object STABLE_ID --journal DIR --confirm SHA256",
+        "restore stream-status JOURNAL --image IMAGE|--object STABLE_ID",
+        "restore stream-chunk JOURNAL --chunk INDEX --image IMAGE|--object STABLE_ID --confirm SHA256 [--packet FILE] (exact before+after bytes on stdin)",
+        "restore stream-finish|stream-rollback|stream-cancel JOURNAL --image IMAGE|--object STABLE_ID --confirm SHA256",
         "boot plan linux|windows ENTRY --root ROOT --esp ESP --output REQUEST",
         "diagnose all|recovery|kernel|display|touch|usb|storage|boot|power|thermal|network|android",
         "report --output REPORT.json", "crypto detect|info --image IMAGE", "btrfs capabilities|subvolumes|usage|scrub-status|balance-status|device-stats --root ROOT",
@@ -70,32 +78,42 @@ static Value usage() {
     return result;
 }
 int dispatch(std::vector<std::string> args) {
-    const bool binary_output=args.size()>1 && args[0]=="backup" && args[1]=="export";
+    const bool binary_output=args.size()>1 && args[0]=="backup" && (args[1]=="export" || args[1]=="store-export");
     try {
         auto root_option=option(args,"--root"), system_option=option(args,"--system-root"), esp_option=option(args,"--esp");
         const auto image_option=option(args,"--image"), output_option=option(args,"--output"), sector_option=option(args,"--sector-size");
         const auto content_option=option(args,"--content-file"), profile_option=option(args,"--profile"), journal_option=option(args,"--journal"), confirm_option=option(args,"--confirm");
         const auto chunk_size=option(args,"--chunk-size"), chunk_index=option(args,"--chunk");
         const auto object_option=option(args,"--object");
+        const auto before_option=option(args,"--before"),after_option=option(args,"--after"),receipt_option=option(args,"--receipt"),packet_option=option(args,"--packet");
         require(std::count(args.begin(),args.end(),"--json")<=1,"invalid-options","Duplicate --json option");
         args.erase(std::remove(args.begin(),args.end(),"--json"),args.end());
         require(!args.empty(),"usage","A command is required");
         const auto operation=args.size()>1 ? args[1] : std::string();
         const bool storage_backup=args[0]=="backup" && operation=="storage-plan";
         const bool restore=args[0]=="restore";
+        const bool stream_plan=restore && operation=="stream-plan",host_receipt=restore && operation=="host-receipt";
+        const bool stream_begin=restore && operation=="stream-begin",stream_chunk=restore && operation=="stream-chunk";
+        const bool stream_metadata=host_receipt || (restore && operation=="stream-backup-plan");
+        const bool stream_mutation=stream_begin || stream_chunk || (restore && (operation=="stream-finish" || operation=="stream-rollback" || operation=="stream-cancel"));
         require(!restore || (!root_option && !esp_option),"invalid-options","Raw restore selects a storage object, not a filesystem root or ESP");
-        require(!restore || !output_option || operation=="plan","invalid-options","Restore output applies only to planning");
+        require(!restore || !output_option || operation=="plan" || stream_plan || stream_metadata,"invalid-options","Restore output applies only to plans or host receipts");
+        require(!stream_metadata || (!image_option && !object_option && !system_option),"invalid-options","Stream metadata commands do not select or access a target");
+        require((!before_option && !after_option) || host_receipt,"invalid-options","Host stores apply only to receipt verification");
+        require(!receipt_option || stream_begin,"invalid-options","A host receipt applies only to stream begin");
+        require(!packet_option || stream_chunk,"invalid-options","A binary packet applies only to stream chunk input");
+        require(!(args[0]=="backup" && operation=="store-export") || (!root_option && !system_option && !esp_option),"invalid-options","Stored chunk export does not open a source or system context");
         require(!sector_option || ((args[0]=="gpt" || storage_backup || restore) && image_option && operation!="verify"),"invalid-options","Sector size applies only to storage image operations");
         require(!object_option || ((args[0]=="gpt" || storage_backup || restore) && !image_option && operation!="verify"),"invalid-options","Select one storage image or live object");
         require(!content_option || (args[0]=="editor" && operation=="plan"),"invalid-options","Content file applies only to editor plans");
-        require(!profile_option || storage_backup || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
+        require(!profile_option || storage_backup || stream_plan || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
             (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan")),"invalid-options","Profile does not apply to this operation");
-        require(!journal_option || ((args[0]=="transaction" || args[0]=="gpt" || restore) && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
+        require(!journal_option || stream_begin || ((args[0]=="transaction" || args[0]=="gpt" || restore) && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
         require(!confirm_option || (args[0]=="transaction" && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")) ||
             (args[0]=="gpt" && (operation=="execute" || operation=="rollback" || operation=="resume")) ||
-            (restore && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")),"invalid-options","Confirmation applies only to transaction mutation");
+            stream_mutation || (restore && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")),"invalid-options","Confirmation applies only to transaction mutation");
         require(!chunk_size || storage_backup || (args[0]=="backup" && operation=="plan"),"invalid-options","Chunk size applies only to backup planning");
-        require(!chunk_index || binary_output,"invalid-options","Chunk index applies only to backup export");
+        require(!chunk_index || binary_output || stream_chunk,"invalid-options","Chunk index applies only to backup export or stream restore input");
         require(!image_option || storage_backup || restore || args[0]=="gpt" || args[0]=="filesystem" || args[0]=="crypto" || args[0]=="ntfs" || args[0]=="wim" || args[0]=="btrfs","invalid-options","Image applies only to image operations");
         if(args[0]=="btrfs" && !image_option && operation!="capabilities")require(root_option.has_value(),"root-required","Select an already mounted Btrfs root explicitly");
         Root system(system_option.value_or("/"));
@@ -118,10 +136,18 @@ int dispatch(std::vector<std::string> args) {
             data["content"]=selected.identity["partition"]==true ? filesystem_probe(selected.descriptor.get()) :
                 gpt_inspect(selected.descriptor.get(),selected.identity["logical_sector_bytes"].asUInt());
             data["read_only"]=true; data["private_record"]=true;
+        } else if(stream_metadata && args.size()==3 && output_option) {
+            const auto plan=json_file(args[2]);
+            if(host_receipt && before_option && after_option)data=restore_host_receipt(plan,*before_option,*after_option);
+            else if(operation=="stream-backup-plan")data=restore_stream_backup_plan(plan);
+            else throw Error("unknown-command","Both complete host stores are required for attestation");
+            if(operation=="stream-backup-plan" && fs::exists(*output_option))
+                require(json(json_file(*output_option))==json(data),"wrong-backup","Existing source backup plan differs; select a new output path");
+            else save_json(*output_option,data);
         } else if(restore && args.size()==3 && (image_option || object_option)) {
             const auto sector=sector_option.value_or("4096");
             require(sector=="512" || sector=="4096","invalid-sector","Image sector size must be 512 or 4096");
-            const bool write=operation=="execute" || operation=="resume" || operation=="rollback";
+            const bool write=operation=="execute" || operation=="resume" || operation=="rollback" || stream_begin || stream_chunk || operation=="stream-rollback";
             auto selected=image_option ? storage_image(*image_option,sector=="512" ? 512U : 4096U,write) : storage_select(system,*object_option,true);
             if(operation=="plan" && profile_option && output_option) { data=restore_plan(system,selected,args[2],*profile_option); save_json(*output_option,data); }
             else if(operation=="execute" && journal_option && confirm_option)data=restore_execute(system,selected,json_file(args[2]),*journal_option,*confirm_option);
@@ -129,6 +155,17 @@ int dispatch(std::vector<std::string> args) {
             else if(operation=="resume" && confirm_option)data=restore_resume(system,selected,args[2],*confirm_option);
             else if(operation=="rollback" && confirm_option)data=restore_rollback(system,selected,args[2],*confirm_option);
             else if(operation=="cancel" && confirm_option)data=restore_cancel(system,selected,args[2],*confirm_option);
+            else if(stream_plan && profile_option && output_option) { data=restore_stream_plan(system,selected,json_file(args[2]),*profile_option); save_json(*output_option,data); }
+            else if(stream_begin && receipt_option && journal_option && confirm_option) {
+                const auto receipt=*receipt_option=="-" ? restore_receipt_input(STDIN_FILENO) : json_file(*receipt_option);
+                data=restore_stream_begin(system,selected,json_file(args[2]),receipt,*journal_option,*confirm_option);
+            } else if(operation=="stream-status")data=restore_stream_status(system,selected,args[2]);
+            else if(stream_chunk && chunk_index && confirm_option) {
+                Fd packet; if(packet_option)packet=image(*packet_option);
+                data=restore_stream_chunk(system,selected,args[2],number(*chunk_index),packet_option ? packet.get() : STDIN_FILENO,*confirm_option);
+            } else if(operation=="stream-finish" && confirm_option)data=restore_stream_finish(system,selected,args[2],*confirm_option);
+            else if(operation=="stream-rollback" && confirm_option)data=restore_stream_rollback(system,selected,args[2],*confirm_option);
+            else if(operation=="stream-cancel" && confirm_option)data=restore_stream_cancel(system,selected,args[2],*confirm_option);
             else throw Error("unknown-command","Incomplete or unsupported raw restore command");
         } else if(command=="gpt" && operation=="verify" && args.size()==3 && !image_option && !object_option)data=gpt_backup_verify(args[2]);
         else if(command=="gpt" && (image_option || object_option)) {
@@ -196,7 +233,9 @@ int dispatch(std::vector<std::string> args) {
             const auto plan=json_file(fs::path(args[2])/"plan.json"); data=backup_capture(backup_context(plan),plan,args[2],true);
         } else if(command=="backup" && args.size()==3 && args[1]=="verify")data=backup_verify(args[2]);
         else if(binary_output && args.size()==3 && chunk_index) {
-            const auto plan=json_file(args[2]); backup_export(backup_context(plan),plan,number(*chunk_index),STDOUT_FILENO); return 0;
+            if(operation=="store-export")backup_store_export(args[2],number(*chunk_index),STDOUT_FILENO);
+            else { const auto plan=json_file(args[2]); backup_export(backup_context(plan),plan,number(*chunk_index),STDOUT_FILENO); }
+            return 0;
         } else if(command=="boot" && args.size()==2 && args[1]=="targets" && root_option)data=boot_targets(root,esp.get());
         else if(command=="boot" && args.size()==4 && args[1]=="plan" && root_option && esp && output_option) {
             data=boot_request(root,*esp,args[2],args[3]); save_json(*output_option,data);
