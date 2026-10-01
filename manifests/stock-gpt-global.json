@@ -1,0 +1,244 @@
+{
+  "schema": 1,
+  "device": "uke",
+  "firmware_profile": "global-os3.0.303.0",
+  "firmware_version": "OS3.0.303.0.WOZMIXM",
+  "source_archive": {
+    "filename": "uke_global_images_OS3.0.303.0.WOZMIXM_20260625.0000.00_16.0_global_0a5b1b6851.tgz",
+    "sha256": "f811ae6255b7535d32f80548d800487a6494a87ddb4cca592799337fab24cd0d"
+  },
+  "logical_sector_bytes": 4096,
+  "luns": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "inputs": [
+    {
+      "lun": 0,
+      "kind": "gpt_main",
+      "filename": "gpt_main0.bin",
+      "bytes": 24576,
+      "sha256": "1da4b242835fbcd932df2eb6adf3e0f7c8ddfef63bd911537e18640c5ea8d2a3"
+    },
+    {
+      "lun": 0,
+      "kind": "gpt_backup",
+      "filename": "gpt_backup0.bin",
+      "bytes": 20480,
+      "sha256": "dc7cbba0d9fc9dca77dadc0ba30de1bac89d7f73d2983623bbc308414775c6f2"
+    },
+    {
+      "lun": 0,
+      "kind": "gpt_both",
+      "filename": "gpt_both0.bin",
+      "bytes": 45056,
+      "sha256": "02f20067bebf171fe89e85168f0c88572059b155eda7c772ab0ed13dc76c3a48"
+    },
+    {
+      "lun": 0,
+      "kind": "rawprogram",
+      "filename": "rawprogram0.xml",
+      "bytes": 9794,
+      "sha256": "c3ef4c7551eca76308f17b8fd5c26c78dbd8915fac6691d111a3c5649a312766"
+    },
+    {
+      "lun": 0,
+      "kind": "patch",
+      "filename": "patch0.xml",
+      "bytes": 6263,
+      "sha256": "e0967a6505f8c0886f16d2863e5055d727f77e49b5a2850f0dee95a80daeb42c"
+    },
+    {
+      "lun": 1,
+      "kind": "gpt_main",
+      "filename": "gpt_main1.bin",
+      "bytes": 24576,
+      "sha256": "79b8c68363ea6b2a0eb715b4fb8e5743346ed5314efc597e3d185a2cf040be73"
+    },
+    {
+      "lun": 1,
+      "kind": "gpt_backup",
+      "filename": "gpt_backup1.bin",
+      "bytes": 20480,
+      "sha256": "023496d9c84d5b11b2b3cad098e8e8b8302d128b21f55652013f28dc9107659e"
+    },
+    {
+      "lun": 1,
+      "kind": "gpt_both",
+      "filename": "gpt_both1.bin",
+      "bytes": 45056,
+      "sha256": "1bbb994ddd1ee3e1529923e1473c5f20e9df6e89254de96a9ac6f4ec4b436069"
+    },
+    {
+      "lun": 1,
+      "kind": "rawprogram",
+      "filename": "rawprogram1.xml",
+      "bytes": 2760,
+      "sha256": "e1dc3fbbd949ac55eff4a6752e86ff2ab3bf28906fc217c3e7b791b5b83e8aef"
+    },
+    {
+      "lun": 1,
+      "kind": "patch",
+      "filename": "patch1.xml",
+      "bytes": 6263,
+      "sha256": "2e4a76d7e252e8a5e07a11238fa1d5ce137561c4da9da55ab84b84e8fc9af84b"
+    },
+    {
+      "lun": 2,
+      "kind": "gpt_main",
+      "filename": "gpt_main2.bin",
+      "bytes": 24576,
+      "sha256": "bca456daf67a56f130f242fa2a0c22daae3707c914b036eae541f39e18428504"
+    },
+    {
+      "lun": 2,
+      "kind": "gpt_backup",
+      "filename": "gpt_backup2.bin",
+      "bytes": 20480,
+      "sha256": "a0b5218774cddbe2ebb742ac48dec94bb269b2f95abca207aa7a12911d63c0b8"
+    },
+    {
+      "lun": 2,
+      "kind": "gpt_both",
+      "filename": "gpt_both2.bin",
+      "bytes": 45056,
+      "sha256": "d84363672016f234a1ad7b9269617b36fa1f140a6ced2aa0c7b5b4a300e5c3c7"
+    },
+    {
+      "lun": 2,
+      "kind": "rawprogram",
+      "filename": "rawprogram2.xml",
+      "bytes": 2703,
+      "sha256": "3851068669a33b94bb41e14391f3662b1203a60c5e5e9d92617121ce55f000c9"
+    },
+    {
+      "lun": 2,
+      "kind": "patch",
+      "filename": "patch2.xml",
+      "bytes": 6263,
+      "sha256": "7d70fb071723bb2284721e2a148b0a8dfb008e7e132329ec9e57ad1bdd54d143"
+    },
+    {
+      "lun": 3,
+      "kind": "gpt_main",
+      "filename": "gpt_main3.bin",
+      "bytes": 24576,
+      "sha256": "1f81ecd9f924ce32acdd3df2c0fc8ed0a6b5b21d891bbd4c810279c106564b09"
+    },
+    {
+      "lun": 3,
+      "kind": "gpt_backup",
+      "filename": "gpt_backup3.bin",
+      "bytes": 20480,
+      "sha256": "ec47df9ce8086f4b3d9dcb7d2d9ccb037f0c74260b83b3f18fbca9dce2fef149"
+    },
+    {
+      "lun": 3,
+      "kind": "gpt_both",
+      "filename": "gpt_both3.bin",
+      "bytes": 45056,
+      "sha256": "c9e28a5ba868b8d83d563d3eba1614136fcd36a8b9cef98836661f859a94dad4"
+    },
+    {
+      "lun": 3,
+      "kind": "rawprogram",
+      "filename": "rawprogram3.xml",
+      "bytes": 1859,
+      "sha256": "05e90d8c89e46b4f58b9e11e7a93b193dedca372843864ec61b5dad94847641b"
+    },
+    {
+      "lun": 3,
+      "kind": "patch",
+      "filename": "patch3.xml",
+      "bytes": 6263,
+      "sha256": "b5987d9616d44d4af421ffe00ee485afa98ddf402596f944f602cacb1db9022a"
+    },
+    {
+      "lun": 4,
+      "kind": "gpt_main",
+      "filename": "gpt_main4.bin",
+      "bytes": 24576,
+      "sha256": "3bce706209ec36960844d0e9e88c562aa3750822f2f6787db7688621bbfeb91b"
+    },
+    {
+      "lun": 4,
+      "kind": "gpt_backup",
+      "filename": "gpt_backup4.bin",
+      "bytes": 20480,
+      "sha256": "dfe244e29e4da3cc3028f6834e0af30fbda00dce7f8bbf065079a22a2ec2b03a"
+    },
+    {
+      "lun": 4,
+      "kind": "gpt_both",
+      "filename": "gpt_both4.bin",
+      "bytes": 45056,
+      "sha256": "e9feda2d92ea06a5613976cf2e84cfa287c006fdd96721f93d0ed9d025d6511a"
+    },
+    {
+      "lun": 4,
+      "kind": "rawprogram",
+      "filename": "rawprogram4.xml",
+      "bytes": 20425,
+      "sha256": "de3a502fcc81a3a9b7390e2f6ab46336db489252f978f8208962daa138636169"
+    },
+    {
+      "lun": 4,
+      "kind": "patch",
+      "filename": "patch4.xml",
+      "bytes": 6271,
+      "sha256": "eb4620b284f596a5438baa9152c56e6ebe90d3e5c47fd029a6e61e6240f302cb"
+    },
+    {
+      "lun": 5,
+      "kind": "gpt_main",
+      "filename": "gpt_main5.bin",
+      "bytes": 24576,
+      "sha256": "cace458a94e071cddee83a6b38901074857aa314265125ff4944e7cc9f07baea"
+    },
+    {
+      "lun": 5,
+      "kind": "gpt_backup",
+      "filename": "gpt_backup5.bin",
+      "bytes": 20480,
+      "sha256": "d904d89dc10e256931e0def00148cb1a1997f53e18a89b08ff48fc3fd1ab6b86"
+    },
+    {
+      "lun": 5,
+      "kind": "gpt_both",
+      "filename": "gpt_both5.bin",
+      "bytes": 45056,
+      "sha256": "e8030ff6852806759734f9ff61fea68d835069f34f2aa935c4e5efd8767367e9"
+    },
+    {
+      "lun": 5,
+      "kind": "rawprogram",
+      "filename": "rawprogram5.xml",
+      "bytes": 2974,
+      "sha256": "89b60bc5279684e3be3da593870b3008d4e54eda551794f06742352793fb17d0"
+    },
+    {
+      "lun": 5,
+      "kind": "patch",
+      "filename": "patch5.xml",
+      "bytes": 6263,
+      "sha256": "3f5bd9724b8a5cfe85cb2f934637871fc5d5f0e17e7f8cdbaa3e75021ebc14a4"
+    }
+  ],
+  "inventory_sha256": "0431ca2b9693eac545e891e3656fb076556b023555c30273d2a482b9a5024f44",
+  "private_extraction_record_sha256": "12a8b62779f6958aaa642f19bb9ab3bfdb20bf30c02eea266291da6a05e4458e",
+  "geometry_policy": "Resolve terminal partitions and GPT locations from measured per-LUN capacity using reviewed OEM patch semantics; template values are not device geometry",
+  "validation": {
+    "source_archive": true,
+    "extracted_file_hashes": true,
+    "xml_syntax": true,
+    "rawprogram_range_inventory": true,
+    "inventory_comparison": true,
+    "stock_reconstruction": false,
+    "restore_authorized": false,
+    "physical_device": false
+  }
+}
