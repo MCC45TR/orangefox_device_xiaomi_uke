@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// Fail-closed Uke recovery controls. No partition table or filesystem writes.
+// Legacy Uke controls remain read-only. The native library provides confirmed
+// file/image transactions; live GPT writes require the pending shared gate.
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -17,6 +18,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "libuke/uke.h"
 #ifdef __ANDROID__
 #include <sys/system_properties.h>
 #endif
@@ -149,6 +151,10 @@ int main(int argc, char* argv[]) {
     if (argc < 2) return usage();
     try {
         const std::string_view command = argv[1];
+        if (command != "list" && command != "plan-mount" && command != "mount-ro" &&
+            command != "unmount" && command != "rotation") {
+            return ure::dispatch(std::vector<std::string>(argv + 1, argv + argc));
+        }
         if (command == "list" && argc <= 3) {
             const auto entries = inventory(argc == 3 ? argv[2] : "/sys/class/block");
             std::cout << "device\tlabel\tpartuuid\n";

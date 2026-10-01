@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: Apache-2.0
+#pragma once
+#include <json/json.h>
+#include <cstdint>
+#include <filesystem>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <sys/stat.h>
+
+namespace ure {
+namespace fs = std::filesystem;
+using Value = Json::Value;
+struct Error : std::runtime_error {
+    std::string code;
+    Error(std::string code_value, const std::string& message)
+        : std::runtime_error(message), code(std::move(code_value)) {}
+};
+void require(bool condition, const std::string& code, const std::string& message);
+class Fd {
+    int fd_ = -1;
+public:
+    explicit Fd(int value = -1) : fd_(value) {}
+    ~Fd();
+    Fd(Fd&& other) noexcept;
+    Fd& operator=(Fd&& other) noexcept;
+    Fd(const Fd&) = delete;
+    Fd& operator=(const Fd&) = delete;
+    int get() const { return fd_; }
+};
+class Root {
+    Fd fd_;
+public:
+    explicit Root(const fs::path& path);
+    explicit Root(Fd directory);
+    int fd() const { return fd_.get(); }
+    Fd open(std::string_view relative, int flags, mode_t mode = 0) const;
+    std::string read(std::string_view relative, std::size_t limit = 1024 * 1024) const;
+    bool exists(std::string_view relative) const;
+    struct stat stat(std::string_view relative) const;
+    std::vector<std::string> list(std::string_view relative, std::size_t limit = 4096) const;
+    std::string link(std::string_view relative) const;
+    void atomic_save(std::string_view relative, std::string_view contents,
+                     std::string_view expected_sha, bool preserve_metadata = true,
+                     std::size_t limit = 1024 * 1024) const;
+    void save_record(const std::string& relative, const Value& value, bool replace = false) const;
+};
+Root private_directory(const fs::path& path, bool create);
+std::vector<std::string> components(std::string_view relative);
+bool identifier(std::string_view input);
+bool uuid(std::string_view input);
+bool hash_valid(std::string_view input);
+std::string sha256(int fd);
+std::string sha256(std::string_view bytes);
+std::string json(const Value& value);
+Value parse_json(std::string_view text);
+Value json_file(const fs::path& path);
+std::string bounded_read(const fs::path& path, std::size_t limit = 1024 * 1024);
+void save_json(const fs::path& path, const Value& value, bool replace = false);
+std::string operation_id();
+std::uint64_t monotonic_ms();
+std::string utc();
+Value envelope(const Value& data);
+std::string redact(std::string text);
+struct ProcessResult { int status = -1; bool timed_out = false; std::string output; };
+ProcessResult run_tool(const std::string& name, const std::vector<std::string>& args,
+                       int timeout_seconds = 15, std::string_view input = {},
+                       const std::vector<int>& inherited_fds = {});
+bool tool_available(const std::string& name);
+
+Value storage_graph(const Root& system);
+Value storage_usage(const Root& system, const std::string& stable_id);
+Value storage_usage_policy(const Value& graph, const Value& observations, const std::string& stable_id);
+struct StorageTarget {
+    Fd descriptor;
+    Value identity;
+    // Set only after the selector successfully opens the real block with
+    // O_EXCL. Linux clears O_EXCL from f_flags after ->open, so F_GETFL cannot
+    // recover whether this descriptor acquired a block claim.
+    bool exclusive_claim=false;
+};
+StorageTarget storage_image(const fs::path& path, std::uint32_t sector, bool writable = false);
+StorageTarget storage_select(const Root& system, const std::string& stable_id, bool exclusive_claim = false);
+void storage_revalidate(const StorageTarget& target, const Root* system = nullptr);
+std::uint64_t storage_bytes(int fd);
+std::string storage_read(int fd, std::uint64_t offset, std::size_t bytes);
+struct StorageRange { std::string name; std::uint64_t offset; std::string bytes; };
+std::vector<StorageRange> gpt_regions(int fd, std::uint32_t sector);
+std::vector<StorageRange> gpt_repair_regions(int fd, std::uint32_t sector);
+Value gpt_backup(const StorageTarget& target, const fs::path& directory, const std::string& profile,
+                 const Root* system = nullptr);
+Value gpt_backup_verify(const fs::path& directory);
+Value gpt_compare(const StorageTarget& target, const fs::path& directory, const std::string& profile,
+                  const Root* system = nullptr);
+Value gpt_plan(const StorageTarget& target, const std::string& operation, const std::string& profile,
+               const fs::path& backup = {}, const Root* system = nullptr);
+Value gpt_execute(StorageTarget& target, const Value& plan, const fs::path& journal,
+                  const std::string& confirmation, const Root* system = nullptr);
+Value gpt_rollback(StorageTarget& target, const fs::path& journal, const std::string& confirmation,
+                   const Root* system = nullptr);
+Value gpt_journal_inspect(const StorageTarget& target, const fs::path& journal,
+                         const Root* system = nullptr);
+Value gpt_resume(const StorageTarget& target, const fs::path& journal, const std::string& confirmation,
+                 const Root* system = nullptr);
+Value filesystem_probe(int fd);
+Value filesystem_check(int fd);
+Value image_tool(const std::string& command, const std::string& operation, int fd);
+Value gpt_inspect(int fd, std::uint32_t sector_size);
+Value linux_detect(const Root& root, const Root* esp = nullptr);
+Value windows_detect(const Root& root, const Root* esp = nullptr);
+Value config_validate(const Root& root, const std::string& file, const std::string& kind);
+Value files_list(const Root& root, const std::string& directory);
+Value files_search(const Root& root, const std::string& directory, const std::string& pattern);
+Value diagnose(const Root& system, const std::string& scope);
+Value public_report(const Root& system);
+Value capabilities(const Root& system);
+Value boot_targets(const Root& root, const Root* esp);
+Value boot_request(const Root& root, const Root& esp, const std::string& target,
+                   const std::string& entry);
+Value transaction_plan(const Root& root, const std::string& file,
+                       const std::string& new_contents, const std::string& firmware);
+void validate_plan(const Root& root, const Value& plan);
+Value transaction_run(const Root& root, const Value& plan, const fs::path& journal,
+                      const std::string& confirmation);
+Value transaction_rollback(const Root& root, const fs::path& journal,
+                           const std::string& confirmation);
+Value transaction_inspect(const Root& root, const fs::path& journal);
+Value transaction_resume(const Root& root, const fs::path& journal, const std::string& confirmation);
+Value transaction_cancel(const Root& root, const fs::path& journal, const std::string& confirmation);
+Value transaction_list(const Root& root, const fs::path& directory);
+Value backup_file(const Root& root, const std::string& relative, const fs::path& destination);
+Value backup_plan(const Root& root, const std::string& relative, const std::string& profile,
+                  std::uint64_t chunk_bytes = 16 * 1024 * 1024);
+Value backup_storage_plan(const Root& system, const StorageTarget& source, const std::string& profile,
+                          std::uint64_t chunk_bytes = 16 * 1024 * 1024);
+Value backup_capture(const Root& root, const Value& plan, const fs::path& directory, bool resume);
+Value backup_verify(const fs::path& directory);
+void backup_export(const Root& root, const Value& plan, std::uint64_t index, int output_fd);
+class Editor {
+    std::string original_, text_, path_, profile_;
+    Value original_identity_;
+    std::vector<std::string> undo_, redo_;
+    void change(const std::string& value);
+public:
+    Editor(const Root& root, std::string path, std::string profile);
+    const std::string& text() const { return text_; }
+    std::vector<std::string> lines() const;
+    void line(std::size_t index, const std::string& value);
+    void insert(std::size_t index, const std::string& value);
+    void erase(std::size_t index);
+    void undo();
+    void redo();
+    std::size_t replace(const std::string& find, const std::string& replacement);
+    Value plan(const Root& root) const;
+};
+bool utf8(std::string_view text);
+Value tool_operation(const std::vector<std::string>& args, const Root& root, const Root& system);
+int dispatch(std::vector<std::string> args);
+} // namespace ure

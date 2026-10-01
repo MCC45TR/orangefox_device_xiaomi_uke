@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-binary="$component/build/recoveryctl/uke-recoveryctl"
+binary=${UKE_RECOVERYCTL_BINARY:-"$component/build/recoveryctl/uke-recoveryctl"}
 fixture="$component/tests/fixtures/recovery-block"
 
 "$binary" list "$fixture" | rg -q $'sda1\tuke_esp\t12345678-1234-1234-1234-123456789abc'

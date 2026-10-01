@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+cc_library_static {
+    name: "libuke-recovery",
+    recovery_available: true,
+    cpp_std: "c++20",
+    cppflags: ["-fexceptions"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    srcs: ["libuke/core.cpp", "libuke/storage.cpp", "libuke/systems.cpp",
+           "libuke/transaction.cpp", "libuke/diagnostics.cpp", "libuke/tools.cpp",
+           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/ownership.cpp"],
+    export_include_dirs: ["libuke"],
+    static_libs: ["libjsoncpp"],
+    shared_libs: ["libcrypto"],
+    export_static_lib_headers: ["libjsoncpp"],
+}
