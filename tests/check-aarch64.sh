@@ -25,6 +25,7 @@ SH
 chmod 755 "$work/recoveryctl"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-ure.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-backup.sh"
+UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-tree-backup.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-storage-backup.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-restore.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-stream-restore.sh"

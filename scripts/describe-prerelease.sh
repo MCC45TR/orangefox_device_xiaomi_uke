@@ -23,6 +23,8 @@ jq -e '.validation.cpp_tablet_display_density_and_actual_renderer_hooks and .val
     "$component/reports/private/native-verification.json" >/dev/null
 jq -e '.validation.cpp_external_display_fake_drm_and_edid and .validation.cpp_hardware_keyboard_actual_routing and .validation.cpp_evdev_actual_hotplug' \
     "$component/reports/private/native-verification.json" >/dev/null
+jq -e '.validation.cpp_linux_home_tree_backup and .validation.tree_backup_cli_and_sigkill_resume' \
+    "$component/reports/private/native-verification.json" >/dev/null
 jq -e --arg image "$(sha256sum "$recovery" | cut -d' ' -f1)" '.recovery_image_sha256==$image and .validation.extracted_ramdisk and .validation.no_python_payload and .validation.elf_dependency_closure and .validation.qemu_user_fixtures' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e '.validation.source_built_mirror_renderer_and_exports' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" '.aarch64_runner_sha256==$runner and .auditor_sha256==$auditor' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null

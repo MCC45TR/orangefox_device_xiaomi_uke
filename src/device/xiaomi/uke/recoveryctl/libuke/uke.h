@@ -145,6 +145,11 @@ Value transaction_resume(const Root& root, const fs::path& journal, const std::s
 Value transaction_cancel(const Root& root, const fs::path& journal, const std::string& confirmation);
 Value transaction_list(const Root& root, const fs::path& directory);
 Value backup_file(const Root& root, const std::string& relative, const fs::path& destination);
+Value backup_tree_plan(const Root& root, const std::string& relative, const std::string& profile, const fs::path& directory);
+Value backup_tree_capture(const Root& root, const fs::path& directory, const std::string& confirmation);
+Value backup_tree_verify(const fs::path& directory);
+Value backup_tree_inspect(const fs::path& directory);
+Value backup_tree_restore(const fs::path& directory, const fs::path& destination, const std::string& confirmation);
 Value backup_plan(const Root& root, const std::string& relative, const std::string& profile,
                   std::uint64_t chunk_bytes = 16 * 1024 * 1024);
 Value backup_storage_plan(const Root& system, const StorageTarget& source, const std::string& profile,

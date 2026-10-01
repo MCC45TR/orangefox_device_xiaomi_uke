@@ -18,6 +18,10 @@
     <variable name="ure_journal_hash" value=""/>
     <variable name="ure_backup_dir" value="/mnt/uke-linux/ure-backup"/>
     <variable name="ure_backup_hash" value=""/>
+    <variable name="ure_tree_root" value="/mnt/uke-linux/home"/>
+    <variable name="ure_tree_store" value="/mnt/uke-backups/home"/>
+    <variable name="ure_tree_destination" value="/mnt/uke-linux/home-restored"/>
+    <variable name="ure_tree_hash" value=""/>
     <variable name="ure_raw_kind" value="image"/>
     <variable name="ure_raw_source" value=""/>
     <variable name="ure_raw_sector" value="4096"/>
@@ -75,11 +79,62 @@
           <listitem name="File backup"><icon res="overview"/><action function="page">ure_backup</action></listitem>
           <listitem name="Storage image and live partition backup"><icon res="partitions"/><action function="page">ure_raw_select</action></listitem>
           <listitem name="Raw image restore and interrupted operation recovery"><icon res="partitions"/><action function="page">ure_restore_select</action></listitem>
+          <listitem name="Linux and home directory backup / restore"><icon res="partitions"/><action function="page">ure_tree</action></listitem>
           <listitem name="GPT backup, image repair and journal recovery"><icon res="partitions"/><action function="page">ure_gpt_select</action></listitem>
         </listbox>
       </scroll>
       <template name="navbar"/>
       <action><touch key="back"/><action function="page">advanced</action></action>
+    </page>
+    <page name="ure_tree">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Linux / home directory backup</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Source: %ure_tree_root%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Backup: %ure_tree_store%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Restore: %ure_tree_destination%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Choose an already mounted directory and a backup outside it.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Nested mounts/subvolumes need separate backups. This is not a snapshot.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <listitem name="Choose source and backup store"><action function="page">ure_tree_paths</action></listitem>
+          <listitem name="Choose new restore destination"><action function="page">ure_tree_destination</action></listitem>
+          <listitem name="Plan a new directory backup"><action function="uremanager">tree-plan</action><action function="page">ure_tree_review</action></listitem>
+          <listitem name="Review existing plan / interrupted capture"><action function="uremanager">tree-review</action><action function="page">ure_tree_review</action></listitem>
+          <listitem name="Verify complete backup offline"><action function="uremanager">tree-verify</action><action function="page">ure_result</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_tree_paths">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Directory backup paths</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Mounted source directory</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_tree_root%</text><data name="ure_tree_root"/><restrict minlen="1" maxlen="4096"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>New or existing backup store outside source</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_tree_store%</text><data name="ure_tree_store"/><restrict minlen="1" maxlen="4096"/></input>
+      <template name="keyboard"/><template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_tree</action></action>
+    </page>
+    <page name="ure_tree_destination">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>New restore directory</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Must not exist; existing files are never replaced</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_tree_destination%</text><data name="ure_tree_destination"/><restrict minlen="1" maxlen="4096"/></input>
+      <template name="keyboard"/><template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_tree</action></action>
+    </page>
+    <page name="ure_tree_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review directory backup</text></text>
+      <textbox><placement x="%col1_x%" y="%ab_h%" w="%input_w%" h="%bl_halfscreen_h%"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_output%</text></textbox>
+      <listbox style="group_list"><placement x="0" y="%bl_halfscreen_y%" w="%screen_w%" h="%bl_halfscreen_h%"/>
+        <listitem name="Confirm capture / resume verified files"><action function="uremanager">tree-capture</action><action function="page">ure_result</action></listitem>
+        <listitem name="Confirm restore to new directory"><action function="uremanager">tree-restore</action><action function="page">ure_result</action></listitem>
+        <listitem name="Return without capture or restore"><action function="page">ure_tree</action></listitem>
+      </listbox>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_tree</action></action>
     </page>
     <page name="ure_monitor">
       <template name="base_ex"/>

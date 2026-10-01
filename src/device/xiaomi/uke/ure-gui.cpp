@@ -24,6 +24,8 @@ std::string reviewed_gpt_journal;
 ure::Value pending_restore_plan;
 std::string pending_restore_journal,pending_restore_backup,reviewed_restore_journal;
 std::string reviewed_stream_journal;
+ure::Value pending_tree;
+std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
 void publish(const ure::Value& data) { DataManager::SetValue("ure_output",ure::json(data)); }
@@ -259,6 +261,31 @@ int GUIAction::uremanager(std::string command) {
                 else publish(ure::restore_cancel(system,target,reviewed_restore_journal,confirmation));
                 clear_restore_review();
             } else throw ure::Error("unknown-action","Unknown raw restore action");
+        } else if(command.rfind("tree-",0)==0) {
+            const auto store=value("ure_tree_store");
+            if(command=="tree-verify")publish(ure::backup_tree_verify(store));
+            else if(command=="tree-plan" || command=="tree-review") {
+                pending_tree=ure::Value(); DataManager::SetValue("ure_tree_hash","");
+                if(command=="tree-plan") {
+                    const auto path=value("ure_tree_root"); ure::require(ure::fs::path(path).is_absolute() && path!="/","root-required","Select an already mounted Linux or home directory");
+                    ure::Root source(path); pending_tree=ure::backup_tree_plan(source,".","global-os3.0.303.0",store);
+                } else pending_tree=ure::backup_tree_inspect(store);
+                reviewed_tree_store=store; reviewed_tree_root=value("ure_tree_root"); reviewed_tree_destination=value("ure_tree_destination");
+                DataManager::SetValue("ure_tree_hash",pending_tree["plan_sha256"].asString());
+                auto review=pending_tree; review["selected_root"]=reviewed_tree_root; review["backup_store"]=store; review["restore_destination"]=reviewed_tree_destination;
+                publish(review); DataManager::SetValue("ure_status","Review source, metadata, backup store and new restore destination; no mount or unlock was performed");
+            } else if(command=="tree-capture" || command=="tree-restore") {
+                ure::require(pending_tree.isObject() && pending_tree["plan_sha256"].asString()==value("ure_tree_hash") && reviewed_tree_store==store,
+                    "review-required","Review this tree plan before capture or restore");
+                if(command=="tree-capture") {
+                    ure::require(value("ure_tree_root")==reviewed_tree_root,"stale-plan","Source selection changed; review the tree plan again");
+                    ure::Root source(reviewed_tree_root); publish(ure::backup_tree_capture(source,store,value("ure_tree_hash")));
+                } else {
+                    ure::require(value("ure_tree_destination")==reviewed_tree_destination,"stale-plan","Restore destination changed; review again");
+                    publish(ure::backup_tree_restore(store,reviewed_tree_destination,value("ure_tree_hash")));
+                }
+                pending_tree=ure::Value(); DataManager::SetValue("ure_tree_hash","");
+            } else throw ure::Error("unknown-command","Unknown directory backup action");
         } else if(command.rfind("raw-",0)==0) {
             if(command=="raw-image" || command=="raw-live") {
                 pending_backup=ure::Value(); pending_backup_directory.clear(); DataManager::SetValue("ure_backup_hash","");

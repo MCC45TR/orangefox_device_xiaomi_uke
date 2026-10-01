@@ -11,6 +11,7 @@ cd "$component"
     printf '%s\0' tests/check-display.sh tests/generate-display-hooks.sh src/device/xiaomi/uke/ure-gui.cpp \
         patches/0006-tablet-interface-density.patch src/upstream/orangefox-android16/bootable/recovery/gui/pages.cpp \
         src/upstream/orangefox-android16/bootable/recovery/gui/gui.cpp
+    printf '%s\0' tests/check-tree-backup.sh
     printf '%s\0' src/device/xiaomi/uke/display-mirror.hpp src/device/xiaomi/uke/display-mirror.cpp \
         src/device/xiaomi/uke/display-mirror-layout.cpp patches/0007-usb-monitor-and-input.patch \
         tests/generate-input-hooks.sh tests/generate-events-hooks.sh

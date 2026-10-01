@@ -110,7 +110,7 @@ Value capabilities(const Root& system) {
         {"URE-C04","Linux distribution and package-db discovery","","","SOURCE_PRESENT"},
         {"URE-C05","Kernel/initramfs/module/BLS consistency","","","SOURCE_PRESENT"},
         {"URE-C06","Atomic editor backend and config validators","","","SOURCE_PRESENT"},
-        {"URE-C07","Bounded file metadata and search","","","SOURCE_PRESENT"},
+        {"URE-C07","File metadata/search and Linux/home tree backup/isolated restore","","","SOURCE_PRESENT"},
         {"URE-C08","Controlled chroot","","","PLANNED"},
         {"URE-C09","Expanded recovery kernel","","","PLANNED"},
         {"URE-C10","LUKS","cryptsetup","","TOOL_REQUIRED"},

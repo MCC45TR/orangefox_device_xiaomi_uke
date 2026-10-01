@@ -59,6 +59,11 @@ static Value usage() {
         "backup capture PLAN --journal DIR [--root ROOT for file plans]", "backup resume DIR [--root ROOT for file plans]", "backup verify DIR",
         "backup export PLAN --chunk INDEX [--root ROOT for file plans] (binary stdout; JSON errors on stderr)",
         "backup store-export DIR --chunk INDEX (verified stored chunk; binary stdout, JSON errors on stderr)",
+        "backup tree-plan RELATIVE --root ROOT --profile PROFILE --output NEW_STORE",
+        "backup tree-capture STORE --root ROOT --confirm PLAN_SHA256 (also resumes verified files)",
+        "backup tree-verify STORE (offline namespace, metadata and data verification)",
+        "backup tree-inspect STORE (review metadata pages and capture state; does not verify data)",
+        "backup tree-restore STORE --output NEW_DIRECTORY --confirm PLAN_SHA256",
         "restore plan BACKUP_DIR --image IMAGE|--object STABLE_ID --profile PROFILE --output PLAN [--sector-size 4096]",
         "restore execute PLAN --image IMAGE|--object STABLE_ID --journal DIR --confirm SHA256",
         "restore inspect JOURNAL --image IMAGE|--object STABLE_ID",
@@ -108,6 +113,10 @@ int dispatch(std::vector<std::string> args) {
             "invalid-options","A template preview does not select a target or system context");
         require(!stock_plan || (!root_option && !esp_option),"invalid-options","Stock GPT planning selects a whole storage object");
         const bool storage_backup=args[0]=="backup" && operation=="storage-plan";
+        const bool tree_backup=args[0]=="backup" && (operation=="tree-plan" || operation=="tree-capture" || operation=="tree-verify" || operation=="tree-restore" || operation=="tree-inspect");
+        if(tree_backup)require(!system_option && !esp_option && !image_option && !object_option && !sector_option && !content_option &&
+            !journal_option && !chunk_size && !chunk_index && !before_option && !after_option && !receipt_option && !packet_option &&
+            ((operation!="tree-verify" && operation!="tree-restore" && operation!="tree-inspect") || !root_option),"invalid-options","Tree backups select only their filesystem source and private store");
         const bool restore=args[0]=="restore";
         const bool stream_plan=restore && operation=="stream-plan",host_receipt=restore && operation=="host-receipt";
         const bool stream_begin=restore && operation=="stream-begin",stream_chunk=restore && operation=="stream-chunk";
@@ -123,10 +132,10 @@ int dispatch(std::vector<std::string> args) {
         require(!sector_option || ((args[0]=="gpt" || storage_backup || restore) && image_option && operation!="verify"),"invalid-options","Sector size applies only to storage image operations");
         require(!object_option || ((args[0]=="gpt" || storage_backup || restore) && !image_option && operation!="verify"),"invalid-options","Select one storage image or live object");
         require(!content_option || (args[0]=="editor" && operation=="plan"),"invalid-options","Content file applies only to editor plans");
-        require(!profile_option || storage_backup || stream_plan || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
+        require(!profile_option || (tree_backup && operation=="tree-plan") || storage_backup || stream_plan || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
             (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan" || stock_preview || stock_plan)),"invalid-options","Profile does not apply to this operation");
         require(!journal_option || stream_begin || ((args[0]=="transaction" || args[0]=="gpt" || restore) && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
-        require(!confirm_option || (args[0]=="transaction" && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")) ||
+        require(!confirm_option || (tree_backup && (operation=="tree-capture" || operation=="tree-restore")) || (args[0]=="transaction" && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")) ||
             (args[0]=="gpt" && (operation=="execute" || operation=="rollback" || operation=="resume")) ||
             stream_mutation || (restore && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")),"invalid-options","Confirmation applies only to transaction mutation");
         require(!chunk_size || storage_backup || (args[0]=="backup" && operation=="plan"),"invalid-options","Chunk size applies only to backup planning");
@@ -252,7 +261,21 @@ int dispatch(std::vector<std::string> args) {
         else if(command=="transaction" && args.size()==3 && args[1]=="resume" && root_option && confirm_option)data=transaction_resume(root,args[2],*confirm_option);
         else if(command=="transaction" && args.size()==3 && args[1]=="cancel" && root_option && confirm_option)data=transaction_cancel(root,args[2],*confirm_option);
         else if(command=="transaction" && args.size()==3 && args[1]=="show")data=json_file(fs::path(args[2])/"journal.json");
-        else if(command=="backup" && args.size()==3 && args[1]=="file" && root_option && output_option) {
+        else if(tree_backup && args.size()==3) {
+            if(operation=="tree-plan") {
+                require(root_option && profile_option && output_option && !confirm_option,"invalid-options","Tree planning requires source, profile and a new store");
+                data=backup_tree_plan(root,args[2],*profile_option,*output_option);
+            } else if(operation=="tree-capture") {
+                require(root_option && confirm_option && !profile_option && !output_option,"invalid-options","Tree capture requires an explicit source root and plan confirmation");
+                data=backup_tree_capture(root,args[2],*confirm_option);
+            } else if(operation=="tree-restore") {
+                require(output_option && confirm_option && !profile_option,"invalid-options","Tree restore requires a new destination and exact plan confirmation");
+                data=backup_tree_restore(args[2],*output_option,*confirm_option);
+            } else {
+                require(!profile_option && !output_option && !confirm_option,"invalid-options","Offline tree review/verification uses only the backup store");
+                data=operation=="tree-inspect" ? backup_tree_inspect(args[2]) : backup_tree_verify(args[2]);
+            }
+        } else if(command=="backup" && args.size()==3 && args[1]=="file" && root_option && output_option) {
             data=backup_file(root,args[2],*output_option); save_json(*output_option+".manifest.json",data);
         } else if(command=="backup" && args.size()==3 && args[1]=="plan" && root_option && output_option && profile_option) {
             data=backup_plan(root,args[2],*profile_option,chunk_size ? number(*chunk_size) : 16*1024*1024); save_json(*output_option,data);
