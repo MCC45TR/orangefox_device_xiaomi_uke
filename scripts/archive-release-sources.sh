@@ -61,7 +61,7 @@ for path in "${sources[@]}"; do
     [[ -d "$tree/$path/.git" || -f "$tree/$path/.git" ]] || { echo "Missing source: $path" >&2; exit 1; }
     if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
         case "$path" in
-            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch
+            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
@@ -123,6 +123,9 @@ if [[ -f $component/reports/URE-STOCK-GPT-BUILD.md ]]; then
 fi
 if [[ -f $component/reports/URE-PARTITION-MAP-BUILD.md ]]; then
     cp -- "$component/reports/URE-PARTITION-MAP-BUILD.md" "$source_work/project/PARTITION-MAP-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-PARTITION-LAYOUT-BUILD.md ]]; then
+    cp -- "$component/reports/URE-PARTITION-LAYOUT-BUILD.md" "$source_work/project/PARTITION-LAYOUT-BUILD-REPORT.md"
 fi
 if [[ -f $component/reports/URE-DISPLAY-BUILD.md ]]; then
     cp -- "$component/reports/URE-DISPLAY-BUILD.md" "$source_work/project/DISPLAY-BUILD-REPORT.md"

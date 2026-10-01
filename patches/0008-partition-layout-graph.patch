@@ -1,0 +1,20 @@
+diff --git a/gui/pages.cpp b/gui/pages.cpp
+index d5215887..6c4ebfda 100755
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -497,6 +497,15 @@ bool Page::ProcessNode(xml_node<>* page, std::vector<xml_node<>*> *templates, in
+ 			mObjects.push_back(element);
+ 			mRenders.push_back(element);
+ 		}
++		else if (type == "urepartitionmap")
++		{
++			extern void ure_create_partition_map(xml_node<>*, GUIObject*&, RenderObject*&);
++			GUIObject* object = nullptr;
++			RenderObject* render = nullptr;
++			ure_create_partition_map(child, object, render);
++			mObjects.push_back(object);
++			mRenders.push_back(render);
++		}
+ 		else if (type == "fill")
+ 		{
+ 			GUIFill* element = new GUIFill(child);

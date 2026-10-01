@@ -8,6 +8,7 @@
 #include "minuitwrp/minui.h"
 #include "../minuitwrp/display-mirror.hpp"
 #include <algorithm>
+#include <charconv>
 #include <mutex>
 
 namespace {
@@ -25,6 +26,7 @@ ure::Value pending_restore_plan;
 std::string pending_restore_journal,pending_restore_backup,reviewed_restore_journal;
 std::string reviewed_stream_journal;
 ure::Value pending_tree;
+ure::Value reviewed_layout_request;
 std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
@@ -68,7 +70,21 @@ ure::StorageTarget gpt_target(const ure::Root& system,bool writable=false) {
 }
 void clear_gpt_review() {
     pending_gpt_plan=ure::Value(); pending_gpt_journal.clear(); reviewed_gpt_journal.clear();
+    reviewed_layout_request=ure::Value();
+    DataManager::SetValue("ure_layout_graph",""); DataManager::SetValue("ure_layout_review","Calculate and review the current selections before applying");
     for(const auto* name:{"ure_gpt_plan_hash","ure_gpt_journal_hash","ure_gpt_can_execute","ure_gpt_can_rollback","ure_gpt_can_resume"})DataManager::SetValue(name,"");
+}
+ure::Value layout_request() {
+    ure::Value request; request["schema"]=1; request["format"]="ure-layout-request"; request["rows"]=ure::Value(Json::arrayValue);
+    request["mode"]=value("ure_layout_mode"); request["placement"]=value("ure_layout_placement"); request["userdata_policy"]=value("ure_layout_userdata_policy");
+    const auto edits=value("ure_layout_record_edits"); ure::require(edits.size()<=65536,"size-limit","Advanced edit list exceeds its limit");
+    request["record_edits"]=ure::parse_json(edits);
+    for(const auto* role:{"esp","linux","windows","userdata"}) {
+        const std::string prefix="ure_layout_"+std::string(role); ure::Value row; row["role"]=role;
+        row["size"]=value(prefix+"_size"); row["unit"]=value(prefix+"_unit"); row["filesystem"]=value(prefix+"_filesystem");
+        const auto guid=value(prefix+"_guid"); if(!guid.empty())row["partuuid"]=guid;
+        request["rows"].append(row);
+    } return request;
 }
 void clear_restore_review() {
     pending_restore_plan=ure::Value(); pending_restore_journal.clear(); pending_restore_backup.clear(); reviewed_restore_journal.clear();
@@ -87,6 +103,39 @@ void refresh_editor() {
     DataManager::SetValue("ure_preview",editor->text().substr(0,65536));
     pending_plan=ure::Value(); pending_journal.clear(); DataManager::SetValue("ure_plan_hash","");
 }
+}
+// Render-thread-owned graph cache. Action threads publish a bounded JSON value;
+// they never retain a widget pointer or alter scanout resources.
+class UrePartitionMap : public GUIObject, public RenderObject {
+    std::string cached_;
+    ure::Value segments_;
+    int cached_width_=-1;
+    void refresh() {
+        const auto data=value("ure_layout_graph"); if(data==cached_ && cached_width_==mRenderW)return;
+        cached_=data; cached_width_=mRenderW; segments_=ure::Value();
+        try { ure::require(data.size()<=65536,"size-limit","Layout graph exceeds its limit");
+            if(!data.empty() && mRenderW>0)segments_=ure::partition_layout_bar(ure::parse_json(data),static_cast<unsigned>(mRenderW));
+        } catch(const ure::Error&) { /* An invalid or absent preview paints only the neutral bar. */ }
+    }
+public:
+    explicit UrePartitionMap(xml_node<>* node):GUIObject(node) { LoadPlacement(FindNode(node,"placement"),&mRenderX,&mRenderY,&mRenderW,&mRenderH); }
+    int Update() override { const auto before=cached_; const auto width=cached_width_; refresh(); return before==cached_ && width==cached_width_ ? 0 : 2; }
+    int Render() override {
+        if(!isConditionTrue())return 0;
+        refresh(); gr_color(96,96,96,255); gr_fill(mRenderX,mRenderY,mRenderW,mRenderH);
+        for(const auto& segment:segments_) {
+            const auto name=segment["role"].asString();
+            if(name=="esp")gr_color(210,160,64,255);
+            else if(name=="linux")gr_color(80,172,116,255);
+            else if(name=="windows")gr_color(76,140,216,255);
+            else if(name=="userdata")gr_color(164,116,208,255);
+            else gr_color(96,96,96,255);
+            gr_fill(mRenderX+segment["x"].asInt(),mRenderY,segment["width"].asInt(),mRenderH);
+        } return 0;
+    }
+};
+void ure_create_partition_map(xml_node<>* node,GUIObject*& object,RenderObject*& render) {
+    auto* graph=new UrePartitionMap(node); object=graph; render=graph;
 }
 // Called only while the render thread rebuilds theme resources. Existing input
 // events and object hit rectangles remain in framebuffer coordinates.
@@ -329,12 +378,75 @@ int GUIAction::uremanager(std::string command) {
                     pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
                 } else publish(ure::backup_capture(root,ure::json_file(ure::fs::path(value("ure_backup_dir"))/"plan.json"),value("ure_backup_dir"),true));
             }
+        } else if(command.rfind("layout-",0)==0 && command!="layout-preview" && command!="layout-plan" && command!="layout-apply-image") {
+            clear_gpt_review(); DataManager::SetValue("ure_layout_graph",""); DataManager::SetValue("ure_layout_review","Selections changed; calculate and review the layout again");
+            if(command=="layout-mode-standard") {
+                DataManager::SetValue("ure_layout_mode","standard"); DataManager::SetValue("ure_layout_placement","after_userdata");
+                DataManager::SetValue("ure_layout_userdata_policy","preserve"); DataManager::SetValue("ure_layout_record_edits","[]");
+                DataManager::SetValue("ure_layout_userdata_guid","");
+            } else if(command=="layout-mode-advanced")DataManager::SetValue("ure_layout_mode","advanced");
+            else if(command.rfind("layout-edit-",0)==0) {
+                const auto role=command.substr(12); ure::require(role=="esp" || role=="linux" || role=="windows" || role=="userdata","invalid-layout-role","Select a supported layout role");
+                DataManager::SetValue("ure_layout_edit_role",role);
+                for(const auto* field:{"size","unit","filesystem","guid"})DataManager::SetValue("ure_layout_edit_"+std::string(field),value("ure_layout_"+role+"_"+field));
+            } else if(command=="layout-row-save") {
+                const auto role=value("ure_layout_edit_role"); ure::require(role=="esp" || role=="linux" || role=="windows" || role=="userdata","invalid-layout-role","Select a supported layout role");
+                for(const auto* field:{"size","unit","filesystem","guid"})DataManager::SetValue("ure_layout_"+role+"_"+field,value("ure_layout_edit_"+std::string(field)));
+            } else if(command=="layout-placement-after")DataManager::SetValue("ure_layout_placement","after_userdata");
+            else if(command=="layout-placement-before" || command=="layout-userdata-recreate") {
+                ure::require(value("ure_layout_mode")=="advanced","advanced-mode-required","Select advanced mode to erase and recreate userdata");
+                DataManager::SetValue("ure_layout_userdata_policy","recreate");
+                if(command=="layout-placement-before")DataManager::SetValue("ure_layout_placement","before_userdata");
+            } else if(command=="layout-userdata-preserve") {
+                DataManager::SetValue("ure_layout_userdata_policy","preserve"); DataManager::SetValue("ure_layout_placement","after_userdata");
+            } else if(command=="layout-record-clear")DataManager::SetValue("ure_layout_record_edits","[]");
+            else if(command=="layout-record-add") {
+                ure::require(value("ure_layout_mode")=="advanced","advanced-mode-required","Select advanced mode before requesting existing record changes");
+                const auto text=value("ure_layout_record_index"); unsigned index=0; const auto parsed=std::from_chars(text.data(),text.data()+text.size(),index);
+                ure::require(parsed.ec==std::errc{} && parsed.ptr==text.data()+text.size() && index>0 && index<=4096,"invalid-record-edit","Enter a GPT index from the inspected partition map");
+                ure::Value row; row["index"]=index; row["contents"]=value("ure_layout_record_contents");
+                const auto guid=value("ure_layout_record_guid"); if(!guid.empty())row["partuuid"]=guid;
+                if(row["contents"]=="format")row["filesystem"]=value("ure_layout_record_filesystem");
+                const auto text_edits=value("ure_layout_record_edits"); ure::require(text_edits.size()<=65536,"size-limit","Advanced edits exceed their limit");
+                const auto existing=ure::parse_json(text_edits); ure::require(existing.isArray() && existing.size()<4096,"invalid-record-edit","Invalid advanced edit list");
+                ure::Value edits(Json::arrayValue); for(const auto& edit:existing)if(edit["index"].asUInt()!=index)edits.append(edit); edits.append(row);
+                const auto serialized=ure::json(edits); ure::require(serialized.size()<=65536,"size-limit","Advanced edits exceed their limit"); DataManager::SetValue("ure_layout_record_edits",serialized);
+            } else throw ure::Error("unknown-action","Unknown layout selection action");
+        } else if(command=="layout-preview" || command=="layout-plan" || command=="layout-apply-image") {
+            if(command=="layout-apply-image") {
+                ure::require(pending_gpt_plan["operation"]=="gpt.layout" && !reviewed_layout_request.isNull() &&
+                    ure::json(reviewed_layout_request)==ure::json(layout_request()) &&
+                    pending_gpt_plan["plan_sha256"].asString()==value("ure_gpt_plan_hash") && !pending_gpt_journal.empty(),
+                    "review-required","Review this unchanged layout before applying its image metadata");
+                ure::require(value("ure_gpt_kind")=="image","live-write-unavailable","Live repartitioning requires the complete backup, format/migration and device trust backend");
+                ure::require(ure::fs::path(pending_gpt_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),"stale-plan","Journal destination changed; review again");
+                auto target=gpt_target(system,true); publish(ure::gpt_execute(target,pending_gpt_plan,pending_gpt_journal,value("ure_gpt_plan_hash"),&system));
+                DataManager::SetValue("ure_gpt_journal",pending_gpt_journal); clear_gpt_review();
+                DataManager::SetValue("ure_status","Image partition table verified; filesystem formatting and data migration are still required");
+            } else {
+                clear_gpt_review(); DataManager::SetValue("ure_layout_graph",""); auto target=gpt_target(system); const auto request=layout_request();
+                ure::Value layout;
+                if(command=="layout-plan") {
+                    ure::Root parent(value("ure_journal_parent")); pending_gpt_plan=ure::gpt_layout_plan(target,request,"global-os3.0.303.0",&system);
+                    layout=pending_gpt_plan["layout"]; reviewed_layout_request=request;
+                    pending_gpt_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-layout-"+pending_gpt_plan["operation_id"].asString())).string();
+                    DataManager::SetValue("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
+                    DataManager::SetValue("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
+                    ure::save_json("/tmp/ure-layout-plan-"+pending_gpt_plan["operation_id"].asString()+".json",pending_gpt_plan);
+                } else layout=ure::partition_layout(target,request,"global-os3.0.303.0",&system);
+                // The widget needs only bounded allocation geometry, never unit identities.
+                ure::Value graph; graph["format"]=layout["format"]; graph["pool"]=layout["pool"]; graph["rows"]=ure::Value(Json::arrayValue);
+                for(const auto& row:layout["rows"]) { ure::Value part; for(const auto* field:{"role","pool_offset","bytes"})part[field]=row[field]; graph["rows"].append(part); }
+                DataManager::SetValue("ure_layout_graph",ure::json(graph)); DataManager::SetValue("ure_layout_review",ure::partition_layout_text(layout));
+                publish(layout); DataManager::SetValue("ure_status","Review original userdata bounds, placement, data loss and advanced edits before applying");
+            }
         } else if(command.rfind("gpt-",0)==0) {
             if(command=="gpt-image" || command=="gpt-live") {
                 clear_gpt_review(); DataManager::SetValue("ure_gpt_kind",command=="gpt-image" ? "image" : "live");
                 DataManager::SetValue("ure_gpt_source","");
             } else if(command=="gpt-verify")publish(ure::gpt_backup_verify(value("ure_gpt_backup_dir")));
             else if(command=="gpt-execute") {
+                ure::require(pending_gpt_plan["operation"]!="gpt.layout","layout-review-required","Layout changes use their own explicit scoped review");
                 ure::require(pending_gpt_plan.isObject() && !pending_gpt_journal.empty() &&
                     pending_gpt_plan["plan_sha256"].asString()==value("ure_gpt_plan_hash"),"plan-required","Create and review a GPT plan first");
                 ure::require(ure::fs::path(pending_gpt_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),

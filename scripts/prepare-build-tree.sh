@@ -134,6 +134,15 @@ else
   echo 'Unexpected OrangeFox link configuration; refusing adapter patch' >&2
   exit 1
 fi
+layout_patch="$component/patches/0008-partition-layout-graph.patch"
+if git -C "$recovery_source" apply --reverse --check "$layout_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$layout_patch"; then
+  git -C "$recovery_source" apply "$layout_patch"
+else
+  echo 'Unexpected OrangeFox partition graph hooks; refusing an unverified patch' >&2
+  exit 1
+fi
 # Reconstruct the complete reviewed stack in an isolated index. Later patches
 # may change an earlier patch's context; compare exact final file bytes rather
 # than weakening its context check or accepting unknown active-tree changes.
@@ -141,7 +150,7 @@ verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
 unlink "$verification_index"
 trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
 GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch; do
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch; do
   GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \

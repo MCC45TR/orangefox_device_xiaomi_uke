@@ -2,6 +2,37 @@
 <!-- Project-owned URE pages. Actions are native; paths never enter a shell. -->
 <recovery>
   <variables>
+    <variable name="ure_layout_mode" value="standard"/>
+    <variable name="ure_layout_placement" value="after_userdata"/>
+    <variable name="ure_layout_userdata_policy" value="preserve"/>
+    <variable name="ure_layout_graph" value=""/>
+    <variable name="ure_layout_review" value="Calculate the layout to see sizes and warnings"/>
+    <variable name="ure_layout_record_edits" value="[]"/>
+    <variable name="ure_layout_edit_role" value="esp"/>
+    <variable name="ure_layout_edit_size" value="256"/>
+    <variable name="ure_layout_edit_unit" value="MiB"/>
+    <variable name="ure_layout_edit_filesystem" value="fat32"/>
+    <variable name="ure_layout_edit_guid" value=""/>
+    <variable name="ure_layout_record_index" value=""/>
+    <variable name="ure_layout_record_guid" value=""/>
+    <variable name="ure_layout_record_contents" value="preserve"/>
+    <variable name="ure_layout_record_filesystem" value="ext4"/>
+    <variable name="ure_layout_esp_size" value="256"/>
+    <variable name="ure_layout_esp_unit" value="MiB"/>
+    <variable name="ure_layout_esp_filesystem" value="fat32"/>
+    <variable name="ure_layout_esp_guid" value=""/>
+    <variable name="ure_layout_linux_size" value="20"/>
+    <variable name="ure_layout_linux_unit" value="%"/>
+    <variable name="ure_layout_linux_filesystem" value="ext4"/>
+    <variable name="ure_layout_linux_guid" value=""/>
+    <variable name="ure_layout_windows_size" value="0"/>
+    <variable name="ure_layout_windows_unit" value="GiB"/>
+    <variable name="ure_layout_windows_filesystem" value="ntfs"/>
+    <variable name="ure_layout_windows_guid" value=""/>
+    <variable name="ure_layout_userdata_size" value=""/>
+    <variable name="ure_layout_userdata_unit" value="remaining"/>
+    <variable name="ure_layout_userdata_filesystem" value="f2fs"/>
+    <variable name="ure_layout_userdata_guid" value=""/>
     <variable name="ure_mirror_resolution" value="auto"/>
     <variable name="ure_mirror_refresh" value="auto"/>
     <variable name="ure_mirror_refresh_label" value="Automatic"/>
@@ -53,6 +84,196 @@
     <variable name="ure_stream_can_cancel" value="0"/>
   </variables>
   <pages>
+    <page name="ure_layout">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Partition layout</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Target: %ure_gpt_source% / %ure_gpt_kind%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Mode: %ure_layout_mode%; placement: %ure_layout_placement%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Every new OS partition uses space from the original userdata range.</text></text>
+        <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/></urepartitionmap>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <listitem name="Select disk image or live LUN"><action function="page">ure_gpt_select</action></listitem>
+          <listitem name="Inspect current partitions and filesystem signatures"><action function="uremanager">gpt-map</action><action function="page">ure_output</action></listitem>
+          <listitem name="ESP: %ure_layout_esp_size% %ure_layout_esp_unit% / %ure_layout_esp_filesystem%"><action function="uremanager">layout-edit-esp</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="LINUX: %ure_layout_linux_size% %ure_layout_linux_unit% / %ure_layout_linux_filesystem%"><action function="uremanager">layout-edit-linux</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="WINDOWS: %ure_layout_windows_size% %ure_layout_windows_unit% / %ure_layout_windows_filesystem%"><action function="uremanager">layout-edit-windows</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="USERDATA: %ure_layout_userdata_size% %ure_layout_userdata_unit% / %ure_layout_userdata_filesystem%"><action function="uremanager">layout-edit-userdata</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="Placement and userdata data policy"><action function="page">ure_layout_policy</action></listitem>
+          <listitem name="Standard / advanced mode"><action function="page">ure_layout_mode</action></listitem>
+          <listitem name="Advanced existing record edits"><condition var1="ure_layout_mode" var2="advanced"/><action function="page">ure_layout_records</action></listitem>
+          <listitem name="Calculate sizes and show read-only preview"><action function="uremanager">layout-preview</action><action function="page">ure_layout_preview</action></listitem>
+          <listitem name="Apply: prepare summary and warnings"><action function="uremanager">layout-plan</action><action function="page">ure_layout_review</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_layout_row">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Size and filesystem: %ure_layout_edit_role%</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Size: decimal point or comma; zero disables a new OS role</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_layout_edit_size%</text><data name="ure_layout_edit_size"/><restrict minlen="0" maxlen="24"/></input>
+      <listbox style="group_list"><placement x="0" y="%row4_1_y%" w="%screen_w%" h="640"/>
+          <listitem name="Unit: %ure_layout_edit_unit%"><action function="page">ure_layout_unit</action></listitem>
+          <listitem name="Filesystem: %ure_layout_edit_filesystem%"><action function="page">ure_layout_filesystem</action></listitem>
+          <listitem name="Partition GUID (advanced for existing userdata)"><condition var1="ure_layout_mode" var2="advanced"/><action function="page">ure_layout_guid</action></listitem>
+          <listitem name="Keep these selections"><action function="uremanager">layout-row-save</action><action function="page">ure_layout</action></listitem>
+      </listbox>
+      <template name="keyboard"/>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_layout_unit">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Size unit</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Percentages use the original aligned userdata capacity.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Remaining space is available only for userdata.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="800"/>
+          <listitem name="GB (decimal)"><action function="set">ure_layout_edit_unit=GB</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="GiB (binary)"><action function="set">ure_layout_edit_unit=GiB</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="MiB"><action function="set">ure_layout_edit_unit=MiB</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="Percentage of original userdata"><action function="set">ure_layout_edit_unit=%</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="Remaining space for userdata"><condition var1="ure_layout_edit_role" var2="userdata"/><action function="set">ure_layout_edit_unit=remaining</action><action function="set">ure_layout_edit_size=</action><action function="page">ure_layout_row</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout_row</action></action>
+    </page>
+    <page name="ure_layout_filesystem">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Filesystem: %ure_layout_edit_role%</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>These are requested formats. The complete job must detect support before formatting.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <listitem name="FAT32 / EFI System Partition"><condition var1="ure_layout_edit_role" var2="esp"/><action function="set">ure_layout_edit_filesystem=fat32</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="EXT4"><condition var1="ure_layout_edit_role" var2="linux"/><action function="set">ure_layout_edit_filesystem=ext4</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="Btrfs (requires a matching kernel and formatter)"><condition var1="ure_layout_edit_role" var2="linux"/><action function="set">ure_layout_edit_filesystem=btrfs</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="F2FS"><condition var1="ure_layout_edit_role" var2="linux"/><action function="set">ure_layout_edit_filesystem=f2fs</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="NTFS / Windows"><condition var1="ure_layout_edit_role" var2="windows"/><action function="set">ure_layout_edit_filesystem=ntfs</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="EXT4 / userdata"><condition var1="ure_layout_edit_role" var2="userdata"/><action function="set">ure_layout_edit_filesystem=ext4</action><action function="page">ure_layout_row</action></listitem>
+          <listitem name="F2FS / userdata"><condition var1="ure_layout_edit_role" var2="userdata"/><action function="set">ure_layout_edit_filesystem=f2fs</action><action function="page">ure_layout_row</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout_row</action></action>
+    </page>
+    <page name="ure_layout_guid">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Advanced partition GUID</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Empty preserves an existing GUID or generates a new one</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_layout_edit_guid%</text><data name="ure_layout_edit_guid"/><restrict minlen="0" maxlen="36"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Changing userdata identity can break Android and boot references.</text></text>
+      <template name="keyboard"/>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout_row</action></action>
+    </page>
+    <page name="ure_layout_mode">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Partition manager mode</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Advanced mode permits explicit identity and content change requests.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Changing mode never bypasses firmware, backup or Android trust checks.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="500"/>
+          <listitem name="Standard: preserve identities; shrink from userdata tail"><action function="uremanager">layout-mode-standard</action><action function="page">ure_layout</action></listitem>
+          <listitem name="Advanced: permit explicit destructive plan options"><action function="uremanager">layout-mode-advanced</action><action function="page">ure_layout</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_layout_policy">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Placement and userdata policy</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Placement: %ure_layout_placement%; userdata: %ure_layout_userdata_policy%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Preserving encrypted data requires a verified filesystem shrink.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>DATA LOSS: erase/recreate removes Android userdata. Front placement changes its start.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="800"/>
+          <listitem name="After userdata: preserve its original start"><action function="uremanager">layout-placement-after</action><action function="page">ure_layout</action></listitem>
+          <listitem name="Verified shrink; preserve existing userdata"><action function="uremanager">layout-userdata-preserve</action><action function="page">ure_layout</action></listitem>
+          <listitem name="After userdata: erase and recreate userdata"><condition var1="ure_layout_mode" var2="advanced"/><action function="uremanager">layout-placement-after</action><action function="uremanager">layout-userdata-recreate</action><action function="page">ure_layout</action></listitem>
+          <listitem name="Before userdata: erase and recreate userdata"><condition var1="ure_layout_mode" var2="advanced"/><action function="uremanager">layout-placement-before</action><action function="page">ure_layout</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_layout_records">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Advanced existing record changes</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Select a GPT index from the inspected partition map.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>GUID or contents changes may prevent Android, firmware or recovery from booting.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Other partition ranges stay unchanged. Unselected records stay unchanged.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="800"/>
+          <listitem name="Inspect current GPT indices"><action function="uremanager">gpt-map</action><action function="page">ure_output</action></listitem>
+          <listitem name="Add or replace a selected record request"><action function="page">ure_layout_record_input</action></listitem>
+          <listitem name="Clear all advanced record requests"><action function="uremanager">layout-record-clear</action></listitem>
+          <listitem name="Return to layout"><action function="page">ure_layout</action></listitem>
+        </listbox>
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="500"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_layout_record_edits%</text></textbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_layout_record_input">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Select an existing GPT record</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>GPT index (userdata uses its own size/GUID row)</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_layout_record_index%</text><data name="ure_layout_record_index"/><restrict minlen="1" maxlen="4"/></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Replacement GUID; empty keeps current identity</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_layout_record_guid%</text><data name="ure_layout_record_guid"/><restrict minlen="0" maxlen="36"/></input>
+      <listbox style="group_list"><placement x="0" y="%row7_1_y%" w="%screen_w%" h="220"/>
+          <listitem name="Select content policy and add to review"><action function="page">ure_layout_record_contents</action></listitem>
+      </listbox><template name="keyboard"/>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout_records</action></action>
+    </page>
+    <page name="ure_layout_record_contents">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Advanced content policy</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Contents: %ure_layout_record_contents% / %ure_layout_record_filesystem%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Formatting destroys selected data. The current image operation writes GPT metadata only.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <listitem name="Preserve current contents"><action function="set">ure_layout_record_contents=preserve</action></listitem>
+          <listitem name="Request formatting as EXT4"><action function="set">ure_layout_record_contents=format</action><action function="set">ure_layout_record_filesystem=ext4</action></listitem>
+          <listitem name="Request formatting as F2FS"><action function="set">ure_layout_record_contents=format</action><action function="set">ure_layout_record_filesystem=f2fs</action></listitem>
+          <listitem name="Request formatting as FAT32"><action function="set">ure_layout_record_contents=format</action><action function="set">ure_layout_record_filesystem=fat32</action></listitem>
+          <listitem name="Request formatting as NTFS"><action function="set">ure_layout_record_contents=format</action><action function="set">ure_layout_record_filesystem=ntfs</action></listitem>
+          <listitem name="Add this explicit record request"><action function="uremanager">layout-record-add</action><action function="page">ure_layout_records</action></listitem>
+          <listitem name="Return without adding"><action function="page">ure_layout_records</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout_record_input</action></action>
+    </page>
+    <page name="ure_layout_preview">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Partition layout preview</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/></urepartitionmap>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text></text>
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1100"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_layout_review%</text></textbox>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Device application is unavailable until verified resize/recreate and format checks are complete.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="600"/>
+          <listitem name="Adjust selections"><action function="page">ure_layout</action></listitem>
+          <listitem name="View complete private JSON details"><action function="page">ure_output</action></listitem>
+          <listitem name="Inspect / restore image metadata journal"><action function="page">ure_gpt_journals</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_layout_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review before applying layout</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/></urepartitionmap>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text></text>
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1100"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_layout_review%</text></textbox>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Device application is unavailable until verified resize/recreate and format checks are complete.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="600"/>
+          <listitem name="Confirm image GPT metadata only; filesystems need a separate job"><condition var1="ure_gpt_can_execute" var2="1"/><action function="uremanager">layout-apply-image</action><action function="page">ure_result</action></listitem>
+          <listitem name="Cancel and return without applying"><action function="page">ure_layout</action></listitem>
+          <listitem name="View complete private JSON details"><action function="page">ure_output</action></listitem>
+          <listitem name="Inspect / restore image metadata journal"><action function="page">ure_gpt_journals</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
     <page name="maintainer">
       <action><action function="page">ure_home</action></action>
     </page>
@@ -81,6 +302,7 @@
           <listitem name="Raw image restore and interrupted operation recovery"><icon res="partitions"/><action function="page">ure_restore_select</action></listitem>
           <listitem name="Linux and home directory backup / restore"><icon res="partitions"/><action function="page">ure_tree</action></listitem>
           <listitem name="GPT backup, image repair and journal recovery"><icon res="partitions"/><action function="page">ure_gpt_select</action></listitem>
+          <listitem name="Partition layout: ESP, Linux, Windows and userdata"><icon res="partitions"/><action function="page">ure_layout</action></listitem>
         </listbox>
       </scroll>
       <template name="navbar"/>
@@ -506,6 +728,7 @@
       <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Live writes are gated. Backup records are private. /tmp journals are volatile.</text></text>
         <listbox style="group_list"><placement x="0" y="80" w="%screen_w%" h="1000"/>
+          <listitem name="Design ESP / Linux / Windows within userdata"><action function="page">ure_layout</action></listitem>
           <listitem name="Inspect selected target and both GPT copies"><action function="uremanager">gpt-inspect</action><action function="page">ure_output</action></listitem>
           <listitem name="Inspect partition map, gaps and filesystem signatures"><action function="uremanager">gpt-map</action><action function="page">ure_output</action></listitem>
           <listitem name="Select private backup destination"><action function="page">ure_gpt_backup_destination</action></listitem>

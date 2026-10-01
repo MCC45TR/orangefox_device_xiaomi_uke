@@ -79,6 +79,8 @@ static Value usage() {
         "diagnose all|recovery|kernel|display|touch|usb|storage|boot|power|thermal|network|android",
         "gpt stock-preview INPUTS --capacity-bytes BYTES --lun 0..5 --profile PROFILE --output DIRECTORY",
         "gpt map --image IMAGE --sector-size 512/4096 or --object WHOLE_DISK_ID",
+        "gpt layout-preview REQUEST --image IMAGE|--object WHOLE_DISK_ID --profile PROFILE [--output PRIVATE_JSON]",
+        "gpt layout-plan REQUEST --image IMAGE|--object WHOLE_DISK_ID --profile PROFILE --output PLAN (GPT metadata only; no filesystem move/resize/format)",
         "gpt stock-plan INPUTS --image IMAGE --lun 0..5 --profile PROFILE [--identity-backup ORIGINAL_GPT] --output PLAN",
         "report --output REPORT.json", "crypto detect|info --image IMAGE", "btrfs capabilities|subvolumes|usage|scrub-status|balance-status|device-stats --root ROOT",
         "wim info|verify --image IMAGE", "ntfs info --image IMAGE", "btrfs check --image IMAGE",
@@ -106,6 +108,9 @@ int dispatch(std::vector<std::string> args) {
             !before_option && !after_option && !receipt_option && !packet_option && !lun_option && !capacity_option && !identity_backup,
             "invalid-options","Display commands accept only their explicit positional arguments");
         const bool stock_preview=args[0]=="gpt" && operation=="stock-preview",stock_plan=args[0]=="gpt" && operation=="stock-plan";
+        const bool layout=args[0]=="gpt" && (operation=="layout-preview" || operation=="layout-plan");
+        require(!layout || (!root_option && !esp_option && !journal_option && !confirm_option && !chunk_size && !chunk_index),
+            "invalid-options","Layout preview and planning select only a whole storage object, firmware profile and optional private output");
         require(!lun_option || stock_preview || stock_plan,"invalid-options","LUN applies only to stock GPT reconstruction");
         require(!capacity_option || stock_preview,"invalid-options","Explicit capacity applies only to a template preview");
         require(!identity_backup || stock_plan,"invalid-options","Original GPT identities apply only to a stock restore plan");
@@ -133,7 +138,7 @@ int dispatch(std::vector<std::string> args) {
         require(!object_option || ((args[0]=="gpt" || storage_backup || restore) && !image_option && operation!="verify"),"invalid-options","Select one storage image or live object");
         require(!content_option || (args[0]=="editor" && operation=="plan"),"invalid-options","Content file applies only to editor plans");
         require(!profile_option || (tree_backup && operation=="tree-plan") || storage_backup || stream_plan || ((args[0]=="editor" || args[0]=="backup" || restore) && operation=="plan") ||
-            (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan" || stock_preview || stock_plan)),"invalid-options","Profile does not apply to this operation");
+            (args[0]=="gpt" && (operation=="backup" || operation=="compare" || operation=="repair-plan" || operation=="restore-plan" || operation=="layout-preview" || operation=="layout-plan" || stock_preview || stock_plan)),"invalid-options","Profile does not apply to this operation");
         require(!journal_option || stream_begin || ((args[0]=="transaction" || args[0]=="gpt" || restore) && operation=="execute") || (args[0]=="backup" && operation=="capture"),"invalid-options","Journal applies only to transaction execution or backup capture");
         require(!confirm_option || (tree_backup && (operation=="tree-capture" || operation=="tree-restore")) || (args[0]=="transaction" && (operation=="execute" || operation=="rollback" || operation=="resume" || operation=="cancel")) ||
             (args[0]=="gpt" && (operation=="execute" || operation=="rollback" || operation=="resume")) ||
@@ -213,6 +218,11 @@ int dispatch(std::vector<std::string> args) {
             auto selected=image_option ? storage_image(*image_option,sector=="512" ? 512U : 4096U,operation=="execute" || operation=="rollback") : storage_select(system,*object_option);
             if(operation=="inspect" && args.size()==2)data=gpt_inspect(selected.descriptor.get(),selected.identity["logical_sector_bytes"].asUInt());
             else if(operation=="map" && args.size()==2) { data=partition_map(selected,&system); if(output_option)save_json(*output_option,data); }
+            else if(operation=="layout-preview" && args.size()==3 && profile_option) {
+                data=partition_layout(selected,json_file(args[2]),*profile_option,&system); if(output_option)save_json(*output_option,data);
+            } else if(operation=="layout-plan" && args.size()==3 && profile_option && output_option) {
+                data=gpt_layout_plan(selected,json_file(args[2]),*profile_option,&system); save_json(*output_option,data);
+            }
             else if(operation=="backup" && args.size()==2 && profile_option && output_option)data=gpt_backup(selected,*output_option,*profile_option,&system);
             else if(operation=="compare" && args.size()==3 && profile_option)data=gpt_compare(selected,args[2],*profile_option,&system);
             else if(operation=="repair-plan" && args.size()==2 && profile_option && output_option) {

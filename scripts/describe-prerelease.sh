@@ -25,8 +25,11 @@ jq -e '.validation.cpp_external_display_fake_drm_and_edid and .validation.cpp_ha
     "$component/reports/private/native-verification.json" >/dev/null
 jq -e '.validation.cpp_linux_home_tree_backup and .validation.tree_backup_cli_and_sigkill_resume' \
     "$component/reports/private/native-verification.json" >/dev/null
+jq -e '.validation.cpp_userdata_layout_advanced_mode_and_image_rollback and .validation.cpp_actual_partition_graph_widget and .validation.layout_cli_fixtures' \
+    "$component/reports/private/native-verification.json" >/dev/null
 jq -e --arg image "$(sha256sum "$recovery" | cut -d' ' -f1)" '.recovery_image_sha256==$image and .validation.extracted_ramdisk and .validation.no_python_payload and .validation.elf_dependency_closure and .validation.qemu_user_fixtures' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e '.validation.source_built_mirror_renderer_and_exports' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
+jq -e '.validation.source_built_layout_renderer_and_pages' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" '.aarch64_runner_sha256==$runner and .auditor_sha256==$auditor' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 cmp <(bash "$component/scripts/native-inputs.sh") "$component/reports/private/native-test-inputs.sha256"
 cp -- "$component/reports/private/native-verification.json" "$destination/NATIVE-HOST-VERIFICATION.json"

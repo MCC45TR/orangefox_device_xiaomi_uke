@@ -32,6 +32,7 @@ UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-stream-r
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-gpt.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-stock-gpt.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-partition-map.sh"
+UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-layout.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-display.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-recoveryctl.sh"
 target() {

@@ -28,6 +28,15 @@ section 6 includes command families that remain unfinished. Phase order is a
 dependency guide: independent host work can
 continue while physical gates wait for a device.
 
+The partition-manager priority now includes a shared native userdata-only
+layout designer and GUI: keyboard GB/GiB/MiB/percentage sizes, requested role
+filesystems, proportional allocation bars, standard identity preservation,
+advanced explicit GUID/content requests and reviewed image GPT transactions.
+Front placement requires advanced erase/recreate and discloses Android data
+loss. Filesystem resizing/formatting, multi-LUN orchestration and model-specific
+physical acceptance remain open. See [the manager contract](PARTITION-MANAGER.md)
+and [the layout build report](../reports/URE-PARTITION-LAYOUT-BUILD.md).
+
 | Existing evidence | Current limit |
 |---|---|
 | The native shared library/JSON CLI, Storage Graph, Linux/Windows discovery, file editor/journals, chunked image backups and GPT image backup/repair/restore have host fixtures. | General live storage ownership/write policy, controlled chroot, OS repair and full GUI acceptance remain unfinished. Fixture checks do not demonstrate a live mount or UFS write. |

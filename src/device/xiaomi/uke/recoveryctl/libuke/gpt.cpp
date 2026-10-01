@@ -208,6 +208,7 @@ std::vector<StorageRange> stock_desired(const StorageTarget& target,const fs::pa
     source["manifest_sha256"]=seal(source,"manifest_sha256"); return ranges;
 }
 std::vector<StorageRange> plan_desired(const StorageTarget& target,const Value& plan,Value& source) {
+    if(plan["operation"]=="gpt.layout")return gpt_layout_regions(target,plan["layout"]["request"],plan["firmware_profile"].asString(),source);
     if(plan["operation"]=="gpt.stock")return stock_desired(target,plan["stock_inputs_directory"].asString(),plan["stock_lun"].asUInt(),
         plan["firmware_profile"].asString(),plan["backup_directory"].asString(),source);
     return desired(target,plan["operation"].asString(),plan["backup_directory"].asString(),plan["firmware_profile"].asString(),source);
@@ -224,7 +225,7 @@ void verify_ranges(int fd,const std::vector<StorageRange>& ranges) {
 }
 void write_gate(const StorageTarget& target) { storage_write_gate(target); }
 void check_plan(const Value& plan) {
-    require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore" || plan["operation"]=="gpt.stock") &&
+    require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore" || plan["operation"]=="gpt.stock" || plan["operation"]=="gpt.layout") &&
         plan["target_identity"].isObject() && plan["target_identity"]["bytes"].isUInt64() &&
         plan["target_identity"]["logical_sector_bytes"].isUInt() && plan["firmware_profile"].isString() &&
         identifier(plan["firmware_profile"].asString()) && plan["operation_id"].isString() && identifier(plan["operation_id"].asString()) &&
@@ -232,6 +233,11 @@ void check_plan(const Value& plan) {
         plan["plan_sha256"].asString()==seal(plan,"plan_sha256"),"invalid-gpt-plan","Invalid sealed GPT plan");
     const auto sector=plan["target_identity"]["logical_sector_bytes"].asUInt();
     require(sector==512 || sector==4096,"invalid-gpt-plan","Unsupported plan sector size");
+    if(plan["operation"]=="gpt.layout")require(plan["layout"].isObject() && plan["layout"]["format"]=="ure-partition-layout" &&
+        plan["layout"]["layout_sha256"].isString() && hash_valid(plan["layout"]["layout_sha256"].asString()) &&
+        plan["layout"]["layout_sha256"].asString()==seal(plan["layout"],"layout_sha256") &&
+        plan["layout"]["layout_sha256"]==plan["backup_manifest_sha256"] && plan["execution_scope"]=="GPT_METADATA_ONLY" &&
+        plan["formats_filesystems"]==false && plan["migrates_data"]==false,"invalid-gpt-plan","Invalid scoped layout metadata plan");
     if(plan["operation"]=="gpt.stock")require(sector==4096 && plan["stock_lun"].isUInt() && plan["stock_lun"].asUInt()<6 &&
         plan["stock_inputs_directory"].isString() && fs::path(plan["stock_inputs_directory"].asString()).is_absolute() &&
         plan["backup_directory"].isString() && plan["stock_source"].isObject() && plan["stock_source"]["template_preview_only"]==false &&
@@ -350,6 +356,20 @@ Value gpt_plan(const StorageTarget& target,const std::string& operation,const st
     plan["desired_table"]=proposed_table(target,after);
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,system); return plan;
 }
+Value gpt_layout_plan(const StorageTarget& target,const Value& request,const std::string& profile,const Root* system) {
+    storage_revalidate(target,system); Value source;
+    const auto after=gpt_layout_regions(target,request,profile,source,system); const auto before=read_original(target.descriptor.get(),after);
+    protect_usable(target.descriptor.get(),descriptions(after),target.identity["logical_sector_bytes"].asUInt());
+    Value plan; plan["schema"]=1; plan["operation"]="gpt.layout"; plan["operation_id"]=operation_id(); plan["created_utc"]=utc();
+    plan["target_identity"]=target.identity; plan["firmware_profile"]=profile; plan["before"]=descriptions(before); plan["after"]=descriptions(after);
+    plan["untouched"]=Value(Json::arrayValue); plan["backup_directory"]=""; plan["backup_manifest_sha256"]=source["manifest_sha256"];
+    source.removeMember("manifest_sha256"); plan["layout"]=source; plan["risk"]="MODIFIES_PARTITION_TABLE_AND_OS_VISIBILITY";
+    plan["execution_scope"]="GPT_METADATA_ONLY"; plan["formats_filesystems"]=false; plan["migrates_data"]=false;
+    plan["complete_partition_job"]=false; plan["backup_required"]=true; plan["private_record"]=true; plan["physical_test_record"]=false;
+    plan["live_write_backend_ready"]=false; plan["cancel_semantics"]="cancel-before-executing; interrupted execution requires inspection/rollback";
+    plan["current_table"]=gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()); plan["desired_table"]=proposed_table(target,after);
+    plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,system); return plan;
+}
 Value gpt_stock_plan(const StorageTarget& target,const fs::path& inputs,unsigned lun,const std::string& profile,
                      const fs::path& identity_backup,const Root* system) {
     storage_revalidate(target,system);
@@ -421,7 +441,9 @@ Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& direct
         }
         boundary(journal,state,"VERIFYING"); verify_ranges(target.descriptor.get(),after); verify_descriptions(target.descriptor.get(),plan["untouched"]);
         require(tables_equal(gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()),plan["desired_table"]),"verification-error","Resulting GPT differs from the reviewed table");
-        state["verified"]=true; boundary(journal,state,"COMMITTED"); return state;
+        state["verified"]=true;
+        if(plan["operation"]=="gpt.layout") { state["execution_scope"]="GPT_METADATA_ONLY"; state["formats_filesystems"]=false; state["migrates_data"]=false; state["complete_partition_job"]=false; }
+        boundary(journal,state,"COMMITTED"); return state;
     } catch(const Error& error) {
         state["error_code"]=error.code; try { boundary(journal,state,execution ? "FAILED_UNCERTAIN" : "FAILED_SAFE"); } catch(...) {} throw;
     }

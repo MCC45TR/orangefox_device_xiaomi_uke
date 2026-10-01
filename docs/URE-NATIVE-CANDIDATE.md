@@ -9,6 +9,15 @@ reception and native OrangeFox management/editor pages. Source-built NTFS/exFAT/
 WIM/ESD and key-authenticated Dropbear tools accompany it. SSH is not started at
 boot; no host key is persisted. SFTP, cryptsetup and Btrfs tools are not packaged.
 
+The partition layout GUI allocates ESP/Linux/Windows only from the original
+userdata extent, using keyboard sizes in GB/GiB/MiB or percentages. Standard
+mode preserves existing identities and userdata start. Advanced mode permits
+explicit GUID/content requests; placing OS partitions before userdata requires
+erase/recreate and warns that Android data will be lost. Review and application
+on images cover GPT metadata only, with readback and inspected rollback. Actual
+filesystem shrink, formatting, encrypted-data migration and device application
+are unfinished. Read `PARTITION-MANAGER.md` before reviewing a layout.
+
 **The complete roadmap is not implemented. Neither tablet model has a boot,
 display/touch, storage-write or rollback acceptance record.** These unsigned
 artifacts are an engineering checkpoint, not a supported recovery release.

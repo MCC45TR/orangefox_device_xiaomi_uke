@@ -18,7 +18,9 @@ Native stock reconstruction now derives both GPT copies from pinned Global OEM
 inputs and selected capacity, preserving original disk/partition identities.
 Reviewed per-image stock metadata execution/readback/rollback uses the shared
 GPT journal. Physical writes, layout migration, multi-LUN orchestration and
-comprehensive partition-management pages remain unfinished.
+complete filesystem transactions remain unfinished. The layout pages and
+original-userdata-only allocation planner described below are now implemented;
+they do not authorize a live partition job.
 
 `gpt map` now reports every partition and OEM reserved record, actual byte
 ranges, protected label hints and signature observations relative to each
@@ -28,6 +30,96 @@ per partition and 128 partitions; additional rows remain visible as unprobed.
 Label hints do not establish OS ownership, Android FBE access or write
 eligibility. Invalid GPT geometry yields no inferred free-space map. Private
 JSON exports retain unit information and must not be published.
+
+## Userdata layout designer
+
+`gpt layout-preview REQUEST --image IMAGE|--object WHOLE_DISK_ID --profile
+PROFILE [--output PRIVATE_JSON]` calculates a read-only layout from the current
+healthy, agreeing GPT copies. `layout-plan` uses the same arguments and requires
+`--output PLAN`. GUI and CLI use the same native arithmetic and policy engine.
+The GUI provides keyboard size entry, GB/GiB/MiB/percentage selection,
+role-compatible requested filesystems, a proportional colored allocation bar,
+before/after sizes, alignment loss, data-loss warnings and a separate review
+before applying image metadata. Editing a selection invalidates its review.
+
+All new ESP/Linux/Windows partitions fit inside the **original userdata range**.
+Unused GPT gaps and existing OS partitions never extend this pool. Percentages
+use the original userdata capacity rounded down to whole MiB. GB is decimal,
+GiB and MiB are binary; decimal point or comma is accepted with at most six
+decimal places. Allocation rounds down to MiB and discloses discarded bytes.
+Only userdata accepts `remaining`, and userdata cannot be deleted. New role
+sizes may be zero. Every role must be present exactly once.
+
+Standard mode keeps userdata's original start, GPT slot, type and unique GUID;
+it allocates ESP, Linux and Windows in that order after the shortened userdata.
+All other existing GPT records retain their raw bytes. An unaligned userdata
+start is refused rather than rounded into its data. With all new roles disabled,
+`remaining` preserves the original userdata endpoint, including an unaligned
+tail. Existing `uke_esp`, `uke_linux` or `uke_windows` records are preserved;
+attempting to create a second role with the same label requires a separate
+migration workflow.
+
+Advanced mode permits an explicit replacement userdata GUID, an erase/recreate
+userdata policy, and explicit GUID or content-format requests for selected
+existing partition indices. It does not permit changing other partition ranges
+or converting OEM reservation records. Selected GUIDs must be nonzero and
+unique; unselected entries remain byte-for-byte unchanged. A requested format
+is shown as destructive work still required, not as an operation performed by
+the GPT engine. Switching to standard mode clears these advanced requests.
+
+Advanced `before_userdata` places ESP/Linux/Windows at the beginning of the
+original userdata extent and moves the new userdata start after them. It
+requires `userdata_policy: "recreate"` and explicitly destroys existing Android
+userdata. It is not a workaround for encryption and never implies preservation
+of encrypted data. Preserve mode requires a separately verified filesystem
+shrink; a smaller GPT endpoint alone can leave filesystem data outside its
+partition.
+
+Example request, with new roles placed after userdata by default:
+
+```json
+{
+  "schema": 1,
+  "format": "ure-layout-request",
+  "mode": "standard",
+  "placement": "after_userdata",
+  "userdata_policy": "preserve",
+  "rows": [
+    {"role": "esp", "size": "256", "unit": "MiB", "filesystem": "fat32"},
+    {"role": "linux", "size": "20", "unit": "%", "filesystem": "ext4"},
+    {"role": "windows", "size": "0", "unit": "GiB", "filesystem": "ntfs"},
+    {"role": "userdata", "size": "", "unit": "remaining", "filesystem": "f2fs"}
+  ],
+  "record_edits": []
+}
+```
+
+For a front-placement preview set `mode` to `advanced`, `placement` to
+`before_userdata`, and `userdata_policy` to `recreate`. For an explicit advanced
+record request use, for example, `{"index": 4, "partuuid":
+"11111111-2222-4333-8444-555555555555", "contents": "preserve"}`. This is syntax
+only: select an index from the actual map, never assume index 4 belongs to a
+particular device partition. A content-format request uses `contents: "format"`
+and an explicit `filesystem`; its payload work remains unavailable.
+
+The resolved request includes generated GUIDs, canonical physical row order
+and explicit policies. Repeating it on the same unchanged target produces the
+same layout digest. Plans bind target identity, current GPT, full request and
+five original/proposed metadata ranges. Image `gpt execute` requires the exact
+plan digest, backs up both versions, writes backup GPT before primary GPT and
+verifies readback; inspected rollback restores the original metadata exactly.
+The result is marked `GPT_METADATA_ONLY`, `formats_filesystems: false`,
+`migrates_data: false` and `complete_partition_job: false`. Advanced mode does
+not bypass the common live-write gate.
+
+Live completion still requires device/model/SKU and installed firmware
+verification, original multi-LUN and off-device data backups, exclusive UFS
+ownership, installed Android FBE trust, snapshot/merge and super checks, supported
+filesystem shrink or Android-compatible recreate, new filesystem formatting,
+readback and a preserved stock recovery route. Pad 7 and POCO Pad X1 require
+separate original-device evidence; a shared marketing or codename assumption
+cannot authorize another unit. See [URE-PARTITION-LAYOUT-BUILD.md](../reports/URE-PARTITION-LAYOUT-BUILD.md)
+for software/build evidence.
 
 ## Required Linux backup workflows
 
