@@ -432,3 +432,12 @@ GPT backup/repair/restore, large-file backup and host receiver,
 WIM capture/verify/apply round trip,
 ext4/exFAT/NTFS no-action checks with unchanged image hashes, and ephemeral SSH
 host-key generation. It never starts an SSH listener or exercises a tablet.
+
+The tablet interface includes uniform 50–100 percent density and private scale
+settings, plus a native USB-C monitor mirror with independent output on/off and
+EDID-backed resolution/refresh selection through QHD75. USB mouse, keyboard
+navigation and input hotplug use the reviewed recovery event path. Three
+additional executables compile the actual display sink and keyboard/evdev hooks
+against fake platform boundaries. See [EXTERNAL-MONITOR.md](EXTERNAL-MONITOR.md)
+and [DISPLAY-SCALING.md](DISPLAY-SCALING.md). Host fixtures and AArch64 compilation
+do not establish physical display/input acceptance.

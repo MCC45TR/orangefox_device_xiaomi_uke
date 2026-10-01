@@ -101,7 +101,12 @@ else
 fi
 cp -- "$device_source/ure-gui.cpp" "$recovery_source/gui/ure.cpp"
 display_patch="$component/patches/0006-tablet-interface-density.patch"
-if git -C "$recovery_source" apply --reverse --check "$display_patch" 2>/dev/null; then
+monitor_patch="$component/patches/0007-usb-monitor-and-input.patch"
+monitor_present=false
+if git -C "$recovery_source" apply --reverse --check "$monitor_patch" 2>/dev/null; then monitor_present=true; fi
+if $monitor_present; then
+  : # The stacked patch changes older context; verify the complete stack below.
+elif git -C "$recovery_source" apply --reverse --check "$display_patch" 2>/dev/null; then
   :
 elif git -C "$recovery_source" apply --check "$display_patch"; then
   git -C "$recovery_source" apply "$display_patch"
@@ -109,6 +114,17 @@ else
   echo 'Unexpected OrangeFox density hooks; refusing an unverified patch' >&2
   exit 1
 fi
+if git -C "$recovery_source" apply --reverse --check "$monitor_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$monitor_patch"; then
+  git -C "$recovery_source" apply "$monitor_patch"
+else
+  echo 'Unexpected OrangeFox display/input hooks; refusing an unverified patch' >&2
+  exit 1
+fi
+for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
+  copy_changed "$device_source/$file" "$recovery_source/minuitwrp/$file"
+done
 link_patch="$component/patches/0004-link-native-ure.patch"
 if git -C "$recovery_source" apply --unidiff-zero --reverse --check "$link_patch" 2>/dev/null; then
   :
@@ -118,6 +134,23 @@ else
   echo 'Unexpected OrangeFox link configuration; refusing adapter patch' >&2
   exit 1
 fi
+# Reconstruct the complete reviewed stack in an isolated index. Later patches
+# may change an earlier patch's context; compare exact final file bytes rather
+# than weakening its context check or accepting unknown active-tree changes.
+verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
+unlink "$verification_index"
+trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
+GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch; do
+  GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
+done
+cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \
+    <(git -C "$recovery_source" diff --name-only HEAD)
+while IFS= read -r file; do
+  cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" show ":$file") "$recovery_source/$file"
+done < <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD)
+unlink "$verification_index"
+trap - EXIT
 ntfs_source="$tree/external/ntfs-3g"
 ntfs_patch="$component/patches/0003-build-ntfsresize.patch"
 if git -C "$ntfs_source" apply --reverse --check "$ntfs_patch" 2>/dev/null; then

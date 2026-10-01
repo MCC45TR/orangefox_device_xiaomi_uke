@@ -5,6 +5,8 @@
 #include "../gui.hpp"
 #include "uke.h"
 #include "pages.hpp"
+#include "minuitwrp/minui.h"
+#include "../minuitwrp/display-mirror.hpp"
 #include <algorithm>
 #include <mutex>
 
@@ -132,7 +134,18 @@ int GUIAction::uremanager(std::string command) {
     std::lock_guard<std::mutex> guard(session_mutex);
     try {
         ure::Root system("/");
-        if(command=="scale-apply" || command=="scale-reset" || command=="scale-load") {
+        if(command=="mirror-enable" || command=="mirror-disable") {
+            gr_external_enable(command=="mirror-enable");
+            DataManager::SetValue("ure_mirror_status","Display change queued for the render thread");
+        } else if(command=="mirror-apply") {
+            int width=0,height=0,rate=0;
+            ure::require(uke_display::parse_selection(value("ure_mirror_resolution"),value("ure_mirror_refresh"),width,height,rate),
+                "invalid-display-mode","Select a valid resolution and refresh rate");
+            ure::require(gr_external_select(width,height,rate),"invalid-display-mode","Output selection is outside the supported range");
+            DataManager::SetValue("ure_mirror_status","Mode change queued; unsupported modes preserve the active output");
+        } else if(command=="mirror-modes") {
+            DataManager::SetValue("ure_mirror_modes",gr_external_modes());
+        } else if(command=="scale-apply" || command=="scale-reset" || command=="scale-load") {
             int percent=75;
             if(command=="scale-apply")percent=ure::display_scale_parse(value("ure_scale_choice"));
             if(command=="scale-load")percent=ure::display_settings_load(value("ure_scale_directory"))["scale_percent"].asInt();

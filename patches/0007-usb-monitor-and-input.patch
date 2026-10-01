@@ -1,0 +1,511 @@
+--- a/minuitwrp/Android.bp
++++ b/minuitwrp/Android.bp
+@@ -34,6 +34,8 @@
+     ],
+     srcs: [
+         "graphics.cpp",
++        "display-mirror.cpp",
++        "display-mirror-layout.cpp",
+         "graphics_fbdev.cpp",
+         "resources.cpp",
+         "truetype.cpp",
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -59,6 +59,7 @@
+ #include <drm_fourcc.h>
+ #include <xf86drm.h>
+ #include <xf86drmMode.h>
++#include "display-mirror.hpp"
+ #include <sstream>
+ 
+ #include "minuitwrp/minui.h"
+@@ -871,33 +872,6 @@
+     return main_monitor_connector;
+ }
+ 
+-static void disable_non_main_crtcs(int fd,
+-                    drmModeRes *resources,
+-                    drmModeCrtc* main_crtc) {
+-  uint32_t prop_id;
+-  drmModeAtomicReqPtr atomic_req = drmModeAtomicAlloc();
+-  for (int i = 0; i < resources->count_connectors; i++) {
+-    drmModeConnector* connector = drmModeGetConnector(fd, resources->connectors[i]);
+-    drmModeCrtc* crtc = find_crtc_for_connector(fd, resources, connector);
+-    if (crtc->crtc_id != main_crtc->crtc_id) {
+-      // Switching to atomic commit. Given only crtc, we can only set ACTIVE = 0
+-      // to disable any Nonmain CRTCs
+-      find_prop_id(&crtc_res, crtc, Crtc, crtc->crtc_id, "ACTIVE", prop_id);
+-      if (prop_id == 0)
+-        return;
+-
+-      if (drmModeAtomicAddProperty(atomic_req, main_monitor_crtc->crtc_id, prop_id, 0) < 0)
+-        return;
+-
+-    }
+-    drmModeFreeCrtc(crtc);
+-  }
+-  if (drmModeAtomicCommit(drm_fd, atomic_req,DRM_MODE_ATOMIC_ALLOW_MODESET, NULL))
+-    printf("Atomic Commit failed in DisableNonMainCrtcs\n");
+-
+-  drmModeAtomicFree(atomic_req);
+-}
+-
+ static void update_plane_fb() {
+   uint32_t i, prop_id;
+ 
+@@ -993,7 +967,8 @@
+     return nullptr;
+   }
+ 
+-  disable_non_main_crtcs(drm_fd, res, main_monitor_crtc);
++  // Keep other outputs untouched. The project mirror acquires only an unused
++  // external route after a TEST_ONLY atomic commit with the panel still active.
+ 
+   main_monitor_crtc->mode = main_monitor_connector->modes[selected_mode];
+ 
+@@ -1143,6 +1118,14 @@
+ 
+   drm_blank(nullptr, false);
+ 
++  uint32_t reserved_planes[8] = {};
++  if (number_of_lms <= 8) {
++    for (uint32_t i = 0; i < number_of_lms; ++i)
++      reserved_planes[i] = plane_res[i].plane->plane_id;
++    ure_mirror_attach(drm_fd, main_monitor_connector->connector_id,
++                      main_monitor_crtc->crtc_id, reserved_planes, number_of_lms);
++  }
++
+   return draw_buf;
+ }
+ 
+@@ -1155,6 +1138,7 @@
+ }
+ 
+ static void drm_exit(minui_backend* backend __unused) {
++    ure_mirror_detach();
+     drm_blank(nullptr, true);
+     drmModeDestroyPropertyBlob(drm_fd, crtc_res.mode_blob_id);
+     drm_destroy_surface(drm_surfaces[0]);
+--- a/minuitwrp/graphics.cpp
++++ b/minuitwrp/graphics.cpp
+@@ -39,6 +39,7 @@
+ #include "gui/placement.h"
+ #include "minuitwrp/minui.h"
+ #include "graphics.h"
++#include "display-mirror.hpp"
+ // For std::min and std::max
+ #include <algorithm>
+ #include "minuitwrp/truetype.hpp"
+@@ -610,6 +611,7 @@
+ }
+ 
+ void gr_flip() {
++    gr_external_update(true);
+     gr_draw = gr_backend->flip(gr_backend);
+     // On double buffered back ends, when we flip, we need to tell
+     // pixel flinger to draw to the other buffer
+@@ -713,9 +715,30 @@
+ 
+ void gr_fb_blank(bool blank)
+ {
++    ure_mirror_blank(blank);
+     gr_backend->blank(gr_backend, blank);
+ }
+ 
++bool gr_external_update(bool changed)
++{
++    if (!gr_draw || !gr_draw->data)
++        return false;
++    // Uke uses RGBA/RGBX memory. Reject other formats instead of swapping
++    // channels based on an unverified donor assumption.
++    if (gr_draw->format != GGL_PIXEL_FORMAT_RGBA_8888 &&
++        gr_draw->format != GGL_PIXEL_FORMAT_RGBX_8888 &&
++        gr_draw->format != GGL_PIXEL_FORMAT_RGB_565)
++        return false;
++    return ure_mirror_update({gr_draw->data, gr_draw->width, gr_draw->height,
++                             gr_draw->row_bytes, gr_draw->pixel_bytes, gr_rotation}, changed);
++}
++
++void gr_external_enable(bool enabled) { ure_mirror_enable(enabled); }
++const char* gr_external_status() { return ure_mirror_status(); }
++bool gr_external_select(int w, int h, int rate) { return ure_mirror_select(w, h, rate); }
++std::string gr_external_modes() { return ure_mirror_modes(); }
++std::string gr_external_mode() { return ure_mirror_mode(); }
++
+ int gr_get_surface(gr_surface* surface)
+ {
+     GGLSurface* ms = (GGLSurface*)malloc(sizeof(GGLSurface));
+--- a/minuitwrp/include/minuitwrp/minui.h
++++ b/minuitwrp/include/minuitwrp/minui.h
+@@ -19,6 +19,7 @@
+ 
+ #include "gui/placement.h"
+ #include <stdbool.h>
++#include <string>
+ 
+ struct GRSurface {
+     int width;
+@@ -43,6 +44,12 @@
+ gr_pixel *gr_fb_data(void);
+ void gr_flip(void);
+ void gr_fb_blank(bool blank);
++bool gr_external_update(bool changed = false);
++void gr_external_enable(bool enabled);
++const char* gr_external_status();
++bool gr_external_select(int width, int height, int millihertz);
++std::string gr_external_modes();
++std::string gr_external_mode();
+ 
+ void gr_color(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+ void gr_clip(int x, int y, int w, int h);
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -126,7 +126,8 @@
+ static struct ev evs[MAX_DEVICES];
+ static unsigned ev_count = 0;
+ static struct timeval lastInputStat;
+-static time_t lastInputMTime;
++static struct timespec lastInputMTime{};
++static bool rescan_input = false;
+ static int has_mouse = 0;
+ 
+ static inline int ABS(int x) {
+@@ -306,7 +307,11 @@
+     printf("EV: MT minX: %d  maxX: %d  minY: %d  maxY: %d\n", e->mt_p.xi.minimum, e->mt_p.xi.maximum, e->mt_p.yi.minimum, e->mt_p.yi.maximum);
+ #endif
+ 
+-    e->vks = (virtualkey *)malloc(sizeof(*e->vks) * e->vk_count);
++    e->vks = e->vk_count > 0 ? (virtualkey *)malloc(sizeof(*e->vks) * e->vk_count) : nullptr;
++    if (e->vk_count > 0 && !e->vks) {
++        e->vk_count = 0;
++        return -1;
++    }
+ 
+     for (i = 0; i < e->vk_count; ++i) {
+         char *token[6];
+@@ -345,19 +350,19 @@
+ 	if(has_mouse)
+ 		return;
+ 
+-	unsigned long bit[EV_MAX][NBITS(KEY_MAX)];
++	unsigned long bit[EV_MAX+1][NBITS(KEY_MAX+1)];
+ 	memset(bit, 0, sizeof(bit));
+-	ioctl(fd, EVIOCGBIT(0, EV_MAX), bit[0]);
++	if (ioctl(fd, EVIOCGBIT(0, sizeof(bit[0])), bit[0]) < 0) return;
+ 
+ 	if(!test_bit(EV_REL, bit[0]) || !test_bit(EV_KEY, bit[0]))
+ 		return;
+ 
+-	ioctl(fd, EVIOCGBIT(EV_REL, KEY_MAX), bit[EV_REL]);
++	if (ioctl(fd, EVIOCGBIT(EV_REL, sizeof(bit[EV_REL])), bit[EV_REL]) < 0) return;
+ 	if(!test_bit(REL_X, bit[EV_REL]) || !test_bit(REL_Y, bit[EV_REL]))
+ 		return;
+ 
+-	ioctl(fd, EVIOCGBIT(EV_KEY, KEY_MAX), bit[EV_KEY]);
+-	if(!test_bit(BTN_LEFT, bit[EV_KEY]) || !test_bit(BTN_RIGHT, bit[EV_KEY]))
++	if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(bit[EV_KEY])), bit[EV_KEY]) < 0) return;
++	if(!test_bit(BTN_LEFT, bit[EV_KEY]))
+ 		return;
+ 
+ 	LOGI("Found mouse '%s'\n", deviceName);
+@@ -384,8 +389,9 @@
+             fprintf(stderr,"/dev/input/%s\n", de->d_name);
+ #endif
+             if(strncmp(de->d_name,"event",5)) continue;
+-            fd = openat(dirfd(dir), de->d_name, O_RDONLY);
++            fd = openat(dirfd(dir), de->d_name, O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOFOLLOW);
+             if(fd < 0) continue;
++			memset(&evs[ev_count], 0, sizeof(evs[ev_count]));
+ 
+ 			ev_fds[ev_count].fd = fd;
+             ev_fds[ev_count].events = POLLIN;
+@@ -405,7 +411,7 @@
+ 
+     struct stat st;
+     if(stat("/dev/input", &st) >= 0)
+-        lastInputMTime = st.st_mtime;
++        lastInputMTime = st.st_mtim;
+     gettimeofday(&lastInputStat, NULL);
+ 
+     return 0;
+@@ -414,8 +420,9 @@
+ void ev_exit(void)
+ {
+ 	while (ev_count-- > 0) {
+-		if (evs[ev_count].vk_count) {
++		if (evs[ev_count].vks) {
+ 			free(evs[ev_count].vks);
++			evs[ev_count].vks = nullptr;
+ 			evs[ev_count].vk_count = 0;
+ 		}
+ 		close(ev_fds[ev_count].fd);
+@@ -482,6 +489,15 @@
+     int i;
+     int x, y;
+ 
++    if (ev->type == EV_SYN && ev->code == SYN_DROPPED) {
++        e->p.synced = e->mt_p.synced = 0;
++        e->down = DOWN_NOT;
++        downX = downY = -1;
++        discard = last_virt_key = lastWasSynReport = touchReleaseOnNextSynReport = 0;
++        rescan_input = true;
++        return 0;
++    }
++
+     // This is used to ditch useless event handlers, like an accelerometer
+     if (e->ignored)     return 1;
+ 
+@@ -815,16 +831,24 @@
+     struct timeval curr;
+ 
+     gettimeofday(&curr, NULL);
+-    if(curr.tv_sec - lastInputStat.tv_sec >= 2)
++    if(rescan_input || curr.tv_sec - lastInputStat.tv_sec >= 1 || curr.tv_sec < lastInputStat.tv_sec)
+     {
+         struct stat st;
+-        stat("/dev/input", &st);
+-        if (st.st_mtime > lastInputMTime)
++        const bool changed = stat("/dev/input", &st) == 0 &&
++            (st.st_mtim.tv_sec != lastInputMTime.tv_sec || st.st_mtim.tv_nsec != lastInputMTime.tv_nsec);
++        if (rescan_input || changed)
+         {
+             LOGI("Reloading input devices\n");
+             ev_exit();
+             ev_init();
+-            lastInputMTime = st.st_mtime;
++            rescan_input = false;
++            lastInputStat = curr;
++            memset(ev, 0, sizeof(*ev));
++            ev->type = EV_SYN;
++            ev->code = SYN_DROPPED;
++            if (ev_count) vk_modify(&evs[0], ev);
++            rescan_input = false;
++            return 0;
+         }
+         lastInputStat = curr;
+     }
+@@ -833,6 +857,13 @@
+ 
+     if(r > 0) {
+         for(n = 0; n < ev_count; n++) {
++            if(ev_fds[n].revents & (POLLHUP | POLLERR | POLLNVAL)) {
++                rescan_input = true;
++                memset(ev, 0, sizeof(*ev));
++                ev->type = EV_SYN;
++                ev->code = SYN_DROPPED;
++                return 0;
++            }
+             if(ev_fds[n].revents & POLLIN) {
+                 r = read(ev_fds[n].fd, ev, sizeof(*ev));
+                 if(r == sizeof(*ev)) {
+--- a/gui/gui.cpp
++++ b/gui/gui.cpp
+@@ -20,6 +20,7 @@
+ */
+ 
+ #include <linux/input.h>
++#include <limits.h>
+ #include <pthread.h>
+ #include <stdarg.h>
+ #include <stdio.h>
+@@ -190,9 +191,19 @@
+ 
+ bool InputHandler::processInput(int timeout_ms)
+ {
+-	input_event ev;
++	input_event ev{};
+ 	int ret = ev_get(&ev, timeout_ms);
+ 
++	// Rescans and dropped event queues cancel held input without synthesizing
++	// an action-producing mouse/key release. A fresh physical press is required.
++	if (ret == 0 && ev.type == EV_SYN && ev.code == SYN_DROPPED) {
++		touch_status = TS_NONE;
++		key_status = KS_NONE;
++		state = AS_NO_ACTION;
++		PageManager::GetHardwareKeyboard()->ResetPressedKeys();
++		return true;
++	}
++
+ 	if (ret < 0)
+ 	{
+ 		// This path means that we did not get any new touch data, but
+@@ -478,7 +489,7 @@
+ 		}
+ 	}
+ 	// side mouse button, often used for "back" function
+-	else if (ev.code == BTN_SIDE)
++	else if (ev.code == BTN_SIDE || ev.code == BTN_RIGHT)
+ 	{
+ 		if (ev.value == 1)
+ 			kb->KeyDown(KEY_BACK);
+@@ -532,8 +543,7 @@
+ 				}
+ 			}
+ 		}
+-		if (mime <= 500)
+-			kb->KeyUp(ev.code);
++		kb->KeyUp(ev.code);
+ 		key_status = KS_NONE;
+ 		touch_status = TS_NONE;
+ #ifdef TW_USE_KEY_CODE_TOUCH_SYNC
+@@ -554,6 +564,12 @@
+ 		cursor->Move(ev.value, 0);
+ 	else if (ev.code == REL_Y)
+ 		cursor->Move(0, ev.value);
++	else if (ev.code == REL_WHEEL && !touch_status) {
++		// Move the focused list/scroll selection without activating an item.
++		const int steps = std::min(8, std::abs(ev.value == INT_MIN ? -8 : ev.value));
++		for (int i = 0; i < steps; ++i)
++			PageManager::MoveFocus(ev.value > 0 ? Page::Direction::Up : Page::Direction::Down);
++	}
+ 
+ 	if (touch_status) {
+ 		cursor->GetPos(x, y);
+@@ -814,6 +830,16 @@
+ 		}
+ 		if (Fox_Remote_State::ShouldForceRender())
+ 			gForceRender.set_value(1);
++		// Poll while idle too: connecting a monitor must not require a tablet
++		// touch. The DRM sink bounds connector probes and framebuffer updates.
++		if (gr_external_update())
++			gForceRender.set_value(1);
++		const std::string external_status = gr_external_status();
++		if (DataManager::GetStrValue("ure_mirror_status") != external_status)
++			DataManager::SetValue("ure_mirror_status", external_status);
++		const std::string external_mode = gr_external_mode();
++		if (DataManager::GetStrValue("ure_mirror_active") != external_mode)
++			DataManager::SetValue("ure_mirror_active", external_mode);
+ 
+ 		if (!gForceRender.get_value())
+ 		{
+--- a/gui/hardwarekeyboard.cpp
++++ b/gui/hardwarekeyboard.cpp
+@@ -45,7 +45,7 @@
+ #include <linux/input.h>
+ 
+ HardwareKeyboard::HardwareKeyboard()
+- : mLastKeyChar(0)
++ : mLastKey(0), mLastKeyChar(0)
+ {
+ }
+ 
+@@ -57,6 +57,8 @@
+ static int TranslateKeyCode(int key_code)
+ {
+ 	switch (key_code) {
++		case KEY_ESC:
++			return KEY_BACK;
+ 		case KEY_SLEEP: // Lock key on Asus Transformer hardware keyboard
+ 			return KEY_POWER;
+ 	}
+@@ -396,7 +398,26 @@
+ 	LOGERR("HardwareKeyboard::KeyDown %i\n", key_code);
+ #endif
+ 	key_code = TranslateKeyCode(key_code);
+-	mPressedKeys.insert(key_code);
++	const bool fresh = mPressedKeys.insert(key_code).second;
++	if (key_code == KEY_F6) {
++		mConsumedKeys.insert(key_code);
++		if (fresh) mNavigation = !mNavigation;
++		return 0;
++	}
++	if (mNavigation) {
++		if (key_code == KEY_UP || key_code == KEY_DOWN || key_code == KEY_TAB) {
++			mConsumedKeys.insert(key_code);
++			const bool backwards = key_code == KEY_UP || (key_code == KEY_TAB &&
++				(IsKeyDown(KEY_LEFTSHIFT) || IsKeyDown(KEY_RIGHTSHIFT)));
++			if (fresh) PageManager::MoveFocus(backwards ? Page::Direction::Up : Page::Direction::Down);
++			return 0;
++		}
++		if (key_code == KEY_ENTER || key_code == KEY_KPENTER) {
++			mConsumedKeys.insert(key_code);
++			if (fresh) PageManager::SelectFocusedElement(false);
++			return 0;
++		}
++	}
+ 
+ 	bool ctrlkey = IsKeyDown(KEY_LEFTCTRL) || IsKeyDown(KEY_RIGHTCTRL);
+ 	bool shiftkey = IsKeyDown(KEY_LEFTSHIFT) || IsKeyDown(KEY_RIGHTSHIFT);
+@@ -423,9 +444,10 @@
+ #endif
+ 	key_code = TranslateKeyCode(key_code);
+ 	std::set<int>::iterator itr = mPressedKeys.find(key_code);
++	const bool consumed = mConsumedKeys.erase(key_code) != 0;
+ 	if (itr != mPressedKeys.end()) {
+ 		mPressedKeys.erase(itr);
+-		PageManager::NotifyKey(key_code, false);
++		if (!consumed) PageManager::NotifyKey(key_code, false);
+ 	}
+ 	return 0;
+ }
+@@ -447,3 +469,10 @@
+ 	// causes following KeyUp event to suppress notifications
+ 	mPressedKeys.erase(key);
+ }
++
++void HardwareKeyboard::ResetPressedKeys()
++{
++	mPressedKeys.clear();
++	mConsumedKeys.clear();
++	mLastKey = mLastKeyChar = 0;
++}
+--- a/gui/objects.hpp
++++ b/gui/objects.hpp
+@@ -1512,13 +1512,16 @@
+ 
+ 	// called by multi-key actions to suppress key-release notifications
+ 	void ConsumeKeyRelease(int key);
++	void ResetPressedKeys();
+ 
+ 	bool IsKeyDown(int key_code) const;
+ 	bool AreKeysPressed(int key1_code, int key2_code) const;
+ private:
+ 	int mLastKey;
+ 	int mLastKeyChar;
++	bool mNavigation = false;
+ 	std::set<int> mPressedKeys;
++	std::set<int> mConsumedKeys;
+ };
+ 
+ class GUISliderValue: public GUIObject, public RenderObject, public ActionObject
+--- a/gui/mousecursor.cpp
++++ b/gui/mousecursor.cpp
+@@ -40,6 +40,7 @@
+ 
+ #include "rapidxml.hpp"
+ #include "objects.hpp"
++#include "../minuitwrp/display-mirror.hpp"
+ 
+ MouseCursor::MouseCursor(int resX, int resY)
+ {
+@@ -141,18 +142,14 @@
+ {
+ 	if (deltaX != 0)
+ 	{
+-		mRenderX += deltaX*m_speedMultiplier;
+-		mRenderX = (std::min)(mRenderX, m_resX);
+-		mRenderX = (std::max)(mRenderX, 0);
++		mRenderX = uke_display::pointer_axis(mRenderX, deltaX, m_speedMultiplier, m_resX);
+ 
+ 		m_moved = true;
+ 	}
+ 
+ 	if (deltaY != 0)
+ 	{
+-		mRenderY += deltaY*m_speedMultiplier;
+-		mRenderY = (std::min)(mRenderY, m_resY);
+-		mRenderY = (std::max)(mRenderY, 0);
++		mRenderY = uke_display::pointer_axis(mRenderY, deltaY, m_speedMultiplier, m_resY);
+ 
+ 		m_moved = true;
+ 	}
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -5,6 +5,7 @@
+ 		<page name="settings">
+ 			<listbox style="group_list">
+ 				<placement x="0" y="%ab_h%" w="%screen_w%" h="%bl_fullscreen_h%"/>
++				<listitem name="USB monitor, mouse and keyboard"><icon res="bs_btn_set_screen"/><action function="page">ure_monitor</action></listitem>
+ 				<iconsize w="216" h="168" padding="24"/>
+ 				<listitem name="Interface scale for tablet">
+ 					<icon res="bs_btn_set_screen"/>

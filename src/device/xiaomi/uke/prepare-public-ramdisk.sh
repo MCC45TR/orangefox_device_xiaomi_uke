@@ -8,6 +8,15 @@ phase=${2:?Missing callback phase}
     echo 'Refusing an unexpected ramdisk staging path' >&2; exit 1;
 }
 [[ -f $payload/system/bin/uke-recoveryctl && -f $payload/system/bin/uke-recovery-install ]]
+# An incremental relink target can retain yesterday's renderer while the GUI
+# executable already imports today's APIs. Install the exact source-built
+# renderer and fail packaging if its monitor entry points are missing.
+renderer=/mnt/out-public/target/product/uke/system/lib64/libminuitwrp.so
+[[ -f $renderer && ! -L $renderer ]]
+for symbol in gr_external_select gr_external_update ure_mirror_select; do
+    readelf --dyn-syms --wide "$renderer" | grep -F "$symbol" > /dev/null
+done
+cp -- "$renderer" "$payload/system/lib64/libminuitwrp.so"
 cp -- /mnt/device/xiaomi/uke/maintainer.xml "$payload/sbin/maintainer.xml"
 mkdir -p "$payload/system/etc/ure/licenses"
 cp -- /mnt/device/xiaomi/uke/ure-tools.lock.json "$payload/system/etc/ure/tools.lock.json"

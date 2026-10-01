@@ -74,4 +74,31 @@ if(BUILD_TESTING)
     target_link_libraries(uke-display-tests PRIVATE uke-recovery)
     target_compile_options(uke-display-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror -Wno-float-conversion)
     add_test(NAME ure-tablet-display-density COMMAND uke-display-tests)
+    set(UKE_DEVICE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+    set(UKE_DRM_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/external/libdrm")
+    add_executable(uke-mirror-tests ../../../../../tests/ure/mirror.cpp
+        "${UKE_DEVICE_SOURCE}/display-mirror.cpp" "${UKE_DEVICE_SOURCE}/display-mirror-layout.cpp")
+    target_compile_features(uke-mirror-tests PRIVATE cxx_std_20)
+    target_include_directories(uke-mirror-tests PRIVATE "${UKE_DEVICE_SOURCE}")
+    target_include_directories(uke-mirror-tests SYSTEM PRIVATE "${UKE_DRM_HEADERS}" "${UKE_DRM_HEADERS}/include/drm")
+    target_compile_options(uke-mirror-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror -UNDEBUG)
+    add_test(NAME ure-external-display-and-mode-changes COMMAND uke-mirror-tests)
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/input-hooks.cpp"
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-input-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/input-hooks.cpp"
+        DEPENDS "${UKE_DISPLAY_RENDERER}/hardwarekeyboard.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-input-hooks.sh")
+    add_executable(uke-input-tests ../../../../../tests/ure/input.cpp "${CMAKE_CURRENT_BINARY_DIR}/input-hooks.cpp")
+    target_compile_features(uke-input-tests PRIVATE cxx_std_20)
+    target_include_directories(uke-input-tests PRIVATE ../../../../../tests/ure)
+    target_compile_options(uke-input-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror -UNDEBUG)
+    add_test(NAME ure-hardware-keyboard-navigation COMMAND uke-input-tests)
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/events-hooks.cpp"
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-events-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/events-hooks.cpp"
+        DEPENDS "${UKE_DISPLAY_RENDERER}/../minuitwrp/events.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-events-hooks.sh")
+    add_executable(uke-events-tests ../../../../../tests/ure/events.cpp "${CMAKE_CURRENT_BINARY_DIR}/events-hooks.cpp")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/events-hooks.cpp" PROPERTIES HEADER_FILE_ONLY TRUE)
+    target_compile_features(uke-events-tests PRIVATE cxx_std_20)
+    target_include_directories(uke-events-tests PRIVATE ../../../../../tests/ure "${CMAKE_CURRENT_BINARY_DIR}")
+    # Existing upstream evdev conversion code is compiled verbatim.
+    target_compile_options(uke-events-tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    add_test(NAME ure-usb-input-hotplug COMMAND uke-events-tests)
 endif()

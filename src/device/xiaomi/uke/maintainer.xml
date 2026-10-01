@@ -2,6 +2,11 @@
 <!-- Project-owned URE pages. Actions are native; paths never enter a shell. -->
 <recovery>
   <variables>
+    <variable name="ure_mirror_resolution" value="auto"/>
+    <variable name="ure_mirror_refresh" value="auto"/>
+    <variable name="ure_mirror_refresh_label" value="Automatic"/>
+    <variable name="ure_mirror_status" value="Waiting for a DP/HDMI monitor"/>
+    <variable name="ure_mirror_active" value="No active monitor mode"/>
     <variable name="ure_root" value="/mnt/uke-linux"/>
     <variable name="ure_file" value="etc/fstab"/>
     <variable name="ure_status" value="Experimental build; device acceptance is pending"/>
@@ -55,6 +60,7 @@
         <listbox style="group_list">
           <placement x="0" y="80" w="%screen_w%" h="1200"/>
           <listitem name="Interface scale for tablet"><icon res="wrench"/><action function="page">ure_display</action></listitem>
+          <listitem name="USB monitor, mouse and keyboard"><icon res="wrench"/><action function="page">ure_monitor</action></listitem>
           <listitem name="Capabilities and runtime dependencies"><icon res="overview"/><action function="uremanager">capabilities</action><action function="page">ure_output</action></listitem>
           <listitem name="Storage Graph and mount inventory"><icon res="partitions"/><action function="uremanager">storage</action><action function="page">ure_output</action></listitem>
           <listitem name="Recovery diagnostics"><icon res="wrench"/><action function="uremanager">diagnose</action><action function="page">ure_output</action></listitem>
@@ -74,6 +80,66 @@
       </scroll>
       <template name="navbar"/>
       <action><touch key="back"/><action function="page">advanced</action></action>
+    </page>
+    <page name="ure_monitor">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>USB monitor and input</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_mirror_status%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Active output: %ure_mirror_active%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Selected resolution: %ure_mirror_resolution%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Selected refresh rate: %ure_mirror_refresh_label%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Connect one HDMI/DP monitor to the USB-C hub.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Mouse: click, drag, wheel to move selection; right click goes back.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Keyboard: US text layout; Esc goes back.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>F6 toggles navigation: arrows/Tab move; Enter selects. F6 returns to typing.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <listitem name="Enable monitor mirroring"><action function="uremanager">mirror-enable</action></listitem>
+          <listitem name="Disable monitor mirroring"><action function="uremanager">mirror-disable</action></listitem>
+          <listitem name="Choose output resolution"><action function="page">ure_monitor_resolution</action></listitem>
+          <listitem name="Choose refresh rate"><action function="page">ure_monitor_refresh</action></listitem>
+          <listitem name="Apply selected output mode"><action function="uremanager">mirror-apply</action></listitem>
+          <listitem name="Show monitor's supported modes"><action function="uremanager">mirror-modes</action><action function="page">ure_monitor_modes</action></listitem>
+          <listitem name="Interface scale"><action function="page">ure_display</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_monitor_resolution">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Monitor resolution</text></text>
+      <listbox style="group_list"><placement x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%"/>
+        <listitem name="Automatic"><action function="set">ure_mirror_resolution=auto</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="1280 x 720"><action function="set">ure_mirror_resolution=1280x720</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="1600 x 900"><action function="set">ure_mirror_resolution=1600x900</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="1920 x 1080"><action function="set">ure_mirror_resolution=1920x1080</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="2048 x 1080"><action function="set">ure_mirror_resolution=2048x1080</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="2560 x 1440 (QHD / 2K)"><action function="set">ure_mirror_resolution=2560x1440</action><action function="page">ure_monitor</action></listitem>
+      </listbox>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_monitor</action></action>
+    </page>
+    <page name="ure_monitor_refresh">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Monitor refresh rate</text></text>
+      <listbox style="group_list"><placement x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%"/>
+        <listitem name="Automatic"><action function="set">ure_mirror_refresh=auto</action><action function="set">ure_mirror_refresh_label=Automatic</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="30 Hz"><action function="set">ure_mirror_refresh=30000</action><action function="set">ure_mirror_refresh_label=30 Hz</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="50 Hz"><action function="set">ure_mirror_refresh=50000</action><action function="set">ure_mirror_refresh_label=50 Hz</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="59.94 Hz"><action function="set">ure_mirror_refresh=59940</action><action function="set">ure_mirror_refresh_label=59.94 Hz</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="60 Hz"><action function="set">ure_mirror_refresh=60000</action><action function="set">ure_mirror_refresh_label=60 Hz</action><action function="page">ure_monitor</action></listitem>
+        <listitem name="75 Hz"><action function="set">ure_mirror_refresh=75000</action><action function="set">ure_mirror_refresh_label=75 Hz</action><action function="page">ure_monitor</action></listitem>
+      </listbox>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_monitor</action></action>
+    </page>
+    <page name="ure_monitor_modes">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Modes reported by monitor</text></text>
+      <textbox><placement x="%col1_x%" y="%ab_h%" w="%input_w%" h="%scroll_nav_h%"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_mirror_modes%</text></textbox>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">ure_monitor</action></action>
     </page>
     <page name="ure_display">
       <template name="base_ex"/>
