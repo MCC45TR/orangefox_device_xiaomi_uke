@@ -1,0 +1,140 @@
+diff --git a/gui/gui.cpp b/gui/gui.cpp
+index a3eb4fd4..db423015 100644
+--- a/gui/gui.cpp
++++ b/gui/gui.cpp
+@@ -918,6 +918,7 @@ int gui_changeOverlay(std::string overlay)
+ 
+ std::string gui_parse_text(std::string str)
+ {
++	extern bool ure_gui_variable(const std::string&, std::string&);
+ 	// This function parses text for DataManager values encompassed by %value% in the XML
+ 	// and string resources (%@resource_name%)
+ 	size_t pos = 0, next, end;
+@@ -970,7 +971,7 @@ std::string gui_parse_text(std::string str)
+ 				value = PageManager::GetResources()->FindString(var.substr(1));
+ 				str.insert(next, value);
+ 			}
+-			else if (DataManager::GetValue(var, value) == 0)
++			else if (ure_gui_variable(var, value) || DataManager::GetValue(var, value) == 0)
+ 				str.insert(next, value);
+ 		}
+ 
+diff --git a/gui/pages.cpp b/gui/pages.cpp
+index 1b0444bb..31114030 100755
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -73,7 +73,10 @@ std::map<std::string, PageSet*> PageManager::mPageSets;
+ PageSet* PageManager::mCurrentSet;
+ MouseCursor *PageManager::mMouseCursor = NULL;
+ HardwareKeyboard *PageManager::mHardwareKeyboard = NULL;
+-bool PageManager::mReloadTheme = false;
++std::atomic<bool> PageManager::mReloadTheme{false};
++static std::atomic<bool> ure_reload_theme{false};
++void ure_gui_density(float&, float&, int, int);
++bool ure_gui_variable(const std::string&, std::string&);
+ std::string PageManager::mStartPage = "main";
+ std::vector<language_struct> Language_List;
+ long mime;
+@@ -1421,6 +1424,7 @@ int PageSet::LoadDetails(LoadingContext& ctx, xml_node<>* root)
+ 					tw_x_offset = offx * scale_off_w;
+ 					tw_y_offset = offy * scale_off_h;
+ #endif
++					ure_gui_density(scale_w, scale_h, gr_fb_width(), gr_fb_height());
+ 					if (scale_w != 1 || scale_h != 1) {
+ 						LOGINFO("Scaling theme width %fx and height %fx, offsets x: %i y: %i w: %i h: %i\n",
+ 							scale_w, scale_h, tw_x_offset, tw_y_offset, tw_w_offset, tw_h_offset);
+@@ -1566,6 +1570,9 @@ int PageSet::LoadVariables(xml_node<>* vars)
+ 			p = persist ? atoi(persist->value()) : 0;
+ 			string temp = value->value();
+ 			string valstr = gui_parse_text(temp);
++			// Full-screen edges use the enlarged logical canvas; item dimensions
++			// retain the same density as their text and physical hit rectangles.
++			ure_gui_variable(name->value(), valstr);
+ 
+ 			if (valstr.find("+") != string::npos) {
+ 				string val1str = valstr;
+@@ -2036,10 +2043,24 @@ int PageManager::RunReload() {
+ 	//[f/d] save pass open var so we don't need to retype pass after theme changing
+ 	DataManager::GetValue("pass_open", isPassOpen);
+ 
+-	if (!mReloadTheme)
++	if (!mReloadTheme.exchange(false))
+ 		return 0;
+ 
+-	mReloadTheme = false;
++	if (ure_reload_theme.exchange(false)) {
++		int previous = DataManager::GetIntValue("ure_ui_scale_applied");
++		if (ReloadPackage("OrangeFox", TWRES "ui.xml") != 0) {
++			DataManager::SetValue("ure_ui_scale_percent", previous);
++			ret_val = ReloadPackage("OrangeFox", TWRES "ui.xml");
++			DataManager::SetValue("ure_scale_status", ret_val == 0 ? "Scale reload failed; previous setting restored" :
++				"Unable to reload the interface; restart recovery to use the saved or default scale");
++		}
++		if (DataManager::GetStrValue("tw_language") != "en")
++			LoadLanguage(DataManager::GetStrValue("tw_language"));
++		DataManager::SetValue("pass_open", isPassOpen);
++		gui_forceRender();
++		gui_changePage("ure_display");
++		return ret_val;
++	}
+ 	theme_path = DataManager::GetSettingsStoragePath();
+ 	if (PartitionManager.Mount_By_Path(theme_path.c_str(), 1) < 0) {
+ 		LOGERR("Unable to mount %s during gui_reload_theme function.\n", theme_path.c_str());
+@@ -2085,6 +2106,13 @@ void PageManager::RequestReload() {
+ 	mReloadTheme = true;
+ }
+ 
++void PageManager::RequestUreReload() {
++	// Defer resource destruction to the render thread. Density changes must
++	// not flush settings, mount userdata or write calibration storage.
++	ure_reload_theme = true;
++	mReloadTheme = true;
++}
++
+ void PageManager::SetStartPage(const std::string& page_name) {
+ 	mStartPage = page_name;
+ }
+diff --git a/gui/pages.hpp b/gui/pages.hpp
+index 8d2c1e7c..6b3dc429 100644
+--- a/gui/pages.hpp
++++ b/gui/pages.hpp
+@@ -28,6 +28,7 @@
+ #include <map>
+ #include <string>
+ #include <functional>
++#include <atomic>
+ #include "ziparchive/zip_archive.h"
+ #include "rapidxml.hpp"
+ #include "gui.hpp"
+@@ -216,6 +217,7 @@ public:
+ 	static void ReleasePackage(std::string name);
+ 	static int RunReload();
+ 	static void RequestReload();
++	static void RequestUreReload();
+ 	static void SetStartPage(const std::string& page_name);
+ 
+ 	// Used for actions and pages
+@@ -260,7 +262,7 @@ protected:
+ 	static PageSet* mCurrentSet;
+ 	static MouseCursor *mMouseCursor;
+ 	static HardwareKeyboard *mHardwareKeyboard;
+-	static bool mReloadTheme;
++	static std::atomic<bool> mReloadTheme;
+ 	static std::string mStartPage;
+ 	static LoadingContext* currentLoadingContext;
+ };
+diff --git a/gui/theme/portrait_hdpi/pages/settings.xml b/gui/theme/portrait_hdpi/pages/settings.xml
+index db827849..ad4d3e57 100644
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -6,6 +6,10 @@
+ 			<listbox style="group_list">
+ 				<placement x="0" y="%ab_h%" w="%screen_w%" h="%bl_fullscreen_h%"/>
+ 				<iconsize w="216" h="168" padding="24"/>
++				<listitem name="Interface scale for tablet">
++					<icon res="bs_btn_set_screen"/>
++					<action function="page">ure_display</action>
++				</listitem>
+ 				<listitem name="{@settings_general}">
+ 					<icon res="bs_btn_set_global"/>
+ 					<action function="set">general_back=settings</action>

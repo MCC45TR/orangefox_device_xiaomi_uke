@@ -54,6 +54,7 @@
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>OS discovery uses an already mounted root. Review capability limits.</text></text>
         <listbox style="group_list">
           <placement x="0" y="80" w="%screen_w%" h="1200"/>
+          <listitem name="Interface scale for tablet"><icon res="wrench"/><action function="page">ure_display</action></listitem>
           <listitem name="Capabilities and runtime dependencies"><icon res="overview"/><action function="uremanager">capabilities</action><action function="page">ure_output</action></listitem>
           <listitem name="Storage Graph and mount inventory"><icon res="partitions"/><action function="uremanager">storage</action><action function="page">ure_output</action></listitem>
           <listitem name="Recovery diagnostics"><icon res="wrench"/><action function="uremanager">diagnose</action><action function="page">ure_output</action></listitem>
@@ -73,6 +74,37 @@
       </scroll>
       <template name="navbar"/>
       <action><touch key="back"/><action function="page">advanced</action></action>
+    </page>
+    <page name="ure_display">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Interface scale: %ure_ui_scale_applied%%%</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_scale_status%</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1300"/>
+          <listitem name="50% - compact"><action function="set">ure_scale_choice=50</action><action function="uremanager">scale-apply</action></listitem>
+          <listitem name="60%"><action function="set">ure_scale_choice=60</action><action function="uremanager">scale-apply</action></listitem>
+          <listitem name="70%"><action function="set">ure_scale_choice=70</action><action function="uremanager">scale-apply</action></listitem>
+          <listitem name="75% - tablet default"><action function="uremanager">scale-reset</action></listitem>
+          <listitem name="80%"><action function="set">ure_scale_choice=80</action><action function="uremanager">scale-apply</action></listitem>
+          <listitem name="90%"><action function="set">ure_scale_choice=90</action><action function="uremanager">scale-apply</action></listitem>
+          <listitem name="100% - larger"><action function="set">ure_scale_choice=100</action><action function="uremanager">scale-apply</action></listitem>
+          <listitem name="Custom percentage and settings directory"><action function="page">ure_display_options</action></listitem>
+          <listitem name="Save current scale to selected directory"><action function="uremanager">scale-save</action></listitem>
+          <listitem name="Load scale from selected directory"><action function="uremanager">scale-load</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/>
+      <action><touch key="back"/><action function="page">settings</action></action>
+    </page>
+    <page name="ure_display_options">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Interface scale settings</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_2_y%"/><text>Scale percentage: 50 to 100</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_scale_choice%</text><data name="ure_scale_choice"/><restrict minlen="2" maxlen="3"/><action function="uremanager">scale-apply</action></input>
+      <text style="caption"><placement x="%col1_x%" y="%row4_1_y%"/><text>Dedicated mounted settings directory; /tmp is volatile</text></text>
+      <input><placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_scale_directory%</text><data name="ure_scale_directory"/><restrict minlen="1" maxlen="4096"/></input>
+      <template name="gestures_key"/>
+      <action><touch key="back"/><action function="page">ure_display</action></action>
     </page>
     <page name="ure_output">
       <template name="base_ex"/>

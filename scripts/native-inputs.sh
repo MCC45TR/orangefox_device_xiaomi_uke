@@ -8,4 +8,7 @@ cd "$component"
     printf '%s\0' scripts/native-inputs.sh tests/run-native.sh tests/check-ure.sh \
         tests/check-recoveryctl.sh tests/check-installer.sh tests/check-payload.sh \
         tests/check-nested-payloads.sh tests/check-payload-fixtures.sh tests/check-backup.sh tests/check-storage-backup.sh tests/check-restore.sh tests/check-stream-restore.sh tests/check-gpt.sh tests/check-stock-gpt.sh tests/check-partition-map.sh scripts/receive-backup.sh scripts/restore-from-host.sh
+    printf '%s\0' tests/check-display.sh tests/generate-display-hooks.sh src/device/xiaomi/uke/ure-gui.cpp \
+        patches/0006-tablet-interface-density.patch src/upstream/orangefox-android16/bootable/recovery/gui/pages.cpp \
+        src/upstream/orangefox-android16/bootable/recovery/gui/gui.cpp
 } | sort -z | xargs -0 sha256sum

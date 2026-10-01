@@ -33,6 +33,8 @@ static Value usage() {
     result["commands"]=Value(Json::arrayValue);
     for(const auto* command : {
         "capabilities", "device info|firmware", "storage inventory|graph|mounts|health",
+        "display preview FRAMEBUFFER_WIDTH FRAMEBUFFER_HEIGHT THEME_WIDTH THEME_HEIGHT PERCENT",
+        "display settings-load DIRECTORY", "display settings-save DIRECTORY PERCENT (dedicated private storage; no mounts)",
         "gpt inspect --image IMAGE --sector-size 4096", "filesystem inspect|check --image IMAGE",
         "storage inspect|usage STABLE_ID (read-only live block identity or ownership observations)",
         "gpt inspect --object STABLE_ID", "gpt backup --image IMAGE|--object STABLE_ID --profile PROFILE --output DIR",
@@ -94,6 +96,10 @@ int dispatch(std::vector<std::string> args) {
         args.erase(std::remove(args.begin(),args.end(),"--json"),args.end());
         require(!args.empty(),"usage","A command is required");
         const auto operation=args.size()>1 ? args[1] : std::string();
+        if(args[0]=="display")require(!root_option && !system_option && !esp_option && !image_option && !object_option && !output_option &&
+            !sector_option && !content_option && !profile_option && !journal_option && !confirm_option && !chunk_size && !chunk_index &&
+            !before_option && !after_option && !receipt_option && !packet_option && !lun_option && !capacity_option && !identity_backup,
+            "invalid-options","Display commands accept only their explicit positional arguments");
         const bool stock_preview=args[0]=="gpt" && operation=="stock-preview",stock_plan=args[0]=="gpt" && operation=="stock-plan";
         require(!lun_option || stock_preview || stock_plan,"invalid-options","LUN applies only to stock GPT reconstruction");
         require(!capacity_option || stock_preview,"invalid-options","Explicit capacity applies only to a template preview");
@@ -137,7 +143,17 @@ int dispatch(std::vector<std::string> args) {
         };
         std::unique_ptr<Root> esp; if(esp_option)esp=std::make_unique<Root>(*esp_option);
         Value data; const auto& command=args[0];
-        if(command=="help" || command=="--help")data=usage();
+        if(command=="display" && operation=="preview" && args.size()==7) {
+            const auto width=number(args[2]),height=number(args[3]),theme_width=number(args[4]),theme_height=number(args[5]);
+            require(width>=320 && height>=320 && width<=16384 && height<=16384 && theme_width>=320 && theme_height>=320 &&
+                theme_width<=32768 && theme_height<=32768,"invalid-display","Invalid preview geometry");
+            const auto layout=display_layout(static_cast<int>(width),static_cast<int>(height),static_cast<double>(width)/static_cast<double>(theme_width),
+                static_cast<double>(height)/static_cast<double>(theme_height),display_scale_parse(args[6]));
+            data["scale_percent"]=layout.percent; data["density"]=layout.density; data["canvas_width"]=layout.canvas_width; data["canvas_height"]=layout.canvas_height;
+            data["uniform_density"]=true; data["physical_test_record"]=false; data["gui_rendering"]=false;
+        } else if(command=="display" && operation=="settings-load" && args.size()==3)data=display_settings_load(args[2]);
+        else if(command=="display" && operation=="settings-save" && args.size()==4)data=display_settings_save(args[2],display_scale_parse(args[3]));
+        else if(command=="help" || command=="--help")data=usage();
         else if(command=="capabilities" && args.size()==1)data=capabilities(system);
         else if(command=="device" && args.size()==2 && (args[1]=="info" || args[1]=="firmware"))data=diagnose(system,"android");
         else if(command=="storage" && args.size()==2 && (args[1]=="inventory" || args[1]=="graph" || args[1]=="mounts" || args[1]=="health"))data=storage_graph(system);

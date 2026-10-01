@@ -18,6 +18,7 @@ status and returns failure rather than silently reporting success.
 | Interface | Current behavior |
 |---|---|
 | `capabilities` | Lists all 24 contracts, implementation scope, required tools and observable kernel support; never creates hardware evidence |
+| `display preview/settings-load/settings-save` | Uniform 50–100 percent tablet interface density with a 75 percent default, full-screen anchors and shared render/hit scaling; explicit private durable settings/readback, no automatic mount or calibration write; see [DISPLAY-SCALING.md](DISPLAY-SCALING.md) for native menu controls and evidence limits |
 | `storage inventory/graph/mounts/health` | Reads sysfs device numbers, labels, PARTUUIDs, 512-byte capacity units, parent LUNs, mapper dependencies and mount associations; these aliases currently return the same graph, not a UFS wear analysis |
 | `storage inspect STABLE_ID` | Read-only live selection by full sysfs/PARTUUID/GPT identity, device-number and capacity checks, sector ioctls, parent-GPT partition correspondence and private unit/LUN evidence; positive live-device acceptance is pending |
 | `storage usage STABLE_ID` | Bounded mount-namespace, writable-FD, swap, configfs backing and mapper/parent ownership observations; missing evidence, unknown dependencies and cycles refuse a quiescent classification |

@@ -100,6 +100,15 @@ else
   exit 1
 fi
 cp -- "$device_source/ure-gui.cpp" "$recovery_source/gui/ure.cpp"
+display_patch="$component/patches/0006-tablet-interface-density.patch"
+if git -C "$recovery_source" apply --reverse --check "$display_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$display_patch"; then
+  git -C "$recovery_source" apply "$display_patch"
+else
+  echo 'Unexpected OrangeFox density hooks; refusing an unverified patch' >&2
+  exit 1
+fi
 link_patch="$component/patches/0004-link-native-ure.patch"
 if git -C "$recovery_source" apply --unidiff-zero --reverse --check "$link_patch" 2>/dev/null; then
   :

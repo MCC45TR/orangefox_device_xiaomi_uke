@@ -31,6 +31,7 @@ UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-stream-r
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-gpt.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-stock-gpt.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-partition-map.sh"
+UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-display.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-recoveryctl.sh"
 target() {
     local name=$1; shift
@@ -76,4 +77,4 @@ target mkfs.ntfs -F -Q "$work/ntfs.img" > "$work/ntfs-mkfs" 2>&1
 before=$(sha256sum "$work/ntfs.img" | cut -d' ' -f1)
 target ntfsresize --info --no-action "$work/ntfs.img" > "$work/ntfs-info" 2>&1
 [[ $before == "$(sha256sum "$work/ntfs.img" | cut -d' ' -f1)" ]]
-printf 'AArch64 QEMU: file/GPT/raw-image journals, local and host-streamed restore/readback/rollback, six-LUN stock GPT reconstruction and metadata recovery, verified host receivers and duplex transport mocks, WIM round trip, ext4/exFAT/NTFS no-action checks and SSH key generation passed; no hardware evidence.\n'
+printf 'AArch64 QEMU: file/GPT/raw-image journals, local and host-streamed restore/readback/rollback, six-LUN stock GPT reconstruction, partition maps, display geometry/private settings, verified host receivers and duplex transport mocks, WIM round trip, ext4/exFAT/NTFS no-action checks and SSH key generation passed; no rendering or hardware evidence.\n'

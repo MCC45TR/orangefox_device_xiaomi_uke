@@ -4,6 +4,7 @@
 #include "../data.hpp"
 #include "../gui.hpp"
 #include "uke.h"
+#include "pages.hpp"
 #include <algorithm>
 #include <mutex>
 
@@ -83,11 +84,60 @@ void refresh_editor() {
     pending_plan=ure::Value(); pending_journal.clear(); DataManager::SetValue("ure_plan_hash","");
 }
 }
+// Called only while the render thread rebuilds theme resources. Existing input
+// events and object hit rectangles remain in framebuffer coordinates.
+void ure_gui_density(float& scale_w,float& scale_h,int width,int height) {
+    static bool initialized=false;
+    try {
+        if(!initialized) {
+            initialized=true;
+            int percent=75;
+            try { percent=ure::display_settings_load("/mnt/uke-settings")["scale_percent"].asInt(); }
+            catch(const ure::Error&) { /* Absent/unavailable storage uses the tablet default. */ }
+            DataManager::SetValue("ure_ui_scale_percent",percent);
+            DataManager::SetValue("ure_scale_directory","/mnt/uke-settings");
+            DataManager::SetValue("ure_scale_status","Choose a scale; save to dedicated mounted storage for reuse");
+        }
+        const int percent=ure::display_scale_parse(value("ure_ui_scale_percent"));
+        const auto layout=ure::display_layout(width,height,scale_w,scale_h,percent);
+        scale_w=layout.density; scale_h=layout.density;
+        DataManager::SetValue("ure_canvas_width",layout.canvas_width);
+        DataManager::SetValue("ure_canvas_height",layout.canvas_height);
+        DataManager::SetValue("ure_ui_scale_applied",percent);
+        DataManager::SetValue("ure_scale_choice",percent);
+    } catch(const ure::Error&) {
+        DataManager::SetValue("ure_canvas_width",0); DataManager::SetValue("ure_canvas_height",0);
+        DataManager::SetValue("ure_ui_scale_applied",100);
+        DataManager::SetValue("ure_scale_status","Scale unavailable for this framebuffer; original theme scaling retained");
+    }
+}
+bool ure_gui_variable(const std::string& name,std::string& output) {
+    int width=0,height=0; DataManager::GetValue("ure_canvas_width",width); DataManager::GetValue("ure_canvas_height",height);
+    if(width<=0 || height<=0)return false;
+    if(name=="screen_w")output=std::to_string(width);
+    else if(name=="screen_h" || name=="screen_original_h")output=std::to_string(height);
+    else if(name=="center_x")output=std::to_string(width/2);
+    else if(name=="center_y")output=std::to_string(height/2);
+    else if(name=="input_w")output=std::to_string(std::max(1,width-96));
+    else return false;
+    return true;
+}
 int GUIAction::uremanager(std::string command) {
     std::lock_guard<std::mutex> guard(session_mutex);
     try {
         ure::Root system("/");
-        if(command=="capabilities")publish(ure::capabilities(system));
+        if(command=="scale-apply" || command=="scale-reset" || command=="scale-load") {
+            int percent=75;
+            if(command=="scale-apply")percent=ure::display_scale_parse(value("ure_scale_choice"));
+            if(command=="scale-load")percent=ure::display_settings_load(value("ure_scale_directory"))["scale_percent"].asInt();
+            DataManager::SetValue("ure_ui_scale_percent",percent);
+            DataManager::SetValue("ure_scale_status",command=="scale-load" ? "Saved scale loaded; no storage was mounted" : "Scale applied to text, icons and touch targets");
+            PageManager::RequestUreReload();
+        } else if(command=="scale-save") {
+            const auto saved=ure::display_settings_save(value("ure_scale_directory"),ure::display_scale_parse(value("ure_ui_scale_applied")));
+            DataManager::SetValue("ure_scale_status",saved["volatile_filesystem"]==true ?
+                "Saved on volatile storage; this setting will be lost on reboot" : "Saved and read back; load this directory after mounting it on future boots");
+        } else if(command=="capabilities")publish(ure::capabilities(system));
         else if(command=="storage")publish(ure::storage_graph(system));
         else if(command=="diagnose")publish(ure::diagnose(system,"all"));
         else if(command=="report") {
@@ -336,6 +386,7 @@ int GUIAction::uremanager(std::string command) {
         }
         return 0;
     } catch(const ure::Error& error) {
+        if(command.rfind("scale-",0)==0)DataManager::SetValue("ure_scale_status",error.code+": "+error.what());
         DataManager::SetValue("ure_status",error.code+": "+error.what());
         ure::Value result; result["error"]["code"]=error.code; result["error"]["message"]=error.what(); publish(result); return 1;
     } catch(const std::exception&) { DataManager::SetValue("ure_status","Unexpected input or runtime failure"); return 1; }

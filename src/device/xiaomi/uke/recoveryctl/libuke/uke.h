@@ -114,6 +114,11 @@ Value gpt_resume(const StorageTarget& target, const fs::path& journal, const std
 Value filesystem_probe(int fd);
 Value filesystem_probe_range(int fd, std::uint64_t offset, std::uint64_t bytes);
 Value partition_map(const StorageTarget& target, const Root* system = nullptr);
+struct DisplayLayout { float density; int canvas_width,canvas_height,percent; };
+int display_scale_parse(const std::string& text);
+DisplayLayout display_layout(int width,int height,double base_width,double base_height,int percent);
+Value display_settings_load(const fs::path& directory);
+Value display_settings_save(const fs::path& directory,int percent);
 Value filesystem_check(int fd);
 Value image_tool(const std::string& command, const std::string& operation, int fd);
 Value gpt_inspect(int fd, std::uint32_t sector_size);

@@ -61,7 +61,7 @@ for path in "${sources[@]}"; do
     [[ -d "$tree/$path/.git" || -f "$tree/$path/.git" ]] || { echo "Missing source: $path" >&2; exit 1; }
     if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
         case "$path" in
-            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch
+            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp";;
             external/ntfs-3g) verify_reviewed_patch "$tree/$path" 0003-build-ntfsresize.patch;;
             vendor/recovery) verify_reviewed_patch "$tree/$path" 0005-propagate-callback-failure.patch;;
@@ -93,6 +93,7 @@ cp -a -- "$component/configs" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"
+cp -- "$component/docs/DISPLAY-SCALING.md" "$source_work/project/"
 cp -- "$component/docs/COMPREHENSIVE-ROADMAP.md" "$component/docs/FEATURE-PARITY.md" \
     "$component/docs/ARCHITECTURE.md" "$source_work/project/"
 cp -- "$component/reports/URE-NATIVE-BUILD.md" "$source_work/project/BUILD-REPORT.md"
@@ -116,6 +117,9 @@ if [[ -f $component/reports/URE-STOCK-GPT-BUILD.md ]]; then
 fi
 if [[ -f $component/reports/URE-PARTITION-MAP-BUILD.md ]]; then
     cp -- "$component/reports/URE-PARTITION-MAP-BUILD.md" "$source_work/project/PARTITION-MAP-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-DISPLAY-BUILD.md ]]; then
+    cp -- "$component/reports/URE-DISPLAY-BUILD.md" "$source_work/project/DISPLAY-BUILD-REPORT.md"
 fi
 cp -a -- "$tree/out-public/target/product/uke/recovery/root/FFiles" "$source_work/project/payload-script-sources"
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
