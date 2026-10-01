@@ -3,7 +3,8 @@
 This local candidate adds the C++ library/JSON CLI, Storage Graph and image
 inspection, Linux/Windows discovery, diagnostics/report export, regular-file
 transactions, inspected journal recovery, storage usage checks, identity-bound
-chunked file/image/live-source backup software, host
+chunked file/image/live-source backup software, verified raw-image restore and
+interrupted resume/rollback, host
 reception and native OrangeFox management/editor pages. Source-built NTFS/exFAT/F2FS,
 WIM/ESD and key-authenticated Dropbear tools accompany it. SSH is not started at
 boot; no host key is persisted. SFTP, cryptsetup and Btrfs tools are not packaged.
@@ -39,7 +40,7 @@ backup verification; it does not replay automatically. Host SIGKILL recovery
 passes, while electrical power-loss and hostile concurrent-write acceptance
 remain open. Live-source backup software requires complete unit/boot and usage
 evidence plus a retained kernel claim; positive tablet acceptance, atomic
-snapshots, cross-boot continuation and restores remain open. Upstream
+snapshots, cross-boot continuation and live restores remain open. Upstream
 tool binaries expose their own commands; only documented
 URE wrappers share the native validation policy.
 
@@ -53,3 +54,10 @@ remain unfinished. No GPT write authorizes stock boot-stack changes.
 
 See `URE-NATIVE.md` in the source snapshot for implemented interfaces and the
 remaining work for all 24 contracts. No full roadmap phase is marked complete.
+
+Raw-image restore has separate target/backup selection and review pages. It
+preserves current and desired chunks before writes, checks the complete result,
+and offers explicit recovery only after inspecting actual bytes. The journal
+requires two raw-object sizes plus a 32 MiB margin. Host-streamed restore,
+compression and real block writes remain unfinished. A volatile `/tmp` journal
+cannot provide recovery across reboot. Choose a verified persistent destination.

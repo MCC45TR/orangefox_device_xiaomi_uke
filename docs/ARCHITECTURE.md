@@ -25,6 +25,12 @@ resume/cancel, bounded-memory chunked file/image backups and a host receiver.
 The GUI and CLI call the same backends. Published chunks and target readback,
 rather than a progress record alone, decide what can safely resume.
 
+Raw-image restoration now extends that shared engine with a sealed current-byte
+manifest, private original/desired chunk mirrors, full readback and inspected
+partial-write continuation or rollback. The CLI and native GUI use the same
+policy. All physical block writes remain gated; local restore currently requires
+both raw objects in the journal, while host-streamed restore remains unfinished.
+
 The first `uke` BoardConfig and read-only recovery fstab derive from the verified
 Global stock package. `scripts/prepare-build-tree.sh` stages the device tree and
 applies `patches/0001-preserve-recovery-vendor-directory.patch` to the active

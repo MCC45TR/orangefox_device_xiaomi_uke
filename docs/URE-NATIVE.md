@@ -34,7 +34,8 @@ status and returns failure rather than silently reporting success.
 | `transaction validate/execute/show/rollback` | Exact plan confirmation, persisted sealed plan, root/file fingerprints, backup/readback, durable journal boundaries, atomic replacement and verified rollback |
 | `transaction inspect/list/resume/cancel --root ROOT` | Read-only journal discovery and current-state classification; explicit confirmed recovery or cancellation only when the recorded phase, identities and verified backup permit it |
 | `backup file --root ROOT` | Private, exclusive-create backup and manifest for a bounded regular file; not a partition/image backup service |
-| `backup plan/storage-plan/capture/resume/verify/export` | Bounded-memory regular-file or identity-bound storage streams, chunk/full SHA-256, durable exclusive publication, verified resume and binary host export; live software requires complete usage/unit/boot evidence and a retained read-only kernel claim; physical acceptance and restores remain pending |
+| `backup plan/storage-plan/capture/resume/verify/export` | Bounded-memory regular-file or identity-bound storage streams, chunk/full SHA-256, durable exclusive publication, verified resume and binary host export; live software requires complete usage/unit/boot evidence and a retained read-only kernel claim; physical acceptance remains pending |
+| `restore plan/execute/inspect/resume/rollback/cancel` | Identity-bound raw image restoration with original/target chunk mirrors, durable journals, full readback, inspected partial-write continuation and verified rollback; real block writes and host-streamed restore remain unavailable |
 | `boot targets/plan` | Detects candidate components and serializes a one-shot request; execution remains blocked without an accepted Uke boot backend |
 | `diagnose SCOPE` | Private bounded kernel, module, pstore, display, input, USB, network, power, thermal and property observations; preserves pstore and does not assert a root cause |
 | `report --output FILE` | Public allowlist summary; omits raw pstore, command lines, module addresses, UUIDs, mounts, stage text and raw class fields |
@@ -157,6 +158,71 @@ uke-recoveryctl gpt journal-inspect /mnt/backup/gpt-journal \
   --image /mnt/linux/disk.img --sector-size 4096
 ```
 
+## Raw image restore boundary
+
+`restore plan BACKUP_DIR` verifies a complete schema-2 storage backup and binds
+the operation to the original image path/inode, capacity, sector size, ownership
+and declared firmware profile. A known current disk GUID must match. Content
+and timestamps may differ from the earlier backup: repairing those bytes is the
+purpose of this operation. A newly copied image is a different target and is
+rejected. Planning records a twice-scanned manifest for the current bytes, the
+desired backup hash, backup directory inode, required journal space and exact
+confirmation hash. Uncompressed expanded chunks are the supported representation.
+
+Execution requires the reviewed plan hash, a writable image descriptor and a
+cooperating target lock. It rechecks the original bytes before creating the
+private journal. Before writing, it durably saves verified `before/` and `after/`
+chunk mirrors in the journal, including the sealed manifests. The local journal
+requires space for both complete raw objects plus a 32 MiB margin. This is a
+local restore path; the separately planned host-streamed restore must avoid that
+tablet space requirement. Once both mirrors are complete, recovery can operate
+without the original external backup directory.
+
+The journal follows VALIDATED, BACKUP_STARTED, BACKUP_VERIFIED, READY, EXECUTING,
+VERIFYING and COMMITTED. Target I/O uses a bounded 64 KiB buffer, fsync and
+per-chunk readback followed by a full verified hash. Preparation failures record
+FAILED_SAFE; attempted writes and inherited partial content record
+FAILED_UNCERTAIN. A failed rollback retains its rollback direction so forward
+resume cannot silently reverse it.
+
+Inspection verifies the immutable plan, mirror manifests and every stored chunk,
+then reads current target bytes. It reports ORIGINAL, TARGET,
+PARTIAL_EXPECTED_WRITE or DIVERGED, with at most 128 detailed chunk rows.
+Only bytes from the verified original or desired mirror qualify as an expected
+partial write. Resume rechecks the observed chunk hash immediately before each
+write, skips already verified target chunks and finishes with full readback.
+An already complete target can finish its commit record without rewriting.
+Rollback similarly writes and verifies the original chunks. Unrelated changes,
+corrupt mirrors, replaced targets and unknown phases refuse recovery.
+Cancellation is available only before execution while all original bytes match.
+
+The native GUI exposes target/source selection, plan/space review, explicit
+execution and inspected resume/rollback/cancel. Its `/tmp` journal parent is
+volatile and generally unsuitable for large raw objects; choose a persistent
+destination with the displayed free-space requirement. Image writes refuse live
+loop attachments. This same write gate also covers GPT-image operations.
+Real UFS writes still require the unfinished firmware, slot, snapshot and
+ownership backend. Neither advisory locks nor repeated observations exclude
+hostile writers or provide an atomic filesystem snapshot.
+
+Host fixtures cover 512/4096-byte sectors, wrong target/profile, locks,
+source-independent recovery, partial bytes, unrelated divergence and private
+records. They actually SIGKILL processes during preparation, writes and rollback,
+and use a real EFBIG write failure to verify uncertainty and continuation. These
+are process/filesystem tests, not electrical power-loss or tablet evidence.
+
+```sh
+uke-recoveryctl restore plan /mnt/backup/raw-original \
+  --image /mnt/linux/disk.img --sector-size 4096 \
+  --profile global-os3.0.303.0 --output /tmp/restore-plan.json
+# Review target, before/desired hashes and estimated_journal_bytes first.
+uke-recoveryctl restore execute /tmp/restore-plan.json \
+  --image /mnt/linux/disk.img --sector-size 4096 \
+  --journal /mnt/backup/restore-journal --confirm REVIEWED_PLAN_SHA256
+uke-recoveryctl restore inspect /mnt/backup/restore-journal \
+  --image /mnt/linux/disk.img --sector-size 4096
+```
+
 ## Streaming backup boundary
 
 `backup plan` reads a sized regular file without changing it, records the selected
@@ -252,8 +318,8 @@ bash scripts/receive-backup.sh --manifest storage-plan.json --output host-store 
 ```
 
 Resume on another recovery boot refuses if the root/file or sealed live boot
-identity changed. Stable cross-boot plans and managed restores still require
-the storage transaction backend. SIGKILL tests prove process recovery at a durable
+identity changed. Stable cross-boot backup plans and live/host-streamed restores
+still require further storage backend work. SIGKILL tests prove process recovery at a durable
 chunk boundary, not storage-controller behavior during electrical power loss.
 
 ## Build tools and source boundaries
@@ -287,13 +353,13 @@ upstream build dependencies; no project Python or tablet interpreter is added.
 
 | Contracts | Remaining implementation / acceptance |
 |---|---|
-| C01–C03 | Full live identity/ownership acceptance, general storage transactions, physical power-loss tests and actual R000–R100 producers/correlation; bounded ownership policy and explicit file journal recovery have fixtures, while diagnostics only reads a stage file if one exists |
+| C01–C03 | Full live identity/ownership acceptance, general storage transactions, physical power-loss tests and actual R000–R100 producers/correlation; bounded ownership policy and file/GPT/raw-image journal recovery have fixtures, while diagnostics only reads a stage file if one exists |
 | C04–C07 | Multi-root orchestration, installed DT/UKI contents and filesystem-root consistency, full metadata browsing/snapshot comparison, config semantic validation, GUI rendering/touch acceptance |
 | C08–C09 | Controlled chroot with audited native executable closure; profile-compatible recovery kernel/modules and disposable-media/hardware acceptance. Fedora package/initramfs repair must not execute a target Python dependency |
 | C10–C13 | Packaged cryptsetup and secure LUKS/BITLK lifecycle, header/key workflows, Btrfs kernel/userspace, snapshots, rollback, scrub/balance and send/receive transactions |
 | C14–C15 | Multi-LUN GPT and boot-chain orchestration, live restore/repair, layout changes, formatting/resizing transactions, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; GPT image backup/repair/restore and read-only live selection are implemented |
 | C16–C17 | Accepted Uke Aloha/stock boot backend, request consumption, boot history, retry/rollback policy and default preservation |
-| C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance and restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage stream software and a host receiver are implemented |
+| C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance, host-streamed and live restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local raw-image restore and a host receiver are implemented |
 | C22–C24 | Signed update/profile lifecycle, persistent UI/session policy, full reproducibility/CI, optional web/NAS/extensions/forensics/hardware-test tools |
 
 The supplied 103 topics remain design targets. No contract or full phase is
@@ -312,6 +378,7 @@ ctest --test-dir build/ure-host --output-on-failure
 bash tests/check-ure.sh
 bash tests/check-backup.sh
 bash tests/check-storage-backup.sh
+bash tests/check-restore.sh
 bash tests/check-gpt.sh
 UKE_RECOVERYCTL_BINARY=build/ure-host/uke-recoveryctl bash tests/check-recoveryctl.sh
 bash tests/check-installer.sh
@@ -331,11 +398,17 @@ both-copy repair, ordered restore, usable-area protection, partial rollback,
 divergence, locked journals and readback-only resume. These are host fixtures,
 not tablet tests.
 
+The raw restore executable additionally tests preparation/write/rollback SIGKILL,
+EFBIG partial-write uncertainty, source-independent mirror recovery, exact target
+binding, verified partial continuation, safe pre-execution cancellation and
+original-data rollback. The CLI fixtures round-trip persisted JSON plans and
+exercise the same 512/4096-byte image workflows.
+
 `bash tests/run-native.sh` records these host gates against their exact source
 inputs. `scripts/audit-recovery-image.sh IMAGE REPORT_JSON --qemu` extracts the
 actual compressed ramdisk in a restricted host namespace, scans every ELF and
 embedded ZIP, checks the GUI XML/tool manifest, and runs AArch64 fixtures. QEMU
-covers the CLI file/GPT transaction/rollback and inspected readback recovery,
+covers the CLI file/GPT/raw-image transaction/rollback and inspected readback recovery,
 GPT backup/repair/restore, large-file backup and host receiver,
 WIM capture/verify/apply round trip,
 ext4/exFAT/NTFS no-action checks with unchanged image hashes, and ephemeral SSH

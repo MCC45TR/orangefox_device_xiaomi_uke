@@ -32,7 +32,9 @@ image repair/restore, inspected journals and read-only live selection. Real UFS
 writes and full phase acceptance remain open.
 The [storage checkpoint](reports/URE-STORAGE-BUILD.md) adds bounded ownership
 observations and identity-bound storage backup software with shared CLI/GUI/host
-reception. Positive live-source acceptance, atomic snapshots and restore remain open.
+reception. The raw-image restore engine adds verified original/target mirrors,
+durable journals, full readback and inspected interruption recovery. Positive
+live-source acceptance, atomic snapshots and real block restores remain open.
 Nabu partition offsets,
 GPT backups, security binaries and kernel images are not Uke inputs.
 

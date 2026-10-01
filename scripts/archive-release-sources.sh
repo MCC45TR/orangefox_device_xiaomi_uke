@@ -104,6 +104,9 @@ fi
 if [[ -f $component/reports/URE-STORAGE-BUILD.md ]]; then
     cp -- "$component/reports/URE-STORAGE-BUILD.md" "$source_work/project/STORAGE-BUILD-REPORT.md"
 fi
+if [[ -f $component/reports/URE-RESTORE-BUILD.md ]]; then
+    cp -- "$component/reports/URE-RESTORE-BUILD.md" "$source_work/project/RESTORE-BUILD-REPORT.md"
+fi
 cp -a -- "$tree/out-public/target/product/uke/recovery/root/FFiles" "$source_work/project/payload-script-sources"
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"
