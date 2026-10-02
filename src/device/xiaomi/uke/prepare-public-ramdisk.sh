@@ -17,6 +17,12 @@ for symbol in gr_external_select gr_external_update ure_mirror_select; do
     readelf --dyn-syms --wide "$renderer" | grep -F "$symbol" > /dev/null
 done
 cp -- "$renderer" "$payload/system/lib64/libminuitwrp.so"
+# Make recovery modules with a custom install path do not install every shared
+# dependency into the ramdisk. Copy the exact linked, source-built codec.
+codec=/mnt/out-public/target/product/uke/system/lib64/libzstd.so
+[[ -f $codec && ! -L $codec ]]
+readelf -h "$codec" | grep -q 'Machine:.*AArch64'
+cp -- "$codec" "$payload/system/lib64/libzstd.so"
 cp -- /mnt/device/xiaomi/uke/maintainer.xml "$payload/sbin/maintainer.xml"
 mkdir -p "$payload/system/etc/ure/licenses"
 cp -- /mnt/device/xiaomi/uke/ure-tools.lock.json "$payload/system/etc/ure/tools.lock.json"
@@ -27,6 +33,8 @@ cp -- /mnt/external/ure-dropbear/libtomcrypt/LICENSE "$payload/system/etc/ure/li
 cp -- /mnt/external/ure-dropbear/libtommath/LICENSE "$payload/system/etc/ure/licenses/libtommath.txt"
 cp -- /mnt/external/ntfs-3g/COPYING "$payload/system/etc/ure/licenses/ntfs-3g.txt"
 cp -- /mnt/external/jsoncpp/LICENSE "$payload/system/etc/ure/licenses/jsoncpp.txt"
+cp -- /mnt/external/zstd/LICENSE "$payload/system/etc/ure/licenses/zstd.txt"
+cp -- /mnt/external/lzma/NOTICE "$payload/system/etc/ure/licenses/lzma-sdk.txt"
 cp -- /mnt/device/xiaomi/uke/recoveryctl/LICENSE-APACHE "$payload/system/etc/ure/licenses/native-Apache-2.0.txt"
 # This generic vendor helper depends on an unaccepted KeyMint/TEE stack. FBE is
 # disabled in this profile; do not ship a dangling prebuilt decryption helper.

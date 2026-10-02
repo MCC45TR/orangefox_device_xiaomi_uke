@@ -67,6 +67,7 @@ for path in "${sources[@]}"; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
                 done;;
             external/ntfs-3g) verify_reviewed_patch "$tree/$path" 0003-build-ntfsresize.patch;;
+            external/zstd) verify_reviewed_patch "$tree/$path" 0009-native-boot-audit-codecs.patch;;
             vendor/recovery) verify_reviewed_patch "$tree/$path" 0005-propagate-callback-failure.patch;;
             *) echo "Unexpected modification in source: $path" >&2; exit 1;;
         esac
@@ -100,6 +101,7 @@ cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "
 cp -- "$component/docs/DISPLAY-SCALING.md" "$source_work/project/"
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$source_work/project/"
 cp -- "$component/docs/TREE-BACKUP.md" "$source_work/project/"
+cp -- "$component/docs/FILESYSTEM-MANAGER.md" "$component/docs/LINUX-RESCUE-AND-BOOT.md" "$component/docs/BTRFS-MANAGER.md" "$source_work/project/"
 cp -- "$component/docs/COMPREHENSIVE-ROADMAP.md" "$component/docs/FEATURE-PARITY.md" \
     "$component/docs/ARCHITECTURE.md" "$source_work/project/"
 cp -- "$component/reports/URE-NATIVE-BUILD.md" "$source_work/project/BUILD-REPORT.md"
@@ -136,6 +138,9 @@ fi
 cp -a -- "$tree/out-public/target/product/uke/recovery/root/FFiles" "$source_work/project/payload-script-sources"
 if [[ -f $component/reports/URE-TREE-BACKUP-BUILD.md ]]; then
     cp -- "$component/reports/URE-TREE-BACKUP-BUILD.md" "$source_work/project/TREE-BACKUP-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-RESCUE-FILESYSTEMS-BUILD.md ]]; then
+    cp -- "$component/reports/URE-RESCUE-FILESYSTEMS-BUILD.md" "$source_work/project/RESCUE-FILESYSTEMS-BUILD-REPORT.md"
 fi
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"

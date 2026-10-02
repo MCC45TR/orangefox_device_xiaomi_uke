@@ -294,6 +294,34 @@ Value backup_capture(const Root& root, const Value& plan, const fs::path& direct
 Value backup_verify(const fs::path& directory) {
     auto store=private_directory(directory,false); return verify_store(store,store_plan(store));
 }
+Value filesystem_replacement_backup(const Root& system,const StorageTarget& target,const Root& staged,const std::string& file,
+                                    const fs::path& destination,const std::string& profile) {
+    // A filesystem transformation is deliberately bound to the ORIGINAL inode
+    // or unit. This adapter cannot restore an unrelated file or alter geometry.
+    require(identifier(profile),"invalid-profile","A transformation profile is required"); storage_revalidate(target,&system);
+    auto input=staged.open(file,O_RDONLY|O_NONBLOCK); const auto original=source_state(input.get());
+    require(original["bytes"]==target.identity["bytes"] && (original["device"]!=target.identity["file_device"] || original["inode"]!=target.identity["file_inode"]),
+        "invalid-staged-filesystem","Transformation must be a separate regular file of the exact target capacity");
+    require(original["bytes"]==target.identity["bytes"] && original["uid"].asUInt()==::geteuid() && original["mode"].asUInt()==0600,
+        "invalid-staged-filesystem","Staged filesystem must be private and match target capacity");
+    require(staged.stat(file).st_nlink==1,"invalid-staged-filesystem","Staged filesystem must have exactly one hard link");
+    Value plan; plan["schema"]=2; plan["source_kind"]=target.identity["kind"]=="live-block" ? "live-block" : "storage-image";
+    plan["source_identity"]=target.identity; plan["root_identity"]["context"]="storage-target"; plan["firmware_profile"]=profile;
+    plan["atomic_snapshot"]=false; plan["restore_authorized"]=false; plan["filesystem"]=filesystem_probe(input.get());
+    plan["coherence"]="private staged filesystem transformation, revalidated and bound to the original target";
+    plan["prepared_file_identity"]=original; plan["content_origin"]="reviewed-filesystem-transformation";
+    plan=scan_plan(input.get(),plan,16*1024*1024); auto store=private_directory(destination,true); auto lock=lock_store(store);
+    store.save_record("plan.json",plan);
+    for(const auto& chunk:plan["chunks"]) {
+        require(json(source_state(input.get()))==json(original),"stale-source","Staged filesystem changed during capture");
+        auto output=store.open(chunk_name(chunk["index"].asUInt64()),O_RDWR|O_CREAT|O_EXCL,0600);
+        require(transfer(input.get(),chunk["offset"].asUInt64(),chunk["bytes"].asUInt64(),output.get())==chunk["sha256"].asString() && ::fsync(output.get())==0 &&
+            sha256(output.get())==chunk["sha256"].asString(),"backup-corrupt","Transformed filesystem chunk failed readback");
+    }
+    require(json(source_state(input.get()))==json(original) && ::fsync(store.fd())==0,"stale-source","Staged filesystem changed after capture");
+    auto progress=verify_store(store,plan); require(progress["verified"]==true,"backup-corrupt","Transformed filesystem backup is incomplete");
+    store.save_record("progress.json",progress); return progress;
+}
 void backup_export(const Root& root, const Value& plan, std::uint64_t index, int output_fd) {
     StreamSource source(root,plan);
     require(index<plan["chunks"].size(),"invalid-chunk","Chunk index is outside the manifest");

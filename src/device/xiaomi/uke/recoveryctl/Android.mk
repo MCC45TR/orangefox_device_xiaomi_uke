@@ -7,8 +7,8 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/system/bin
 LOCAL_SRC_FILES := recoveryctl.cpp
 LOCAL_CPPFLAGS := -std=c++20 -fexceptions -Wall -Wextra -Werror
-LOCAL_STATIC_LIBRARIES := libuke-recovery libjsoncpp
-LOCAL_SHARED_LIBRARIES := libcrypto
+LOCAL_STATIC_LIBRARIES := libuke-recovery libjsoncpp liblzma
+LOCAL_SHARED_LIBRARIES := libcrypto libz libzstd
 LOCAL_C_INCLUDES := external/jsoncpp/include
 include $(BUILD_EXECUTABLE)
 

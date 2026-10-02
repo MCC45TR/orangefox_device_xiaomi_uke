@@ -17,12 +17,21 @@ Value filesystem_check(int fd) {
     else if(type=="vfat") { tool="fsck.fat"; args={"-n",source}; }
     else if(type=="f2fs") { tool="fsck.f2fs"; args={"--dry-run",source}; }
     else if(type=="exfat") { tool="fsck.exfat"; args={"-n",source}; }
-    else if(type=="ntfs") { tool="fsck.ntfs"; args={"-n",source}; }
+    else if(type=="ntfs") {
+#ifdef __ANDROID__
+        tool="fsck.ntfs"; // The pinned Android module is ntfsprogs/ntfsfix.c.
+#else
+        tool="ntfsfix"; // Host fsck.ntfs may be a different tool without -n.
+#endif
+        args={"-n",source};
+    }
     else if(type=="btrfs") { tool="btrfs"; args={"check","--readonly",source}; }
     else throw Error("unsupported-filesystem","No reviewed read-only checker is available for the detected signature");
     auto output=process_json(run_tool(tool,args,300,{}, {fd}));
     output["filesystem"]=type; output["read_only"]=true; output["signature_only"]=false;
-    output["source_write_descriptor"]=false; return output;
+    output["source_write_descriptor"]=false;
+    if(type=="ntfs")output["check_scope"]="Limited ntfsfix metadata validation; full NTFS repair still requires Windows chkdsk";
+    return output;
 }
 Value image_tool(const std::string& command,const std::string& operation,int fd) {
     const auto signature=filesystem_probe(fd);

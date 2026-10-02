@@ -46,6 +46,24 @@ static Value usage() {
         "gpt journal-inspect JOURNAL --image IMAGE|--object STABLE_ID",
         "gpt resume JOURNAL --image IMAGE|--object STABLE_ID --confirm SHA256 (readback commit only)",
         "linux detect|info|kernels|boot-entries|diagnose --root ROOT [--esp ESP]",
+        "linux audit --root ROOT [--esp ESP] [--output PRIVATE_JSON]",
+        "linux rescue-plan REQUEST --root ROOT [--esp ESP] --output PLAN",
+        "linux rescue-execute PLAN --root ROOT [--esp ESP] --journal NEW_DIR --confirm SHA256",
+        "linux rescue-inspect JOURNAL",
+        "storage preflight --image IMAGE|--object ID --profile PROFILE [--sector-size 512/4096]",
+        "filesystem capabilities",
+        "filesystem plan REQUEST --image IMAGE|--object ID --profile PROFILE --output PLAN",
+        "filesystem execute PLAN --image IMAGE --journal NEW_DIR --confirm SHA256",
+        "filesystem inspect-journal JOURNAL --image IMAGE",
+        "filesystem resume|rollback|cancel JOURNAL --image IMAGE --confirm SHA256",
+        "btrfs plan REQUEST --root ROOT --profile PROFILE --output PLAN",
+        "btrfs execute PLAN --root ROOT --journal DIR --confirm SHA256",
+        "btrfs snapshot-plan SOURCE PARENT NAME --root ROOT --profile PROFILE --output NEW_STORE",
+        "btrfs snapshot-execute STORE --root ROOT --confirm SHA256",
+        "btrfs send-plan SNAPSHOT [PARENT_SNAPSHOT] --root ROOT --profile PROFILE --output NEW_STORE",
+        "btrfs send-capture STORE --root ROOT --confirm SHA256",
+        "btrfs send-verify|backup-inspect STORE; btrfs stream-check FILE",
+        "btrfs subvolume-info RELATIVE --root ROOT",
         "windows detect|info|boot|diagnose --root ROOT [--esp ESP]",
         "files list|search DIRECTORY [PATTERN] --root ROOT", "editor read FILE --root ROOT",
         "editor validate FILE fstab|crypttab|bls|json --root ROOT",
@@ -92,6 +110,12 @@ static Value usage() {
 int dispatch(std::vector<std::string> args) {
     const bool binary_output=args.size()>1 && args[0]=="backup" && (args[1]=="export" || args[1]=="store-export");
     try {
+        if(management_command(args)) {
+            const auto data=management_dispatch(std::move(args)); auto result=envelope(data);
+            const bool failed=data.isObject() && data.isMember("successful") && !data["successful"].asBool();
+            if(failed)result["result"]="operation-error";
+            std::cout<<json(result); return failed ? 2 : 0;
+        }
         auto root_option=option(args,"--root"), system_option=option(args,"--system-root"), esp_option=option(args,"--esp");
         const auto image_option=option(args,"--image"), output_option=option(args,"--output"), sector_option=option(args,"--sector-size");
         const auto content_option=option(args,"--content-file"), profile_option=option(args,"--profile"), journal_option=option(args,"--journal"), confirm_option=option(args,"--confirm");

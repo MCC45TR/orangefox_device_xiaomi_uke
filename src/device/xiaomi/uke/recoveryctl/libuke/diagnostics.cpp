@@ -111,20 +111,20 @@ Value capabilities(const Root& system) {
         {"URE-C05","Kernel/initramfs/module/BLS consistency","","","SOURCE_PRESENT"},
         {"URE-C06","Atomic editor backend and config validators","","","SOURCE_PRESENT"},
         {"URE-C07","File metadata/search and Linux/home tree backup/isolated restore","","","SOURCE_PRESENT"},
-        {"URE-C08","Controlled chroot","","","PLANNED"},
+        {"URE-C08","Native distribution-aware chroot and guided repair","","","SOURCE_PRESENT"},
         {"URE-C09","Expanded recovery kernel","","","PLANNED"},
         {"URE-C10","LUKS","cryptsetup","","TOOL_REQUIRED"},
         {"URE-C11","BitLocker","cryptsetup","","TOOL_REQUIRED"},
-        {"URE-C12","Btrfs subvolumes and snapshots","btrfs","btrfs","TOOL_REQUIRED"},
-        {"URE-C13","Btrfs maintenance and streams","btrfs","btrfs","TOOL_REQUIRED"},
-        {"URE-C14","GPT backup/image repair/restore and filesystem inspection","","","SOURCE_PRESENT"},
+        {"URE-C12","Native Btrfs subvolumes, snapshots and retained-original rollback","","btrfs","KERNEL_REQUIRED"},
+        {"URE-C13","Native Btrfs scrub/balance and verified send streams","","btrfs","PARTIAL"},
+        {"URE-C14","GPT image transactions and staged filesystem format/repair/resize","","","SOURCE_PRESENT"},
         {"URE-C15","Android advanced manager/FBE","lpdump","","PARTIAL"},
         {"URE-C16","Boot target discovery and request validation","","","BLOCKED_BACKEND"},
         {"URE-C17","Boot history and restoration","","","PLANNED"},
         {"URE-C18","USB/SSH/SFTP and streamed backups","dropbear","","PARTIAL"},
         {"URE-C19","Wi-Fi rescue","wpa_cli","","TOOL_REQUIRED"},
         {"URE-C20","Windows discovery and WIM rescue","wimlib-imagex","","PARTIAL"},
-        {"URE-C21","Multi-OS partition designer","","","PLANNED"},
+        {"URE-C21","Multi-OS partition designer","","","PARTIAL"},
         {"URE-C22","Profiles/provenance and safe recovery update","","","PARTIAL"},
         {"URE-C23","UI/session/operation management","","","PARTIAL"},
         {"URE-C24","Optional extensions and forensics","","","PLANNED"}
@@ -139,6 +139,8 @@ Value capabilities(const Root& system) {
         }
         result["capabilities"].append(item);
     }
+    result["filesystem_management"]=filesystem_capabilities();
+    result["live_storage_writer_accepted"]=false; result["btrfs_receive_implemented"]=false;
     return result;
 }
 } // namespace ure

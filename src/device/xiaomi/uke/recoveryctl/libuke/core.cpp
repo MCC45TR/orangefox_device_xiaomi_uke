@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include <linux/openat2.h>
+#include <sys/syscall.h>
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -77,6 +79,29 @@ Fd Root::open(std::string_view relative, int flags, mode_t mode) const {
         current = std::move(next);
     }
     return current;
+}
+Fd Root::open_resolved(std::string_view relative, int flags) const {
+    components(relative);
+    require((flags & O_ACCMODE)==O_RDONLY && !(flags & (O_CREAT|O_TRUNC|O_APPEND)) && (flags & O_TMPFILE)!=O_TMPFILE,
+        "read-only-resolver", "Installed-system alias resolution accepts only read access");
+    struct open_how how{};
+    how.flags=static_cast<std::uint64_t>(flags|O_CLOEXEC);
+    how.resolve=RESOLVE_IN_ROOT|RESOLVE_NO_MAGICLINKS;
+    const std::string path(relative.empty() ? "." : relative);
+    Fd result(static_cast<int>(::syscall(SYS_openat2,fd(),path.c_str(),&how,sizeof(how))));
+    require(result.get()>=0, errno==ENOSYS ? "resolver-unavailable" : "path-unavailable",
+        "Cannot resolve the installed-system path inside its selected root");
+    return result;
+}
+std::string Root::read_resolved(std::string_view relative, std::size_t limit) const {
+    auto file=open_resolved(relative,O_RDONLY|O_NONBLOCK); struct stat st{};
+    require(::fstat(file.get(),&st)==0 && S_ISREG(st.st_mode) && st.st_size>=0 && static_cast<std::uint64_t>(st.st_size)<=limit,
+        "invalid-file", "Expected a bounded regular installed-system file");
+    return storage_read(file.get(),0,static_cast<std::size_t>(st.st_size));
+}
+bool Root::exists_resolved(std::string_view relative) const {
+    try { auto fd=open_resolved(relative,O_RDONLY|O_NONBLOCK); return fd.get()>=0; }
+    catch(const Error& e) { if(e.code=="path-unavailable")return false; throw; }
 }
 std::string Root::read(std::string_view relative, std::size_t limit) const {
     auto file = open(relative, O_RDONLY | O_NONBLOCK);
@@ -298,7 +323,7 @@ std::string redact(std::string text) {
     return output.str();
 }
 static std::string tool_path(const std::string& name) {
-    static const std::set<std::string> allowed{"btrfs", "cryptsetup", "e2fsck", "fsck.fat", "fsck.f2fs", "dump.f2fs", "dump.exfat", "fsck.exfat", "ntfsfix", "fsck.ntfs", "ntfsresize", "wimlib-imagex", "lpdump", "bootctl", "dmsetup", "dropbear", "dropbearkey", "ssh-keygen", "sftp-server", "journalctl", "systemctl", "ip", "wpa_cli", "blkid", "readelf", "avbctl"};
+    static const std::set<std::string> allowed{"btrfs", "cryptsetup", "e2fsck", "fsck.fat", "fsck.f2fs", "dump.f2fs", "dump.exfat", "fsck.exfat", "ntfsfix", "fsck.ntfs", "ntfsresize", "wimlib-imagex", "lpdump", "bootctl", "dmsetup", "dropbear", "dropbearkey", "ssh-keygen", "sftp-server", "journalctl", "systemctl", "ip", "wpa_cli", "blkid", "readelf", "avbctl", "mke2fs", "mkfs.fat", "mkfs.exfat", "mkfs.ntfs", "make_f2fs", "mkfs.f2fs", "mkfs.btrfs", "resize2fs", "resize.f2fs", "fatresize"};
     require(allowed.contains(name), "tool-rejected", "Tool is outside the reviewed allowlist");
 #ifdef __ANDROID__
     const std::vector<std::string> paths{"/system/bin/", "/sbin/"};

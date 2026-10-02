@@ -37,6 +37,11 @@ public:
     explicit Root(Fd directory);
     int fd() const { return fd_.get(); }
     Fd open(std::string_view relative, int flags, mode_t mode = 0) const;
+    // Read installed-system aliases inside this root. Absolute symlinks remain
+    // relative to the selected root; magic links and all writes are refused.
+    Fd open_resolved(std::string_view relative, int flags) const;
+    std::string read_resolved(std::string_view relative, std::size_t limit = 1024 * 1024) const;
+    bool exists_resolved(std::string_view relative) const;
     std::string read(std::string_view relative, std::size_t limit = 1024 * 1024) const;
     bool exists(std::string_view relative) const;
     struct stat stat(std::string_view relative) const;
@@ -130,6 +135,33 @@ Value filesystem_check(int fd);
 Value image_tool(const std::string& command, const std::string& operation, int fd);
 Value gpt_inspect(int fd, std::uint32_t sector_size);
 Value linux_detect(const Root& root, const Root* esp = nullptr);
+Value linux_boot_audit(const Root& root, const Root* esp = nullptr);
+Value linux_rescue_plan(const Root& root, const Value& request, const Root* esp = nullptr);
+Value linux_rescue_execute(const Root& root, const Value& plan, const fs::path& journal,
+                           const std::string& confirmation, const Root* esp = nullptr);
+void filesystem_tree_gate(int fd);
+void filesystem_tree_outside(int source, int destination);
+Value descriptor_identity(int fd);
+Value storage_preflight(const Root& system, const StorageTarget& target, const std::string& profile);
+Value filesystem_capabilities();
+Value filesystem_operation_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
+Value filesystem_operation_execute(const Root& system, StorageTarget& target, const Value& plan, const fs::path& journal, const std::string& confirmation);
+Value filesystem_operation_recover(const Root& system, StorageTarget& target, const fs::path& journal, const std::string& operation, const std::string& confirmation = {});
+Value filesystem_replacement_backup(const Root& system, const StorageTarget& target, const Root& staged, const std::string& file,
+                                    const fs::path& destination, const std::string& profile);
+bool management_command(const std::vector<std::string>& args);
+Value management_dispatch(std::vector<std::string> args);
+Value btrfs_subvolume_info(const Root& root, const std::string& relative);
+Value btrfs_snapshot_plan(const Root& root, const std::string& source, const std::string& parent, const std::string& name, const std::string& profile, const fs::path& store);
+Value btrfs_snapshot_execute(const Root& root, const fs::path& store, const std::string& confirmation);
+Value btrfs_send_plan(const Root& root, const std::string& source, const std::string& parent, const std::string& profile, const fs::path& store);
+Value btrfs_send_capture(const Root& root, const fs::path& store, const std::string& confirmation);
+Value btrfs_backup_inspect(const fs::path& store);
+Value btrfs_send_verify(const fs::path& store);
+Value btrfs_stream_check(int fd);
+Value btrfs_native_info(const Root& root, const std::string& operation);
+Value btrfs_manage_plan(const Root& root, const Value& request, const std::string& profile);
+Value btrfs_manage_execute(const Root& root, const Value& plan, const fs::path& journal, const std::string& confirmation);
 Value windows_detect(const Root& root, const Root* esp = nullptr);
 Value config_validate(const Root& root, const std::string& file, const std::string& kind);
 Value files_list(const Root& root, const std::string& directory);

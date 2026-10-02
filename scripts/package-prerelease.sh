@@ -59,13 +59,16 @@ cp -- "$component/docs/PARTITION-MANAGER.md" "$package_work/PARTITION-MANAGER.md
 cp -- "$component/docs/DISPLAY-SCALING.md" "$package_work/DISPLAY-SCALING.md"
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$package_work/EXTERNAL-MONITOR.md"
 cp -- "$component/docs/TREE-BACKUP.md" "$package_work/TREE-BACKUP.md"
+for guide in FILESYSTEM-MANAGER LINUX-RESCUE-AND-BOOT BTRFS-MANAGER; do
+    cp -- "$component/docs/$guide.md" "$package_work/$guide.md"
+done
 cp -- "$component/LICENSE" "$package_work/LICENSE"
 # All files receive a deterministic timestamp. Replacing this generated asset is intentional.
 find "$package_work" -type f -exec touch -d '@1790726400' {} +
 zipfile="$destination/OrangeFox-uke-flashable.zip"
 [[ ! -e $zipfile ]] || mv -- "$zipfile" "$package_work/previous.zip"
 (cd -- "$package_work" && zip -X -9 "$zipfile" META-INF/com/google/android/update-binary \
-    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md PARTITION-MANAGER.md DISPLAY-SCALING.md EXTERNAL-MONITOR.md TREE-BACKUP.md LICENSE >/dev/null)
+    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md PARTITION-MANAGER.md DISPLAY-SCALING.md EXTERNAL-MONITOR.md TREE-BACKUP.md FILESYSTEM-MANAGER.md LINUX-RESCUE-AND-BOOT.md BTRFS-MANAGER.md LICENSE >/dev/null)
 unzip -t "$zipfile" >/dev/null
 cp -- "$component/manifests/orangefox-android16-uke.lock.xml" "$destination/ORANGEFOX-SOURCE-PINS.xml"
 cp -- "$component/manifests/stock-kernel-source.json" "$destination/STOCK-KERNEL-SOURCE.json"

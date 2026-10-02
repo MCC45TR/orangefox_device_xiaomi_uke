@@ -5,11 +5,25 @@ cc_library_static {
     cpp_std: "c++20",
     cppflags: ["-fexceptions"],
     cflags: ["-Wall", "-Wextra", "-Werror"],
-    srcs: ["libuke/core.cpp", "libuke/storage.cpp", "libuke/systems.cpp",
+    srcs: ["libuke/core.cpp", "libuke/storage.cpp", "libuke/systems.cpp", "libuke/boot_audit.cpp",
            "libuke/transaction.cpp", "libuke/diagnostics.cpp", "libuke/tools.cpp",
-           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/tree.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/stock.cpp", "libuke/partition.cpp", "libuke/layout.cpp", "libuke/display.cpp", "libuke/ownership.cpp"],
+           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/tree.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/stock.cpp", "libuke/partition.cpp", "libuke/layout.cpp", "libuke/display.cpp", "libuke/ownership.cpp",
+           "libuke/preflight.cpp", "libuke/filesystems.cpp", "libuke/rescue.cpp", "libuke/btrfs_backup.cpp", "libuke/btrfs_manager.cpp", "libuke/management.cpp"],
     export_include_dirs: ["libuke"],
-    static_libs: ["libjsoncpp"],
-    shared_libs: ["libcrypto"],
+    static_libs: ["libjsoncpp", "liblzma"],
+    shared_libs: ["libcrypto", "libz", "libzstd"],
     export_static_lib_headers: ["libjsoncpp"],
+}
+
+// Explicit build target for disposable QEMU media; excluded from all products.
+cc_binary {
+    name: "uke-btrfs-vm-fixture",
+    recovery: true,
+    installable: false,
+    cpp_std: "c++20",
+    cppflags: ["-fexceptions"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    srcs: ["vm-btrfs-fixture.cpp"],
+    static_libs: ["libuke-recovery", "libjsoncpp", "liblzma"],
+    shared_libs: ["libcrypto", "libz", "libzstd"],
 }

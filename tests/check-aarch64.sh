@@ -34,6 +34,7 @@ UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-stock-gp
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-partition-map.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-layout.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-display.sh"
+UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-boot-audit.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-recoveryctl.sh"
 target() {
     local name=$1; shift

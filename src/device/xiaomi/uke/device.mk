@@ -23,6 +23,8 @@ PRODUCT_PACKAGES += \
     fsck.fat \
     mke2fs \
     mkfs.fat \
+    make_f2fs.recovery \
+    fsck.f2fs.recovery \
     resize2fs \
     tune2fs \
     sgdisk

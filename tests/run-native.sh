@@ -18,6 +18,9 @@ bash tests/check-stock-gpt.sh
 bash tests/check-partition-map.sh
 bash tests/check-layout.sh
 bash tests/check-display.sh
+bash tests/check-filesystems.sh
+bash tests/check-rescue.sh
+bash tests/check-boot-audit.sh
 UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/check-recoveryctl.sh
 bash tests/check-installer.sh
 bash tests/check-payload-fixtures.sh
@@ -28,6 +31,10 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
     | jq '.validation.cpp_tablet_display_density_and_actual_renderer_hooks=true | .validation.display_cli_settings_fixtures=true |
         .validation.cpp_external_display_fake_drm_and_edid=true | .validation.cpp_hardware_keyboard_actual_routing=true |
         .validation.cpp_evdev_actual_hotplug=true | .validation.cpp_linux_home_tree_backup=true | .validation.tree_backup_cli_and_sigkill_resume=true |
-        .validation.cpp_userdata_layout_advanced_mode_and_image_rollback=true | .validation.cpp_actual_partition_graph_widget=true | .validation.layout_cli_fixtures=true' \
+        .validation.cpp_userdata_layout_advanced_mode_and_image_rollback=true | .validation.cpp_actual_partition_graph_widget=true | .validation.layout_cli_fixtures=true |
+        .validation.cpp_installed_boot_audit_and_operation_policy=true | .validation.cpp_actual_management_callbacks=true |
+        .validation.filesystem_staged_tools_and_complete_rollback=true | .validation.distribution_chroot_mount_and_process_cleanup=true |
+        .validation.native_boot_asset_codecs=true | .validation.chroot_distro_dispatch_fixture=true | .validation.real_package_database_repair=false |
+        .validation.live_block_write=false | .validation.shipping_btrfs_kernel=false' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

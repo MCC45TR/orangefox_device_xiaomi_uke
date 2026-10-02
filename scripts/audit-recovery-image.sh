@@ -35,11 +35,21 @@ bash "$component/tests/check-elf-closure.sh" "$work/root"
 xmllint --noout "$work/root/sbin/maintainer.xml" "$work/root/twres/pages/advanced.xml"
 cmp "$component/src/device/xiaomi/uke/maintainer.xml" "$work/root/sbin/maintainer.xml"
 cmp "$component/src/device/xiaomi/uke/ure-gui.cpp" "$tree/bootable/recovery/gui/ure.cpp"
+while IFS= read -r -d '' source_file; do
+    cmp -- "$source_file" "$tree/device/xiaomi/uke/${source_file#"$component/src/device/xiaomi/uke/"}"
+done < <(find "$component/src/device/xiaomi/uke" -type f -print0)
 rg -q 'type == "urepartitionmap"' "$tree/bootable/recovery/gui/pages.cpp"
 [[ $(xmllint --xpath 'count(/recovery/pages/page[@name="ure_layout"]//urepartitionmap)' "$work/root/sbin/maintainer.xml") == 1 ]]
 strings "$work/root/system/bin/uke-recoveryctl" | rg 'ORIGINAL_USERDATA_ONLY' >/dev/null
 strings "$work/root/system/bin/recovery" | rg 'ure_layout_graph' >/dev/null
+for page in ure_filesystems ure_linux ure_btrfs; do
+    [[ $(xmllint --xpath "count(/recovery/pages/page[@name='$page'])" "$work/root/sbin/maintainer.xml") == 1 ]]
+done
+for marker in ure-linux-boot-audit filesystem.manage btrfs.manage linux.rescue; do
+    strings "$work/root/system/bin/uke-recoveryctl" | rg -F "$marker" >/dev/null
+done
 cmp "$tree/out-public/target/product/uke/system/lib64/libminuitwrp.so" "$work/root/system/lib64/libminuitwrp.so"
+cmp "$tree/out-public/target/product/uke/system/lib64/libzstd.so" "$work/root/system/lib64/libzstd.so"
 for symbol in gr_external_select gr_external_update ure_mirror_select; do
     readelf --dyn-syms --wide "$work/root/system/lib64/libminuitwrp.so" | grep -F "$symbol" > /dev/null
 done
@@ -48,9 +58,10 @@ cmp "$tree/out-public/target/product/uke/system/etc/mke2fs.conf" "$work/root/sys
 grep -q 'page">ure_home<' "$work/root/twres/pages/advanced.xml"
 [[ $(readlink -- "$work/root/system/bin/dropbearkey") == /system/bin/dropbear ]]
 [[ ! -e $work/root/system/bin/keystore_cli_v2 ]]
-for tool in uke-recoveryctl uke-recovery-install recovery dropbear wimlib-imagex ntfsresize fsck.exfat dump.exfat mkfs.exfat fsck.f2fs; do
+for tool in uke-recoveryctl uke-recovery-install recovery dropbear wimlib-imagex ntfsresize fsck.exfat dump.exfat mkfs.exfat fsck.f2fs make_f2fs; do
     cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/$tool" "$work/root/system/bin/$tool"
 done
+[[ ! -e $work/root/system/bin/uke-btrfs-vm-fixture && $(readlink "$work/root/system/bin/resize.f2fs") == fsck.f2fs ]]
 qemu=false
 if [[ $mode == --qemu ]]; then
     if [[ ${URE_AUDIT_TRACE:-0} == 1 ]]; then
@@ -66,5 +77,5 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" \
     --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" \
     --argjson bytes "$bytes" --argjson qemu "$qemu" \
-    '{schema_version:1,recovery_image_sha256:$image,compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
+    '{schema_version:1,recovery_image_sha256:$image,compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
 echo 'Final compressed ramdisk audit passed; source, emulation and hardware evidence remain separate.'

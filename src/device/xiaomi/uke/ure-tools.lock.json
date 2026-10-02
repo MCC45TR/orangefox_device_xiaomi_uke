@@ -4,8 +4,11 @@
   "firmware_profile": "global-os3.0.303.0",
   "physical_validation": false,
   "tools": [
-    {"name": "libuke-recovery", "language": "C++20", "owner": "recovery-uke-ofox", "api_schema": 1, "license": "Apache-2.0", "block_transactions": false},
+    {"name": "libuke-recovery", "language": "C++20", "owner": "recovery-uke-ofox", "api_schema": 1, "license": "Apache-2.0", "block_transactions": false, "image_transactions": true, "live_preflight": true, "btrfs_native_ioctl": true, "btrfs_receive": false},
     {"name": "JsonCpp", "commit": "8f65e4b14b9946910e1519231097870b5953b00f", "license": "MIT", "source": "external/jsoncpp"},
+    {"name": "LZMA SDK", "commit": "c1bc713526e9740aec88f0f18e0bca0b0c54f1f9", "license": "Public domain", "source": "external/lzma", "role": "bounded native XZ boot-asset audit"},
+    {"name": "zlib", "commit": "c1f2595cae6ef4703003a8c9ea53239a10d7a1dd", "license": "Zlib", "source": "external/zlib", "role": "bounded native gzip boot-asset audit"},
+    {"name": "Zstandard", "commit": "a375e4fc85612babf34c8221f825a86036175ac0", "license": "BSD-3-Clause or GPL-2.0-only", "source": "external/zstd", "adapter": "patches/0009-native-boot-audit-codecs.patch", "role": "bounded native Zstd boot-asset audit"},
     {"name": "ntfs-3g", "commit": "e2415df401538976fb89aa20370903e0c46e51ff", "license": "GPL-2.0-or-later", "source": "external/ntfs-3g", "adapter": "patches/0003-build-ntfsresize.patch"},
     {"name": "wimlib-imagex", "version": "1.14.5", "commit": "cd5e231c348c255ae5088873b5a66ee0eb96fa07", "license": "GPL-3.0-or-later", "ntfs_support": true, "fuse_support": false, "adapter": "configs/ure/wimlib-Android.bp"},
     {"name": "Dropbear", "version": "2025.89", "commit": "179de98f7b9584a309ffc48e39c61da940760740", "license": "MIT and bundled original notices", "password_auth": false, "pam_auth": false, "forwarding": false, "sftp": false, "automatic_start": false, "adapter": "configs/ure/dropbear-Android.bp"},

@@ -76,10 +76,10 @@ Value linux_detect(const Root& root, const Root* esp) {
     Value result; result["detected"]=false; result["read_only"]=true;
     result["warnings"]=Value(Json::arrayValue);
     std::string release;
-    if(root.exists("etc/os-release"))release="etc/os-release";
-    else if(root.exists("usr/lib/os-release"))release="usr/lib/os-release";
+    if(root.exists_resolved("etc/os-release"))release="etc/os-release";
+    else if(root.exists_resolved("usr/lib/os-release"))release="usr/lib/os-release";
     if(!release.empty()) {
-        const auto fields=parse_os_release(root.read(release,65536));
+        const auto fields=parse_os_release(root.read_resolved(release,65536));
         result["detected"]=fields.contains("ID") || fields.contains("NAME"); result["os_release_source"]=release;
         for(const auto& key : {"ID","ID_LIKE","NAME","PRETTY_NAME","VERSION","VERSION_ID","VARIANT_ID","BUILD_ID"}) {
             const auto found=fields.find(key); if(found!=fields.end())result["distribution"][key]=found->second;
@@ -112,9 +112,10 @@ Value linux_detect(const Root& root, const Root* esp) {
     result["recovery_kernel_is_installed_kernel"]=false;
     result["architecture"]="unknown";
     for(const auto& shell : {"usr/bin/bash","bin/bash","usr/bin/sh"}) {
-        if(!root.exists(shell))continue;
-        auto binary=root.open(shell,O_RDONLY); unsigned char header[20]{};
-        if(::pread(binary.get(),header,sizeof(header),0)==static_cast<ssize_t>(sizeof(header)) && std::equal(header,header+4,reinterpret_cast<const unsigned char*>("\x7f" "ELF"))) {
+        if(!root.exists_resolved(shell))continue;
+        auto binary=root.open_resolved(shell,O_RDONLY); unsigned char header[20]{};
+        if(::pread(binary.get(),header,sizeof(header),0)==static_cast<ssize_t>(sizeof(header)) && header[4]==2 && header[5]==1 &&
+            header[17]==0 && (header[16]==2 || header[16]==3) && std::equal(header,header+4,reinterpret_cast<const unsigned char*>("\x7f" "ELF"))) {
             const auto machine=static_cast<unsigned>(header[18]) | static_cast<unsigned>(header[19])<<8;
             if(header[5]==1)result["architecture"]=machine==183 ? "aarch64" : machine==62 ? "x86_64" : "other";
             break;

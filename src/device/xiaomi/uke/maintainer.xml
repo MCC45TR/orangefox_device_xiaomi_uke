@@ -2,6 +2,47 @@
 <!-- Project-owned URE pages. Actions are native; paths never enter a shell. -->
 <recovery>
   <variables>
+    <variable name="ure_esp" value=""/>
+    <variable name="ure_fs_action" value="format"/>
+    <variable name="ure_fs_type" value="ext4"/>
+    <variable name="ure_fs_label" value="URE"/>
+    <variable name="ure_fs_erase" value="0"/>
+    <variable name="ure_fs_size" value="64"/>
+    <variable name="ure_fs_unit" value="MiB"/>
+    <variable name="ure_rescue_action" value="package-check"/>
+    <variable name="ure_rescue_write" value="0"/>
+    <variable name="ure_rescue_timeout" value="900"/>
+    <variable name="ure_rescue_command" value=""/>
+    <variable name="ure_rescue_kernel" value=""/>
+    <variable name="ure_manage_hash" value=""/>
+    <variable name="ure_manage_can_apply" value="0"/>
+    <variable name="ure_manage_summary" value="Prepare and review the selected operation"/>
+    <variable name="ure_manage_journal" value=""/>
+    <variable name="ure_fs_journal_hash" value=""/>
+    <variable name="ure_fs_can_resume" value="0"/>
+    <variable name="ure_fs_can_rollback" value="0"/>
+    <variable name="ure_fs_can_cancel" value="0"/>
+    <variable name="ure_form_field" value=""/>
+    <variable name="ure_form_value" value=""/>
+    <variable name="ure_form_back" value="ure_filesystems"/>
+    <variable name="ure_btrfs_root" value="/mnt/uke-linux"/>
+    <variable name="ure_btrfs_action" value="snapshot"/>
+    <variable name="ure_btrfs_source" value="@home"/>
+    <variable name="ure_btrfs_path" value="home-snapshot"/>
+    <variable name="ure_btrfs_backup" value="home-snapshot"/>
+    <variable name="ure_btrfs_saved" value="home-before-rollback"/>
+    <variable name="ure_btrfs_readonly" value="1"/>
+    <variable name="ure_btrfs_repair" value="0"/>
+    <variable name="ure_btrfs_size" value="1"/>
+    <variable name="ure_btrfs_unit" value="GiB"/>
+    <variable name="ure_btrfs_device" value="1"/>
+    <variable name="ure_btrfs_usage" value="10"/>
+    <variable name="ure_btrfs_limit" value="8"/>
+    <variable name="ure_btrfs_parent" value="."/>
+    <variable name="ure_btrfs_name" value="recovery-snapshot"/>
+    <variable name="ure_btrfs_incremental_parent" value=""/>
+    <variable name="ure_btrfs_store" value="/mnt/uke-backups/btrfs-new"/>
+    <variable name="ure_maintenance_state" value="IDLE"/>
     <variable name="ure_layout_mode" value="standard"/>
     <variable name="ure_layout_placement" value="after_userdata"/>
     <variable name="ure_layout_userdata_policy" value="preserve"/>
@@ -84,6 +125,240 @@
     <variable name="ure_stream_can_cancel" value="0"/>
   </variables>
   <pages>
+    <page name="ure_management_input">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Edit selection</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_2_y%"/><text>Enter the selected path, name or value</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_form_value%</text><data name="ure_form_value"/><restrict minlen="0" maxlen="4096"/></input>
+      <listbox style="group_list"><placement x="0" y="%row4_1_y%" w="%screen_w%" h="160"/>
+        <listitem name="Keep this selection"><action function="uremanager">manage-field-save</action><action function="page">%ure_form_back%</action></listitem>
+      </listbox>
+      <template name="gestures_key"/><action><touch key="back"/><action function="page">%ure_form_back%</action></action>
+    </page>
+    <page name="ure_filesystems">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Filesystem manager</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Target: %ure_raw_source% / %ure_raw_kind%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Action: %ure_fs_action%; filesystem: %ure_fs_type%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Sizes change the filesystem only. GPT needs a separate reviewed plan.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <listitem name="Select filesystem image or live partition"><action function="page">ure_raw_select</action></listitem>
+          <listitem name="Inspect selected filesystem"><action function="uremanager">filesystem-inspect</action><action function="page">ure_output</action></listitem>
+          <listitem name="Check without writing"><action function="uremanager">filesystem-check</action><action function="page">ure_output</action></listitem>
+          <listitem name="Review storage and firmware blockers"><action function="uremanager">storage-preflight</action><action function="page">ure_output</action></listitem>
+          <listitem name="Available format, check, repair and resize tools"><action function="uremanager">filesystem-capabilities</action><action function="page">ure_output</action></listitem>
+          <listitem name="Choose action and filesystem"><action function="page">ure_filesystem_choices</action></listitem>
+          <listitem name="Requested size: %ure_fs_size% %ure_fs_unit%"><action function="uremanager">manage-edit-ure_fs_size</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Resize unit: %ure_fs_unit%"><action function="page">ure_filesystem_units</action></listitem>
+          <listitem name="Format label: %ure_fs_label%"><action function="uremanager">manage-edit-ure_fs_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Formatting may erase all selected files: YES"><condition var1="ure_fs_erase" var2="0"/><action function="set">ure_fs_erase=1</action></listitem>
+          <listitem name="Remove the format data-loss choice"><condition var1="ure_fs_erase" var2="1"/><action function="set">ure_fs_erase=0</action></listitem>
+          <listitem name="Journal destination: %ure_journal_parent%"><action function="uremanager">manage-edit-ure_journal_parent</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Calculate operation and show warnings"><action function="uremanager">filesystem-plan</action><action function="page">ure_filesystem_review</action></listitem>
+          <listitem name="Interrupted job, resume and rollback"><action function="page">ure_filesystem_journal</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_filesystem_choices">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Action and filesystem</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>NTFS repair is limited metadata repair; complete repair uses Windows chkdsk.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>exFAT offline resize needs data migration. Mounted Btrfs has its own manager.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1300"/>
+          <listitem name="Format (erase files)"><action function="set">ure_fs_action=format</action><action function="set">ure_fs_erase=0</action></listitem>
+          <listitem name="Repair existing filesystem"><action function="set">ure_fs_action=repair</action></listitem>
+          <listitem name="Resize existing filesystem"><action function="set">ure_fs_action=resize</action></listitem>
+          <listitem name="EXT4"><action function="set">ure_fs_type=ext4</action></listitem>
+          <listitem name="F2FS"><action function="set">ure_fs_type=f2fs</action></listitem>
+          <listitem name="FAT32 / ESP"><action function="set">ure_fs_type=vfat</action></listitem>
+          <listitem name="exFAT"><action function="set">ure_fs_type=exfat</action></listitem>
+          <listitem name="NTFS"><action function="set">ure_fs_type=ntfs</action></listitem>
+          <listitem name="Btrfs (formatter required)"><action function="set">ure_fs_type=btrfs</action></listitem>
+          <listitem name="Keep action and type"><action function="page">ure_filesystems</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_filesystems</action></action>
+    </page>
+    <page name="ure_filesystem_units">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Filesystem size unit</text></text>
+      <listbox style="group_list"><placement x="0" y="%ab_h%" w="%screen_w%" h="600"/>
+        <listitem name="GB (decimal)"><action function="set">ure_fs_unit=GB</action><action function="page">ure_filesystems</action></listitem>
+        <listitem name="GiB (binary)"><action function="set">ure_fs_unit=GiB</action><action function="page">ure_filesystems</action></listitem>
+        <listitem name="MiB"><action function="set">ure_fs_unit=MiB</action><action function="page">ure_filesystems</action></listitem>
+        <listitem name="Percentage of selected container capacity"><action function="set">ure_fs_unit=%</action><action function="page">ure_filesystems</action></listitem>
+      </listbox><template name="navbar"/><action><touch key="back"/><action function="page">ure_filesystems</action></action>
+    </page>
+    <page name="ure_filesystem_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review filesystem operation</text></text>
+      <textbox><placement x="%col1_x%" y="%ab_h%" w="%input_w%" h="540"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_manage_summary%</text></textbox>
+      <listbox style="group_list"><placement x="0" y="700" w="%screen_w%" h="400"/>
+        <listitem name="Show complete plan and validation"><action function="page">ure_output</action></listitem>
+        <listitem name="Confirm this operation on the selected image"><condition var1="ure_manage_can_apply" var2="1"/><action function="uremanager">filesystem-execute</action><action function="page">ure_result</action></listitem>
+      </listbox><template name="navbar"/><action><touch key="back"/><action function="page">ure_filesystems</action></action>
+    </page>
+    <page name="ure_filesystem_journal">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Filesystem job recovery</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Journal: %ure_manage_journal%</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="800"/>
+          <listitem name="Choose existing journal"><action function="uremanager">manage-edit-ure_manage_journal</action><action function="set">ure_form_back=ure_filesystem_journal</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Inspect current target and recovery actions"><action function="uremanager">filesystem-journal-inspect</action><action function="page">ure_output</action></listitem>
+          <listitem name="Resume this verified image job"><condition var1="ure_fs_can_resume" var2="1"/><action function="uremanager">filesystem-resume</action><action function="page">ure_result</action></listitem>
+          <listitem name="Restore complete original bytes"><condition var1="ure_fs_can_rollback" var2="1"/><action function="uremanager">filesystem-rollback</action><action function="page">ure_result</action></listitem>
+          <listitem name="Cancel without starting writes"><condition var1="ure_fs_can_cancel" var2="1"/><action function="uremanager">filesystem-cancel</action><action function="page">ure_result</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_filesystems</action></action>
+    </page>
+    <page name="ure_linux">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Linux boot and rescue</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Root: %ure_root%; selected ESP: %ure_esp%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Distribution is detected automatically. Separate Linux mounts use fstab identities.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Action: %ure_rescue_action%; writes: %ure_rescue_write%; timeout: %ure_rescue_timeout% seconds</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="2000"/>
+          <listitem name="Select mounted Linux root"><action function="page">ure_select</action></listitem>
+          <listitem name="Select mounted ESP, or leave empty"><action function="uremanager">manage-edit-ure_esp</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Detect distribution and installed kernels"><action function="uremanager">linux</action><action function="page">ure_output</action></listitem>
+          <listitem name="Audit kernels, modules, initramfs, DT, UKI and BLS"><action function="uremanager">linux-audit</action><action function="page">ure_output</action></listitem>
+          <listitem name="Choose rescue or repair action"><action function="page">ure_rescue_choices</action></listitem>
+          <listitem name="Keep root and ESP read-only"><action function="set">ure_rescue_write=0</action></listitem>
+          <listitem name="Allow writes for this reviewed session"><action function="set">ure_rescue_write=1</action></listitem>
+          <listitem name="Enter explicit command"><action function="uremanager">manage-edit-ure_rescue_command</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Exact installed kernel release: %ure_rescue_kernel%"><action function="uremanager">manage-edit-ure_rescue_kernel</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Session timeout"><action function="uremanager">manage-edit-ure_rescue_timeout</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Journal destination"><action function="uremanager">manage-edit-ure_journal_parent</action><action function="set">ure_form_back=ure_linux</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Review automatic mounts and command"><action function="uremanager">rescue-plan</action><action function="page">ure_rescue_review</action></listitem>
+          <listitem name="Choose completed session journal"><action function="uremanager">manage-edit-ure_manage_journal</action><action function="set">ure_form_back=ure_linux</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Read private session result and command output"><action function="uremanager">rescue-inspect</action><action function="page">ure_output</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_rescue_choices">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Rescue action</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Fedora, Arch and Debian use their installed native package tools.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Each GUI command opens a fresh session. ADB/CLI also supports an interactive shell.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1000"/>
+          <listitem name="Run an explicit Bash command"><action function="set">ure_rescue_action=shell</action><action function="page">ure_linux</action></listitem>
+          <listitem name="Check installed package database"><action function="set">ure_rescue_action=package-check</action><action function="page">ure_linux</action></listitem>
+          <listitem name="Repair Fedora RPM database (writes required)"><action function="set">ure_rescue_action=package-repair</action><action function="page">ure_linux</action></listitem>
+          <listitem name="Rebuild installed module index (writes required)"><action function="set">ure_rescue_action=module-index</action><action function="page">ure_linux</action></listitem>
+          <listitem name="Rebuild Fedora/Arch initramfs (writes required)"><action function="set">ure_rescue_action=initramfs-rebuild</action><action function="page">ure_linux</action></listitem>
+          <listitem name="Restore Fedora SELinux labels (writes required)"><action function="set">ure_rescue_action=selinux-relabel</action><action function="page">ure_linux</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_linux</action></action>
+    </page>
+    <page name="ure_rescue_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review isolated rescue session</text></text>
+      <textbox><placement x="%col1_x%" y="%ab_h%" w="%input_w%" h="540"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_manage_summary%</text></textbox>
+      <listbox style="group_list"><placement x="0" y="700" w="%screen_w%" h="400"/>
+        <listitem name="Show exact command, mounts and full plan"><action function="page">ure_output</action></listitem>
+        <listitem name="Confirm and start this session"><condition var1="ure_manage_can_apply" var2="1"/><action function="uremanager">rescue-execute</action><action function="page">ure_result</action></listitem>
+      </listbox><template name="navbar"/><action><touch key="back"/><action function="page">ure_linux</action></action>
+    </page>
+    <page name="ure_btrfs">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Btrfs manager</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Mounted root: %ure_btrfs_root%; action: %ure_btrfs_action%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Requires Btrfs support in the running recovery kernel.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Maintenance: %ure_maintenance_state%; rollback retains the original subvolume.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="3200"/>
+          <listitem name="Select mounted Btrfs root"><action function="uremanager">manage-edit-ure_btrfs_root</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Filesystem identity"><action function="uremanager">btrfs-info</action><action function="page">ure_output</action></listitem>
+          <listitem name="Subvolume IDs and snapshot lineage"><action function="uremanager">btrfs-subvolumes</action><action function="page">ure_output</action></listitem>
+          <listitem name="Usage and allocation groups"><action function="uremanager">btrfs-usage</action><action function="page">ure_output</action></listitem>
+          <listitem name="Device errors"><action function="uremanager">btrfs-device-stats</action><action function="page">ure_output</action></listitem>
+          <listitem name="Scrub status"><action function="uremanager">btrfs-scrub-status</action><action function="page">ure_output</action></listitem>
+          <listitem name="Balance status"><action function="uremanager">btrfs-balance-status</action><action function="page">ure_output</action></listitem>
+          <listitem name="Choose native operation"><action function="page">ure_btrfs_actions</action></listitem>
+          <listitem name="Relative subvolume path: %ure_btrfs_path%"><action function="uremanager">manage-edit-ure_btrfs_path</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Snapshot source: %ure_btrfs_source%"><action function="uremanager">manage-edit-ure_btrfs_source</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Retained snapshot: %ure_btrfs_backup%"><action function="uremanager">manage-edit-ure_btrfs_backup</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Retain original at: %ure_btrfs_saved%"><action function="uremanager">manage-edit-ure_btrfs_saved</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Snapshot / flag choice: read-only"><action function="set">ure_btrfs_readonly=1</action></listitem>
+          <listitem name="Snapshot / flag choice: writable"><action function="set">ure_btrfs_readonly=0</action></listitem>
+          <listitem name="Scrub: verify on a read-only mount"><action function="set">ure_btrfs_repair=0</action></listitem>
+          <listitem name="Scrub: allow repair on a writable mount"><action function="set">ure_btrfs_repair=1</action></listitem>
+          <listitem name="Device ID: %ure_btrfs_device%"><action function="uremanager">manage-edit-ure_btrfs_device</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Balance usage threshold: %ure_btrfs_usage% percent"><action function="uremanager">manage-edit-ure_btrfs_usage</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Balance maximum chunks: %ure_btrfs_limit%"><action function="uremanager">manage-edit-ure_btrfs_limit</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Filesystem size: %ure_btrfs_size% %ure_btrfs_unit%"><action function="uremanager">manage-edit-ure_btrfs_size</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Resize unit: GiB"><action function="set">ure_btrfs_unit=GiB</action></listitem>
+          <listitem name="Resize unit: GB"><action function="set">ure_btrfs_unit=GB</action></listitem>
+          <listitem name="Resize unit: MiB"><action function="set">ure_btrfs_unit=MiB</action></listitem>
+          <listitem name="Resize unit: percentage of current Btrfs size"><action function="set">ure_btrfs_unit=%</action></listitem>
+          <listitem name="Review operation and warnings"><action function="uremanager">btrfs-plan</action><action function="page">ure_btrfs_review</action></listitem>
+          <listitem name="Read-only snapshots and full / incremental send backups"><action function="page">ure_btrfs_backup</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_home</action></action>
+    </page>
+    <page name="ure_btrfs_actions">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Btrfs operation</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Deletion requires a derived read-only backup. Rollback refuses mounted or busy subvolumes.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1400"/>
+          <listitem name="Create subvolume"><action function="set">ure_btrfs_action=create</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Create snapshot"><action function="set">ure_btrfs_action=snapshot</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Change read-only flag"><action function="set">ure_btrfs_action=readonly</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Delete with retained snapshot backup"><action function="set">ure_btrfs_action=delete</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Rollback and retain original at saved path"><action function="set">ure_btrfs_action=rollback</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Resize single-device filesystem"><action function="set">ure_btrfs_action=resize</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Scrub"><action function="set">ure_btrfs_action=scrub</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Cancel all scrub operations on this filesystem"><action function="set">ure_btrfs_action=scrub-cancel</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Filtered, bounded balance"><action function="set">ure_btrfs_action=balance</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Pause active balance"><action function="set">ure_btrfs_action=balance-pause</action><action function="page">ure_btrfs</action></listitem>
+          <listitem name="Cancel active balance"><action function="set">ure_btrfs_action=balance-cancel</action><action function="page">ure_btrfs</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_btrfs</action></action>
+    </page>
+    <page name="ure_btrfs_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review Btrfs operation</text></text>
+      <textbox><placement x="%col1_x%" y="%ab_h%" w="%input_w%" h="540"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_manage_summary%</text></textbox>
+      <listbox style="group_list"><placement x="0" y="700" w="%screen_w%" h="400"/>
+        <listitem name="Show identity, paths and complete plan"><action function="page">ure_output</action></listitem>
+        <listitem name="Confirm this native operation"><condition var1="ure_manage_can_apply" var2="1"/><action function="uremanager">btrfs-execute</action><action function="page">ure_result</action></listitem>
+      </listbox><template name="navbar"/><action><touch key="back"/><action function="page">ure_btrfs</action></action>
+    </page>
+    <page name="ure_btrfs_backup">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Btrfs snapshot and send backup</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Source: %ure_btrfs_source%; incremental parent: %ure_btrfs_incremental_parent%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Store: %ure_btrfs_store%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Send requires an immutable read-only snapshot. Empty parent selects a full backup.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1500"/>
+          <listitem name="Snapshot or send source"><action function="uremanager">manage-edit-ure_btrfs_source</action><action function="set">ure_form_back=ure_btrfs_backup</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Snapshot destination parent"><action function="uremanager">manage-edit-ure_btrfs_parent</action><action function="set">ure_form_back=ure_btrfs_backup</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Snapshot name"><action function="uremanager">manage-edit-ure_btrfs_name</action><action function="set">ure_form_back=ure_btrfs_backup</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Incremental read-only parent, or empty for full"><action function="uremanager">manage-edit-ure_btrfs_incremental_parent</action><action function="set">ure_form_back=ure_btrfs_backup</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="New or existing private backup store"><action function="uremanager">manage-edit-ure_btrfs_store</action><action function="set">ure_form_back=ure_btrfs_backup</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Prepare read-only snapshot plan"><action function="uremanager">btrfs-snapshot-plan</action><action function="page">ure_btrfs_backup_review</action></listitem>
+          <listitem name="Prepare full / incremental send plan"><action function="uremanager">btrfs-send-plan</action><action function="page">ure_btrfs_backup_review</action></listitem>
+          <listitem name="Review existing or interrupted backup"><action function="uremanager">btrfs-backup-review</action><action function="page">ure_btrfs_backup_review</action></listitem>
+          <listitem name="Inspect stored backup without a Btrfs mount"><action function="uremanager">btrfs-backup-inspect</action><action function="page">ure_output</action></listitem>
+          <listitem name="Verify complete stored send data"><action function="uremanager">btrfs-send-verify</action><action function="page">ure_output</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_btrfs</action></action>
+    </page>
+    <page name="ure_btrfs_backup_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review Btrfs backup</text></text>
+      <textbox><placement x="%col1_x%" y="%ab_h%" w="%input_w%" h="540"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_manage_summary%</text></textbox>
+      <listbox style="group_list"><placement x="0" y="700" w="%screen_w%" h="400"/>
+        <listitem name="Show snapshot lineage and complete plan"><action function="page">ure_output</action></listitem>
+        <listitem name="Confirm snapshot / capture or verified restart"><condition var1="ure_manage_can_apply" var2="1"/><action function="uremanager">btrfs-backup-execute</action><action function="page">ure_result</action></listitem>
+      </listbox><template name="navbar"/><action><touch key="back"/><action function="page">ure_btrfs_backup</action></action>
+    </page>
     <page name="ure_layout">
       <template name="base_ex"/>
       <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Partition layout</text></text>
@@ -291,7 +566,9 @@
           <listitem name="Recovery diagnostics"><icon res="wrench"/><action function="uremanager">diagnose</action><action function="page">ure_output</action></listitem>
           <listitem name="Export a scrubbed JSON report"><icon res="overview"/><action function="uremanager">report</action><action function="page">ure_output</action></listitem>
           <listitem name="Select OS root and editor file"><icon res="mount_list"/><action function="page">ure_select</action></listitem>
-          <listitem name="Linux distribution, kernels and boot entries"><icon res="overview"/><action function="uremanager">linux</action><action function="page">ure_output</action></listitem>
+          <listitem name="Linux kernel, boot audit and automatic chroot"><icon res="overview"/><action function="page">ure_linux</action></listitem>
+          <listitem name="Filesystem format, check, repair and resize"><icon res="partitions"/><action function="page">ure_filesystems</action></listitem>
+          <listitem name="Btrfs subvolumes, rollback, maintenance and backups"><icon res="partitions"/><action function="page">ure_btrfs</action></listitem>
           <listitem name="Windows installation discovery"><icon res="overview"/><action function="uremanager">windows</action><action function="page">ure_output</action></listitem>
           <listitem name="Files and metadata"><icon res="overview"/><action function="uremanager">files</action><action function="page">ure_output</action></listitem>
           <listitem name="Boot target consistency"><icon res="restart"/><action function="uremanager">boot</action><action function="page">ure_output</action></listitem>

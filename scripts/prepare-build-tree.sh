@@ -28,6 +28,16 @@ else
   exit 1
 fi
 
+# Allow only the project recovery package to use the existing pinned Zstd codec.
+codec_patch="$component/patches/0009-native-boot-audit-codecs.patch"
+if git -C "$tree/external/zstd" apply --reverse --check "$codec_patch" 2>/dev/null; then
+  :
+elif git -C "$tree/external/zstd" apply --check "$codec_patch"; then
+  git -C "$tree/external/zstd" apply "$codec_patch"
+else
+  echo 'Unexpected Zstd source visibility; refusing an unverified codec adapter' >&2; exit 1
+fi
+
 # Extract an immutable source snapshot into the active build tree. Do not run
 # reference scripts. Only the project-owned Android adapter is staged with it.
 wim_reference="$component/referances/upstream/wimlib"

@@ -328,6 +328,13 @@ void source_match(int root,const Value& e) {
     require(json(current)==json(expected),"stale-source","Tree namespace, content or metadata changed since planning");
 }
 }
+void filesystem_tree_gate(int fd) { root_gate(fd); }
+void filesystem_tree_outside(int source,int destination) { outside(source,destination); }
+Value descriptor_identity(int fd) {
+    const auto st=info(fd); Value out;
+    out["device"]=Json::UInt64(st.st_dev); out["inode"]=Json::UInt64(st.st_ino);
+    out["mount_id"]=Json::UInt64(mount_id(fd)); return out;
+}
 Value backup_tree_plan(const Root& context,const std::string& relative,const std::string& profile,const fs::path& destination) {
     require(identifier(profile),"invalid-profile","A firmware profile is required");
     auto source=context.open(relative,O_RDONLY|O_DIRECTORY); root_gate(source.get());

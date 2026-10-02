@@ -3,4 +3,4 @@ diff --git a/Android.mk b/Android.mk
 +++ b/Android.mk
 @@ -142,1 +142,1 @@
 -LOCAL_STATIC_LIBRARIES += libfoxui libvold
-+LOCAL_STATIC_LIBRARIES += libfoxui libvold libuke-recovery
++LOCAL_STATIC_LIBRARIES += libfoxui libvold libuke-recovery liblzma

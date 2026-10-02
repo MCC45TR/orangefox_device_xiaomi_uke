@@ -27,13 +27,33 @@ jq -e '.validation.cpp_linux_home_tree_backup and .validation.tree_backup_cli_an
     "$component/reports/private/native-verification.json" >/dev/null
 jq -e '.validation.cpp_userdata_layout_advanced_mode_and_image_rollback and .validation.cpp_actual_partition_graph_widget and .validation.layout_cli_fixtures' \
     "$component/reports/private/native-verification.json" >/dev/null
+jq -e '.validation.cpp_installed_boot_audit_and_operation_policy and .validation.cpp_actual_management_callbacks and .validation.filesystem_staged_tools_and_complete_rollback and .validation.distribution_chroot_mount_and_process_cleanup and .validation.native_boot_asset_codecs and (.validation.live_block_write==false) and (.validation.real_package_database_repair==false)' \
+    "$component/reports/private/native-verification.json" >/dev/null
 jq -e --arg image "$(sha256sum "$recovery" | cut -d' ' -f1)" '.recovery_image_sha256==$image and .validation.extracted_ramdisk and .validation.no_python_payload and .validation.elf_dependency_closure and .validation.qemu_user_fixtures' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e '.validation.source_built_mirror_renderer_and_exports' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e '.validation.source_built_layout_renderer_and_pages' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
+jq -e '.validation.source_built_native_management_pages and .validation.source_built_f2fs_format_and_resize_tools and .validation.vm_test_binary_excluded' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" '.aarch64_runner_sha256==$runner and .auditor_sha256==$auditor' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 cmp <(bash "$component/scripts/native-inputs.sh") "$component/reports/private/native-test-inputs.sha256"
 cp -- "$component/reports/private/native-verification.json" "$destination/NATIVE-HOST-VERIFICATION.json"
 cp -- "$component/reports/private/native-test-inputs.sha256" "$destination/NATIVE-TEST-INPUTS.sha256"
+vm_record=null
+sanitizer_record=null
+if [[ $candidate == ure-rescue-filesystems-alpha ]]; then
+    fixture="$out/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture/android_recovery_arm64_armv8-a/uke-btrfs-vm-fixture"
+    jq -e --arg runner "$(sha256sum "$component/tests/check-btrfs-vm.sh" | cut -d' ' -f1)" \
+        --arg binary "$(sha256sum "$fixture" | cut -d' ' -f1)" \
+        '.passed and .validation_kind=="qemu-system-native-ioctl" and .runner_sha256==$runner and .fixture_elf_sha256==$binary and (.checks|length)>=14 and (.physical_device==false) and (.shipping_kernel_test==false) and (.tablet_hardware_test==false)' \
+        "$component/reports/private/btrfs-vm-verification.json" >/dev/null
+    cp -- "$component/reports/private/btrfs-vm-verification.json" "$destination/BTRFS-VM-VERIFICATION.json"
+    vm_record=$(cat "$destination/BTRFS-VM-VERIFICATION.json")
+    cmp "$component/reports/private/sanitizer-test-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
+    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
+        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==17 and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
+        "$component/reports/private/rescue-sanitizer-verification.json" >/dev/null
+    cp -- "$component/reports/private/rescue-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
+    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
+fi
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
 (cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
 [[ $(stat -c %s "$recovery") == 104857600 && $(stat -c %s "$temporary") == 100663296 ]]
@@ -66,12 +86,14 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     --slurpfile audit "$destination/EXTRACTED-RAMDISK-AUDIT.json" \
     --slurpfile fixtures "$destination/NATIVE-HOST-VERIFICATION.json" \
     --slurpfile tools "$destination/URE-TOOLS.json" \
+    --argjson btrfs_vm "$vm_record" \
+    --argjson sanitizers "$sanitizer_record" \
     --arg mkbootimg "$(sha256sum "$out/host/linux-x86/bin/mkbootimg" | cut -d' ' -f1)" \
     --arg avbtool "$(sha256sum "$out/host/linux-x86/bin/avbtool" | cut -d' ' -f1)" \
     --arg mkbootimg_commit "$(git -C "$component/src/upstream/orangefox-android16/system/tools/mkbootimg" rev-parse HEAD)" \
     --arg avbtool_commit "$(git -C "$component/src/upstream/orangefox-android16/external/avb" rev-parse HEAD)" \
     --arg kernel "$kernel_hash" --arg ramdisk "$ramdisk_hash" --argjson ramdisk_bytes "$ramdisk_bytes" \
-    '{schema_version:2,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],validation:{compile:true,header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
+    '{schema_version:2,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,sanitizer_record:$sanitizers,validation:{compile:true,header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
     > "$destination/ARTIFACT-MANIFEST.json"
 # Hash every generated public release file once, including source snapshots.
 (cd -- "$destination" && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)

@@ -1,5 +1,10 @@
 # Pinned host tools
 
+Run `scripts/prepare-build-tree.sh global-os3.0.303.0` after changing project
+device sources. The public build compares every staged device source and the
+linked GUI against the project copy before compiling; a stale copy is rejected.
+Preparation also verifies the selected firmware archive and reviewed patch stack.
+
 Android's official `repo` client is required to resolve and synchronize the multi-repository OrangeFox Android 16 manifest. It is an upstream Python program and runs **only on the development host**. The project-owned download, verification and report tools are Bash. No `repo` executable, Python interpreter, Python script or Python runtime library is packaged for the tablet.
 
 The host client is archived as `android-repo` in the workspace source catalog at the peeled `v2.67` commit `d27d6829a84f488b7253ea693dcc429076c33914`. Its Git bundle and offline restore are verified separately. The synchronized Android source checkout is a build input, not a set of independent offline archives. Its 399 exact project revisions are recorded in `manifests/orangefox-android16-uke.lock.xml`; projects carrying an upstream `clone-depth` remain shallow by design and the lock records reproducibility at the checked-out commits rather than claiming complete history.
@@ -22,7 +27,17 @@ only the active build tree receives project configuration. NTFS resizing uses
 a reviewed Android module patch against the locked ntfs-3g source. Exact pins,
 licenses and build limitations are in `src/device/xiaomi/uke/ure-tools.lock.json`.
 No upstream reference configure/build script is executed. Cryptsetup remains a
-reference, and Btrfs is absent from the candidate userspace and stock kernel.
+reference. Native Btrfs management uses kernel UAPI without btrfs-progs, but
+Btrfs filesystem support is absent from the preserved stock kernel. Boot asset
+decoding uses pinned zlib, Zstd and public-domain LZMA SDK sources; their
+original notices are retained in the source snapshot.
+
+`UKE_BUILD_VM_FIXTURE=1 scripts/build-public.sh 6` also builds the optional
+uninstalled `uke-btrfs-vm-fixture` Soong target. `tests/check-btrfs-vm.sh` boots it
+with a separately identified generic ARM64 virt kernel, matching modules and a
+newly created regular-file Btrfs disk. Host QEMU is separate from tablet
+contents. Guest startup/tests are POSIX shell/C++; neither a Python program
+nor generic-kernel modules are added to the recovery product.
 
 An incremental build exposed a callback failure when AOSP's absolute `/bin`
 symlink was treated as a host directory. The callback now verifies that link

@@ -8,8 +8,12 @@
 #include "minuitwrp/minui.h"
 #include "../minuitwrp/display-mirror.hpp"
 #include <algorithm>
+#include <atomic>
 #include <charconv>
+#include <fcntl.h>
 #include <mutex>
+#include <set>
+#include <thread>
 
 namespace {
 std::mutex session_mutex;
@@ -28,9 +32,88 @@ std::string reviewed_stream_journal;
 ure::Value pending_tree;
 ure::Value reviewed_layout_request;
 std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
+ure::Value managed_plan,managed_selection;
+std::string managed_kind,managed_journal,reviewed_filesystem_journal;
+std::string edited_management_field;
+std::atomic<bool> maintenance_running{false};
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
 void publish(const ure::Value& data) { DataManager::SetValue("ure_output",ure::json(data)); }
+bool choice(const std::string& name) {
+    const auto selected=value(name); ure::require(selected=="0" || selected=="1","invalid-choice","Choose an explicit on/off value"); return selected=="1";
+}
+unsigned number(const std::string& name,unsigned maximum) {
+    const auto text=value(name); unsigned result=0; const auto parsed=std::from_chars(text.data(),text.data()+text.size(),result);
+    ure::require(!text.empty() && parsed.ec==std::errc() && parsed.ptr==text.data()+text.size() && result<=maximum,"invalid-number","Enter a bounded whole number"); return result;
+}
+ure::Root os_root(const std::string& name="ure_root") {
+    const auto path=value(name); ure::require(ure::fs::path(path).is_absolute() && path!="/","root-required","Select an already mounted OS directory"); return ure::Root(path);
+}
+std::unique_ptr<ure::Root> selected_esp() {
+    const auto path=value("ure_esp"); if(path.empty())return {};
+    ure::require(ure::fs::path(path).is_absolute() && path!="/","esp-required","Select an already mounted ESP directory or leave it empty"); return std::make_unique<ure::Root>(path);
+}
+ure::Value filesystem_request(std::uint64_t bytes) {
+    ure::Value request; request["schema"]=1; request["action"]=value("ure_fs_action"); request["filesystem"]=value("ure_fs_type");
+    if(request["action"]=="format") { request["erase_confirmed"]=choice("ure_fs_erase"); request["label"]=value("ure_fs_label"); }
+    if(request["action"]=="resize")request["target_bytes"]=Json::UInt64(ure::layout_size_bytes(value("ure_fs_size"),value("ure_fs_unit"),bytes));
+    return request;
+}
+ure::Value rescue_request() {
+    ure::Value request; request["schema"]=1; request["action"]=value("ure_rescue_action"); request["write"]=choice("ure_rescue_write"); request["network"]=false;
+    request["timeout_seconds"]=number("ure_rescue_timeout",7200);
+    if(request["action"]=="shell") { ure::require(!value("ure_rescue_command").empty(),"command-required","Enter the explicit command for this isolated session"); request["shell_input"]=value("ure_rescue_command")+"\n"; }
+    if(request["action"]=="module-index" || request["action"]=="initramfs-rebuild")request["kernel_release"]=value("ure_rescue_kernel");
+    return request;
+}
+ure::Value btrfs_request(const ure::Root& root) {
+    ure::Value request; request["schema"]=1; const auto action=value("ure_btrfs_action"); request["action"]=action;
+    if(action=="create" || action=="snapshot" || action=="readonly" || action=="delete" || action=="rollback")request["path"]=value("ure_btrfs_path");
+    if(action=="snapshot") { request["source"]=value("ure_btrfs_source"); request["read_only"]=choice("ure_btrfs_readonly"); }
+    if(action=="readonly")request["read_only"]=choice("ure_btrfs_readonly");
+    if(action=="delete")request["backup_snapshot"]=value("ure_btrfs_backup");
+    if(action=="rollback") { request["snapshot"]=value("ure_btrfs_backup"); request["saved_path"]=value("ure_btrfs_saved"); }
+    if(action=="scrub") { request["device_id"]=Json::UInt64(number("ure_btrfs_device",4096)); request["repair"]=choice("ure_btrfs_repair"); }
+    if(action=="balance") { request["usage_percent"]=number("ure_btrfs_usage",90); request["chunk_limit"]=number("ure_btrfs_limit",128); }
+    if(action=="resize") {
+        const auto devices=ure::btrfs_native_info(root,"device-stats"); ure::require(devices["device_stats"].size()==1,"unsupported-btrfs-size","Select a single-device filesystem");
+        request["target_bytes"]=Json::UInt64(ure::layout_size_bytes(value("ure_btrfs_size"),value("ure_btrfs_unit"),devices["device_stats"][0]["total_bytes"].asUInt64()));
+    } return request;
+}
+ure::Value management_selection(const std::string& kind,const ure::Value& request={}) {
+    ure::Value out; out["request"]=request; out["journal_parent"]=value("ure_journal_parent");
+    if(kind=="filesystem")for(const auto* name:{"ure_raw_kind","ure_raw_source","ure_raw_sector"})out[name]=value(name);
+    else if(kind=="rescue") { out["root"]=value("ure_root"); out["esp"]=value("ure_esp"); }
+    else for(const auto* name:{"ure_btrfs_root","ure_btrfs_store","ure_btrfs_source","ure_btrfs_parent","ure_btrfs_name","ure_btrfs_incremental_parent"})out[name]=value(name);
+    return out;
+}
+void review_management(const std::string& kind,ure::Value plan,const ure::Value& selection) {
+    managed_kind=kind; managed_plan=std::move(plan); managed_selection=selection;
+    ure::Root parent(value("ure_journal_parent"));
+    managed_journal=kind=="btrfs-snapshot" || kind=="btrfs-send" ? value("ure_btrfs_store") :
+        (ure::fs::path(value("ure_journal_parent"))/("ure-managed-"+managed_plan["operation_id"].asString())).string();
+    auto review=managed_plan; review["journal_directory"]=managed_journal; publish(review);
+    DataManager::SetValue("ure_manage_hash",managed_plan["plan_sha256"].asString());
+    DataManager::SetValue("ure_manage_can_apply",kind!="filesystem" || managed_plan["target_identity"]["kind"]=="regular-image" ? "1" : "0");
+    std::string summary;
+    if(kind=="filesystem") {
+        const auto& request=managed_plan["request"]; summary=request["action"].asString()+" / "+request["filesystem"].asString()+" on "+value("ure_raw_source")+"\n";
+        if(request["action"]=="resize")summary+="Requested filesystem size: "+std::to_string(request["target_bytes"].asUInt64()/1048576)+" MiB\n";
+        summary+="Required journal space: "+std::to_string(managed_plan["estimated_max_journal_bytes"].asUInt64()/1048576)+" MiB\n";
+        summary+="Partition boundaries stay unchanged. "+managed_plan["risk"].asString();
+        if(managed_plan["target_identity"]["kind"]!="regular-image")summary+="\nLive application is blocked by the current storage preflight.";
+    } else if(kind=="rescue") {
+        summary="System: "+managed_plan["distribution_family"].asString()+"; action: "+managed_plan["request"]["action"].asString()+"\n";
+        summary+="Timeout: "+std::to_string(managed_plan["request"]["timeout_seconds"].asUInt())+" seconds; automatic connections: "+std::to_string(managed_plan["connections"].size())+"\n";
+        summary+=managed_plan["risk"].asString();
+    } else summary=managed_plan.get("risk",managed_plan.get("coherence","Review the selected read-only snapshot, incremental parent and backup store")).asString();
+    summary+="\nJournal: "+managed_journal; DataManager::SetValue("ure_manage_summary",summary);
+    DataManager::SetValue("ure_status","Review the selected target, action, required space, warnings and journal before confirming");
+}
+void reviewed_management(const std::string& kind,const ure::Value& selection) {
+    ure::require(managed_kind==kind && managed_plan.isObject() && managed_plan["plan_sha256"].asString()==value("ure_manage_hash"),"review-required","Review this operation before applying it");
+    ure::require(ure::json(selection)==ure::json(managed_selection),"stale-plan","Selections changed; calculate and review a new operation");
+}
 ure::StorageTarget backup_target(const ure::Root& system,bool writable=false) {
     if(value("ure_raw_kind")=="live") {
         ure::require(!writable,"firmware-unverified","Live restore awaits the firmware/slot/snapshot and ownership backend");
@@ -185,6 +268,10 @@ int GUIAction::uremanager(std::string command) {
     std::lock_guard<std::mutex> guard(session_mutex);
     try {
         ure::Root system("/");
+        const auto btrfs_action=value("ure_btrfs_action");
+        const bool control=btrfs_action=="scrub-cancel" || btrfs_action=="balance-pause" || btrfs_action=="balance-cancel";
+        ure::require(!maintenance_running || command=="btrfs-info" || command=="btrfs-scrub-status" || command=="btrfs-balance-status" ||
+            ((command=="btrfs-plan" || command=="btrfs-execute") && control),"operation-busy","A native maintenance job is running; inspect status or review its cancellation");
         if(command=="mirror-enable" || command=="mirror-disable") {
             gr_external_enable(command=="mirror-enable");
             DataManager::SetValue("ure_mirror_status","Display change queued for the render thread");
@@ -210,6 +297,100 @@ int GUIAction::uremanager(std::string command) {
         } else if(command=="capabilities")publish(ure::capabilities(system));
         else if(command=="storage")publish(ure::storage_graph(system));
         else if(command=="diagnose")publish(ure::diagnose(system,"all"));
+        else if(command.rfind("manage-edit-",0)==0) {
+            const auto field=command.substr(12);
+            static const std::set<std::string> allowed{"ure_esp","ure_journal_parent","ure_fs_size","ure_fs_label","ure_rescue_command","ure_rescue_kernel","ure_rescue_timeout",
+                "ure_manage_journal","ure_btrfs_root","ure_btrfs_path","ure_btrfs_source","ure_btrfs_backup","ure_btrfs_saved","ure_btrfs_size","ure_btrfs_device",
+                "ure_btrfs_usage","ure_btrfs_limit","ure_btrfs_store","ure_btrfs_parent","ure_btrfs_name","ure_btrfs_incremental_parent"};
+            ure::require(allowed.count(field),"invalid-field","Select a supported management field");
+            edited_management_field=field;
+            DataManager::SetValue("ure_form_field",field); DataManager::SetValue("ure_form_value",value(field));
+            DataManager::SetValue("ure_form_back",field.rfind("ure_btrfs_",0)==0 ? "ure_btrfs" : field.rfind("ure_rescue_",0)==0 || field=="ure_esp" ? "ure_linux" : "ure_filesystems");
+        } else if(command=="manage-field-save") {
+            const auto field=value("ure_form_field");
+            ure::require(!edited_management_field.empty() && field==edited_management_field && value("ure_form_value").size()<=4096,"invalid-field","Invalid management field selection");
+            // The editable field is selected exclusively by manage-edit-* above.
+            DataManager::SetValue(field,value("ure_form_value")); DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+            edited_management_field.clear();
+        } else if(command=="linux-audit") {
+            auto root=os_root(); auto esp=selected_esp(); const auto report=ure::linux_boot_audit(root,esp.get()); publish(report);
+            DataManager::SetValue("ure_status",std::to_string(report["error_count"].asUInt())+" errors, "+std::to_string(report["warning_count"].asUInt())+" warnings; metadata inspection only");
+        } else if(command=="rescue-plan") {
+            auto root=os_root(); auto esp=selected_esp(); const auto request=rescue_request();
+            review_management("rescue",ure::linux_rescue_plan(root,request,esp.get()),management_selection("rescue",request));
+        } else if(command=="rescue-execute") {
+            const auto request=rescue_request(); reviewed_management("rescue",management_selection("rescue",request)); auto root=os_root(); auto esp=selected_esp();
+            DataManager::SetValue("ure_manage_journal",managed_journal);
+            const auto result=ure::linux_rescue_execute(root,managed_plan,managed_journal,value("ure_manage_hash"),esp.get()); publish(result);
+            DataManager::SetValue("ure_status",result["state"].asString()+"; private console is available in the session journal");
+            DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0"); if(result["successful"]!=true)return 1;
+        } else if(command=="rescue-inspect") {
+            auto store=ure::private_directory(value("ure_manage_journal"),false); ure::Value result;
+            result["plan"]=ure::parse_json(store.read("plan.json")); result["state"]=ure::parse_json(store.read("state.json"));
+            if(store.exists("console.log")) { auto file=store.open("console.log",O_RDONLY); const auto bytes=ure::storage_bytes(file.get());
+                result["console_preview"]=ure::storage_read(file.get(),0,static_cast<std::size_t>(std::min<std::uint64_t>(bytes,65536))); result["console_preview_truncated"]=bytes>65536; }
+            publish(result);
+        } else if(command=="filesystem-capabilities")publish(ure::filesystem_capabilities());
+        else if(command=="filesystem-inspect" || command=="filesystem-check" || command=="storage-preflight") {
+            auto target=backup_target(system);
+            publish(command=="filesystem-inspect" ? ure::filesystem_probe(target.descriptor.get()) : command=="filesystem-check" ? ure::filesystem_check(target.descriptor.get()) : ure::storage_preflight(system,target,"global-os3.0.303.0"));
+        } else if(command=="filesystem-plan") {
+            auto target=backup_target(system); const auto request=filesystem_request(target.identity["bytes"].asUInt64());
+            review_management("filesystem",ure::filesystem_operation_plan(system,target,request,"global-os3.0.303.0"),management_selection("filesystem",request));
+        } else if(command=="filesystem-execute") {
+            auto target=backup_target(system,true); const auto request=filesystem_request(target.identity["bytes"].asUInt64()); reviewed_management("filesystem",management_selection("filesystem",request));
+            DataManager::SetValue("ure_manage_journal",managed_journal); publish(ure::filesystem_operation_execute(system,target,managed_plan,managed_journal,value("ure_manage_hash")));
+            DataManager::SetValue("ure_status","Filesystem applied and independently checked; complete original bytes remain in the journal");
+            DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+        } else if(command=="filesystem-journal-inspect") {
+            auto target=backup_target(system); const auto report=ure::filesystem_operation_recover(system,target,value("ure_manage_journal"),"inspect",""); publish(report);
+            reviewed_filesystem_journal=value("ure_manage_journal"); DataManager::SetValue("ure_fs_journal_hash",report["plan_sha256"].asString());
+            managed_selection=management_selection("filesystem");
+            for(const auto* action:{"resume","rollback","cancel"})DataManager::SetValue("ure_fs_can_"+std::string(action),"0");
+            for(const auto& action:report["application"]["recovery_actions"])DataManager::SetValue("ure_fs_can_"+action.asString(),"1");
+            if(report["original_unchanged_verified"]==true)DataManager::SetValue("ure_fs_can_cancel","1");
+        } else if(command=="filesystem-resume" || command=="filesystem-rollback" || command=="filesystem-cancel") {
+            ure::require(reviewed_filesystem_journal==value("ure_manage_journal") && !value("ure_fs_journal_hash").empty() &&
+                ure::json(managed_selection)==ure::json(management_selection("filesystem")),"review-required","Inspect this filesystem journal and current target first");
+            const auto action=command.substr(11); auto target=backup_target(system,action!="cancel");
+            publish(ure::filesystem_operation_recover(system,target,reviewed_filesystem_journal,action,value("ure_fs_journal_hash")));
+            DataManager::SetValue("ure_fs_journal_hash",""); reviewed_filesystem_journal.clear();
+        } else if(command.rfind("btrfs-",0)==0) {
+            if(command=="btrfs-send-verify")publish(ure::btrfs_send_verify(value("ure_btrfs_store")));
+            else if(command=="btrfs-backup-inspect")publish(ure::btrfs_backup_inspect(value("ure_btrfs_store")));
+            else {
+                auto root=os_root("ure_btrfs_root");
+                if(command=="btrfs-info" || command=="btrfs-subvolumes" || command=="btrfs-usage" || command=="btrfs-device-stats" || command=="btrfs-scrub-status" || command=="btrfs-balance-status")publish(ure::btrfs_native_info(root,command.substr(6)));
+                else if(command=="btrfs-plan") { const auto request=btrfs_request(root); review_management("btrfs",ure::btrfs_manage_plan(root,request,"global-os3.0.303.0"),management_selection("btrfs",request)); }
+                else if(command=="btrfs-execute") {
+                    reviewed_management("btrfs",management_selection("btrfs",btrfs_request(root))); DataManager::SetValue("ure_manage_journal",managed_journal);
+                    if(managed_plan["request"]["action"]=="scrub" || managed_plan["request"]["action"]=="balance") {
+                        ure::require(!maintenance_running.exchange(true),"operation-busy","A native maintenance job is already running");
+                        const auto plan=managed_plan; const auto directory=managed_journal,path=value("ure_btrfs_root"),confirmation=value("ure_manage_hash");
+                        DataManager::SetValue("ure_maintenance_state","RUNNING");
+                        try { std::thread([plan,directory,path,confirmation] {
+                            try { ure::Root selected(path); const auto result=ure::btrfs_manage_execute(selected,plan,directory,confirmation); publish(result); DataManager::SetValue("ure_maintenance_state",result["state"].asString()); }
+                            catch(const ure::Error& error) { ure::Value failure; failure["error"]["code"]=error.code; failure["error"]["message"]=error.what(); publish(failure); DataManager::SetValue("ure_maintenance_state","INTERRUPTED: inspect native status and journal"); }
+                            catch(...) { DataManager::SetValue("ure_maintenance_state","FAILED: inspect the private journal"); }
+                            maintenance_running=false;
+                        }).detach(); } catch(...) { maintenance_running=false; throw; }
+                        DataManager::SetValue("ure_status","Native maintenance is running; status and reviewed cancellation remain available");
+                    } else publish(ure::btrfs_manage_execute(root,managed_plan,managed_journal,value("ure_manage_hash")));
+                    DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                } else if(command=="btrfs-snapshot-plan" || command=="btrfs-send-plan") {
+                    const auto snapshot=command=="btrfs-snapshot-plan";
+                    const auto plan=snapshot ? ure::btrfs_snapshot_plan(root,value("ure_btrfs_source"),value("ure_btrfs_parent"),value("ure_btrfs_name"),"global-os3.0.303.0",value("ure_btrfs_store")) :
+                        ure::btrfs_send_plan(root,value("ure_btrfs_source"),value("ure_btrfs_incremental_parent"),"global-os3.0.303.0",value("ure_btrfs_store"));
+                    review_management(snapshot ? "btrfs-snapshot" : "btrfs-send",plan,management_selection("btrfs-backup"));
+                } else if(command=="btrfs-backup-review") {
+                    const auto plan=ure::btrfs_backup_inspect(value("ure_btrfs_store")); review_management(plan["operation"]=="snapshot" ? "btrfs-snapshot" : "btrfs-send",plan,management_selection("btrfs-backup"));
+                } else if(command=="btrfs-backup-execute") {
+                    ure::require(managed_kind=="btrfs-snapshot" || managed_kind=="btrfs-send","review-required","Review a snapshot or send backup first"); reviewed_management(managed_kind,management_selection("btrfs-backup"));
+                    publish(managed_kind=="btrfs-snapshot" ? ure::btrfs_snapshot_execute(root,value("ure_btrfs_store"),value("ure_manage_hash")) : ure::btrfs_send_capture(root,value("ure_btrfs_store"),value("ure_manage_hash")));
+                    DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                } else throw ure::Error("unknown-action","Unknown native Btrfs action");
+            }
+        }
         else if(command=="report") {
             ure::Value report=ure::public_report(system);
             const auto destination="/tmp/ure-report-"+ure::operation_id()+".json";

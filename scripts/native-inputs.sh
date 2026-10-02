@@ -12,6 +12,11 @@ cd "$component"
         patches/0006-tablet-interface-density.patch src/upstream/orangefox-android16/bootable/recovery/gui/pages.cpp \
         src/upstream/orangefox-android16/bootable/recovery/gui/gui.cpp
     printf '%s\0' tests/check-tree-backup.sh
+    printf '%s\0' tests/check-filesystems.sh tests/check-rescue.sh tests/check-boot-audit.sh tests/check-btrfs-vm.sh \
+        tests/generate-management-hooks.sh src/device/xiaomi/uke/device.mk src/device/xiaomi/uke/ure-tools.lock.json src/device/xiaomi/uke/prepare-public-ramdisk.sh \
+        scripts/prepare-build-tree.sh scripts/build-public.sh patches/0009-native-boot-audit-codecs.patch \
+        patches/0004-link-native-ure.patch src/upstream/orangefox-android16/bootable/recovery/Android.mk \
+        src/upstream/orangefox-android16/external/zstd/Android.bp
     printf '%s\0' tests/check-layout.sh tests/generate-layout-hooks.sh src/device/xiaomi/uke/maintainer.xml patches/0008-partition-layout-graph.patch
     printf '%s\0' src/device/xiaomi/uke/display-mirror.hpp src/device/xiaomi/uke/display-mirror.cpp \
         src/device/xiaomi/uke/display-mirror-layout.cpp patches/0007-usb-monitor-and-input.patch \
