@@ -31,7 +31,11 @@ status and returns failure rather than silently reporting success.
 | `gpt stock-preview/stock-plan` | Six-LUN capacity-derived Global OEM GPT reconstruction, explicit unbound previews, original disk/partition/reservation GUID preservation, optional verified same-target original backup, affected-layout review and shared per-image metadata execution/readback/rollback; full partition management and physical stock return remain open |
 | `filesystem inspect --image FILE` | Bounded signature detection for ext4, FAT, F2FS, exFAT, NTFS, XFS, EROFS, Btrfs, LUKS, BITLK and WIM; a signature is not full filesystem validation |
 | `filesystem check --image FILE` | Reviewed read-only/no-action checker arguments, inherited read-only descriptor, bounded output and timeout; availability depends on the packaged checker |
+| `storage preflight --object ID --profile PROFILE` | Real kernel-root, retained identity/claim, visible-namespace ownership, Uke boot/slot/merge/fallback and pinned Global firmware checks; final live writer/range/SKU acceptance remains blocked |
+| `filesystem capabilities/plan/execute/inspect-journal/resume/rollback/cancel` | Private staged ext4/F2FS/FAT/exFAT/NTFS format/repair and conditional resize, independent post-check and full original/target journal; preserves image inode/capacity; exFAT resize and live writes remain unavailable; see [FILESYSTEM-MANAGER.md](FILESYSTEM-MANAGER.md) |
 | `linux detect/info/kernels/boot-entries/diagnose --root ROOT [--esp ESP]` | Bounded os-release and fallback discovery, package database indicators, kernel/initramfs/module consistency, BLS references, UKI filenames and ELF architecture; does not execute installed programs |
+| `linux audit --root ROOT [--esp ESP]` | Bounded gzip/XZ/Zstd, newc/CRC, indexed module ELF/vermagic/architecture, kernel headers, FDT, PE UKI, BLS scope and root-selector findings; hardware/signature/boot validation stays explicit false |
+| `linux rescue-plan/rescue-execute/rescue-inspect` | Distribution-aware native chroot, automatic supported fstab/selected ESP mounts, private namespaces/minimal devices, explicit write choice, timeout and pidfd-backed descendant cleanup; see [LINUX-RESCUE-AND-BOOT.md](LINUX-RESCUE-AND-BOOT.md) |
 | `windows detect/info/boot/diagnose --root ROOT [--esp ESP]` | System32, registry-hive and recovery-directory indicators; optional Microsoft EFI/BCD presence; no guessed edition/build or registry/BCD editing |
 | `files list/search --root ROOT` | Bounded metadata and filename search; prevents relative traversal and following filesystem symlinks |
 | `editor read/validate/plan --root ROOT` | Bounded text reads, fstab/crypttab/BLS/JSON validation and sealed file-replacement plans |
@@ -46,9 +50,11 @@ status and returns failure rather than silently reporting success.
 | `diagnose SCOPE` | Private bounded kernel, module, pstore, display, input, USB, network, power, thermal and property observations; preserves pstore and does not assert a root cause |
 | `report --output FILE` | Public allowlist summary; omits raw pstore, command lines, module addresses, UUIDs, mounts, stage text and raw class fields |
 | `android info/slots/super` | Observations and read-only boot-control/lpdump calls; missing HALs/tools cause explicit failure; no slot switch, super write or FBE unlock |
-| `wim info/verify --image FILE`, `ntfs info --image FILE` | Fixed reviewed tool arguments and read-only source descriptors; WIM/ESD application and NTFS resizing are not managed transactions yet |
+| `wim info/verify --image FILE`, `ntfs info --image FILE` | Fixed reviewed tool arguments and read-only source descriptors; WIM/ESD application remains open; NTFS resizing has a separate staged image transaction |
 | `crypto detect/info --image FILE` | Signature discovery and conditional cryptsetup header inspection; cryptsetup is archived but not packaged, so inspection requiring it fails explicitly |
-| `btrfs subvolumes/usage/scrub-status/balance-status/device-stats --root ROOT` | Conditional read-only wrappers; requires a mounted Btrfs root and a packaged tool. The stock recovery kernel has Btrfs disabled and this candidate does not package btrfs-progs |
+| `btrfs info/subvolumes/usage/scrub-status/balance-status/device-stats --root ROOT` | Bounded native ioctl inventory and maintenance status, without an external btrfs command; stock-kernel Btrfs remains disabled |
+| `btrfs plan/execute` | Reviewed native create/snapshot/delete/flags, retained-original rollback, one-device resize, scrub and bounded balance/control with filesystem/process/mount checks; see [BTRFS-MANAGER.md](BTRFS-MANAGER.md) |
+| `btrfs snapshot-plan/snapshot-execute/send-plan/send-capture/send-verify/backup-inspect/stream-check` | Atomic read-only snapshots, native full/incremental protocol-1 send and CRC32C/TLV/lineage/SHA-256 verification; receive/restore and shipping-kernel acceptance remain open |
 
 The text buffer accepts valid UTF-8 up to 1 MiB and rejects NUL bytes, overlong
 UTF-8, surrogates and invalid scalar values. Serialized JSON is bounded to 4 MiB
@@ -333,7 +339,7 @@ chunk boundary, not storage-controller behavior during electrical power loss.
 ## Build tools and source boundaries
 
 The candidate adds source-built NTFS mounting/formatting/checking and ntfsresize,
-exFAT checking/dumping/formatting, F2FS checking, WIM/ESD tooling and Dropbear.
+exFAT checking/dumping/formatting, F2FS formatting/checking/resizing, WIM/ESD tooling and Dropbear.
 Raw upstream binaries expose their own interfaces; only the operations above
 are integrated into the URE management policy.
 
@@ -353,8 +359,8 @@ It is not copied into the recovery payload. JSON uses the locked Android JsonCpp
 source (`8f65e4b14b9946910e1519231097870b5953b00f`) on host and target.
 
 Reference code is not executed. `prepare-build-tree.sh` extracts pinned source
-snapshots into the active build tree and applies the project adapters and five
-reviewed patches. The Android repo/boot tools remain documented host-only
+snapshots into the active build tree and applies the project adapters and
+reviewed patch stack. The Android repo/boot tools remain documented host-only
 upstream build dependencies; no project Python or tablet interpreter is added.
 
 ## Remaining roadmap work
@@ -362,18 +368,19 @@ upstream build dependencies; no project Python or tablet interpreter is added.
 | Contracts | Remaining implementation / acceptance |
 |---|---|
 | C01–C03 | Full live identity/ownership acceptance, general storage transactions, physical power-loss tests and actual R000–R100 producers/correlation; bounded ownership policy and file/GPT/raw-image journal recovery have fixtures, while diagnostics only reads a stage file if one exists |
-| C04–C07 | Multi-root orchestration, installed DT/UKI contents and filesystem-root consistency, full metadata browsing/snapshot comparison, config semantic validation, GUI rendering/touch acceptance |
-| C08–C09 | Controlled chroot with audited native executable closure; profile-compatible recovery kernel/modules and disposable-media/hardware acceptance. Fedora package/initramfs repair must not execute a target Python dependency |
-| C10–C13 | Packaged cryptsetup and secure LUKS/BITLK lifecycle, header/key workflows, Btrfs kernel/userspace, snapshots, rollback, scrub/balance and send/receive transactions |
-| C14–C15 | Multi-LUN GPT and boot-chain orchestration, live restore/repair, layout changes, formatting/resizing transactions, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; GPT image backup/repair/restore and read-only live selection are implemented |
+| C04–C07 | Multi-root orchestration, actual root-block/DT-platform/signature/boot acceptance, full embedded initramfs closure, metadata browsing/snapshot comparison, config semantic validation and GUI rendering/touch; native installed DT/UKI/module parsers and findings are present |
+| C08–C09 | Real installed-distro repair/runtime dependency acceptance, network rescue, GUI chroot cancellation and profile-compatible recovery kernel/modules; controlled native chroot and cleanup have host integration fixtures |
+| C10–C13 | Packaged cryptsetup and secure LUKS/BITLK lifecycle, header/key workflows, matching shipping Btrfs kernel, native receive/restore, human subvolume paths and hardware acceptance; native snapshots/send/rollback/scrub/balance are implemented conditionally |
+| C14–C15 | Multi-LUN GPT and boot-chain orchestration, accepted live writer/range/SKU backend, combined filesystem/GPT migration, exFAT resize, complete NTFS repair, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; image GPT and staged filesystem jobs are implemented |
 | C16–C17 | Accepted Uke Aloha/stock boot backend, request consumption, boot history, retry/rollback policy and default preservation |
 | C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance, live restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local and host-assisted raw-image restore and a host companion are implemented |
 | C22–C24 | Signed update/profile lifecycle, persistent UI/session policy, full reproducibility/CI, optional web/NAS/extensions/forensics/hardware-test tools |
 
 The supplied 103 topics remain design targets. No contract or full phase is
 marked complete merely because a native library, a UI page or an upstream tool
-now compiles. See [the candidate build report](../reports/URE-NATIVE-BUILD.md)
-for exact evidence and hashes.
+now compiles. The [initial native report](../reports/URE-NATIVE-BUILD.md) and
+[filesystem/rescue checkpoint](../reports/URE-RESCUE-FILESYSTEMS-BUILD.md) record
+their separate evidence and hashes.
 
 ## Host verification
 
@@ -389,6 +396,9 @@ bash tests/check-storage-backup.sh
 bash tests/check-restore.sh
 bash tests/check-stream-restore.sh
 bash tests/check-gpt.sh
+bash tests/check-filesystems.sh
+bash tests/check-rescue.sh
+bash tests/check-boot-audit.sh
 UKE_RECOVERYCTL_BINARY=build/ure-host/uke-recoveryctl bash tests/check-recoveryctl.sh
 bash tests/check-installer.sh
 ```
@@ -428,12 +438,19 @@ final verification retain full scans.
 `bash tests/run-native.sh` records these host gates against their exact source
 inputs. `scripts/audit-recovery-image.sh IMAGE REPORT_JSON --qemu` extracts the
 actual compressed ramdisk in a restricted host namespace, scans every ELF and
-embedded ZIP, checks the GUI XML/tool manifest, and runs AArch64 fixtures. QEMU
+embedded ZIP, checks the exact staged source, GUI XML/tool manifest, and runs AArch64 fixtures. QEMU
 covers the CLI file/GPT/raw-image transaction/rollback and inspected readback recovery,
 GPT backup/repair/restore, large-file backup and host receiver,
 WIM capture/verify/apply round trip,
 ext4/exFAT/NTFS no-action checks with unchanged image hashes, and ephemeral SSH
 host-key generation. It never starts an SSH listener or exercises a tablet.
+
+The current native suite has 17 CTest executables, including installed boot and
+management policy plus actual GUI callback routing. Host CLI integration uses
+real filesystem tools on disposable images and actual isolated chroot mounts.
+The optional generic ARM64 VM separately passes 14 Btrfs ioctl fixtures. It
+identifies its kernel and uninstalled fixture ELF; neither its modules nor that
+test executable are in the stock-kernel product.
 
 The tablet interface includes uniform 50–100 percent density and private scale
 settings, plus a native USB-C monitor mirror with independent output on/off and

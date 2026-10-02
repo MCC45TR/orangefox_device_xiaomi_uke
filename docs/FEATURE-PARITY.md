@@ -13,7 +13,8 @@ Six branches of [ArKT-7/twrp_device_xiaomi_nabu](https://github.com/ArKT-7/twrp_
 
 The table states acceptance targets, not completed hardware support. A
 host-tested Linux/ESP identity and read-only mount control now covers part of
-REC-13/14; chroot and storage-changing work are still gated. Windows and
+REC-13/14. Distribution-aware managed chroot and staged filesystem-image jobs
+have native implementations; live storage writes remain gated. Windows and
 second-Android tools require working platform support and proven isolation.
 
 | ID | Capability | Nabu source | Uke acceptance |
@@ -56,8 +57,8 @@ second-Android tools require working platform support and proven isolation.
 Standard OrangeFox features remain part of the target. The management UI shares preflight validation and diagnostics across them. Root or kernel-modification add-ons are not installed automatically.
 
 The stock Global kernel has Btrfs disabled, so Btrfs mounting is not supported
-by the current recovery build even though a future read-only mount plan is
-defined. OrangeFox's generic flashlight control is disabled for Uke until a
+by the current recovery build. Native snapshot, send and maintenance operations
+require a matching Btrfs-capable kernel. OrangeFox's generic flashlight control is disabled for Uke until a
 real, safe LED path is verified on each model. See [Linux/ESP tools](LINUX-ESP-TOOLS.md).
 
 ## URE capability extension
@@ -65,11 +66,15 @@ real, safe LED path is verified on each model. See [Linux/ESP tools](LINUX-ESP-T
 The following 24 contracts extend REC-01–REC-34 without replacing the donor
 minimum. They cover the supplied [comprehensive roadmap](COMPREHENSIVE-ROADMAP.md)
 and link to the workspace's URE-00–URE-15 milestones. The [native checkpoint](URE-NATIVE.md)
-records source and host-tested parts of C01–C07/C14–C16/C18/C20/C23. Bounded
+records source and host-tested parts of C01–C08/C14–C16/C18/C20/C23. Native
+Btrfs snapshot/send/maintenance code also extends C12/C13 conditionally. Bounded
 usage/mapper policy and identity-bound storage stream software extend C01/C18;
-live block-claim/ownership acceptance and managed USB/SSH remain unfinished. The full contracts
+native firmware/slot/snapshot and namespace/holder preflight now extends C01,
+while live writer/range/SKU acceptance and managed USB/SSH remain unfinished. The full contracts
 below remain acceptance targets; no whole contract is complete. Optional P3 work remains optional.
 Physical results continue to use the workspace hardware ledger and test records.
+The [filesystem/rescue checkpoint](../reports/URE-RESCUE-FILESYSTEMS-BUILD.md)
+records the new host/runtime scope and separate generic-kernel Btrfs emulation.
 
 | ID | Capability / roadmap sections | Phase / priority | Acceptance contract and current dependency |
 |---|---|---|---|
@@ -77,16 +82,16 @@ Physical results continue to use the workspace hardware ledger and test records.
 | URE-C02 | Durable transaction engine (§7,48–49,67–69,90) | URE-03 / P0 | Reject stale plans and changed artifacts; verify backups, journal boundaries and readback; file/GPT/raw-image engines have host fixtures, including actual raw-restore SIGKILL and EFBIG uncertainty/resume/rollback. General live writes, operation cancellation and electrical power-loss acceptance remain open before H2. |
 | URE-C03 | Recovery diagnostics and report export (§31–44,64–66,86,95) | URE-02 / P0 | Correlate R000–R100 stages, available pstore and kernel/module/display/touch/USB/UFS/power evidence; preserve crash records, bound collection and test public redaction at U1/H1. |
 | URE-C04 | Linux distribution/package discovery (§10,39,42,53–55,70) | URE-05 / P1 | Bound os-release/package-db parsing, support multiple roots, distinguish observations from hypotheses; do not claim current partition fixtures prove distro detection. |
-| URE-C05 | Installed Linux kernel and boot consistency (§10,25,52–54) | URE-05,URE-09 / P1 | Match kernel/initramfs/modules/DT/BLS/UKI/root identity and detect missing/stale entries on U1 images; recovery uname is not the installed kernel. |
+| URE-C05 | Installed Linux kernel and boot consistency (§10,25,52–54) | URE-05,URE-09 / P1 | PARTIAL source/host: bounded installed Image/bzImage, native gzip/XZ/Zstd initramfs, module ELF/vermagic/dependencies, FDT and origin-bound BLS/UKI audit; userspace/kernel architecture, embedded release and stable root-selector checks. Signatures, complete initramfs executable closure, actual module ABI, hardware DT matching and boot execution remain open. |
 | URE-C06 | Native GUI text editor and config validation (§12,61–63) | URE-05 / P1 | UTF-8, bounded files, search/replace/undo, binary rejection, external-change detection and backup; atomic fsync save preserves metadata and validates fstab/crypttab/BLS at U1/H2. |
 | URE-C07 | Linux files, snapshot compare and bounded search (§13,59–63) | URE-05 / P1; forensics P3 | Preserve UID/GID/mode/ACL/xattrs/SELinux/capabilities, safe symlink rules and checksums; snapshot file restore/search/diff use explicit sources and destinations. |
-| URE-C08 | Controlled chroot and Fedora rescue (§11,54–55,63) | URE-05 / P1 | Track nested mounts, processes, DNS and cleanup; enforce target interpreter/dependency policy; fixture/emulation tests precede H2 initramfs/package/SELinux repairs. |
+| URE-C08 | Controlled chroot and Fedora rescue (§11,54–55,63) | URE-05 / P1 | PARTIAL source/host: automatic Arch/Fedora/Debian/Alpine dispatch, reviewed fstab and selected ESP mounts, isolated mount/PID/network namespaces, native shell/interpreter checks, package-check, Fedora rpmdb/SELinux and Fedora/Arch initramfs dispatch, retained supervisor and verified descendant cleanup/timeout. Host namespace integration passes; real package database/initramfs repair and tablet acceptance remain open. |
 | URE-C09 | Recovery kernel capability expansion (§9,16,50–51) | URE-06 / P1 | Profile-matched kernel/modules expose actual filesystem/crypto/gadget/pstore capabilities; U1/U2 images precede H1; current Btrfs mount is BLOCKED by stock kernel. |
 | URE-C10 | LUKS/dm-crypt lifecycle (§14,30,85) | URE-07 / P1 | Explicit unlock/lock, metadata and header backup; wrong-key/header/mapping fixtures, bounded zeroed secret input without argv/log leakage; advanced key changes require H2. |
 | URE-C11 | Existing BitLocker volume access (§15,20–23,85,98) | URE-07,URE-12 / P2 | Validate pinned BITLK/kernel crypto, supported password/recovery/startup-key inputs and RO first; no TPM/SmartCard/header-edit promise; wrong keys and malformed volumes at U1 before H1/H2. |
-| URE-C12 | Btrfs subvolumes, snapshots and rollback (§16,60,97) | URE-08,URE-09 / P1 | Inspect hierarchy/UUIDs/features, test file restore and emergency snapshot, validate kernel/rootflags and one-shot boot before permanent changes; BLOCKED by current kernel. |
-| URE-C13 | Btrfs scrub, balance, streams and expert rescue (§16,29,67–68) | URE-08 / P1; expert rescue later | Filter balance, define cancellation, verify full/incremental RO snapshot streams and interrupted receive; separate read-only check from expert repair; kernel dependency remains BLOCKED. |
-| URE-C14 | GPT, filesystem framework and boot-chain backups (§8–9,17–20,30,58,75–77) | URE-04 / P0; write tools follow URE-03/06 | Compare both GPT CRCs/geometry, retain slot/profile/hash manifests, reject another device's backup; native GPT metadata backups and image repair/restore/journal recovery have host fixtures, while live write/ownership and multi-LUN orchestration remain open. Exact ext4/FAT/F2FS/exFAT/EROFS/NTFS operations need U1 and H2, not only tool presence. |
+| URE-C12 | Btrfs subvolumes, snapshots and rollback (§16,60,97) | URE-08,URE-09 / P1 | PARTIAL native implementation: bounded ioctl inventory, subvolume creation/deletion with retained backup, read-only flags/snapshots and journaled atomic rollback retaining the original; mount/FD/process-root/cwd ownership checks. Complete human paths, boot integration and tablet acceptance remain open; shipping kernel remains BLOCKED. |
+| URE-C13 | Btrfs scrub, balance, streams and expert rescue (§16,29,67–68) | URE-08 / P1; expert rescue later | PARTIAL native implementation: bounded filtered balance/status/pause/cancel, device scrub/status/cancel, mounted single-device resize and full/incremental RO snapshot send with protocol/CRC32C/lineage/SHA checks. Receive/restore and expert rescue remain open; verification-only scrub needs an RO mount and shipping kernel remains BLOCKED. |
+| URE-C14 | GPT, filesystem framework and boot-chain backups (§8–9,17–20,30,58,75–77) | URE-04 / P0; write tools follow URE-03/06 | PARTIAL source/host: GPT metadata/image repair/restore and six-LUN stock-layout fixtures, staged ext4/FAT/F2FS/exFAT/NTFS format/check/repair/resize adapters with independent checks and full-image rollback; conditional host Btrfs tools. Firmware/slot/merge/holder preflight exists. Live writes, coordinated filesystem/GPT migration and model-specific acceptance remain open; exFAT resize, complete NTFS repair and EROFS mutation are unavailable. |
 | URE-C15 | Android A/B, Virtual A/B, super, OTA and FBE (§24,41,76–77) | URE-11 / P1 | Distinguish slot/snapshot/logical metadata, reject active or unknown merges and unsafe OTA inputs; installed-firmware KeyMint/TEE trust plus credential/RO evidence required; FBE BLOCKED. |
 | URE-C16 | Direct one-shot OS boot and Aloha contract (§25–27,52,70) | URE-09 / P1/P2 | Versioned exact target/entry IDs, validated boot components, consumed request, default preservation and Android/recovery fallback; malformed/stale/replayed requests at U1 and real routing at H2. |
 | URE-C17 | Boot history and known-good restoration (§26,75,95.7) | URE-09 / P1 | Correlate request/acknowledgment/crash/re-entry; no invented successful boot; restore named stock/Linux/Windows boot sets only after matching identity and backup verification. |

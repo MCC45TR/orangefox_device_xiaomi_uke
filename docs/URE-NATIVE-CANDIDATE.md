@@ -7,7 +7,13 @@ chunked file/image/live-source backup software, verified raw-image restore and
 interrupted resume/rollback, host
 reception and native OrangeFox management/editor pages. Source-built NTFS/exFAT/F2FS,
 WIM/ESD and key-authenticated Dropbear tools accompany it. SSH is not started at
-boot; no host key is persisted. SFTP, cryptsetup and Btrfs tools are not packaged.
+boot; no host key is persisted. SFTP, cryptsetup and btrfs-progs are not packaged.
+Native filesystem staging/journal pages, distribution-aware chroot, installed
+kernel/DT/UKI/initramfs/module auditing and native Btrfs snapshot/send/maintenance
+pages are included. Btrfs requires a matching kernel; the preserved stock kernel
+cannot supply its filesystem mount.
+The separate generic ARM64 VM passes 14 native Btrfs operation fixtures. This
+emulation result does not prove either tablet or the preserved stock kernel.
 
 The partition layout GUI allocates ESP/Linux/Windows only from the original
 userdata extent, using keyboard sizes in GB/GiB/MiB or percentages. Standard
@@ -15,8 +21,10 @@ mode preserves existing identities and userdata start. Advanced mode permits
 explicit GUID/content requests; placing OS partitions before userdata requires
 erase/recreate and warns that Android data will be lost. Review and application
 on images cover GPT metadata only, with readback and inspected rollback. Actual
-filesystem shrink, formatting, encrypted-data migration and device application
-are unfinished. Read `PARTITION-MANAGER.md` before reviewing a layout.
+filesystem/GPT application, encrypted-data migration and device writes are
+unfinished. Separate filesystem jobs can format/repair/resize regular images
+without changing their container capacity. Read `PARTITION-MANAGER.md` and
+`FILESYSTEM-MANAGER.md` before reviewing either operation.
 
 **The complete roadmap is not implemented. Neither tablet model has a boot,
 display/touch, storage-write or rollback acceptance record.** These unsigned
@@ -36,8 +44,9 @@ Verify `SHA256SUMS` from the host. A hash/build/QEMU pass is not a tablet boot
 result. The build report records the exact scope of each verification stage.
 
 The GUI is under Advanced → Uke Recovery Environment. OS discovery/editor
-operations require an already mounted root; there is no implicit mount,
-decryption, mapper creation or slot change. The editor accepts valid UTF-8 up to
+operations require an already mounted root. Managed chroot can connect reviewed
+supported fstab filesystems and a selected ESP inside a private namespace;
+there is no decryption, mapper creation or slot change. The editor accepts valid UTF-8 up to
 1 MiB with lines up to 8192 bytes. Save requires review and confirmation of the
 sealed file plan and preserves ownership, permissions and attributes.
 
@@ -49,17 +58,21 @@ backup verification; it does not replay automatically. Host SIGKILL recovery
 passes, while electrical power-loss and hostile concurrent-write acceptance
 remain open. Live-source backup software requires complete unit/boot and usage
 evidence plus a retained kernel claim; positive tablet acceptance, atomic
-snapshots, cross-boot continuation and live restores remain open. Upstream
+cross-boot continuation and live restores remain open. Native Btrfs read-only
+snapshots and full/incremental send are separate conditional operations; native
+receive and matching stock-kernel support remain open. Upstream
 tool binaries expose their own commands; only documented
 URE wrappers share the native validation policy.
 
 The GPT pages add private metadata backup/verification/comparison and reviewed
 repair/restore/rollback for regular disk images. Live whole-LUN sources are
-read-only; real block writes remain gated pending firmware/slot/snapshot and
-ownership integration. Plans seal current and desired tables. GPT recovery
+read-only; native firmware/slot/snapshot and ownership preflight is present,
+while live writes remain gated by the unaccepted writer, range/SKU proof and
+device acceptance. Plans seal current and desired tables. GPT recovery
 verifies original/target data and rejects unrelated changes; resume only finishes
-a verified commit record. Layout design, migration and live power-loss acceptance
-remain unfinished. No GPT write authorizes stock boot-stack changes.
+a verified commit record. Filesystem migration and live power-loss acceptance
+remain unfinished. Userdata-only layout design and image metadata application
+are implemented. No GPT write authorizes stock boot-stack changes.
 
 See `URE-NATIVE.md` in the source snapshot for implemented interfaces and the
 remaining work for all 24 contracts. No full roadmap phase is marked complete.

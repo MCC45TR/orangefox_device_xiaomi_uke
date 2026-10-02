@@ -38,6 +38,13 @@ live-source acceptance, atomic snapshots and real block restores remain open.
 Nabu partition offsets,
 GPT backups, security binaries and kernel images are not Uke inputs.
 
+The local [filesystem and Linux rescue checkpoint](reports/URE-RESCUE-FILESYSTEMS-BUILD.md)
+adds staged filesystem-image jobs, distribution-aware isolated chroot, installed
+kernel/initramfs/DT/UKI/BLS audit and native Btrfs snapshot/send/maintenance pages.
+Btrfs has separate generic ARM64 VM evidence; the preserved stock kernel still
+has no Btrfs filesystem support. Live writes and both tablets' physical acceptance
+remain open. This candidate has not been published to GitHub.
+
 ## Downloads
 
 See [GitHub pre-releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) for experimental build candidates and [installation/rollback instructions](docs/PRE-RELEASE.md). The first alpha supplies separate temporary-boot IMG, dedicated recovery IMG and active-slot installer ZIP, plus hashes and source snapshots. **Neither commercial model has been boot-tested. Global OS3.0.303.0.WOZMIXM is the only packaged profile.** These unsigned development artifacts are not a supported recovery; do not use them on another firmware or treat a source/host check as a hardware result.
