@@ -154,7 +154,7 @@ ProcessResult resize_fat(const Root& store,int working,std::uint64_t capacity,st
         "io-error","Cannot preserve backup FAT volume label metadata");
     return result;
 }
-Value transformed(const Root& system,StorageTarget& target,const Root& store,const fs::path& path,const Value& plan,Value& progress) {
+void prepare_image(const Root& system,StorageTarget& target,const Root& store,const Value& plan,Value& progress) {
     auto write=store.open("working.img",O_RDWR|O_CREAT|O_EXCL,0600); copy(target.descriptor.get(),write.get(),target.identity["bytes"].asUInt64());
     require(sha256(write.get())==plan["source_sha256"].asString(),"stale-source","Original filesystem changed during staging");
     const auto& request=plan["request"]; const auto action=request["action"].asString(),type=request["filesystem"].asString(); const auto fd="/proc/self/fd/"+std::to_string(write.get());
@@ -174,7 +174,9 @@ Value transformed(const Root& system,StorageTarget& target,const Root& store,con
         else if(type=="ntfs")args={fd};
     } else {
         const auto bytes=request["target_bytes"].asUInt64();
-        if(type=="ext4") { const auto checked=run_tool("e2fsck",{"-f","-p",fd},300,{}, {write.get()}); successful(checked,"e2fsck",true); args={fd,std::to_string(bytes/1024)+"K"}; }
+        if(type=="ext4") { const auto checked=run_tool("e2fsck",{"-f","-p",fd},300,{}, {write.get()});
+            progress["precheck_tool"]="e2fsck"; progress["precheck_tool_result"]=process(checked); store.save_record("state.json",progress,true);
+            successful(checked,"e2fsck",true); args={fd,std::to_string(bytes/1024)+"K"}; }
         else if(type=="ntfs") { const auto checked=run_tool("ntfsresize",{"--no-action","--size",std::to_string(bytes),fd},300,{}, {write.get()}); successful(checked,"ntfsresize"); args={"--force","--size",std::to_string(bytes),fd}; }
         else if(type=="f2fs")args={"-s","-t",std::to_string(bytes/512),fd};
         else if(type=="vfat")args={"-s",std::to_string(bytes),fd};
@@ -215,6 +217,9 @@ Value transformed(const Root& system,StorageTarget& target,const Root& store,con
     require(checked["successful"]==true,"filesystem-post-check-failed","Transformed filesystem did not pass its read-only post-check");
     progress["post_check"]=checked; progress["prepared_sha256"]=sha256(read.get()); progress["state"]="PREPARED"; store.save_record("state.json",progress,true);
     storage_revalidate(target,&system); require(sha256(target.descriptor.get())==plan["source_sha256"].asString(),"stale-source","Original target changed while its replacement was prepared");
+}
+Value transformed(const Root& system,StorageTarget& target,const Root& store,const fs::path& path,const Value& plan,Value& progress) {
+    prepare_image(system,target,store,plan,progress);
     filesystem_replacement_backup(system,target,store,"working.img",path/"prepared-backup",plan["firmware_profile"].asString());
     auto application=restore_plan(system,target,path/"prepared-backup",plan["firmware_profile"].asString()); store.save_record("application-plan.json",application);
     progress["state"]="READY_TO_APPLY"; progress["application_plan_sha256"]=application["plan_sha256"]; store.save_record("state.json",progress,true);
@@ -270,6 +275,18 @@ Value filesystem_operation_plan(const Root& system,const StorageTarget& target,c
     plan["partition_boundary_changed"]=false; plan["confirmation_required"]=true; plan["private_record"]=true; plan["physical_test_record"]=false;
     plan["risk"]=action=="format" ? "Erase all files in the selected filesystem; preserve a verified complete original image in the application journal before writes" : "Modify only the selected filesystem; keep verified before/after bytes for interruption recovery and rollback";
     plan["plan_sha256"]=seal(plan); return plan;
+}
+Value filesystem_prepare(const Root& system,StorageTarget& source,const Value& plan,const fs::path& directory,const std::string& confirmation) {
+    check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact preparation plan hash");
+    require(source.identity["kind"]=="regular-image" && json(source.identity)==json(plan["target_identity"]),"invalid-stage-source","Preparation selects an unchanged private regular image");
+    const auto checked=filesystem_operation_plan(system,source,plan["request"],plan["firmware_profile"].asString());
+    require(checked["source_sha256"]==plan["source_sha256"] && checked["tool"]==plan["tool"],"stale-source","Filesystem preparation input or tool differs from review");
+    auto store=private_directory(directory,true); auto writer=lock(store); store.save_record("plan.json",plan);
+    Value progress; progress["schema"]=1; progress["plan_sha256"]=plan["plan_sha256"]; progress["state"]="VALIDATED";
+    progress["source_written"]=false; progress["physical_test_record"]=false; store.save_record("state.json",progress);
+    try { prepare_image(system,source,store,plan,progress); return progress; }
+    catch(const Error& error) { progress["state"]="FAILED_SAFE"; progress["error_code"]=error.code;
+        try { store.save_record("state.json",progress,true); } catch(...) {} throw; }
 }
 Value filesystem_operation_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& path,const std::string& confirmation) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact filesystem plan hash");

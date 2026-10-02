@@ -16,7 +16,7 @@ target_include_directories(uke-jsoncpp SYSTEM PUBLIC ${UKE_JSONCPP_SOURCE}/inclu
 target_compile_definitions(uke-jsoncpp PRIVATE JSON_USE_EXCEPTION=0 JSONCPP_NO_LOCALE_SUPPORT)
 add_library(uke-recovery STATIC libuke/core.cpp libuke/storage.cpp libuke/systems.cpp libuke/boot_audit.cpp libuke/editor.cpp
     libuke/transaction.cpp libuke/backup.cpp libuke/tree.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
-    libuke/preflight.cpp libuke/filesystems.cpp libuke/rescue.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp)
+    libuke/preflight.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/rescue.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp)
 target_compile_features(uke-recovery PUBLIC cxx_std_20)
 target_compile_options(uke-recovery PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
 target_link_libraries(uke-recovery PUBLIC uke-jsoncpp OpenSSL::Crypto ZLIB::ZLIB LibLZMA::LibLZMA ${UKE_ZSTD_LIBRARY})
@@ -121,6 +121,11 @@ if(BUILD_TESTING)
     target_link_libraries(uke-layout-tests PRIVATE uke-recovery)
     target_compile_options(uke-layout-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
     add_test(NAME ure-partition-layout-and-image-rollback COMMAND uke-layout-tests)
+    add_executable(uke-partition-job-tests ../../../../../tests/ure/partition_job.cpp)
+    target_include_directories(uke-partition-job-tests PRIVATE libuke)
+    target_link_libraries(uke-partition-job-tests PRIVATE uke-recovery)
+    target_compile_options(uke-partition-job-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    add_test(NAME ure-combined-partition-job-and-interruption COMMAND uke-partition-job-tests)
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/layout-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-layout-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/layout-hooks.cpp"
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../ure-gui.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-layout-hooks.sh")
@@ -143,5 +148,5 @@ if(BUILD_TESTING)
     target_include_directories(uke-management-gui-tests PRIVATE libuke ../../../../../tests/ure)
     target_link_libraries(uke-management-gui-tests PRIVATE uke-recovery)
     target_compile_options(uke-management-gui-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
-    add_test(NAME ure-actual-management-callbacks COMMAND uke-management-gui-tests)
+    add_test(NAME ure-actual-management-callbacks COMMAND uke-management-gui-tests $<TARGET_FILE:uke-partition-job-tests>)
 endif()

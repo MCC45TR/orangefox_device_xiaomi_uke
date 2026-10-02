@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <sys/wait.h>
 #include <unistd.h>
 namespace {
 void check(bool condition,const std::string& message) { if(!condition)throw std::runtime_error(message); }
@@ -11,7 +12,7 @@ std::string value(const std::string& key) { std::string out; DataManager::GetVal
 std::string digest(const ure::fs::path& path) { ure::Root parent(path.parent_path()); auto file=parent.open(path.filename().string(),O_RDONLY); return ure::sha256(file.get()); }
 void write(const ure::fs::path& path,const std::string& text) { ure::fs::create_directories(path.parent_path()); std::ofstream file(path); file<<text; check(file.good(),"Cannot create GUI fixture"); }
 }
-int main() {
+int main(int argc,char* argv[]) {
     std::array<char,40> buffer{}; const std::string pattern="/tmp/ure-management-gui-XXXXXX"; std::copy(pattern.begin(),pattern.end(),buffer.begin());
     const auto* temporary=::mkdtemp(buffer.data()); if(!temporary)return 1; const ure::fs::path fixture(temporary);
     try {
@@ -43,6 +44,25 @@ int main() {
         const auto info_status=action.uremanager("btrfs-info");
         if(info_status!=0) { const auto code=ure::parse_json(value("ure_output"))["error"]["code"].asString(); check(code=="not-btrfs" || code=="not-subvolume","GUI hid a genuine runtime failure"); }
         check(!ure::fs::exists(fixture/"child"),"Read-only GUI discovery changed storage");
+        check(argc==2,"The combined partition fixture executable is required"); const auto disk=fixture/"layout.img";
+        const auto child=::fork(); check(child>=0,"Cannot create GUI disk fixture");
+        if(child==0) { ::execl(argv[1],argv[1],"--fixture",disk.c_str(),static_cast<char*>(nullptr)); ::_exit(127); }
+        int status=0; check(::waitpid(child,&status,0)==child && WIFEXITED(status) && WEXITSTATUS(status)==0,"GUI disk fixture failed");
+        const auto original_disk=digest(disk);
+        for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_gpt_kind","image"},{"ure_gpt_source",disk.string()},{"ure_gpt_sector","4096"},
+            {"ure_layout_mode","standard"},{"ure_layout_placement","after_userdata"},{"ure_layout_userdata_policy","preserve"},{"ure_layout_record_edits","[]"}})DataManager::SetValue(key,text);
+        for(const auto* role:{"esp","linux","windows","userdata"}) {
+            const std::string name=role; DataManager::SetValue("ure_layout_"+name+"_size",name=="userdata" ? "" : "64");
+            DataManager::SetValue("ure_layout_"+name+"_unit",name=="userdata" ? "remaining" : "MiB"); DataManager::SetValue("ure_layout_"+name+"_guid","");
+            DataManager::SetValue("ure_layout_"+name+"_filesystem",name=="esp" ? "fat32" : name=="windows" ? "ntfs" : "ext4");
+        }
+        check(action.uremanager("layout-plan")==0 && value("ure_gpt_plan_hash").size()==64 && value("ure_layout_review").find("Required journal space")!=std::string::npos,
+            "Actual layout GUI did not review a combined filesystem/GPT job");
+        DataManager::SetValue("ure_layout_linux_size","65"); check(action.uremanager("layout-apply-image")==1 && digest(disk)==original_disk,"Changed layout bypassed review");
+        DataManager::SetValue("ure_layout_linux_size","64"); check(action.uremanager("layout-apply-image")==0 && value("ure_gpt_plan_hash").empty(),"Actual GUI did not complete the combined image job");
+        check(action.uremanager("partition-job-inspect")==0 && value("ure_partition_can_rollback")=="1","Actual GUI did not inspect a complete data/GPT journal");
+        DataManager::SetValue("ure_gpt_source",image.string()); check(action.uremanager("partition-job-rollback")==1,"Changed GUI target reused journal confirmation");
+        DataManager::SetValue("ure_gpt_source",disk.string()); check(action.uremanager("partition-job-rollback")==0 && digest(disk)==original_disk,"Actual GUI failed complete partition rollback");
         ure::fs::remove_all(fixture); std::cout<<"Actual management callbacks: erase choice, sealed review, changed selections, image format/readback/rollback, rescue review, truthful empty audit and native Btrfs discovery passed; host UI stand-ins only.\n"; return 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; ure::fs::remove_all(fixture); return 1; }
 }

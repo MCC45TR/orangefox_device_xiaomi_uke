@@ -145,10 +145,18 @@ Value descriptor_identity(int fd);
 Value storage_preflight(const Root& system, const StorageTarget& target, const std::string& profile);
 Value filesystem_capabilities();
 Value filesystem_operation_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
+// Prepare and independently check a private replacement. Never write the source.
+Value filesystem_prepare(const Root& system, StorageTarget& source, const Value& plan,
+                         const fs::path& directory, const std::string& confirmation);
 Value filesystem_operation_execute(const Root& system, StorageTarget& target, const Value& plan, const fs::path& journal, const std::string& confirmation);
 Value filesystem_operation_recover(const Root& system, StorageTarget& target, const fs::path& journal, const std::string& operation, const std::string& confirmation = {});
 Value filesystem_replacement_backup(const Root& system, const StorageTarget& target, const Root& staged, const std::string& file,
                                     const fs::path& destination, const std::string& profile);
+Value partition_job_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
+Value partition_job_execute(const Root& system, StorageTarget& target, const Value& plan,
+                            const fs::path& journal, const std::string& confirmation);
+Value partition_job_recover(const Root& system, StorageTarget& target, const fs::path& journal,
+                            const std::string& action, const std::string& confirmation = {});
 bool management_command(const std::vector<std::string>& args);
 Value management_dispatch(std::vector<std::string> args);
 Value btrfs_subvolume_info(const Root& root, const std::string& relative);

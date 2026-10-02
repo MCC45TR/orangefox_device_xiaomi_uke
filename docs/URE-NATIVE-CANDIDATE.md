@@ -19,10 +19,13 @@ The partition layout GUI allocates ESP/Linux/Windows only from the original
 userdata extent, using keyboard sizes in GB/GiB/MiB or percentages. Standard
 mode preserves existing identities and userdata start. Advanced mode permits
 explicit GUID/content requests; placing OS partitions before userdata requires
-erase/recreate and warns that Android data will be lost. Review and application
-on images cover GPT metadata only, with readback and inspected rollback. Actual
-filesystem/GPT application, encrypted-data migration and device writes are
-unfinished. Separate filesystem jobs can format/repair/resize regular images
+erase/recreate and warns that Android data will be lost. The image GUI now
+reviews a combined filesystem/GPT job: prepare and check all role filesystems,
+preserve the original userdata, protect existing ESP/OEM contents and apply
+payloads followed by GPT with inspected resume/full rollback. The legacy
+`gpt layout-plan` still applies metadata only. Encrypted-data migration,
+Android recreate boot compatibility and device writes remain unfinished.
+Separate filesystem jobs can format/repair/resize regular images
 without changing their container capacity. Read `PARTITION-MANAGER.md` and
 `FILESYSTEM-MANAGER.md` before reviewing either operation.
 
@@ -55,8 +58,9 @@ parent before relying on rollback across reboot. Backup plans in `/tmp` contain
 only private metadata; captured chunks use the explicitly selected destination.
 The CLI can select a persistent journal. Resume requires current identity and
 backup verification; it does not replay automatically. Host SIGKILL recovery
-passes, while electrical power-loss and hostile concurrent-write acceptance
-remain open. Live-source backup software requires complete unit/boot and usage
+passes. The owner clarified on 2 October 2026 that forced reboot is the primary
+tablet interruption scenario; exact-device reset durability and hostile
+concurrent-write acceptance remain open. Live-source backup software requires complete unit/boot and usage
 evidence plus a retained kernel claim; positive tablet acceptance, atomic
 cross-boot continuation and live restores remain open. Native Btrfs read-only
 snapshots and full/incremental send are separate conditional operations; native
@@ -70,9 +74,10 @@ read-only; native firmware/slot/snapshot and ownership preflight is present,
 while live writes remain gated by the unaccepted writer, range/SKU proof and
 device acceptance. Plans seal current and desired tables. GPT recovery
 verifies original/target data and rejects unrelated changes; resume only finishes
-a verified commit record. Filesystem migration and live power-loss acceptance
-remain unfinished. Userdata-only layout design and image metadata application
-are implemented. No GPT write authorizes stock boot-stack changes.
+a verified commit record. Encrypted filesystem migration and live forced-reboot
+acceptance remain unfinished. Userdata-only layout design, legacy image metadata
+application and the separate combined image job are implemented. No GPT write
+authorizes stock boot-stack changes.
 
 See `URE-NATIVE.md` in the source snapshot for implemented interfaces and the
 remaining work for all 24 contracts. No full roadmap phase is marked complete.

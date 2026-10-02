@@ -41,6 +41,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(args.size()<2)return false;
     const auto& command=args[0]; const auto& op=args[1];
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
+    if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="storage")return op=="preflight";
     if(command=="linux")return op=="audit" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect";
     if(command=="btrfs")return op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
@@ -51,6 +52,17 @@ Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
     if(command=="filesystem" && operation=="capabilities") { positional(options,2); options.allow({}); return filesystem_capabilities(); }
+    if(command=="partition") {
+        positional(options,3); Root system(options.get("--system-root","/"));
+        if(operation=="job-plan") { options.allow({"--system-root","--image","--object","--sector-size","--profile","--output"}); auto selected=target(options,system);
+            const auto plan=partition_job_plan(system,selected,json_file(words[2]),options.need("--profile")); save_json(options.need("--output"),plan); return plan; }
+        if(operation=="job-execute") { options.allow({"--system-root","--image","--object","--sector-size","--journal","--confirm"}); auto selected=target(options,system,true);
+            return partition_job_execute(system,selected,json_file(words[2]),options.need("--journal"),options.need("--confirm")); }
+        options.allow({"--system-root","--image","--object","--sector-size","--confirm"}); const auto action=operation.substr(4);
+        require(action!="inspect" || !options.has("--confirm"),"invalid-options","Read-only partition journal inspection does not accept confirmation");
+        auto selected=target(options,system,action=="resume" || action=="rollback");
+        return partition_job_recover(system,selected,words[2],action,action=="inspect" ? "" : options.need("--confirm"));
+    }
     if(command=="filesystem" || command=="storage") {
         Root system(options.get("--system-root","/")); const bool write=operation=="execute" || operation=="resume" || operation=="rollback";
         if(operation=="preflight") { positional(options,2); options.allow({"--system-root","--image","--object","--sector-size","--profile"}); auto selected=target(options,system); return storage_preflight(system,selected,options.need("--profile")); }

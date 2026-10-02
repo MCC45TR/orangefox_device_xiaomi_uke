@@ -350,8 +350,15 @@ Value filesystem_probe_range(int fd,std::uint64_t offset,std::uint64_t bytes) {
     else if(std::memcmp(head.data()+3,"NTFS    ",8)==0)output["type"]="ntfs";
     else if(std::memcmp(head.data()+3,"EXFAT   ",8)==0)output["type"]="exfat";
     else if(std::memcmp(head.data()+82,"FAT32   ",8)==0 || std::memcmp(head.data()+54,"FAT16   ",8)==0)output["type"]="vfat";
-    else if(head.size()>=1144 && head[1080]==0x53 && head[1081]==0xef) { output["type"]="ext4"; output["uuid"]=guid(head.data()+1128,false); }
-    else if(head.size()>1028 && le32(head.data()+1024)==0xf2f52010U)output["type"]="f2fs";
+    else if(head.size()>=1144 && head[1080]==0x53 && head[1081]==0xef) {
+        output["type"]="ext4"; output["uuid"]=guid(head.data()+1128,false);
+        output["filesystem_encryption_feature"]=(le32(head.data()+1024+96)&0x10000U)!=0;
+    }
+    else if(head.size()>=3208 && le32(head.data()+1024)==0xf2f52010U) {
+        output["type"]="f2fs";
+        // Pinned f2fs-tools f2fs_super_block: feature at byte 2180.
+        output["filesystem_encryption_feature"]=(le32(head.data()+1024+2180)&1U)!=0;
+    }
     else if(std::memcmp(head.data(),"XFSB",4)==0)output["type"]="xfs";
     else if(head.size()>1028 && le32(head.data()+1024)==0xe0f5e1e2U)output["type"]="erofs";
     else if(std::memcmp(head.data(),"MSWIM",5)==0)output["type"]="wim";

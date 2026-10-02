@@ -142,6 +142,9 @@ fi
 if [[ -f $component/reports/URE-RESCUE-FILESYSTEMS-BUILD.md ]]; then
     cp -- "$component/reports/URE-RESCUE-FILESYSTEMS-BUILD.md" "$source_work/project/RESCUE-FILESYSTEMS-BUILD-REPORT.md"
 fi
+if [[ -f $component/reports/URE-PARTITION-JOB-BUILD.md ]]; then
+    cp -- "$component/reports/URE-PARTITION-JOB-BUILD.md" "$source_work/project/PARTITION-JOB-BUILD-REPORT.md"
+fi
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"
 (cd -- "$destination" && sha256sum STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz >> SHA256SUMS)

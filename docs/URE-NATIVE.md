@@ -25,6 +25,7 @@ status and returns failure rather than silently reporting success.
 | `gpt inspect --image FILE --sector-size 512/4096` or `--object STABLE_ID` | Both headers/tables, CRCs, reciprocal positions, reserved metadata, GUID/range overlap, UTF-16 labels and protective MBR inspection |
 | `gpt map [--output PRIVATE_JSON]` | Private partition map with allocated ranges, OEM reservations, GPT-unallocated gaps/alignment and bounded offset filesystem/container signatures; unhealthy GPT suppresses gap/probe inference, labels remain ownership hints and Android FBE trust remains unverified |
 | `gpt layout-preview/layout-plan REQUEST` | Shared original-userdata-only GB/GiB/MiB/percentage allocation, role/filesystem selection and graph/review GUI; standard identity preservation and explicit advanced GUID/content requests; before-userdata placement requires erase/recreate. Image metadata commit/readback/rollback does not resize or format filesystems. Live application remains unavailable; see [PARTITION-MANAGER.md](PARTITION-MANAGER.md). |
+| `partition job-plan/job-execute/job-inspect/job-resume/job-rollback/job-cancel` | Combined image workflow prepares and independently checks final-size filesystems before original writes, then journals userdata payloads and five GPT regions together. Existing ESP/OEM bytes stay protected; exact-byte recovery ignores saved progress and refuses divergence. Unknown/fscrypt userdata, other-partition formatting and live device writes remain blocked; see [PARTITION-MANAGER.md](PARTITION-MANAGER.md). |
 | `gpt backup/verify/compare` | Private five-region raw metadata backup, partition-map JSON, identity/profile manifest, checksums and sparse reconstruction of the actual saved GPT; image or read-only whole-LUN source |
 | `gpt repair-plan/restore-plan/execute/rollback` | Sealed current/desired table review, same-target backup checks, durable original/target metadata journal and ordered readback writes for regular images; live UFS writes remain gated |
 | `gpt journal-inspect/resume` | Verified backup/payload reads, original/target/partial/divergent classification and explicit readback-only commit; interrupted metadata writes are never replayed |
@@ -367,11 +368,11 @@ upstream build dependencies; no project Python or tablet interpreter is added.
 
 | Contracts | Remaining implementation / acceptance |
 |---|---|
-| C01–C03 | Full live identity/ownership acceptance, general storage transactions, physical power-loss tests and actual R000–R100 producers/correlation; bounded ownership policy and file/GPT/raw-image journal recovery have fixtures, while diagnostics only reads a stage file if one exists |
+| C01–C03 | Full live identity/ownership acceptance, general storage transactions, exact-device forced-reboot tests and actual R000–R100 producers/correlation; bounded ownership policy and file/GPT/raw-image/combined image recovery have fixtures, while diagnostics only reads a stage file if one exists |
 | C04–C07 | Multi-root orchestration, actual root-block/DT-platform/signature/boot acceptance, full embedded initramfs closure, metadata browsing/snapshot comparison, config semantic validation and GUI rendering/touch; native installed DT/UKI/module parsers and findings are present |
 | C08–C09 | Real installed-distro repair/runtime dependency acceptance, network rescue, GUI chroot cancellation and profile-compatible recovery kernel/modules; controlled native chroot and cleanup have host integration fixtures |
 | C10–C13 | Packaged cryptsetup and secure LUKS/BITLK lifecycle, header/key workflows, matching shipping Btrfs kernel, native receive/restore, human subvolume paths and hardware acceptance; native snapshots/send/rollback/scrub/balance are implemented conditionally |
-| C14–C15 | Multi-LUN GPT and boot-chain orchestration, accepted live writer/range/SKU backend, combined filesystem/GPT migration, exFAT resize, complete NTFS repair, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; image GPT and staged filesystem jobs are implemented |
+| C14–C15 | Multi-LUN GPT and boot-chain orchestration, accepted live writer/range/SKU backend, encrypted filesystem/GPT migration, exFAT resize, complete NTFS repair, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; image GPT, staged filesystem jobs and userdata-only combined image application are implemented |
 | C16–C17 | Accepted Uke Aloha/stock boot backend, request consumption, boot history, retry/rollback policy and default preservation |
 | C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance, live restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local and host-assisted raw-image restore and a host companion are implemented |
 | C22–C24 | Signed update/profile lifecycle, persistent UI/session policy, full reproducibility/CI, optional web/NAS/extensions/forensics/hardware-test tools |
@@ -445,8 +446,8 @@ WIM capture/verify/apply round trip,
 ext4/exFAT/NTFS no-action checks with unchanged image hashes, and ephemeral SSH
 host-key generation. It never starts an SSH listener or exercises a tablet.
 
-The current native suite has 17 CTest executables, including installed boot and
-management policy plus actual GUI callback routing. Host CLI integration uses
+The current native suite has 18 CTest executables, including installed boot,
+combined filesystem/GPT jobs and management policy plus actual GUI callback routing. Host CLI integration uses
 real filesystem tools on disposable images and actual isolated chroot mounts.
 The optional generic ARM64 VM separately passes 14 Btrfs ioctl fixtures. It
 identifies its kernel and uninstalled fixture ELF; neither its modules nor that

@@ -17,10 +17,11 @@ and raw local/host-assisted backup/restore provide additional building blocks.
 Native stock reconstruction now derives both GPT copies from pinned Global OEM
 inputs and selected capacity, preserving original disk/partition identities.
 Reviewed per-image stock metadata execution/readback/rollback uses the shared
-GPT journal. Physical writes, layout migration, multi-LUN orchestration and
-complete filesystem transactions remain unfinished. The layout pages and
-original-userdata-only allocation planner described below are now implemented;
-they do not authorize a live partition job.
+GPT journal. A separate combined image job now prepares and checks filesystems,
+then applies userdata payloads and GPT with one persistent recovery journal.
+Physical writes, encrypted-data migration, multi-LUN stock orchestration and
+installed-system boot acceptance remain unfinished. The layout pages use this
+combined job for regular images; they do not authorize a live partition job.
 
 `gpt map` now reports every partition and OEM reserved record, actual byte
 ranges, protected label hints and signature observations relative to each
@@ -39,8 +40,10 @@ healthy, agreeing GPT copies. `layout-plan` uses the same arguments and requires
 `--output PLAN`. GUI and CLI use the same native arithmetic and policy engine.
 The GUI provides keyboard size entry, GB/GiB/MiB/percentage selection,
 role-compatible requested filesystems, a proportional colored allocation bar,
-before/after sizes, alignment loss, data-loss warnings and a separate review
-before applying image metadata. Editing a selection invalidates its review.
+before/after sizes, alignment loss, data-loss warnings and a separate review.
+The legacy `gpt layout-plan` applies metadata only. The GUI now reviews the
+combined `partition job-plan` described below. Editing a selection invalidates
+its review.
 
 All new ESP/Linux/Windows partitions fit inside the **original userdata range**.
 Unused GPT gaps and existing OS partitions never extend this pool. Percentages
@@ -120,6 +123,78 @@ readback and a preserved stock recovery route. Pad 7 and POCO Pad X1 require
 separate original-device evidence; a shared marketing or codename assumption
 cannot authorize another unit. See [URE-PARTITION-LAYOUT-BUILD.md](../reports/URE-PARTITION-LAYOUT-BUILD.md)
 for software/build evidence.
+
+## Combined filesystem and GPT image job
+
+`partition job-plan REQUEST --image IMAGE --sector-size 512|4096 --profile
+PROFILE --output PLAN` seals the original userdata bytes, target path/inode,
+capacity, both GPT copies, resolved role identities and all protected ranges.
+It uses the same original-userdata-only layout arithmetic. No existing OEM
+payload, existing Linux/Windows partition or shared ESP is part of its write
+pool. Setting the ESP allocation to zero retains an existing ESP and every byte
+of its files; registering new OS boot entries is a separate operation.
+
+Preserve mode requires an observed ext4 or F2FS filesystem matching the chosen
+userdata type. An unknown, encrypted or fscrypt-enabled source is refused;
+F2FS checks both superblocks. A signature without a block-encryption marker
+does not prove Android FBE access. Advanced front placement requires explicit
+erase/recreate and cannot preserve existing Android data. Recreated userdata
+has no established Android boot compatibility. Advanced GUID edits remain
+explicit; formatting other existing partition contents requires a separate
+range transaction and is refused by this userdata-only job.
+
+Execution requires the exact reviewed digest:
+
+```text
+partition job-execute PLAN --image IMAGE --sector-size 4096 --journal NEW_DIRECTORY --confirm PLAN_SHA256
+partition job-inspect DIRECTORY --image IMAGE --sector-size 4096
+partition job-resume DIRECTORY --image IMAGE --sector-size 4096 --confirm PLAN_SHA256
+partition job-rollback DIRECTORY --image IMAGE --sector-size 4096 --confirm PLAN_SHA256
+partition job-cancel DIRECTORY --image IMAGE --sector-size 4096 --confirm PLAN_SHA256
+```
+
+Select a private, persistent journal outside the disk image. The conservative
+free-space budget is three original userdata sizes plus 64 MiB. Sparse zero
+staging and reflinks reduce copying where available without reducing that
+required budget. Buffers are 64 KiB; application chunks adapt between 1 and
+64 MiB and their total count is bounded. This is a complete-backup workflow,
+so a large tablet layout requires a correspondingly large external destination.
+
+Before any original write, the job captures the complete original userdata and
+both versions of the five GPT regions. It resizes preserved userdata in a
+private file, formats new FAT32/ext4/F2FS/Btrfs/NTFS role images only when their
+required native tools are available, sets each image to its final partition
+capacity and performs an independent read-only filesystem check. Btrfs
+formatting is unavailable in the current stock recovery payload. Existing
+userdata UUID retention is checked when the probe exposes its UUID.
+
+The application journal seals disjoint byte ranges and before/after hashes.
+Payloads are applied before backup GPT and then primary GPT. Each chunk has a
+durable intent record, synchronized data and exact readback. Final verification
+checks the complete desired range set, the reviewed healthy GPT and all bytes
+outside the original userdata/GPT pool. A successful result identifies
+`complete_partition_job: true` for this image operation only.
+
+Recovery inspects current bytes rather than trusting saved progress. Original,
+desired and interrupted mixtures of the sealed before/after bytes can be
+resumed or fully rolled back; unrelated changes disable both actions. Resume
+uses prepared journal data and does not need the original formatting tools or
+request source. Interrupted staging leaves the original image untouched and
+can be cancelled. Cancel never discards the only rollback copy after writes.
+GUI recovery offers actions only after inspection and binds the target,
+sector size, journal and digest to that review.
+
+Host tests cover actual ext4 file relocation/retention, final FAT32/ext4/NTFS
+checks, both sector sizes, existing ESP preservation, advanced front recreate,
+SIGKILL interruption, partial writes, changed targets, divergence refusal and
+complete original-image rollback. Native ARM64 execution and guest reset are
+separate validation stages. Live tablet writes, real UFS reset durability,
+Android encrypted-data migration and installed OS boot remain unaccepted.
+
+On 2 October 2026 the owner clarified that **forced reboot** is the primary
+tablet interruption scenario. Older power-loss wording remains historical
+evidence. A process kill or a generic VM emergency reboot is not an exact-device
+forced-reboot acceptance result.
 
 ## Required Linux backup workflows
 

@@ -107,6 +107,11 @@
     <variable name="ure_gpt_journal" value=""/>
     <variable name="ure_gpt_plan_hash" value=""/>
     <variable name="ure_gpt_journal_hash" value=""/>
+    <variable name="ure_partition_journal" value=""/>
+    <variable name="ure_partition_journal_hash" value=""/>
+    <variable name="ure_partition_can_resume" value="0"/>
+    <variable name="ure_partition_can_rollback" value="0"/>
+    <variable name="ure_partition_can_cancel" value="0"/>
     <variable name="ure_gpt_can_execute" value="0"/>
     <variable name="ure_gpt_can_rollback" value="0"/>
     <variable name="ure_gpt_can_resume" value="0"/>
@@ -366,6 +371,7 @@
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Target: %ure_gpt_source% / %ure_gpt_kind%</text></text>
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Mode: %ure_layout_mode%; placement: %ure_layout_placement%</text></text>
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Every new OS partition uses space from the original userdata range.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>To retain an existing shared ESP, set the new ESP size to zero.</text></text>
         <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/></urepartitionmap>
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text></text>
         <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1800"/>
@@ -503,7 +509,7 @@
       <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Advanced content policy</text></text>
       <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Contents: %ure_layout_record_contents% / %ure_layout_record_filesystem%</text></text>
-        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Formatting destroys selected data. The current image operation writes GPT metadata only.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Formatting destroys selected data. Advanced OEM formatting requires a separate workflow.</text></text>
         <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="1100"/>
           <listitem name="Preserve current contents"><action function="set">ure_layout_record_contents=preserve</action></listitem>
           <listitem name="Request formatting as EXT4"><action function="set">ure_layout_record_contents=format</action><action function="set">ure_layout_record_filesystem=ext4</action></listitem>
@@ -523,11 +529,11 @@
         <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/></urepartitionmap>
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text></text>
         <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1100"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_layout_review%</text></textbox>
-        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Device application is unavailable until verified resize/recreate and format checks are complete.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Device application requires accepted firmware, FBE and exclusive UFS ownership.</text></text>
         <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="600"/>
           <listitem name="Adjust selections"><action function="page">ure_layout</action></listitem>
           <listitem name="View complete private JSON details"><action function="page">ure_output</action></listitem>
-          <listitem name="Inspect / restore image metadata journal"><action function="page">ure_gpt_journals</action></listitem>
+          <listitem name="Inspect / recover complete partition job"><action function="page">ure_partition_journals</action></listitem>
         </listbox>
       </scroll>
       <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
@@ -539,15 +545,40 @@
         <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/></urepartitionmap>
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text></text>
         <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1100"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_layout_review%</text></textbox>
-        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Device application is unavailable until verified resize/recreate and format checks are complete.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Device application requires accepted firmware, FBE and exclusive UFS ownership.</text></text>
         <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="600"/>
-          <listitem name="Confirm image GPT metadata only; filesystems need a separate job"><condition var1="ure_gpt_can_execute" var2="1"/><action function="uremanager">layout-apply-image</action><action function="page">ure_result</action></listitem>
+          <listitem name="Confirm complete image filesystem and partition job"><condition var1="ure_gpt_can_execute" var2="1"/><action function="uremanager">layout-apply-image</action><action function="page">ure_result</action></listitem>
           <listitem name="Cancel and return without applying"><action function="page">ure_layout</action></listitem>
           <listitem name="View complete private JSON details"><action function="page">ure_output</action></listitem>
-          <listitem name="Inspect / restore image metadata journal"><action function="page">ure_gpt_journals</action></listitem>
+          <listitem name="Inspect / recover complete partition job"><action function="page">ure_partition_journals</action></listitem>
         </listbox>
       </scroll>
       <template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_partition_journals">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Recover complete partition job</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_y%"/><text>Target: %ure_gpt_source%. Keep original data and prepared filesystem images.</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_partition_journal%</text><data name="ure_partition_journal"/><restrict maxlen="4096"/></input>
+      <listbox style="group_list"><placement x="0" y="%row4_1_y%" w="%screen_w%" h="600"/>
+        <listitem name="Inspect actual bytes and review available actions"><action function="uremanager">partition-job-inspect</action><action function="page">ure_partition_recovery</action></listitem>
+        <listitem name="Select the original target"><action function="page">ure_gpt_select</action></listitem>
+        <listitem name="Return to layout"><action function="page">ure_layout</action></listitem>
+      </listbox><template name="keyboard"/><template name="navbar"/><action><touch key="back"/><action function="page">ure_layout</action></action>
+    </page>
+    <page name="ure_partition_recovery">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review partition job recovery</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_status%</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="600"/>
+          <listitem name="Resume the reviewed prepared layout"><condition var1="ure_partition_can_resume" var2="1"/><action function="uremanager">partition-job-resume</action><action function="page">ure_output</action></listitem>
+          <listitem name="Restore all original userdata and GPT bytes"><condition var1="ure_partition_can_rollback" var2="1"/><action function="uremanager">partition-job-rollback</action><action function="page">ure_output</action></listitem>
+          <listitem name="Cancel after verifying the original is unchanged"><condition var1="ure_partition_can_cancel" var2="1"/><action function="uremanager">partition-job-cancel</action><action function="page">ure_output</action></listitem>
+          <listitem name="View exact private readback details"><action function="page">ure_output</action></listitem>
+          <listitem name="Return without writing"><action function="page">ure_partition_journals</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_partition_journals</action></action>
     </page>
     <page name="maintainer">
       <action><action function="page">ure_home</action></action>

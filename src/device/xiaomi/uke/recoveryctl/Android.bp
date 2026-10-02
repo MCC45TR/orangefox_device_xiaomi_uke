@@ -8,7 +8,7 @@ cc_library_static {
     srcs: ["libuke/core.cpp", "libuke/storage.cpp", "libuke/systems.cpp", "libuke/boot_audit.cpp",
            "libuke/transaction.cpp", "libuke/diagnostics.cpp", "libuke/tools.cpp",
            "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/tree.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/stock.cpp", "libuke/partition.cpp", "libuke/layout.cpp", "libuke/display.cpp", "libuke/ownership.cpp",
-           "libuke/preflight.cpp", "libuke/filesystems.cpp", "libuke/rescue.cpp", "libuke/btrfs_backup.cpp", "libuke/btrfs_manager.cpp", "libuke/management.cpp"],
+           "libuke/preflight.cpp", "libuke/filesystems.cpp", "libuke/partition_job.cpp", "libuke/rescue.cpp", "libuke/btrfs_backup.cpp", "libuke/btrfs_manager.cpp", "libuke/management.cpp"],
     export_include_dirs: ["libuke"],
     static_libs: ["libjsoncpp", "liblzma"],
     shared_libs: ["libcrypto", "libz", "libzstd"],

@@ -31,6 +31,8 @@ std::string pending_restore_journal,pending_restore_backup,reviewed_restore_jour
 std::string reviewed_stream_journal;
 ure::Value pending_tree;
 ure::Value reviewed_layout_request;
+std::string reviewed_partition_journal;
+ure::Value reviewed_partition_selection;
 std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
 ure::Value managed_plan,managed_selection;
 std::string managed_kind,managed_journal,reviewed_filesystem_journal;
@@ -153,9 +155,14 @@ ure::StorageTarget gpt_target(const ure::Root& system,bool writable=false) {
 }
 void clear_gpt_review() {
     pending_gpt_plan=ure::Value(); pending_gpt_journal.clear(); reviewed_gpt_journal.clear();
+    reviewed_partition_journal.clear(); reviewed_partition_selection=ure::Value();
     reviewed_layout_request=ure::Value();
     DataManager::SetValue("ure_layout_graph",""); DataManager::SetValue("ure_layout_review","Calculate and review the current selections before applying");
-    for(const auto* name:{"ure_gpt_plan_hash","ure_gpt_journal_hash","ure_gpt_can_execute","ure_gpt_can_rollback","ure_gpt_can_resume"})DataManager::SetValue(name,"");
+    for(const auto* name:{"ure_gpt_plan_hash","ure_gpt_journal_hash","ure_gpt_can_execute","ure_gpt_can_rollback","ure_gpt_can_resume",
+        "ure_partition_journal_hash","ure_partition_can_resume","ure_partition_can_rollback","ure_partition_can_cancel"})DataManager::SetValue(name,"");
+}
+ure::Value partition_selection() {
+    ure::Value selected; for(const auto* key:{"ure_gpt_kind","ure_gpt_source","ure_gpt_sector","ure_partition_journal"})selected[key]=value(key); return selected;
 }
 ure::Value layout_request() {
     ure::Value request; request["schema"]=1; request["format"]="ure-layout-request"; request["rows"]=ure::Value(Json::arrayValue);
@@ -559,6 +566,17 @@ int GUIAction::uremanager(std::string command) {
                     pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
                 } else publish(ure::backup_capture(root,ure::json_file(ure::fs::path(value("ure_backup_dir"))/"plan.json"),value("ure_backup_dir"),true));
             }
+        } else if(command=="partition-job-inspect") {
+            clear_gpt_review(); auto target=gpt_target(system); const auto report=ure::partition_job_recover(system,target,value("ure_partition_journal"),"inspect"); publish(report);
+            reviewed_partition_journal=value("ure_partition_journal"); reviewed_partition_selection=partition_selection();
+            DataManager::SetValue("ure_partition_journal_hash",report["plan_sha256"].asString());
+            for(const auto& action:report["recovery_actions"])DataManager::SetValue("ure_partition_can_"+action.asString(),"1");
+            DataManager::SetValue("ure_status","Journal readback: "+report["classification"].asString()+"; choose only an available recovery action");
+        } else if(command=="partition-job-resume" || command=="partition-job-rollback" || command=="partition-job-cancel") {
+            ure::require(!reviewed_partition_journal.empty() && reviewed_partition_journal==value("ure_partition_journal") && !value("ure_partition_journal_hash").empty() &&
+                ure::json(reviewed_partition_selection)==ure::json(partition_selection()),"review-required","Inspect this combined partition journal and the unchanged target first");
+            const auto action=command.substr(14); auto target=gpt_target(system,action!="cancel");
+            publish(ure::partition_job_recover(system,target,reviewed_partition_journal,action,value("ure_partition_journal_hash"))); clear_gpt_review();
         } else if(command.rfind("layout-",0)==0 && command!="layout-preview" && command!="layout-plan" && command!="layout-apply-image") {
             clear_gpt_review(); DataManager::SetValue("ure_layout_graph",""); DataManager::SetValue("ure_layout_review","Selections changed; calculate and review the layout again");
             if(command=="layout-mode-standard") {
@@ -595,21 +613,22 @@ int GUIAction::uremanager(std::string command) {
             } else throw ure::Error("unknown-action","Unknown layout selection action");
         } else if(command=="layout-preview" || command=="layout-plan" || command=="layout-apply-image") {
             if(command=="layout-apply-image") {
-                ure::require(pending_gpt_plan["operation"]=="gpt.layout" && !reviewed_layout_request.isNull() &&
+                ure::require(pending_gpt_plan["operation"]=="partition.apply-layout" && !reviewed_layout_request.isNull() &&
                     ure::json(reviewed_layout_request)==ure::json(layout_request()) &&
                     pending_gpt_plan["plan_sha256"].asString()==value("ure_gpt_plan_hash") && !pending_gpt_journal.empty(),
-                    "review-required","Review this unchanged layout before applying its image metadata");
+                    "review-required","Review this unchanged complete filesystem and GPT layout before applying");
                 ure::require(value("ure_gpt_kind")=="image","live-write-unavailable","Live repartitioning requires the complete backup, format/migration and device trust backend");
                 ure::require(ure::fs::path(pending_gpt_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),"stale-plan","Journal destination changed; review again");
-                auto target=gpt_target(system,true); publish(ure::gpt_execute(target,pending_gpt_plan,pending_gpt_journal,value("ure_gpt_plan_hash"),&system));
-                DataManager::SetValue("ure_gpt_journal",pending_gpt_journal); clear_gpt_review();
-                DataManager::SetValue("ure_status","Image partition table verified; filesystem formatting and data migration are still required");
+                auto target=gpt_target(system,true); publish(ure::partition_job_execute(system,target,pending_gpt_plan,pending_gpt_journal,value("ure_gpt_plan_hash")));
+                DataManager::SetValue("ure_partition_journal",pending_gpt_journal); clear_gpt_review();
+                DataManager::SetValue("ure_status","Image filesystems and GPT verified; original userdata and GPT remain available for complete rollback");
             } else {
                 clear_gpt_review(); DataManager::SetValue("ure_layout_graph",""); auto target=gpt_target(system); const auto request=layout_request();
                 ure::Value layout;
                 if(command=="layout-plan") {
-                    ure::Root parent(value("ure_journal_parent")); pending_gpt_plan=ure::gpt_layout_plan(target,request,"global-os3.0.303.0",&system);
-                    layout=pending_gpt_plan["layout"]; reviewed_layout_request=request;
+                    ure::require(target.identity["kind"]=="regular-image","live-write-unavailable","Live repartitioning awaits device firmware, ownership and Android encryption acceptance; use read-only preview");
+                    ure::Root parent(value("ure_journal_parent")); pending_gpt_plan=ure::partition_job_plan(system,target,request,"global-os3.0.303.0");
+                    layout=pending_gpt_plan["gpt"]["layout"]; reviewed_layout_request=request;
                     pending_gpt_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-layout-"+pending_gpt_plan["operation_id"].asString())).string();
                     DataManager::SetValue("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
                     DataManager::SetValue("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
@@ -618,8 +637,12 @@ int GUIAction::uremanager(std::string command) {
                 // The widget needs only bounded allocation geometry, never unit identities.
                 ure::Value graph; graph["format"]=layout["format"]; graph["pool"]=layout["pool"]; graph["rows"]=ure::Value(Json::arrayValue);
                 for(const auto& row:layout["rows"]) { ure::Value part; for(const auto* field:{"role","pool_offset","bytes"})part[field]=row[field]; graph["rows"].append(part); }
-                DataManager::SetValue("ure_layout_graph",ure::json(graph)); DataManager::SetValue("ure_layout_review",ure::partition_layout_text(layout));
-                publish(layout); DataManager::SetValue("ure_status","Review original userdata bounds, placement, data loss and advanced edits before applying");
+                if(command=="layout-plan") { layout["warnings"]=pending_gpt_plan["warnings"];
+                    DataManager::SetValue("ure_layout_review",ure::partition_layout_text(layout)+"\nComplete image job: filesystem preparation, userdata writes and GPT.\nRequired journal space: "+
+                        std::to_string(pending_gpt_plan["estimated_journal_bytes"].asUInt64()/1048576)+" MiB\nJournal: "+pending_gpt_journal);
+                    publish(pending_gpt_plan);
+                } else { DataManager::SetValue("ure_layout_review",ure::partition_layout_text(layout)); publish(layout); }
+                DataManager::SetValue("ure_layout_graph",ure::json(graph)); DataManager::SetValue("ure_status","Review original userdata bounds, filesystems, data loss, journal space and advanced edits before applying");
             }
         } else if(command.rfind("gpt-",0)==0) {
             if(command=="gpt-image" || command=="gpt-live") {
@@ -627,7 +650,7 @@ int GUIAction::uremanager(std::string command) {
                 DataManager::SetValue("ure_gpt_source","");
             } else if(command=="gpt-verify")publish(ure::gpt_backup_verify(value("ure_gpt_backup_dir")));
             else if(command=="gpt-execute") {
-                ure::require(pending_gpt_plan["operation"]!="gpt.layout","layout-review-required","Layout changes use their own explicit scoped review");
+                ure::require(pending_gpt_plan["operation"]!="gpt.layout" && pending_gpt_plan["operation"]!="partition.apply-layout","layout-review-required","Layout changes use their own explicit scoped review");
                 ure::require(pending_gpt_plan.isObject() && !pending_gpt_journal.empty() &&
                     pending_gpt_plan["plan_sha256"].asString()==value("ure_gpt_plan_hash"),"plan-required","Create and review a GPT plan first");
                 ure::require(ure::fs::path(pending_gpt_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),
