@@ -7,6 +7,8 @@ product="$out/target/product/uke"
 payload="$product/recovery/root"
 candidate=${1:-prerelease}
 [[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
+vm_review_candidate=false
+if [[ $candidate == ure-vm-review-alpha || $candidate == ure-function-vm-alpha ]]; then vm_review_candidate=true; fi
 destination="$component/artifacts/$candidate"
 recovery="$destination/OrangeFox-uke-recovery.img"
 temporary="$destination/OrangeFox-uke-fastboot-boot.img"
@@ -42,6 +44,7 @@ partition_vm_record=null
 sanitizer_record=null
 gui_vm_record=null
 stock_namespace_record=null
+functional_vm_records=null
 if [[ $candidate == ure-rescue-filesystems-alpha ]]; then
     fixture="$out/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture/android_recovery_arm64_armv8-a/uke-btrfs-vm-fixture"
     jq -e --arg runner "$(sha256sum "$component/tests/check-btrfs-vm.sh" | cut -d' ' -f1)" \
@@ -74,10 +77,10 @@ if [[ $candidate == ure-partition-job-alpha ]]; then
     cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 fi
-if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha || $candidate == ure-vm-review-alpha ]]; then
+if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then
     expected_tests=21
-    if [[ $candidate == ure-boot-router-alpha || $candidate == ure-vm-review-alpha ]]; then expected_tests=23; fi
-    if [[ $candidate == ure-vm-review-alpha ]]; then expected_tests=24; fi
+    if [[ $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then expected_tests=23; fi
+    if [[ $vm_review_candidate == true ]]; then expected_tests=24; fi
     jq -e '.validation.cpp_six_lun_stock_jobs_and_sigkill and .validation.cpp_android_sparse_and_logical_range_oracles and .validation.cpp_actual_six_lun_stock_gui and .validation.stock_job_cli and (.validation.stock_model_sku_physical_acceptance==false) and (.validation.tablet_forced_reboot==false)' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_six_lun_stock_job and .validation.qemu_user_six_lun_stock_job' \
@@ -93,14 +96,14 @@ if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alp
     # The earlier partition candidate's guest-reset record describes a different
     # CLI. Leave both VM records null rather than transferring that evidence.
 fi
-if [[ $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha || $candidate == ure-vm-review-alpha ]]; then
+if [[ $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then
     jq -e '.validation.cpp_capacity_adjusted_boot_programming_pins and .validation.installer_full_partition_dtbo_and_corruption and .validation.independent_stock_boot_programming_catalog' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_capacity_adjusted_stock_preflight' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
     cp -- "$component/manifests/stock-boot-programming-global.json" "$destination/STOCK-BOOT-PROGRAMMING.json"
     cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$destination/STOCK-BOOT-PREFLIGHT.md"
 fi
-if [[ $candidate == ure-boot-router-alpha || $candidate == ure-vm-review-alpha ]]; then
+if [[ $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then
     jq -e '.validation.cpp_one_shot_boot_and_actual_sigkill and .validation.cpp_actual_boot_gui_callbacks and
         .validation.boot_router_cli and .validation.uefi_variable_fixture_only and
         (.validation.uke_boot_routing_accepted==false)' "$component/reports/private/native-verification.json" >/dev/null
@@ -109,7 +112,7 @@ if [[ $candidate == ure-boot-router-alpha || $candidate == ure-vm-review-alpha ]
         "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
     cp -- "$component/docs/BOOT-ROUTING.md" "$destination/BOOT-ROUTING.md"
 fi
-if [[ $candidate == ure-vm-review-alpha ]]; then
+if [[ $vm_review_candidate == true ]]; then
     jq -e '.validation.actual_menu_renderer_spacing_and_descriptions and
         .validation.pinned_icon_rgba_verification and .validation.scale_selection_requires_apply and
         .validation.actual_scale_preview_and_font_ownership and .validation.independent_monitor_scale_and_idle_redraw' \
@@ -171,6 +174,40 @@ if [[ $candidate == ure-vm-review-alpha ]]; then
     cp -- "$component/tests/fixtures/stock-adb-2026-10-03.json" "$destination/STOCK-NAMESPACE-FIXTURE.json"
     stock_namespace_record=$(cat "$destination/STOCK-NAMESPACE-VM-VERIFICATION.json")
 fi
+if [[ $candidate == ure-function-vm-alpha ]]; then
+    functional_records=()
+    generic_kernel=$(sha256sum "$component/build/gui-vm/kernel/arch/arm64/boot/Image" | cut -d' ' -f1)
+    userspace_inputs=$(
+        (cd "$payload"; find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum
+         find . -type l -printf '%p\t%l\n' | LC_ALL=C sort) | sha256sum | cut -d' ' -f1
+    )
+    for group in core filesystems rescue btrfs; do
+        jq -e --arg group "$group" --arg runner "$(sha256sum "$component/tests/check-functional-vm.sh" | cut -d' ' -f1)" \
+            --arg guest "$(sha256sum "$component/tests/vm/functional-init.sh" | cut -d' ' -f1)" \
+            --arg kernel "$generic_kernel" \
+            --arg userspace "$userspace_inputs" --arg binary "$(jq -er .native_cli_sha256 "$destination/EXTRACTED-RAMDISK-AUDIT.json")" \
+            '.passed and .validation_kind=="qemu-system-shipping-cli-functions" and .group==$group and
+             .runner_sha256==$runner and .guest_script_sha256==$guest and .kernel_sha256==$kernel and .payload_inputs_sha256==$userspace and .native_cli_sha256==$binary and
+             (.checked_json_records >= ({core:70,filesystems:55,rescue:11,btrfs:30}[$group])) and
+             ((.checks|length) >= ({core:6,filesystems:16,rescue:4,btrfs:3}[$group])) and
+             (.physical_device==false) and (.shipping_kernel_test==false) and (.modified_shipping_cli==false) and
+             (.real_distribution_installation==false) and (.host_block_attachment==false) and (.nic==false) and (.complete_feature_acceptance==false)' \
+            "$component/reports/private/functional-$group-vm-verification.json" >/dev/null
+        cp -- "$component/reports/private/functional-$group-vm-verification.json" "$destination/FUNCTIONAL-${group^^}-VM-VERIFICATION.json"
+        functional_records+=("$destination/FUNCTIONAL-${group^^}-VM-VERIFICATION.json")
+    done
+    generic_modules=$(
+        (cd "$component/build/gui-vm/modules/lib/modules/7.2.8/kernel";
+         sha256sum lib/crypto/libblake2b.ko lib/raid/xor/xor.ko lib/raid/raid6/raid6_pq.ko lib/zstd/zstd_compress.ko fs/btrfs/btrfs.ko) |
+            sha256sum | cut -d' ' -f1
+    )
+    jq -e --arg modules "$generic_modules" \
+        '.generic_module_inputs_sha256==$modules and .generic_module_debug_stripped and
+         .module_strip_tool_sha256=="d2a3191ad2228bb60c35e18466615cb53ed7263c2e73134624349f0367cb1f88"' \
+        "$destination/FUNCTIONAL-BTRFS-VM-VERIFICATION.json" >/dev/null
+    functional_vm_records=$(jq -s . "${functional_records[@]}")
+    cp -- "$component/docs/FUNCTIONAL-VM-TESTS.md" "$component/reports/URE-FUNCTION-VM-REVIEW.md" "$destination/"
+fi
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
 (cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
 [[ $(stat -c %s "$recovery") == 104857600 && $(stat -c %s "$temporary") == 100663296 ]]
@@ -208,12 +245,13 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     --argjson sanitizers "$sanitizer_record" \
     --argjson adapted_gui_vm "$gui_vm_record" \
     --argjson stock_namespace_vm "$stock_namespace_record" \
+    --argjson functional_vm "$functional_vm_records" \
     --arg mkbootimg "$(sha256sum "$out/host/linux-x86/bin/mkbootimg" | cut -d' ' -f1)" \
     --arg avbtool "$(sha256sum "$out/host/linux-x86/bin/avbtool" | cut -d' ' -f1)" \
     --arg mkbootimg_commit "$(git -C "$component/src/upstream/orangefox-android16/system/tools/mkbootimg" rev-parse HEAD)" \
     --arg avbtool_commit "$(git -C "$component/src/upstream/orangefox-android16/external/avb" rev-parse HEAD)" \
     --arg kernel "$kernel_hash" --arg ramdisk "$ramdisk_hash" --argjson ramdisk_bytes "$ramdisk_bytes" \
-    '{schema_version:2,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,validation:{compile:true,header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
+    '{schema_version:2,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,functional_vm_records:$functional_vm,validation:{compile:true,header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
     > "$destination/ARTIFACT-MANIFEST.json"
 # Hash every generated public release file once, including source snapshots.
 (cd -- "$destination" && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)

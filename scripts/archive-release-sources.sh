@@ -111,6 +111,7 @@ cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$source_work/project/"
 cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$source_work/project/"
 cp -- "$component/docs/DISPLAY-SCALING.md" "$source_work/project/"
 cp -- "$component/docs/RECOVERY-INTERFACE.md" "$component/docs/STOCK-VM-FIXTURE.md" "$component/docs/SENSOR-READINESS.md" "$source_work/project/"
+if [[ -f $component/docs/FUNCTIONAL-VM-TESTS.md ]]; then cp -- "$component/docs/FUNCTIONAL-VM-TESTS.md" "$source_work/project/"; fi
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$source_work/project/"
 cp -- "$component/docs/TREE-BACKUP.md" "$source_work/project/"
 cp -- "$component/docs/FILESYSTEM-MANAGER.md" "$component/docs/LINUX-RESCUE-AND-BOOT.md" "$component/docs/BTRFS-MANAGER.md" "$source_work/project/"
