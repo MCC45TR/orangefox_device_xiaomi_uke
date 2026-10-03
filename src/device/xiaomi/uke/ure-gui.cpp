@@ -39,6 +39,8 @@ std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
 ure::Value managed_plan,managed_selection;
 std::string managed_kind,managed_journal,reviewed_filesystem_journal;
 std::string edited_management_field;
+ure::Value boot_plan,boot_reviewed_selection,boot_journal_selection;
+std::string boot_pending_journal,boot_reviewed_journal;
 std::atomic<bool> maintenance_running{false};
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
@@ -56,6 +58,25 @@ ure::Root os_root(const std::string& name="ure_root") {
 std::unique_ptr<ure::Root> selected_esp() {
     const auto path=value("ure_esp"); if(path.empty())return {};
     ure::require(ure::fs::path(path).is_absolute() && path!="/","esp-required","Select an already mounted ESP directory or leave it empty"); return std::make_unique<ure::Root>(path);
+}
+ure::Value boot_selection() {
+    ure::Value out;
+    for(const auto* name:{"ure_boot_esp","ure_boot_variables","ure_boot_target","ure_boot_option","ure_boot_fallback","ure_boot_partuuid",
+        "ure_boot_model","ure_boot_profile","ure_journal_parent"})out[name]=value(name);
+    return out;
+}
+ure::Value boot_context_selection() {
+    ure::Value out; out["esp"]=value("ure_boot_esp"); out["variables"]=value("ure_boot_variables"); out["journal"]=value("ure_boot_journal"); return out;
+}
+ure::Value boot_request_fields() {
+    ure::Value out; out["schema"]=1; out["target"]=value("ure_boot_target"); out["boot_option"]=value("ure_boot_option");
+    out["fallback_option"]=value("ure_boot_fallback"); out["esp_partuuid"]=value("ure_boot_partuuid");
+    out["model"]=value("ure_boot_model"); out["profile"]=value("ure_boot_profile"); return out;
+}
+void boot_clear_review() {
+    boot_plan={}; boot_reviewed_selection={}; boot_pending_journal.clear(); boot_reviewed_journal.clear(); boot_journal_selection={};
+    DataManager::SetValue("ure_boot_hash",""); DataManager::SetValue("ure_boot_journal_hash",""); DataManager::SetValue("ure_boot_can_stage","0");
+    for(const auto* action:{"recover","cancel","fallback-fixture"})DataManager::SetValue(std::string("ure_boot_can_")+action,"0");
 }
 ure::Value filesystem_request(std::uint64_t bytes) {
     ure::Value request; request["schema"]=1; request["action"]=value("ure_fs_action"); request["filesystem"]=value("ure_fs_type");
@@ -367,20 +388,58 @@ int GUIAction::uremanager(std::string command) {
             ure::require(!reviewed_stock_journal.empty() && reviewed_stock_journal==value("ure_stock_job_journal") && !value("ure_stock_job_journal_hash").empty(),
                 "confirmation-required","Inspect and review the selected six-LUN journal first");
             publish(ure::stock_job_recover(reviewed_stock_journal,command.substr(10),value("ure_stock_job_journal_hash"))); clear_stock_review();
+        } else if(command=="boot-clear-review") {
+            boot_clear_review();
+        } else if(command=="boot-route-inventory") {
+            auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables"); publish(ure::boot_route_inventory(esp,variables));
+            DataManager::SetValue("ure_status","Registered EFI entries and unchanged default; Uke/Aloha device routing is not yet accepted");
+        } else if(command=="boot-route-plan") {
+            boot_clear_review(); auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
+            boot_plan=ure::boot_route_plan(esp,variables,boot_request_fields()); boot_reviewed_selection=boot_selection();
+            ure::Root parent(value("ure_journal_parent"));
+            boot_pending_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-boot-"+boot_plan["operation_id"].asString())).string();
+            auto review=boot_plan; review["journal_directory"]=boot_pending_journal; publish(review);
+            DataManager::SetValue("ure_boot_hash",boot_plan["plan_sha256"].asString());
+            DataManager::SetValue("ure_boot_can_stage",boot_plan["fixture_execute_allowed"].asBool() ? "1" : "0");
+            DataManager::SetValue("ure_boot_summary","One-time "+value("ure_boot_target")+": EFI option "+boot_plan["selected"]["number"].asString()+
+                " / "+boot_plan["selected"]["description"].asString()+"\nPreserved default: "+boot_plan["fallback"]["number"].asString()+
+                " / "+boot_plan["fallback"]["description"].asString()+"\n"+boot_plan["risk"].asString()+"\nJournal: "+boot_pending_journal);
+        } else if(command=="boot-route-stage-fixture") {
+            ure::require(boot_plan.isObject() && !boot_pending_journal.empty() && boot_plan["plan_sha256"].asString()==value("ure_boot_hash"),
+                "review-required","Review the exact one-time request first");
+            if(ure::json(boot_selection())!=ure::json(boot_reviewed_selection)) { boot_clear_review(); throw ure::Error("stale-plan","Boot target, profile, ESP or journal choices changed; review a new request"); }
+            auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
+            publish(ure::boot_route_execute(esp,variables,boot_plan,boot_pending_journal,value("ure_boot_hash")));
+            DataManager::SetValue("ure_boot_journal",boot_pending_journal); boot_clear_review();
+        } else if(command=="boot-journal-history") {
+            publish(ure::boot_route_history(value("ure_boot_journal")));
+        } else if(command=="boot-journal-inspect") {
+            boot_clear_review(); auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
+            const auto review=ure::boot_route_action(esp,variables,value("ure_boot_journal"),"inspect"); publish(review);
+            boot_reviewed_journal=value("ure_boot_journal"); boot_journal_selection=boot_context_selection();
+            DataManager::SetValue("ure_boot_journal_hash",review["plan_sha256"].asString());
+            for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_boot_can_"+action.asString(),"1");
+        } else if(command=="boot-journal-recover" || command=="boot-journal-cancel" || command=="boot-journal-fallback-fixture") {
+            ure::require(!boot_reviewed_journal.empty() && !value("ure_boot_journal_hash").empty() &&
+                ure::json(boot_context_selection())==ure::json(boot_journal_selection),"review-required","Inspect the selected journal and its exact ESP/variable store first");
+            auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
+            publish(ure::boot_route_action(esp,variables,boot_reviewed_journal,command.substr(13),value("ure_boot_journal_hash"))); boot_clear_review();
         } else if(command.rfind("manage-edit-",0)==0) {
             const auto field=command.substr(12);
             static const std::set<std::string> allowed{"ure_esp","ure_journal_parent","ure_fs_size","ure_fs_label","ure_rescue_command","ure_rescue_kernel","ure_rescue_timeout",
                 "ure_manage_journal","ure_btrfs_root","ure_btrfs_path","ure_btrfs_source","ure_btrfs_backup","ure_btrfs_saved","ure_btrfs_size","ure_btrfs_device",
-                "ure_btrfs_usage","ure_btrfs_limit","ure_btrfs_store","ure_btrfs_parent","ure_btrfs_name","ure_btrfs_incremental_parent"};
+                "ure_btrfs_usage","ure_btrfs_limit","ure_btrfs_store","ure_btrfs_parent","ure_btrfs_name","ure_btrfs_incremental_parent",
+                "ure_boot_esp","ure_boot_variables","ure_boot_option","ure_boot_fallback","ure_boot_partuuid","ure_boot_journal"};
             ure::require(allowed.count(field),"invalid-field","Select a supported management field");
             edited_management_field=field;
             DataManager::SetValue("ure_form_field",field); DataManager::SetValue("ure_form_value",value(field));
-            DataManager::SetValue("ure_form_back",field.rfind("ure_btrfs_",0)==0 ? "ure_btrfs" : field.rfind("ure_rescue_",0)==0 || field=="ure_esp" ? "ure_linux" : "ure_filesystems");
+            DataManager::SetValue("ure_form_back",field.rfind("ure_boot_",0)==0 ? "ure_boot_manager" : field.rfind("ure_btrfs_",0)==0 ? "ure_btrfs" : field.rfind("ure_rescue_",0)==0 || field=="ure_esp" ? "ure_linux" : "ure_filesystems");
         } else if(command=="manage-field-save") {
             const auto field=value("ure_form_field");
             ure::require(!edited_management_field.empty() && field==edited_management_field && value("ure_form_value").size()<=4096,"invalid-field","Invalid management field selection");
             // The editable field is selected exclusively by manage-edit-* above.
             DataManager::SetValue(field,value("ure_form_value")); DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+            boot_clear_review();
             edited_management_field.clear();
         } else if(command=="linux-audit") {
             auto root=os_root(); auto esp=selected_esp(); const auto report=ure::linux_boot_audit(root,esp.get()); publish(report);

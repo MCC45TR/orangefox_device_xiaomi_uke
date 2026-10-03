@@ -36,6 +36,7 @@ UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-partitio
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-layout.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-display.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-boot-audit.sh"
+UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-boot-router.sh"
 UKE_RECOVERYCTL_BINARY="$work/recoveryctl" bash "$component/tests/check-recoveryctl.sh"
 target() {
     local name=$1; shift

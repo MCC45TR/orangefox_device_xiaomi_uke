@@ -44,6 +44,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="storage")return op=="preflight";
+    if(command=="boot")return op.starts_with("route-");
     if(command=="linux")return op=="audit" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect";
     if(command=="btrfs")return op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
         op=="subvolume-info" || op=="snapshot-plan" || op=="snapshot-execute" || op=="send-plan" || op=="send-capture" || op=="send-verify" || op=="backup-inspect" || op=="stream-check";
@@ -52,6 +53,21 @@ bool management_command(const std::vector<std::string>& args) {
 Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
+    if(command=="boot") {
+        if(operation=="route-history") { positional(options,3); options.allow({}); return boot_route_history(words[2]); }
+        require(operation=="route-inventory" || operation=="route-plan" || operation=="route-execute" || operation=="route-inspect" ||
+            operation=="route-recover" || operation=="route-consume-fixture" || operation=="route-ack-fixture" || operation=="route-cancel" ||
+            operation=="route-fallback-fixture","invalid-boot-action","Unknown boot management command");
+        Root esp(options.need("--esp")),variables(options.need("--variables"));
+        if(operation=="route-inventory") { positional(options,2); options.allow({"--esp","--variables"}); return boot_route_inventory(esp,variables); }
+        positional(options,3);
+        if(operation=="route-plan") { options.allow({"--esp","--variables","--output"}); const auto plan=boot_route_plan(esp,variables,json_file(words[2])); save_json(options.need("--output"),plan); return plan; }
+        if(operation=="route-execute") { options.allow({"--esp","--variables","--journal","--confirm"}); return boot_route_execute(esp,variables,json_file(words[2]),options.need("--journal"),options.need("--confirm")); }
+        const auto action=operation.substr(6);
+        if(action=="inspect") { options.allow({"--esp","--variables"}); return boot_route_action(esp,variables,words[2],action); }
+        if(action=="ack-fixture") { options.allow({"--esp","--variables","--confirm","--receipt"}); return boot_route_action(esp,variables,words[2],action,options.need("--confirm"),json_file(options.need("--receipt"))); }
+        options.allow({"--esp","--variables","--confirm"}); return boot_route_action(esp,variables,words[2],action,options.need("--confirm"));
+    }
     if(command=="filesystem" && operation=="capabilities") { positional(options,2); options.allow({}); return filesystem_capabilities(); }
     if(command=="stock") {
         positional(options,3);

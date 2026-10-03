@@ -190,6 +190,14 @@ Value capabilities(const Root& system);
 Value boot_targets(const Root& root, const Root* esp);
 Value boot_request(const Root& root, const Root& esp, const std::string& target,
                    const std::string& entry);
+// Real EFI inventory is read-only. Mutations require private file fixtures.
+Value boot_route_inventory(const Root& esp, const Root& variables);
+Value boot_route_plan(const Root& esp, const Root& variables, const Value& request);
+Value boot_route_execute(const Root& esp, const Root& variables, const Value& plan,
+                         const fs::path& journal, const std::string& confirmation);
+Value boot_route_history(const fs::path& journal);
+Value boot_route_action(const Root& esp, const Root& variables, const fs::path& journal,
+                        const std::string& action, const std::string& confirmation = {}, const Value& receipt = {});
 Value transaction_plan(const Root& root, const std::string& file,
                        const std::string& new_contents, const std::string& firmware);
 void validate_plan(const Root& root, const Value& plan);
