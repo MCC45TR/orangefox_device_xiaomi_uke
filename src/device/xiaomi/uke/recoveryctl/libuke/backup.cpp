@@ -10,9 +10,11 @@
 #include <sys/sysmacros.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <linux/fs.h>
 #include <functional>
 #include <set>
 #include <sys/statvfs.h>
+#include <sys/syscall.h>
 #include <poll.h>
 #include <chrono>
 
@@ -277,8 +279,11 @@ Value backup_capture(const Root& root, const Value& plan, const fs::path& direct
                 require(::fsync(output.get())==0,"io-error","Cannot sync backup chunk");
                 require(sha256(output.get())==chunk["sha256"].asString(),"backup-corrupt","Chunk readback failed");
                 source.check(plan);
-                require(::linkat(store.fd(),temporary.c_str(),store.fd(),destination.c_str(),0)==0,"io-error","Cannot publish chunk without overwriting existing data");
-                require(::unlinkat(store.fd(),temporary.c_str(),0)==0 && ::fsync(store.fd())==0,"io-error","Cannot sync chunk publication");
+                // A link/unlink pair leaves two names if restart occurs between
+                // them, violating the store's single-link integrity policy.
+                require(::syscall(SYS_renameat2,store.fd(),temporary.c_str(),store.fd(),destination.c_str(),RENAME_NOREPLACE)==0,
+                    "io-error","Cannot atomically publish chunk without overwriting existing data");
+                require(::fsync(store.fd())==0,"io-error","Cannot sync chunk publication");
             } catch(...) { ::unlinkat(store.fd(),temporary.c_str(),0); throw; }
             progress["verified_chunks"]=Json::UInt64(index+1); progress["next_chunk"]=Json::UInt64(index+1);
             progress["completed_bytes"]=Json::UInt64(chunk["offset"].asUInt64()+chunk["bytes"].asUInt64()); progress["timestamp_utc"]=utc();
@@ -478,8 +483,8 @@ void mirror_chunks(const Root& journal,const std::string& name,const Value& mani
                 "stale-source","Restore mirror source chunk changed");
             require(::fsync(output.get())==0 && sha256(output.get())==chunk["sha256"].asString(),"backup-corrupt","Restore mirror readback failed");
             revalidate();
-            require(::linkat(store.fd(),temporary.c_str(),store.fd(),destination.c_str(),0)==0 &&
-                ::unlinkat(store.fd(),temporary.c_str(),0)==0 && ::fsync(store.fd())==0,"io-error","Cannot publish verified restore mirror chunk");
+            require(::syscall(SYS_renameat2,store.fd(),temporary.c_str(),store.fd(),destination.c_str(),RENAME_NOREPLACE)==0 &&
+                ::fsync(store.fd())==0,"io-error","Cannot atomically publish verified restore mirror chunk");
         } catch(...) { ::unlinkat(store.fd(),temporary.c_str(),0); throw; }
     }
     revalidate(); require(verify_store(store,manifest)["verified"]==true,"backup-corrupt","Restore mirror is incomplete");

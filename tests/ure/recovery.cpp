@@ -9,6 +9,16 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+// Host-only fault boundary: the old publication's second link becomes visible
+// before unlink. Freeze that child so SIGKILL deterministically tests the gap.
+static bool pause_chunk_link=false;
+extern "C" int __real_linkat(int,const char*,int,const char*,int);
+extern "C" int __wrap_linkat(int oldfd,const char* oldpath,int newfd,const char* newpath,int flags) {
+    const auto result=__real_linkat(oldfd,oldpath,newfd,newpath,flags);
+    if(result==0 && pause_chunk_link && std::string_view(newpath).starts_with("chunk-"))::raise(SIGSTOP);
+    return result;
+}
+
 namespace {
 void check(bool condition,const std::string& message) { if(!condition)throw std::runtime_error(message); }
 template<class F> void reject(F function,const std::string& code) {
@@ -77,6 +87,9 @@ int main() {
         reject([&]{ure::backup_plan(root,"image","fixture",1);},"invalid-chunk-size");
         auto backup=ure::backup_capture(root,backup_plan,work/"backup",false);
         check(backup["state"]=="COMPLETE" && backup["verified"]==true && backup["completed_bytes"].asUInt64()==data.size(),"Streaming backup failed");
+        check(::link((work/"backup/chunk-00000.bin").c_str(),(work/"foreign-alias").c_str())==0,"Cannot create foreign chunk alias");
+        reject([&]{ure::backup_verify(work/"backup");},"backup-corrupt");
+        check(::unlink((work/"foreign-alias").c_str())==0,"Cannot remove foreign chunk alias");
         // Test a published chunk with an older progress record, as after a crash.
         ure::fs::remove(work/"backup/chunk-00001.bin"); ure::fs::remove(work/"backup/chunk-00002.bin");
         check(ure::backup_verify(work/"backup")["next_chunk"].asUInt64()==1,"Backup resume trusted stale progress instead of verifying data");
@@ -101,6 +114,7 @@ int main() {
         const auto interrupted_plan=ure::backup_plan(root,"interrupted","fixture",65536);
         const auto child=::fork(); check(child>=0,"Cannot fork interruption fixture");
         if(child==0) {
+            pause_chunk_link=true;
             try { ure::backup_capture(root,interrupted_plan,work/"killed-backup",false); ::_exit(0); }
             catch(...) { ::_exit(2); }
         }
@@ -113,6 +127,13 @@ int main() {
         check(observed && WIFSIGNALED(status) && WTERMSIG(status)==SIGKILL,"Writer was not interrupted at a durable boundary");
         const auto partial=ure::backup_verify(work/"killed-backup");
         check(partial["state"]=="PARTIAL" && partial["verified_chunks"].asUInt64()>=1,"Killed writer lost a published chunk");
+        for(const auto& file:ure::fs::directory_iterator(work/"killed-backup")) {
+            if(file.path().filename().string().starts_with("chunk-")) {
+                struct stat published{};
+                check(::lstat(file.path().c_str(),&published)==0 && published.st_nlink==1,
+                    "Interrupted publication left an extra chunk alias");
+            }
+        }
         check(ure::backup_capture(root,interrupted_plan,work/"killed-backup",true)["verified"]==true,"Resume after SIGKILL failed");
         std::cout<<"URE recovery tests: persisted phases, safe resume/cancel, divergence, locks, streaming hashes, corrupt backups, wrong roots, binary export and SIGKILL/resume passed\n";
         ure::fs::remove_all(work); return 0;
