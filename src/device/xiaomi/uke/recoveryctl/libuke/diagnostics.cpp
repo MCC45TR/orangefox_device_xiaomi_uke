@@ -114,15 +114,15 @@ Value capabilities(const Root& system) {
         {"URE-C08","Native distribution-aware chroot and guided repair","","","SOURCE_PRESENT"},
         {"URE-C09","Expanded recovery kernel","","","PLANNED"},
         {"URE-C10","LUKS","cryptsetup","","TOOL_REQUIRED"},
-        {"URE-C11","BitLocker","cryptsetup","","TOOL_REQUIRED"},
+        {"URE-C11","BitLocker (deferred by owner)","","","DEFERRED_BY_OWNER"},
         {"URE-C12","Native Btrfs subvolumes, snapshots and retained-original rollback","","btrfs","KERNEL_REQUIRED"},
         {"URE-C13","Native Btrfs scrub/balance and verified send streams","","btrfs","PARTIAL"},
         {"URE-C14","GPT image transactions and staged filesystem format/repair/resize","","","SOURCE_PRESENT"},
         {"URE-C15","Android advanced manager/FBE","lpdump","","PARTIAL"},
-        {"URE-C16","Boot target discovery and request validation","","","BLOCKED_BACKEND"},
-        {"URE-C17","Boot history and restoration","","","PLANNED"},
-        {"URE-C18","USB/SSH/SFTP and streamed backups","dropbear","","PARTIAL"},
-        {"URE-C19","Wi-Fi rescue","wpa_cli","","TOOL_REQUIRED"},
+        {"URE-C16","UEFI inventory, exact one-shot plans and fixture consumption","","","BLOCKED_DEVICE_BACKEND"},
+        {"URE-C17","Correlated fixture history and preserved-default fallback","","","FIXTURE_ONLY"},
+        {"URE-C18","ADB shell/exec and streamed host backups","","","PARTIAL"},
+        {"URE-C19","USB network, SSH/SFTP and Wi-Fi (deferred by owner)","","","DEFERRED_BY_OWNER"},
         {"URE-C20","Windows discovery and WIM rescue","wimlib-imagex","","PARTIAL"},
         {"URE-C21","Multi-OS partition designer","","","PARTIAL"},
         {"URE-C22","Profiles/provenance and safe recovery update","","","PARTIAL"},
@@ -141,6 +141,9 @@ Value capabilities(const Root& system) {
     }
     result["filesystem_management"]=filesystem_capabilities();
     result["live_storage_writer_accepted"]=false; result["btrfs_receive_implemented"]=false;
+    result["active_scope"]["remote_transport"]="adb-only";
+    result["active_scope"]["bitlocker"]=false; result["active_scope"]["ssh_sftp"]=false; result["active_scope"]["network_rescue"]=false;
+    result["active_scope"]["delivery_order"]="boot manager; LUKS/Windows; ADB/backups; files/sessions; distribution/diagnostics";
     return result;
 }
 } // namespace ure

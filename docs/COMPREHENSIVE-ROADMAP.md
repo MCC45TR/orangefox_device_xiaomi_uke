@@ -12,6 +12,12 @@
 
 ## Integration and evidence status
 
+The owner's 3 October 2026 instruction orders the current work as boot
+management, LUKS/Windows recovery, ADB/backups, files/sessions and
+distribution/diagnostics. BitLocker, SSH/SFTP, USB networking and Wi-Fi rescue
+are deferred. The proposed designs below are reference scope, not authority to
+override this instruction. See [the current boot contract](BOOT-ROUTING.md).
+
 This roadmap incorporates the supplied `UKE_Recovery_Comprehensive_Roadmap.md`
 dated 30 September 2026, retaining all numbered topics 0–102. The input SHA-256
 is `d9f5787316736eca07b93c47931c9d86ffd2d2a3d068b6c7bba137a34466a4ca`.

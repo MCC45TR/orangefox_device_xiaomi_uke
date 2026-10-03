@@ -23,6 +23,8 @@ printf 'root / ext4 defaults 0 1\n' > "$work/root/etc/fstab"
 printf 'root / ext4 ro 0 1\n' > "$work/new"
 "$binary" linux detect --root "$work/root" | jq -e '.data.distribution.ID=="fedora" and .data.recovery_kernel_is_installed_kernel==false' >/dev/null
 "$binary" capabilities --system-root "$work/system" | jq -e '(.data.capabilities|length)==24 and .data.physical_test_record==false' >/dev/null
+"$binary" capabilities --system-root "$work/system" | jq -e \
+    '.data.active_scope.remote_transport=="adb-only" and (.data.active_scope.bitlocker==false) and (.data.active_scope.ssh_sftp==false) and (.data.active_scope.network_rescue==false)' >/dev/null
 "$binary" editor plan etc/fstab --root "$work/root" --content-file "$work/new" --profile fixture --output "$work/plan" >/dev/null
 "$binary" transaction validate "$work/plan" --root "$work/root" | jq -e '.data.valid==true' >/dev/null
 confirmation=$(jq -r .plan_sha256 "$work/plan")

@@ -41,7 +41,7 @@ Value image_tool(const std::string& command,const std::string& operation,int fd)
     if(command=="crypto" && operation=="info") {
         tool="cryptsetup";
         if(signature["encryption"]=="LUKS")args={"luksDump",source};
-        else if(signature["encryption"]=="BITLK")args={"bitlkDump",source};
+        else if(signature["encryption"]=="BITLK")throw Error("feature-deferred","BitLocker operations are deferred by the owner; only LUKS belongs to the active encryption work");
         else throw Error("unsupported-crypto","No recognized LUKS or BITLK header");
     } else if(command=="wim" && (operation=="info" || operation=="verify") && type=="wim") {
         tool="wimlib-imagex"; args={operation,source};

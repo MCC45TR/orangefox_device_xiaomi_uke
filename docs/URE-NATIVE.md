@@ -48,7 +48,8 @@ status and returns failure rather than silently reporting success.
 | `backup plan/storage-plan/capture/resume/verify/export` | Bounded-memory regular-file or identity-bound storage streams, chunk/full SHA-256, durable exclusive publication, verified resume and binary host export; live software requires complete usage/unit/boot evidence and a retained read-only kernel claim; physical acceptance remains pending |
 | `restore plan/execute/inspect/resume/rollback/cancel` | Identity-bound raw image restoration with original/target chunk mirrors, durable journals, full readback, inspected partial-write continuation and verified rollback; real block writes remain unavailable |
 | `restore stream-plan/stream-backup-plan/host-receipt/stream-begin/stream-status/stream-chunk/stream-finish/stream-rollback/stream-cancel` | Reviewed raw-image streaming from complete host backups, explicit host attestation, bounded verified cache pairs, current-byte reconnect progress and full restore/rollback readback; live writes and physical acceptance remain open |
-| `boot targets/plan` | Detects candidate components and serializes a one-shot request; execution remains blocked without an accepted Uke boot backend |
+| `boot targets/plan` | Detects candidate OS components and serializes the legacy request; installed Uke execution remains blocked |
+| `boot route-*` | Reviews registered EFI entries and drives a consumed one-shot lifecycle on private regular-file fixtures, with ownership, default preservation, retirement/replay refusal and inspected history; real Uke/Aloha execution remains blocked |
 | `diagnose SCOPE` | Private bounded kernel, module, pstore, display, input, USB, network, power, thermal and property observations; preserves pstore and does not assert a root cause |
 | `report --output FILE` | Public allowlist summary; omits raw pstore, command lines, module addresses, UUIDs, mounts, stage text and raw class fields |
 | `android info/slots/super` | Observations and read-only boot-control/lpdump calls; missing HALs/tools cause explicit failure; no slot switch, super write or FBE unlock |
@@ -374,8 +375,8 @@ upstream build dependencies; no project Python or tablet interpreter is added.
 | C08–C09 | Real installed-distro repair/runtime dependency acceptance, network rescue, GUI chroot cancellation and profile-compatible recovery kernel/modules; controlled native chroot and cleanup have host integration fixtures |
 | C10–C13 | Packaged cryptsetup and secure LUKS/BITLK lifecycle, header/key workflows, matching shipping Btrfs kernel, native receive/restore, human subvolume paths and hardware acceptance; native snapshots/send/rollback/scrub/balance are implemented conditionally |
 | C14–C15 | Multi-LUN GPT and boot-chain orchestration, accepted live writer/range/SKU backend, encrypted filesystem/GPT migration, exFAT resize, complete NTFS repair, OTA/super/snapshot management, second-Android isolation and installed-firmware KeyMint/TEE trust; image GPT, staged filesystem jobs and userdata-only combined image application are implemented |
-| C16–C17 | Accepted Uke Aloha/stock boot backend, request consumption, boot history, retry/rollback policy and default preservation |
-| C18–C21 | Managed key-only SSH/SFTP and exclusive USB ownership, live/cross-boot stream acceptance, live restores, sparse/compressed formats, Wi-Fi, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local and host-assisted raw-image restore and a host companion are implemented |
+| C16–C17 | Accepted Uke Aloha/stock boot backend, installed root/kernel/DT/ABI/signature closure, trusted OS acknowledgements and real boot/reset/default acceptance; registered EFI private-fixture planning, consumed requests, retired-plan replay refusal, inspected fallback/history and native GUI review are implemented |
+| C18–C21 | ADB session/command expansion, live/cross-boot stream acceptance, live restores, sparse/compressed formats, WIM/NTFS/BCD restore transactions and multi-OS partition designer; identity-bound storage streams, local and host-assisted raw-image restore and a host companion are implemented. SSH/SFTP, USB networking, Wi-Fi and BitLocker are deferred by the owner |
 | C22–C24 | Signed update/profile lifecycle, persistent UI/session policy, full reproducibility/CI, optional web/NAS/extensions/forensics/hardware-test tools |
 
 The supplied 103 topics remain design targets. No contract or full phase is
@@ -401,6 +402,7 @@ bash tests/check-gpt.sh
 bash tests/check-filesystems.sh
 bash tests/check-rescue.sh
 bash tests/check-boot-audit.sh
+bash tests/check-boot-router.sh
 UKE_RECOVERYCTL_BINARY=build/ure-host/uke-recoveryctl bash tests/check-recoveryctl.sh
 bash tests/check-installer.sh
 ```
