@@ -72,6 +72,22 @@ if [[ $candidate == ure-partition-job-alpha ]]; then
     cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 fi
+if [[ $candidate == ure-stock-job-alpha ]]; then
+    jq -e '.validation.cpp_six_lun_stock_jobs_and_sigkill and .validation.cpp_android_sparse_and_logical_range_oracles and .validation.cpp_actual_six_lun_stock_gui and .validation.stock_job_cli and (.validation.stock_model_sku_physical_acceptance==false) and (.validation.tablet_forced_reboot==false)' \
+        "$component/reports/private/native-verification.json" >/dev/null
+    jq -e '.validation.source_built_six_lun_stock_job and .validation.qemu_user_six_lun_stock_job' \
+        "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
+    cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
+    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
+        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==21 and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
+        "$component/reports/private/partition-sanitizer-verification.json" >/dev/null
+    cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
+    cp -- "$component/manifests/stock-payloads-global.json" "$destination/STOCK-PAYLOAD-CATALOG.json"
+    cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$destination/STOCK-IMAGE-RESTORE.md"
+    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
+    # The earlier partition candidate's guest-reset record describes a different
+    # CLI. Leave both VM records null rather than transferring that evidence.
+fi
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
 (cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
 [[ $(stat -c %s "$recovery") == 104857600 && $(stat -c %s "$temporary") == 100663296 ]]

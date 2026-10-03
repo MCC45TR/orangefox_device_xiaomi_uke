@@ -103,6 +103,23 @@
     <variable name="ure_stock_inputs" value="/mnt/stock-gpt/global-os3.0.303.0"/>
     <variable name="ure_stock_lun" value="0"/>
     <variable name="ure_stock_identity_backup" value=""/>
+    <variable name="ure_stock_job_model" value="poco-pad-x1"/>
+    <variable name="ure_stock_job_sku" value="owner-declared"/>
+    <variable name="ure_stock_job_images" value="/mnt/stock-images"/>
+    <variable name="ure_stock_job_originals" value=""/>
+    <variable name="ure_stock_job_boot" value="0"/>
+    <variable name="ure_stock_job_slots" value="a"/>
+    <variable name="ure_stock_job_super" value="0"/>
+    <variable name="ure_stock_job_reset" value="0"/>
+    <variable name="ure_stock_job_zero" value="0"/>
+    <variable name="ure_stock_job_journal" value=""/>
+    <variable name="ure_stock_job_hash" value=""/>
+    <variable name="ure_stock_job_journal_hash" value=""/>
+    <variable name="ure_stock_job_summary" value=""/>
+    <variable name="ure_stock_job_can_execute" value="0"/>
+    <variable name="ure_stock_job_can_resume" value="0"/>
+    <variable name="ure_stock_job_can_rollback" value="0"/>
+    <variable name="ure_stock_job_can_cancel" value="0"/>
     <variable name="ure_gpt_backup_dir" value="/mnt/uke-linux/ure-gpt-backup"/>
     <variable name="ure_gpt_journal" value=""/>
     <variable name="ure_gpt_plan_hash" value=""/>
@@ -1045,10 +1062,128 @@
           <listitem name="Compare selected target with backup"><action function="uremanager">gpt-compare</action><action function="page">ure_output</action></listitem>
           <listitem name="Review repair from the sole valid GPT copy"><action function="uremanager">gpt-repair-plan</action><action function="page">ure_gpt_plan_review</action></listitem>
           <listitem name="Review restore from verified same-target backup"><action function="uremanager">gpt-restore-plan</action><action function="page">ure_gpt_plan_review</action></listitem>
-          <listitem name="Reconstruct and review the original stock layout"><action function="page">ure_stock_gpt</action></listitem>
+          <listitem name="Restore six-LUN stock layout and selected OS images"><action function="page">ure_stock_job</action></listitem>
+          <listitem name="Review individual stock GPT reconstruction"><action function="page">ure_stock_gpt</action></listitem>
           <listitem name="Select journal parent or inspect interrupted operation"><action function="page">ure_gpt_journals</action></listitem>
         </listbox>
       </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_gpt_source</action></action>
+    </page>
+    <page name="ure_stock_job">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Six-LUN stock restoration</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Image validation workflow. Tablet writes require accepted device evidence.</text></text>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Declared model: %ure_stock_job_model%</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="220"/>
+          <listitem name="Xiaomi Pad 7"><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_model=xiaomi-pad-7</action></listitem>
+          <listitem name="POCO Pad X1"><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_model=poco-pad-x1</action></listitem>
+        </listbox>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Declared SKU tag, for example 8gb-512gb; measured LUN sizes decide capacity</text></text>
+        <input><placement x="%col1_x%" y="0" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_job_sku%</text><data name="ure_stock_job_sku"/><restrict minlen="1" maxlen="4096"/></input>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="480"/>
+          <listitem name="Select six image LUNs and verified OEM source files"><action function="page">ure_stock_job_sources</action></listitem>
+          <listitem name="Choose OS payloads and data reset policy"><action function="page">ure_stock_job_payloads</action></listitem>
+          <listitem name="Choose persistent journal or inspect interruption"><action function="page">ure_stock_job_journals</action></listitem>
+          <listitem name="Build and review the complete six-LUN job"><action function="uremanager">stock-job-plan</action><action function="page">ure_stock_job_review</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_gpt_tools</action></action>
+    </page>
+    <page name="ure_stock_job_sources">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Stock sources and original identities</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Verified Global OS3.0.303.0 directory containing GPT/XML and selected OS images</text></text>
+        <input><placement x="%col1_x%" y="0" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_inputs%</text><data name="ure_stock_inputs"/><restrict minlen="1" maxlen="4096"/></input>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Directory containing six separate regular images: lun0.img through lun5.img</text></text>
+        <input><placement x="%col1_x%" y="0" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_job_images%</text><data name="ure_stock_job_images"/><restrict minlen="1" maxlen="4096"/></input>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Optional same-target original GPT backups: lun0 through lun5 directories</text></text>
+        <input><placement x="%col1_x%" y="0" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_job_originals%</text><data name="ure_stock_job_originals"/><restrict maxlen="4096"/></input>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Empty original-backup directory uses each valid current GPT. Missing stock GUIDs require its verified original backup.</text></text>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Early firmware, calibration and unit-bound payloads are protected.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="140"/>
+          <listitem name="Return to stock job choices"><action function="page">ure_stock_job</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stock_job</action></action>
+    </page>
+    <page name="ure_stock_job_payloads">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Stock OS content choices</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Defaults restore the six stock tables and retain payload bytes.</text></text>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Boot set: %ure_stock_job_boot%; slot selection: %ure_stock_job_slots%</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="250"/>
+          <listitem name="Include the stock boot and verified-boot image set"><condition var1="ure_stock_job_boot" var2="0"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_boot=1</action></listitem>
+          <listitem name="Exclude boot and verified-boot images"><condition var1="ure_stock_job_boot" var2="1"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_boot=0</action></listitem>
+          <listitem name="Select slot A, B or both"><action function="page">ure_stock_job_slots</action></listitem>
+        </listbox>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Super restore: %ure_stock_job_super%; Android data reset: %ure_stock_job_reset%</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="300"/>
+          <listitem name="Include the stock super image"><condition var1="ure_stock_job_super" var2="0"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_super=1</action></listitem>
+          <listitem name="Exclude the super image"><condition var1="ure_stock_job_super" var2="1"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_super=0</action></listitem>
+          <listitem name="Reset Android metadata and userdata together"><condition var1="ure_stock_job_reset" var2="0"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_reset=1</action></listitem>
+          <listitem name="Preserve Android metadata and userdata"><condition var1="ure_stock_job_reset" var2="1"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_reset=0</action></listitem>
+        </listbox>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Sparse zero policy: %ure_stock_job_zero%. Selected DONT_CARE ranges require this choice.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="300"/>
+          <listitem name="Allow reviewed sparse DONT_CARE ranges to be zeroed"><condition var1="ure_stock_job_zero" var2="0"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_zero=1</action></listitem>
+          <listitem name="Disable sparse DONT_CARE zeroing"><condition var1="ure_stock_job_zero" var2="1"/><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_zero=0</action></listitem>
+          <listitem name="Return to stock job choices"><action function="page">ure_stock_job</action></listitem>
+        </listbox>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Data reset can overwrite custom OS content inside the selected programming extent. It is not secure erasure.</text></text>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stock_job</action></action>
+    </page>
+    <page name="ure_stock_job_slots">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Explicit stock slot destinations</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Selected slots: %ure_stock_job_slots%. This does not switch the active Android slot.</text></text>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="450"/>
+          <listitem name="Slot A only"><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_slots=a</action></listitem>
+          <listitem name="Slot B only"><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_slots=b</action></listitem>
+          <listitem name="Both slots"><action function="uremanager">stock-choice-changed</action><action function="set">ure_stock_job_slots=both</action></listitem>
+          <listitem name="Return to payload choices"><action function="page">ure_stock_job_payloads</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stock_job_payloads</action></action>
+    </page>
+    <page name="ure_stock_job_journals">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Persistent stock recovery journal</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Existing journal parent; keep the journal until device acceptance</text></text>
+        <input><placement x="%col1_x%" y="0" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_journal_parent%</text><data name="ure_journal_parent"/><restrict minlen="1" maxlen="4096"/></input>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>/tmp and other memory-backed journals disappear on reboot. Select persistent storage.</text></text>
+        <text style="caption"><placement x="%col1_x%" y="0"/><text>Existing private six-LUN journal to inspect</text></text>
+        <input><placement x="%col1_x%" y="0" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_stock_job_journal%</text><data name="ure_stock_job_journal"/><restrict maxlen="4096"/></input>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="250"/>
+          <listitem name="Inspect actual bytes and available recovery actions"><action function="uremanager">stock-job-inspect</action><action function="page">ure_stock_job_recovery</action></listitem>
+          <listitem name="Return to stock job choices"><action function="page">ure_stock_job</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stock_job</action></action>
+    </page>
+    <page name="ure_stock_job_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review all six LUNs before writing</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1200"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_stock_job_summary%</text></textbox>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="350"/>
+          <listitem name="Confirm reviewed job: prepare originals, then apply"><condition var1="ure_stock_job_can_execute" var2="1"/><action function="uremanager">stock-job-execute</action><action function="page">ure_output</action></listitem>
+          <listitem name="Inspect the complete plan and exact byte ranges"><action function="page">ure_output</action></listitem>
+          <listitem name="Return to stock choices"><action function="page">ure_stock_job</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stock_job</action></action>
+    </page>
+    <page name="ure_stock_job_recovery">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review six-LUN journal recovery</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="16" paddingtop="16" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1100"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_output%</text></textbox>
+        <listbox style="group_list"><placement x="0" y="0" w="%screen_w%" h="450"/>
+          <listitem name="Resume verified expected writes"><condition var1="ure_stock_job_can_resume" var2="1"/><action function="uremanager">stock-job-resume</action><action function="page">ure_output</action></listitem>
+          <listitem name="Restore all six verified originals"><condition var1="ure_stock_job_can_rollback" var2="1"/><action function="uremanager">stock-job-rollback</action><action function="page">ure_output</action></listitem>
+          <listitem name="Cancel unchanged staging"><condition var1="ure_stock_job_can_cancel" var2="1"/><action function="uremanager">stock-job-cancel</action><action function="page">ure_output</action></listitem>
+          <listitem name="Return to journal selection"><action function="page">ure_stock_job_journals</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><action><touch key="back"/><action function="page">ure_stock_job_journals</action></action>
     </page>
     <page name="ure_stock_gpt">
       <template name="base_ex_key"/>

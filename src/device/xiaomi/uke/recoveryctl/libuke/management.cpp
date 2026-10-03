@@ -42,6 +42,7 @@ bool management_command(const std::vector<std::string>& args) {
     const auto& command=args[0]; const auto& op=args[1];
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
     if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
+    if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="storage")return op=="preflight";
     if(command=="linux")return op=="audit" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect";
     if(command=="btrfs")return op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
@@ -52,6 +53,18 @@ Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
     if(command=="filesystem" && operation=="capabilities") { positional(options,2); options.allow({}); return filesystem_capabilities(); }
+    if(command=="stock") {
+        positional(options,3);
+        if(operation=="image-inspect") {
+            options.allow({}); const auto path=fs::absolute(words[2]).lexically_normal(); Root parent(path.parent_path());
+            auto file=parent.open(path.filename().string(),O_RDONLY|O_NONBLOCK); return stock_image_inspect(file.get());
+        }
+        if(operation=="job-plan") { options.allow({"--output"}); const auto plan=stock_job_plan(json_file(words[2])); save_json(options.need("--output"),plan); return plan; }
+        if(operation=="job-execute") { options.allow({"--journal","--confirm"}); return stock_job_execute(json_file(words[2]),options.need("--journal"),options.need("--confirm")); }
+        options.allow({"--confirm"}); const auto action=operation.substr(4);
+        require(action!="inspect" || !options.has("--confirm"),"invalid-options","Read-only stock journal inspection does not accept confirmation");
+        return stock_job_recover(words[2],action,action=="inspect" ? "" : options.need("--confirm"));
+    }
     if(command=="partition") {
         positional(options,3); Root system(options.get("--system-root","/"));
         if(operation=="job-plan") { options.allow({"--system-root","--image","--object","--sector-size","--profile","--output"}); auto selected=target(options,system);

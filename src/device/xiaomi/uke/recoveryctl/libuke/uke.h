@@ -101,6 +101,7 @@ Value gpt_stock_preview(const fs::path& inputs, std::uint64_t capacity, unsigned
                         const std::string& profile, const fs::path& destination);
 Value gpt_stock_plan(const StorageTarget& target, const fs::path& inputs, unsigned lun,
                      const std::string& profile, const fs::path& identity_backup = {}, const Root* system = nullptr);
+std::vector<StorageRange> gpt_stock_plan_regions(const StorageTarget& target, const Value& plan);
 Value gpt_backup(const StorageTarget& target, const fs::path& directory, const std::string& profile,
                  const Root* system = nullptr);
 Value gpt_backup_verify(const fs::path& directory);
@@ -157,6 +158,15 @@ Value partition_job_execute(const Root& system, StorageTarget& target, const Val
                             const fs::path& journal, const std::string& confirmation);
 Value partition_job_recover(const Root& system, StorageTarget& target, const fs::path& journal,
                             const std::string& action, const std::string& confirmation = {});
+// Canonical logical-content digests give holes and allocated zeros the same
+// ordinary SHA-256 leaves. All image helpers require regular files.
+std::string storage_image_range_digest(int fd, std::uint64_t offset, std::uint64_t bytes);
+void storage_copy_image_range(int source, int destination, std::uint64_t offset, std::uint64_t bytes);
+Value stock_image_inspect(int source);
+Value stock_image_expand(int source, int fresh_private_destination, bool zero_sparse_holes);
+Value stock_job_plan(const Value& request);
+Value stock_job_execute(const Value& plan, const fs::path& journal, const std::string& confirmation);
+Value stock_job_recover(const fs::path& journal, const std::string& action, const std::string& confirmation = {});
 bool management_command(const std::vector<std::string>& args);
 Value management_dispatch(std::vector<std::string> args);
 Value btrfs_subvolume_info(const Root& root, const std::string& relative);

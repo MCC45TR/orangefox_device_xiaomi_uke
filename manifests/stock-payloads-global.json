@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "format": "ure-stock-payload-catalog",
+  "firmware_profile": "global-os3.0.303.0",
+  "firmware_version": "OS3.0.303.0.WOZMIXM",
+  "source_archive": {
+    "filename": "uke_global_images_OS3.0.303.0.WOZMIXM_20260625.0000.00_16.0_global_0a5b1b6851.tgz",
+    "sha256": "f811ae6255b7535d32f80548d800487a6494a87ddb4cca592799337fab24cd0d"
+  },
+  "logical_sector_bytes": 4096,
+  "payloads": [
+    {
+      "filename": "boot.img",
+      "source_bytes": 100663296,
+      "source_sha256": "efdee1d4e1acd7f6e77615330dbcb045caeeccad8568d89fa6abd627f606e77f",
+      "encoding": "raw",
+      "expanded_bytes": 100663296
+    },
+    {
+      "filename": "dtbo.img",
+      "source_bytes": 20971520,
+      "source_sha256": "044aae9d9a144e9a05b91d2785a2ff4504c78caa11f8c22781839ba2f6c76490",
+      "encoding": "raw",
+      "expanded_bytes": 20971520
+    },
+    {
+      "filename": "init_boot.img",
+      "source_bytes": 8388608,
+      "source_sha256": "c4eb22f5c379678aead0cf7ab003f7534d923be16b0601a0b4da7d1705af10b2",
+      "encoding": "raw",
+      "expanded_bytes": 8388608
+    },
+    {
+      "filename": "metadata.img",
+      "source_bytes": 2236644,
+      "source_sha256": "999f892b89a9b4dcbcdc54e4d1e5dd85f4edc1cefe2606dcb960824e97e81c18",
+      "encoding": "android-sparse-v1",
+      "expanded_bytes": 67108864
+    },
+    {
+      "filename": "recovery.img",
+      "source_bytes": 104857600,
+      "source_sha256": "a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b",
+      "encoding": "raw",
+      "expanded_bytes": 104857600
+    },
+    {
+      "filename": "super.img",
+      "source_bytes": 8199567300,
+      "source_sha256": "9ca118bed2d3e80e3722e536c334d96be4a1d2a9b6221408f8807e598a9d0669",
+      "encoding": "android-sparse-v1",
+      "expanded_bytes": 11274289152
+    },
+    {
+      "filename": "userdata.img",
+      "source_bytes": 1289147004,
+      "source_sha256": "577d797c8cf6a37f7a5590078e4b2cae7139dacb375a1e9f40ca88a2020e301e",
+      "encoding": "android-sparse-v1",
+      "expanded_bytes": 48318382080
+    },
+    {
+      "filename": "vbmeta.img",
+      "source_bytes": 8192,
+      "source_sha256": "77e3c2069304c562418ac2b9ac277d322a5edce71a560f6099510ecf37c17b81",
+      "encoding": "raw",
+      "expanded_bytes": 8192
+    },
+    {
+      "filename": "vbmeta_system.img",
+      "source_bytes": 4096,
+      "source_sha256": "19cdebfe73e710f3e1ebc699e50768bdeb668ee05f60b5081354912312aa2f6c",
+      "encoding": "raw",
+      "expanded_bytes": 4096
+    },
+    {
+      "filename": "vendor_boot.img",
+      "source_bytes": 100663296,
+      "source_sha256": "c2811677d6aa07753b615747c4f2dba110dd4519cf52ff3a89e41e00a5b02bcc",
+      "encoding": "raw",
+      "expanded_bytes": 100663296
+    }
+  ],
+  "policy": {
+    "early_firmware_preserved": true,
+    "unit_bound_ranges_preserved": true,
+    "image_length_is_not_partition_capacity": true,
+    "sparse_holes_require_explicit_zero_policy": true
+  },
+  "validation": {
+    "archive_verified": true,
+    "selected_file_hashes": true,
+    "header_inventory": true,
+    "full_sparse_decoder": false,
+    "model_verified": false,
+    "sku_verified": false,
+    "physical_device": false,
+    "live_write_authorized": false
+  }
+}

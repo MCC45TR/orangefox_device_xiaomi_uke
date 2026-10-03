@@ -15,6 +15,21 @@ cannot supply its filesystem mount.
 The separate generic ARM64 VM passes 14 native Btrfs operation fixtures. This
 emulation result does not prove either tablet or the preserved stock kernel.
 
+The 3 October stock checkpoint adds one coordinated six-LUN image job. It
+restores capacity-derived GPTs and explicitly selected Global OS image extents
+with verified original/replacement mirrors, durable chunk intent, readback and
+inspected resume/rollback. The source catalog binds ten OEM images; native
+Android sparse decoding checks structure, declared CRCs and decoded content.
+The GUI reviews all six capacities, A/B payload choices, data-reset policy,
+protected tails and staging budget. Model/SKU selections remain declarations;
+live UFS writes and both models' capacity/firmware acceptance remain open.
+Read `STOCK-IMAGE-RESTORE.md` for the scope and recovery procedure.
+
+This stock candidate has fresh host, sanitizer and extracted ARM64 QEMU-user
+evidence. The earlier partition candidate's generic guest-reset proof describes
+its own CLI and is not a reset result for the stock candidate. Neither proves
+the Uke UFS controller or shipping-kernel reset durability.
+
 The partition layout GUI allocates ESP/Linux/Windows only from the original
 userdata extent, using keyboard sizes in GB/GiB/MiB or percentages. Standard
 mode preserves existing identities and userdata start. Advanced mode permits

@@ -26,6 +26,8 @@ std::string pending_journal;
 ure::Value pending_gpt_plan;
 std::string pending_gpt_journal;
 std::string reviewed_gpt_journal;
+ure::Value pending_stock_plan,reviewed_stock_choices;
+std::string pending_stock_journal,reviewed_stock_journal;
 ure::Value pending_restore_plan;
 std::string pending_restore_journal,pending_restore_backup,reviewed_restore_journal;
 std::string reviewed_stream_journal;
@@ -163,6 +165,47 @@ void clear_gpt_review() {
 }
 ure::Value partition_selection() {
     ure::Value selected; for(const auto* key:{"ure_gpt_kind","ure_gpt_source","ure_gpt_sector","ure_partition_journal"})selected[key]=value(key); return selected;
+}
+void clear_stock_review() {
+    pending_stock_plan=ure::Value(); reviewed_stock_choices=ure::Value(); pending_stock_journal.clear(); reviewed_stock_journal.clear();
+    for(const auto* name:{"ure_stock_job_hash","ure_stock_job_journal_hash","ure_stock_job_summary","ure_stock_job_can_execute",
+        "ure_stock_job_can_resume","ure_stock_job_can_rollback","ure_stock_job_can_cancel"})DataManager::SetValue(name,"");
+}
+ure::Value stock_selection() {
+    ure::Value selected;
+    for(const auto* key:{"ure_stock_inputs","ure_stock_job_images","ure_stock_job_originals","ure_stock_job_model","ure_stock_job_sku",
+        "ure_stock_job_boot","ure_stock_job_slots","ure_stock_job_super","ure_stock_job_reset","ure_stock_job_zero","ure_journal_parent"})selected[key]=value(key);
+    return selected;
+}
+ure::Value stock_request() {
+    const ure::fs::path images(value("ure_stock_job_images")),originals(value("ure_stock_job_originals"));
+    ure::require(images.is_absolute() && (originals.empty() || originals.is_absolute()),"invalid-path","Select absolute image and optional original GPT directories");
+    ure::Value request; request["schema"]=1; request["format"]="ure-stock-job-request"; request["firmware_profile"]="global-os3.0.303.0";
+    request["stock_inputs_directory"]=value("ure_stock_inputs"); request["model"]=value("ure_stock_job_model"); request["sku"]=value("ure_stock_job_sku");
+    request["erase_android_data"]=choice("ure_stock_job_reset"); request["zero_sparse_holes"]=choice("ure_stock_job_zero");
+    request["luns"]=ure::Value(Json::arrayValue); request["payloads"]=ure::Value(Json::arrayValue);
+    for(unsigned lun=0;lun<6;++lun) {
+        ure::Value row; row["lun"]=lun; row["image"]=(images/("lun"+std::to_string(lun)+".img")).lexically_normal().string();
+        if(!originals.empty())row["identity_backup"]=(originals/("lun"+std::to_string(lun))).lexically_normal().string();
+        request["luns"].append(row);
+    }
+    auto add=[&](unsigned lun,const std::string& name,const std::string& file) { ure::Value row; row["lun"]=lun; row["label"]=name; row["filename"]=file; request["payloads"].append(row); };
+    const auto slots=value("ure_stock_job_slots"); ure::require(slots=="a" || slots=="b" || slots=="both","invalid-choice","Choose slot A, B or both explicitly");
+    if(choice("ure_stock_job_boot"))for(const auto* slot:{"a","b"})if(slots==slot || slots=="both") {
+        for(const auto* name:{"boot","dtbo","init_boot","recovery","vendor_boot","vbmeta"})add(4,std::string(name)+"_"+slot,std::string(name)+".img");
+        add(0,"vbmeta_system_"+std::string(slot),"vbmeta_system.img");
+    }
+    if(choice("ure_stock_job_super"))add(0,"super","super.img");
+    if(request["erase_android_data"].asBool()) { add(0,"metadata","metadata.img"); add(0,"userdata","userdata.img"); }
+    return request;
+}
+std::string stock_summary(const ure::Value& plan,const std::string& journal) {
+    std::string text="Declared model: "+plan["request"]["model"].asString()+"; SKU: "+plan["request"]["sku"].asString()+"\nImage workflow; tablet identity and boot acceptance pending.\n";
+    for(const auto& lun:plan["luns"])text+="LUN "+std::to_string(lun["lun"].asUInt())+": "+std::to_string(lun["identity"]["bytes"].asUInt64()/1048576)+" MiB\n";
+    text+="Selected OS payloads: "+std::to_string(plan["request"]["payloads"].size())+"\nRequired journal space: "+std::to_string(plan["estimated_journal_bytes"].asUInt64()/1048576)+" MiB\nJournal: "+journal+"\n";
+    for(const auto& row:plan["regions"])if(row["role"]=="payload")text+=row["name"].asString()+": program "+std::to_string(row["bytes"].asUInt64()/1048576)+" MiB; preserve tail "+std::to_string((row["destination_capacity"].asUInt64()-row["bytes"].asUInt64())/1048576)+" MiB\n";
+    for(const auto& warning:plan["warnings"])text+=warning.asString()+"\n";
+    return text;
 }
 ure::Value layout_request() {
     ure::Value request; request["schema"]=1; request["format"]="ure-layout-request"; request["rows"]=ure::Value(Json::arrayValue);
@@ -304,7 +347,27 @@ int GUIAction::uremanager(std::string command) {
         } else if(command=="capabilities")publish(ure::capabilities(system));
         else if(command=="storage")publish(ure::storage_graph(system));
         else if(command=="diagnose")publish(ure::diagnose(system,"all"));
-        else if(command.rfind("manage-edit-",0)==0) {
+        else if(command=="stock-choice-changed")clear_stock_review();
+        else if(command=="stock-job-plan") {
+            clear_stock_review(); ure::Root parent(value("ure_journal_parent")); pending_stock_plan=ure::stock_job_plan(stock_request());
+            reviewed_stock_choices=stock_selection(); pending_stock_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-stock-"+pending_stock_plan["operation_id"].asString())).string();
+            DataManager::SetValue("ure_stock_job_hash",pending_stock_plan["plan_sha256"].asString()); DataManager::SetValue("ure_stock_job_can_execute","1");
+            DataManager::SetValue("ure_stock_job_summary",stock_summary(pending_stock_plan,pending_stock_journal)); publish(pending_stock_plan);
+        } else if(command=="stock-job-execute") {
+            if(ure::json(stock_selection())!=ure::json(reviewed_stock_choices)) { clear_stock_review(); throw ure::Error("stale-plan","Stock model, SKU, images, source, reset or slot choices changed; review a fresh plan"); }
+            ure::require(pending_stock_plan.isObject() && !pending_stock_journal.empty() && pending_stock_plan["plan_sha256"].asString()==value("ure_stock_job_hash"),
+                "plan-required","Review the complete six-LUN stock job first");
+            publish(ure::stock_job_execute(pending_stock_plan,pending_stock_journal,value("ure_stock_job_hash")));
+            DataManager::SetValue("ure_stock_job_journal",pending_stock_journal); clear_stock_review();
+        } else if(command=="stock-job-inspect") {
+            clear_stock_review(); const auto review=ure::stock_job_recover(value("ure_stock_job_journal"),"inspect"); publish(review);
+            reviewed_stock_journal=value("ure_stock_job_journal"); DataManager::SetValue("ure_stock_job_journal_hash",review["plan_sha256"].asString());
+            for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_stock_job_can_"+action.asString(),"1");
+        } else if(command=="stock-job-resume" || command=="stock-job-rollback" || command=="stock-job-cancel") {
+            ure::require(!reviewed_stock_journal.empty() && reviewed_stock_journal==value("ure_stock_job_journal") && !value("ure_stock_job_journal_hash").empty(),
+                "confirmation-required","Inspect and review the selected six-LUN journal first");
+            publish(ure::stock_job_recover(reviewed_stock_journal,command.substr(10),value("ure_stock_job_journal_hash"))); clear_stock_review();
+        } else if(command.rfind("manage-edit-",0)==0) {
             const auto field=command.substr(12);
             static const std::set<std::string> allowed{"ure_esp","ure_journal_parent","ure_fs_size","ure_fs_label","ure_rescue_command","ure_rescue_kernel","ure_rescue_timeout",
                 "ure_manage_journal","ure_btrfs_root","ure_btrfs_path","ure_btrfs_source","ure_btrfs_backup","ure_btrfs_saved","ure_btrfs_size","ure_btrfs_device",

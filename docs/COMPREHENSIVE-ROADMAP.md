@@ -33,15 +33,18 @@ layout designer and GUI: keyboard GB/GiB/MiB/percentage sizes, requested role
 filesystems, proportional allocation bars, standard identity preservation,
 advanced explicit GUID/content requests and reviewed image GPT transactions.
 Front placement requires advanced erase/recreate and discloses Android data
-loss. Filesystem resizing/formatting, multi-LUN orchestration and model-specific
-physical acceptance remain open. See [the manager contract](PARTITION-MANAGER.md)
-and [the layout build report](../reports/URE-PARTITION-LAYOUT-BUILD.md).
+loss. Combined filesystem/GPT application is implemented for regular images.
+The [six-LUN stock image job](STOCK-IMAGE-RESTORE.md) now coordinates reviewed
+GPTs and selected Global OS payloads with inspected recovery. Live UFS writes,
+encrypted migration and model-specific physical acceptance remain open. See
+[the manager contract](PARTITION-MANAGER.md) and the
+[stock build report](../reports/URE-STOCK-JOB-BUILD.md).
 
 | Existing evidence | Current limit |
 |---|---|
 | The native shared library/JSON CLI, Storage Graph, Linux/Windows discovery, file editor/journals, chunked image backups and GPT image backup/repair/restore have host fixtures. | General live storage ownership/write policy, controlled chroot, OS repair and full GUI acceptance remain unfinished. Fixture checks do not demonstrate a live mount or UFS write. |
 | The Global stock303 recovery and native active-slot installer are built; package, privacy and payload checks are recorded in the [public alpha report](../reports/PUBLIC-ALPHA-BUILD.md). | Neither commercial model has boot, display, touch, USB, installed-slot or stock-return acceptance. |
-| Installer policy has host negative tests and a QEMU refusal without boot-control evidence; native file/image transactions add verified backups, durable journals and inspected recovery. | Device write/power-loss acceptance and shared preflight for all upstream controls remain open. |
+| Installer policy has host negative tests and a QEMU refusal without boot-control evidence; native file/image transactions add verified backups, durable journals and inspected recovery. | Device writes and forced-reboot acceptance, the owner's primary interruption scenario, and shared preflight for all upstream controls remain open. |
 | Stock kernel, module and boot-profile inputs are recorded separately. | Btrfs mounting is blocked by the selected stock kernel; LUKS/BITLK and networking remain planned. Android FBE is blocked pending installed-firmware KeyMint/TEE trust evidence. |
 
 The [hardware ledger](https://github.com/MCC45TR/uke-linux/blob/main/DEVICE-STATUS.md)

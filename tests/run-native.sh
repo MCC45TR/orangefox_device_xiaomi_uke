@@ -15,6 +15,7 @@ bash tests/check-restore.sh
 bash tests/check-stream-restore.sh
 bash tests/check-gpt.sh
 bash tests/check-stock-gpt.sh
+bash tests/check-stock-job.sh
 bash tests/check-partition-map.sh
 bash tests/check-layout.sh
 bash tests/check-partition-job.sh
@@ -34,6 +35,8 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.cpp_evdev_actual_hotplug=true | .validation.cpp_linux_home_tree_backup=true | .validation.tree_backup_cli_and_sigkill_resume=true |
         .validation.cpp_userdata_layout_advanced_mode_and_image_rollback=true | .validation.cpp_actual_partition_graph_widget=true | .validation.layout_cli_fixtures=true |
         .validation.cpp_combined_partition_filesystem_job_and_interruption=true | .validation.partition_job_cli=true | .validation.tablet_forced_reboot=false |
+        .validation.cpp_six_lun_stock_jobs_and_sigkill=true | .validation.cpp_android_sparse_and_logical_range_oracles=true |
+        .validation.cpp_actual_six_lun_stock_gui=true | .validation.stock_job_cli=true | .validation.stock_model_sku_physical_acceptance=false |
         .validation.cpp_installed_boot_audit_and_operation_policy=true | .validation.cpp_actual_management_callbacks=true |
         .validation.filesystem_staged_tools_and_complete_rollback=true | .validation.distribution_chroot_mount_and_process_cleanup=true |
         .validation.native_boot_asset_codecs=true | .validation.chroot_distro_dispatch_fixture=true | .validation.real_package_database_repair=false |

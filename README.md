@@ -30,6 +30,11 @@ adds verified chunk transfer, host reception and explicit interrupted-file recov
 The [GPT checkpoint](reports/URE-GPT-BUILD.md) adds metadata backup/verification,
 image repair/restore, inspected journals and read-only live selection. Real UFS
 writes and full phase acceptance remain open.
+The [six-LUN stock checkpoint](reports/URE-STOCK-JOB-BUILD.md) coordinates stock
+GPTs and selected hash-pinned Global OS images under one inspected image journal.
+Its [CLI and GUI contract](docs/STOCK-IMAGE-RESTORE.md) covers sparse decoding,
+capacity-derived layouts, protected firmware/tails and complete changed-range
+rollback. Model/SKU declarations do not establish either tablet's acceptance.
 The [storage checkpoint](reports/URE-STORAGE-BUILD.md) adds bounded ownership
 observations and identity-bound storage backup software with shared CLI/GUI/host
 reception. The raw-image restore engine adds verified original/target mirrors,

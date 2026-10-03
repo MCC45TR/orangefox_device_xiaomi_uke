@@ -405,6 +405,12 @@ Value gpt_stock_plan(const StorageTarget& target,const fs::path& inputs,unsigned
     }
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,system); return plan;
 }
+std::vector<StorageRange> gpt_stock_plan_regions(const StorageTarget& target,const Value& plan) {
+    check_plan(plan); require(plan["operation"]=="gpt.stock","invalid-gpt-plan","Select a reviewed stock GPT plan");
+    storage_revalidate(target); Value source; const auto after=plan_desired(target,plan,source);
+    require(json(source)==json(plan["stock_source"]) && json(descriptions(after))==json(plan["after"]),
+        "stale-plan","Stock source or desired GPT differs from its reviewed plan"); return after;
+}
 Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Root* system) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact GPT plan checksum");
     require(json(target.identity)==json(plan["target_identity"]),"stale-plan","GPT target identity changed since planning");

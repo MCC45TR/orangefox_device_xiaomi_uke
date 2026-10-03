@@ -19,6 +19,7 @@ cd "$component"
         src/upstream/orangefox-android16/external/zstd/Android.bp
     printf '%s\0' tests/check-layout.sh tests/generate-layout-hooks.sh src/device/xiaomi/uke/maintainer.xml patches/0008-partition-layout-graph.patch
     printf '%s\0' tests/check-partition-job.sh tests/check-partition-job-vm.sh tests/check-sanitizers.sh
+    printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
     printf '%s\0' src/device/xiaomi/uke/display-mirror.hpp src/device/xiaomi/uke/display-mirror.cpp \
         src/device/xiaomi/uke/display-mirror-layout.cpp patches/0007-usb-monitor-and-input.patch \
         tests/generate-input-hooks.sh tests/generate-events-hooks.sh

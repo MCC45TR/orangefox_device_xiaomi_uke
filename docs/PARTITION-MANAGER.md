@@ -320,6 +320,19 @@ Formatting userdata destroys its contents; it does not unlock wrapped keys or
 prove installed KeyMint/TEE trust. Multi-OS layout selection cannot implicitly
 change default boot policy.
 
+## Coordinated stock image job: 3 October 2026
+
+The [six-LUN stock job](STOCK-IMAGE-RESTORE.md) extends the metadata-only workflow
+with a shared plan, verified before/after mirrors for every changed range,
+selected hash-pinned Global OS payloads, bounded native sparse decoding and
+durable inspected recovery. All six image identities and capacities remain
+bound. Unselected firmware, calibration and payload tails stay protected;
+payloads precede backup GPTs across all LUNs and then primary metadata.
+The GUI reviews model/SKU declarations, actual image capacities, A/B destinations,
+data-loss/zero policies and staging space. It never switches the active slot.
+Neither model declaration is a verified capacity/firmware profile. This regular-
+image implementation does not establish physical stock return or live writes.
+
 ## Completion evidence
 
 Acceptance needs malformed/overflow/overlap and wrong-unit/profile/SKU tests,
@@ -330,5 +343,6 @@ payload checks, and a rendered operation/review UI. Live acceptance additionally
 needs an identified Uke, installed firmware/slot/snapshot/ownership gates,
 preserved calibration and stock firmware, and a rehearsed stock-return route.
 Current host evidence does not prove these physical results. Per-image stock
-GPT reconstruction/metadata restoration is a partial implementation; no full
-manager, stock-return contract or roadmap phase is marked complete.
+GPT reconstruction and coordinated six-LUN OS image restoration are partial
+implementations; no full manager, physical stock-return contract or roadmap
+phase is marked complete.
