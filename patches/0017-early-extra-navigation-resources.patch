@@ -1,0 +1,11 @@
+--- a/gui/theme/portrait_hdpi/resources/images.xml
++++ b/gui/theme/portrait_hdpi/resources/images.xml
+@@ -10,6 +10,8 @@
+ 	<resources>
+         <!-- Mouse cursor -->
+         <image name="cursor" filename="Default/Other/cursor" retainaspect="1"/>
++        <image name="ure_extra_icon" filename="URE/layout-grid" tint="%text%"/>
++        <image name="ure_extra_active" filename="URE/layout-grid" tint="#FFFFFF"/>
+ 
+         <!-- TODO: create variables -->
+ 		<shape name="btn_raised" w="%btn_w%" h="%btn_h%" radius="-1" color="%neutral_light%" />

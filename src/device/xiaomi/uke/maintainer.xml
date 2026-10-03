@@ -22,9 +22,7 @@
     <image name="ure_tree_icon" filename="URE/folder-archive" tint="%text%"/>
     <image name="ure_tools_icon" filename="URE/wrench" tint="%text%"/>
     <image name="ure_size_icon" filename="URE/gauge" tint="%text%"/>
-    <image name="ure_extra_icon" filename="URE/layout-grid" tint="%text%"/>
     <image name="ure_rollback_icon" filename="URE/rotate-ccw" tint="%text%"/>
-    <image name="ure_extra_active" filename="URE/layout-grid" tint="#FFFFFF"/>
     <shape name="ure_apply_bg" w="%input_w%" h="128" radius="28" color="%accent%"/>
   </resources>
   <styles>
@@ -49,6 +47,14 @@
   <variables>
     <variable name="scale_apply_y" value="%row_nav_y%-168"/>
     <variable name="scale_scroll_h" value="%scroll_nav_h%-168"/>
+    <variable name="scale_status_y" value="%ab_h%+24"/>
+    <variable name="scale_hint_y" value="%ab_h%+96"/>
+    <variable name="scale_preview_y" value="%ab_h%+192"/>
+    <variable name="scale_warning_y" value="%ab_h%+856"/>
+    <variable name="scale_choices_y" value="%ab_h%+936"/>
+    <variable name="scale_choices_area" value="%scale_apply_y%-%scale_choices_y%"/>
+    <variable name="scale_choices_h" value="%scale_choices_area%-40"/>
+    <variable name="ure_scale_warning" value="Preview only. The full interface changes after Apply."/>
     <variable name="ure_boot_esp" value=""/>
     <variable name="ure_boot_variables" value="/sys/firmware/efi/efivars"/>
     <variable name="ure_boot_target" value="linux"/>
@@ -140,6 +146,8 @@
     <variable name="ure_mirror_resolution" value="auto"/>
     <variable name="ure_mirror_refresh" value="auto"/>
     <variable name="ure_mirror_refresh_label" value="Automatic"/>
+    <variable name="ure_mirror_scale_choice" value="100"/>
+    <variable name="ure_mirror_scale_requested" value="100"/>
     <variable name="ure_mirror_status" value="Waiting for a DP/HDMI monitor"/>
     <variable name="ure_mirror_active" value="No active monitor mode"/>
     <variable name="ure_root" value="/mnt/uke-linux"/>
@@ -261,7 +269,7 @@
           <text>Sizes change the filesystem only. GPT needs a separate reviewed plan.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="3184"/>
           <listitem name="Select filesystem image or live partition" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_raw_select</action>
@@ -353,7 +361,7 @@
           <text>exFAT offline resize needs data migration. Mounted Btrfs has its own manager.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1300"/>
+          <placement x="0" y="0" w="%screen_w%" h="2288"/>
           <listitem name="Format (erase files)" description="Review the target and data-loss choice before any write.">
             <icon res="ure_database_icon"/>
             <action function="set">ure_fs_action=format</action>
@@ -484,7 +492,7 @@
           <text>Journal: %ure_manage_journal%</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="800"/>
+          <placement x="0" y="0" w="%screen_w%" h="1168"/>
           <listitem name="Choose existing journal" description="Use the durable record belonging to this exact operation.">
             <icon res="ure_history_icon"/>
             <action function="uremanager">manage-edit-ure_manage_journal</action>
@@ -543,7 +551,7 @@
           <text>Action: %ure_rescue_action%; writes: %ure_rescue_write%; timeout: %ure_rescue_timeout% seconds</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="2000"/>
+          <placement x="0" y="0" w="%screen_w%" h="3184"/>
           <listitem name="Select mounted Linux root" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_select</action>
@@ -637,7 +645,7 @@
           <text>Each GUI command opens a fresh session. ADB/CLI also supports an interactive shell.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1000"/>
+          <placement x="0" y="0" w="%screen_w%" h="1392"/>
           <listitem name="Run an explicit Bash command" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="set">ure_rescue_action=shell</action>
@@ -729,7 +737,7 @@
           <text>Maintenance: %ure_maintenance_state%; rollback retains the original subvolume.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="3200"/>
+          <placement x="0" y="0" w="%screen_w%" h="5872"/>
           <listitem name="Select mounted Btrfs root" description="Select the Btrfs target and review the operation first.">
             <icon res="ure_btrfs_icon"/>
             <action function="uremanager">manage-edit-ure_btrfs_root</action>
@@ -871,7 +879,7 @@
           <text>Deletion requires a derived read-only backup. Rollback refuses mounted or busy subvolumes.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1400"/>
+          <placement x="0" y="0" w="%screen_w%" h="2512"/>
           <listitem name="Create subvolume" description="Select the Btrfs target and review the operation first.">
             <icon res="ure_btrfs_icon"/>
             <action function="set">ure_btrfs_action=create</action>
@@ -988,7 +996,7 @@
           <text>Send requires an immutable read-only snapshot. Empty parent selects a full backup.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1500"/>
+          <placement x="0" y="0" w="%screen_w%" h="2288"/>
           <listitem name="Snapshot or send source" description="Select the Btrfs target and review the operation first.">
             <icon res="ure_btrfs_icon"/>
             <action function="uremanager">manage-edit-ure_btrfs_source</action>
@@ -1116,7 +1124,7 @@
           <text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="2512"/>
           <listitem name="Select disk image or live LUN" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_gpt_select</action>
@@ -1240,7 +1248,7 @@
           <text>Remaining space is available only for userdata.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="800"/>
+          <placement x="0" y="0" w="%screen_w%" h="1168"/>
           <listitem name="GB (decimal)" description="Choose the unit used to calculate requested capacity.">
             <icon res="ure_size_icon"/>
             <action function="set">ure_layout_edit_unit=GB</action>
@@ -1289,7 +1297,7 @@
           <text>These are requested formats. The complete job must detect support before formatting.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <placement x="0" y="0" w="%screen_w%" h="1616"/>
           <listitem name="FAT32 / EFI System Partition" description="UEFI system partition format for boot files.">
             <icon res="ure_database_icon"/>
             <condition var1="ure_layout_edit_role" var2="esp"/>
@@ -1386,7 +1394,7 @@
           <text>Changing mode never bypasses firmware, backup or Android trust checks.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="500"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Standard: preserve identities; shrink from userdata tail" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="uremanager">layout-mode-standard</action>
@@ -1426,7 +1434,7 @@
           <text>DATA LOSS: erase/recreate removes Android userdata. Front placement changes its start.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="800"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="After userdata: preserve its original start" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="uremanager">layout-placement-after</action>
@@ -1479,7 +1487,7 @@
           <text>Other partition ranges stay unchanged. Unselected records stay unchanged.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="800"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Inspect current GPT indices" description="Inspect current state and prerequisites for this target.">
             <icon res="ure_check_icon"/>
             <action function="uremanager">gpt-map</action>
@@ -1571,7 +1579,7 @@
           <text>Formatting destroys selected data. Advanced OEM formatting requires a separate workflow.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <placement x="0" y="0" w="%screen_w%" h="1616"/>
           <listitem name="Preserve current contents" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="set">ure_layout_record_contents=preserve</action>
@@ -1639,7 +1647,7 @@
           <text>Device application requires accepted firmware, FBE and exclusive UFS ownership.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="600"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Adjust selections" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_layout</action>
@@ -1686,7 +1694,7 @@
           <text>Device application requires accepted firmware, FBE and exclusive UFS ownership.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="600"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Confirm complete image filesystem and partition job" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_gpt_can_execute" var2="1"/>
@@ -1767,7 +1775,7 @@
           <text>%ure_status%</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="600"/>
+          <placement x="0" y="0" w="%screen_w%" h="1168"/>
           <listitem name="Resume the reviewed prepared layout" description="Continue from a verified, retained operation journal.">
             <icon res="ure_history_icon"/>
             <condition var1="ure_partition_can_resume" var2="1"/>
@@ -1824,7 +1832,7 @@
           <text>Recovery tools for your tablet</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="1392"/>
           <listitem name="Display and input" description="Interface size, external monitor and pointer controls">
             <icon res="ure_display_icon"/>
             <action function="page">ure_group_display</action>
@@ -1869,7 +1877,7 @@
           <text>Comfort and external controls</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Interface scale" description="Choose a comfortable size, then apply your selection">
             <icon res="ure_display_icon"/>
             <action function="page">ure_display</action>
@@ -1877,6 +1885,10 @@
           <listitem name="External monitor and input" description="Output mode, mirroring, mouse and keyboard status">
             <icon res="ure_monitor_icon"/>
             <action function="page">ure_monitor</action>
+          </listitem>
+          <listitem name="Automatic display settings" description="Check rotation and brightness availability; open manual controls">
+            <icon res="ure_display_icon"/>
+            <action function="page">ure_display_automatic</action>
           </listitem>
         </listbox>
       </scroll>
@@ -1899,7 +1911,7 @@
           <text>Inspect</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="272"/>
           <listitem name="Storage inventory" description="Partition identities, capacities and active mounts">
             <icon res="ure_storage_icon"/>
             <action function="uremanager">storage</action>
@@ -1911,7 +1923,7 @@
           <text>Plan and maintain</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Partition layout" description="Review ESP, Linux, Windows and userdata allocations">
             <icon res="ure_size_icon"/>
             <action function="page">ure_layout</action>
@@ -1945,7 +1957,7 @@
           <text>Create a backup</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Linux and home directories" description="Back up mounted system files or your home folder">
             <icon res="ure_tree_icon"/>
             <action function="page">ure_tree</action>
@@ -1968,7 +1980,7 @@
           <text>Restore and verify</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="272"/>
           <listitem name="Restore a partition image" description="Review backup identity and recover interrupted writes">
             <icon res="ure_download_icon"/>
             <action function="page">ure_restore_select</action>
@@ -1994,7 +2006,7 @@
           <text>Installed systems</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Linux system recovery" description="Detect your distribution, audit kernels and open chroot">
             <icon res="ure_kernel_icon"/>
             <action function="page">ure_linux</action>
@@ -2033,7 +2045,7 @@
           <text>Mounted files</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Mounted system and file" description="Choose the Linux root and file used by recovery tools">
             <icon res="ure_files_icon"/>
             <action function="page">ure_select</action>
@@ -2069,7 +2081,7 @@
           <text>Understand the environment</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Available capabilities" description="See installed tools, dependencies and current limits">
             <icon res="ure_check_icon"/>
             <action function="uremanager">capabilities</action>
@@ -2091,7 +2103,7 @@
           <text>Recover an operation</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <placement x="0" y="0" w="%screen_w%" h="272"/>
           <listitem name="Interrupted operations" description="Inspect a retained journal before resume or rollback">
             <icon res="ure_history_icon"/>
             <action function="page">ure_journals</action>
@@ -2133,7 +2145,7 @@
           <text>Nested mounts/subvolumes need separate backups. This is not a snapshot.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <placement x="0" y="0" w="%screen_w%" h="1168"/>
           <listitem name="Choose source and backup store" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_tree_paths</action>
@@ -2288,6 +2300,10 @@
         </text>
         <text style="caption">
           <placement x="%gl_text_x%" y="0"/>
+          <text>Monitor image size: %ure_mirror_scale_choice%%% (requested: %ure_mirror_scale_requested%%%)</text>
+        </text>
+        <text style="caption">
+          <placement x="%gl_text_x%" y="0"/>
           <text>Connect one HDMI/DP monitor to the USB-C hub.</text>
         </text>
         <text style="caption">
@@ -2303,25 +2319,29 @@
           <text>F6 toggles navigation: arrows/Tab move; Enter selects. F6 returns to typing.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1100"/>
+          <placement x="0" y="0" w="%screen_w%" h="1840"/>
           <listitem name="Enable monitor mirroring" description="Use this option for the next reviewed operation.">
-            <icon res="ure_tools_icon"/>
+            <icon res="ure_monitor_icon"/>
             <action function="uremanager">mirror-enable</action>
           </listitem>
           <listitem name="Disable monitor mirroring" description="Use this option for the next reviewed operation.">
-            <icon res="ure_tools_icon"/>
+            <icon res="ure_monitor_icon"/>
             <action function="uremanager">mirror-disable</action>
           </listitem>
           <listitem name="Choose output resolution" description="Choose an already available path for the selected operation.">
-            <icon res="ure_files_icon"/>
+            <icon res="ure_monitor_icon"/>
             <action function="page">ure_monitor_resolution</action>
           </listitem>
           <listitem name="Choose refresh rate" description="Choose an already available path for the selected operation.">
-            <icon res="ure_files_icon"/>
+            <icon res="ure_monitor_icon"/>
             <action function="page">ure_monitor_refresh</action>
           </listitem>
-          <listitem name="Apply selected output mode" description="Choose an already available path for the selected operation.">
-            <icon res="ure_files_icon"/>
+          <listitem name="Choose monitor image size" description="Fit 50 to 100 percent of the screen; keep the tablet scale">
+            <icon res="ure_size_icon"/>
+            <action function="page">ure_monitor_scale</action>
+          </listitem>
+          <listitem name="Apply output settings" description="Apply the selected resolution, refresh rate and image size together">
+            <icon res="ure_check_icon"/>
             <action function="uremanager">mirror-apply</action>
           </listitem>
           <listitem name="Show monitor's supported modes" description="Read the proposed changes and checks before confirming.">
@@ -2329,8 +2349,8 @@
             <action function="uremanager">mirror-modes</action>
             <action function="page">ure_monitor_modes</action>
           </listitem>
-          <listitem name="Interface scale" description="Use this option for the next reviewed operation.">
-            <icon res="ure_tools_icon"/>
+          <listitem name="Interface scale" description="Preview text and control sizes on the tablet before applying">
+            <icon res="ure_display_icon"/>
             <action function="page">ure_display</action>
           </listitem>
         </listbox>
@@ -2362,7 +2382,7 @@
           <text>Declared model: %ure_boot_model%; firmware: %ure_boot_profile%</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1500"/>
+          <placement x="0" y="0" w="%screen_w%" h="4080"/>
           <listitem name="Detected Linux / Windows components" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="uremanager">boot</action>
@@ -2476,7 +2496,7 @@
           <text>%ure_boot_summary%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="760" w="%screen_w%" h="300"/>
+          <placement x="0" y="760" w="%screen_w%" h="720"/>
           <listitem name="Confirm request in private test store" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_boot_can_stage" var2="1"/>
@@ -2514,7 +2534,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="760" w="%screen_w%" h="350"/>
+          <placement x="0" y="760" w="%screen_w%" h="944"/>
           <listitem name="Recover the reviewed interrupted record" description="Use the durable record belonging to this exact operation.">
             <icon res="ure_history_icon"/>
             <condition var1="ure_boot_can_recover" var2="1"/>
@@ -2644,6 +2664,44 @@
         <action function="page">ure_monitor</action>
       </action>
     </page>
+    <page name="ure_monitor_scale">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Monitor image size</text></text>
+      <listbox style="ure_choices">
+        <placement x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%"/>
+        <data name="ure_mirror_scale_choice"/>
+        <listitem name="50%" description="Center a smaller image with a black border; tablet controls keep their size">50</listitem>
+        <listitem name="55%" description="Center a smaller image with a black border; tablet controls keep their size">55</listitem>
+        <listitem name="60%" description="Center a smaller image with a black border; tablet controls keep their size">60</listitem>
+        <listitem name="65%" description="Center a smaller image with a black border; tablet controls keep their size">65</listitem>
+        <listitem name="70%" description="Center a smaller image with a black border; tablet controls keep their size">70</listitem>
+        <listitem name="75%" description="Center a smaller image with a black border; tablet controls keep their size">75</listitem>
+        <listitem name="80%" description="Center a smaller image with a black border; tablet controls keep their size">80</listitem>
+        <listitem name="85%" description="Center a smaller image with a black border; tablet controls keep their size">85</listitem>
+        <listitem name="90%" description="Center a smaller image with a black border; tablet controls keep their size">90</listitem>
+        <listitem name="95%" description="Center a smaller image with a black border; tablet controls keep their size">95</listitem>
+        <listitem name="100%" description="Fill the available area while preserving the aspect ratio">100</listitem>
+      </listbox>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_monitor</action></action>
+    </page>
+    <page name="ure_display_automatic">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Automatic display settings</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Automatic rotation: unavailable in this recovery build</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Automatic brightness: unavailable in this recovery build</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Sensor support needs verification on the installed firmware.</text></text>
+        <listbox style="ure_menu">
+          <placement x="0" y="0" w="%screen_w%" h="272"/>
+          <listitem name="Manual brightness and screen timeout" description="Use the existing OrangeFox screen settings">
+            <icon res="ure_display_icon"/><action function="page">ext_screen</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_group_display</action></action>
+    </page>
     <page name="ure_monitor_modes">
       <template name="base_ex"/>
       <text style="text_ab_title">
@@ -2669,21 +2727,31 @@
         <placement x="%col1_x_indent%" y="%ab_bc_y%"/>
         <text>Interface scale</text>
       </text>
-      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scale_scroll_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
-        <text style="caption">
-          <placement x="%gl_text_x%" y="0"/>
-          <text>Current: %ure_ui_scale_applied%%%   Selected: %ure_scale_choice%%%</text>
-        </text>
-        <text style="caption">
-          <placement x="%gl_text_x%" y="0"/>
-          <text>Choose a size. Changes take effect only after Apply.</text>
-        </text>
+      <text style="caption">
+        <placement x="%gl_text_x%" y="%scale_status_y%"/>
+        <text>Current: %ure_ui_scale_applied%%%   Selected: %ure_scale_choice%%%</text>
+      </text>
+      <text style="caption">
+        <placement x="%gl_text_x%" y="%scale_hint_y%"/>
+        <text>Size preview: text, icon spacing and a sample button</text>
+      </text>
+      <urescalepreview>
+        <placement x="%col1_x%" y="%scale_preview_y%" w="%input_w%" h="640"/>
+        <sample font="Secondary" secondaryfont="ure_description" background="%cards_bg%" color="%text%" secondarycolor="%text_secondary%" accent="%accent%"/>
+      </urescalepreview>
+      <text style="caption">
+        <placement x="%gl_text_x%" y="%scale_warning_y%"/>
+        <text>%ure_scale_warning%</text>
+      </text>
+      <scroll x="0" y="%scale_choices_y%" w="%screen_w%" h="%scale_choices_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
         <listbox style="ure_choices">
-          <placement x="0" y="0" w="%screen_w%" h="700"/>
+          <placement x="0" y="0" w="%screen_w%" h="1008"/>
           <data name="ure_scale_choice"/>
-          <listitem name="Compact - 50%" description="More workspace on a high resolution tablet">50</listitem>
-          <listitem name="Balanced - 75%" description="Recommended starting point for tablet use">75</listitem>
-          <listitem name="Large - 100%" description="Larger text and controls for easier touch input">100</listitem>
+          <listitem name="Very small - 55%" description="Small touch targets; a mouse or keyboard is recommended">55</listitem>
+          <listitem name="Small - 65%" description="Small touch targets; check the preview before applying">65</listitem>
+          <listitem name="Medium - 75%" description="Recommended starting point for tablet use">75</listitem>
+          <listitem name="Large - 85%" description="More comfortable text and touch targets">85</listitem>
+          <listitem name="Very large - 95%" description="Larger text and controls for easier touch input">95</listitem>
         </listbox>
         <text style="caption">
           <placement x="%gl_text_x%" y="0"/>
@@ -2694,10 +2762,18 @@
           <text>More options</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1000"/>
-          <listitem name="Custom scale" description="Enter a percentage from 50 to 100; then Apply">
+          <placement x="0" y="0" w="%screen_w%" h="1392"/>
+          <listitem name="Custom scale" description="Select 50 to 100 in steps of five and review the size preview">
             <icon res="ure_size_icon"/>
             <action function="page">ure_display_options</action>
+          </listitem>
+          <listitem name="Monitor scale and output" description="Choose a separate image size, resolution and refresh rate">
+            <icon res="ure_monitor_icon"/>
+            <action function="page">ure_monitor</action>
+          </listitem>
+          <listitem name="Scale storage settings" description="Choose the mounted folder used to save or load a size">
+            <icon res="ure_files_icon"/>
+            <action function="page">ure_display_storage</action>
           </listitem>
           <listitem name="Select the recommended size" description="Select 75% without changing the current interface">
             <icon res="ure_display_icon"/>
@@ -2736,28 +2812,57 @@
       </action>
     </page>
     <page name="ure_display_options">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Custom scale</text></text>
+      <text style="caption"><placement x="%gl_text_x%" y="%scale_status_y%"/><text>Current: %ure_ui_scale_applied%%%   Selected: %ure_scale_choice%%%</text></text>
+      <text style="caption"><placement x="%gl_text_x%" y="%scale_hint_y%"/><text>Size preview: text, icon spacing and a sample button</text></text>
+      <urescalepreview>
+        <placement x="%col1_x%" y="%scale_preview_y%" w="%input_w%" h="640"/>
+        <sample font="Secondary" secondaryfont="ure_description" background="%cards_bg%" color="%text%" secondarycolor="%text_secondary%" accent="%accent%"/>
+      </urescalepreview>
+      <text style="caption"><placement x="%gl_text_x%" y="%scale_warning_y%"/><text>%ure_scale_warning%</text></text>
+      <listbox style="ure_choices">
+        <placement x="0" y="%scale_choices_y%" w="%screen_w%" h="%scale_choices_h%"/>
+        <data name="ure_scale_choice"/>
+        <listitem name="50%" description="Small touch targets; a mouse or keyboard is recommended">50</listitem>
+        <listitem name="55%" description="Small touch targets; a mouse or keyboard is recommended">55</listitem>
+        <listitem name="60%" description="Small touch targets; a mouse or keyboard is recommended">60</listitem>
+        <listitem name="65%" description="Small touch targets; a mouse or keyboard is recommended">65</listitem>
+        <listitem name="70%" description="Small touch targets; check the preview before applying">70</listitem>
+        <listitem name="75%" description="Recommended starting point for tablet use">75</listitem>
+        <listitem name="80%" description="More comfortable text and touch targets">80</listitem>
+        <listitem name="85%" description="More comfortable text and touch targets">85</listitem>
+        <listitem name="90%" description="Larger text and touch targets">90</listitem>
+        <listitem name="95%" description="Larger text and touch targets">95</listitem>
+        <listitem name="100%" description="Largest available text and controls">100</listitem>
+      </listbox>
+      <button>
+        <condition var1="ure_scale_choice" op="!=" var2="ure_ui_scale_applied"/>
+        <placement x="%col1_x%" y="%scale_apply_y%" w="%input_w%" h="128" textplacement="4"/>
+        <image resource="ure_apply_bg"/><font resource="Secondary" color="#FFFFFF"/>
+        <text>Apply %ure_scale_choice%%%</text><action function="uremanager">scale-apply</action>
+      </button>
+      <button>
+        <condition var1="ure_scale_choice" var2="ure_ui_scale_applied"/>
+        <placement x="%col1_x%" y="%scale_apply_y%" w="%input_w%" h="128" textplacement="4"/>
+        <fill color="%cards_bg%"/><font resource="Secondary" color="%text_secondary%"/>
+        <text>Current scale is applied</text>
+      </button>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_display</action></action>
+    </page>
+    <page name="ure_display_storage">
       <template name="base_ex_key"/>
       <text style="text_ab_title">
         <placement x="%col1_x_indent%" y="%ab_bc_y%"/>
-        <text>Interface scale settings</text>
+        <text>Scale storage settings</text>
       </text>
       <text style="caption">
         <placement x="%col1_x%" y="%row1_2_y%"/>
-        <text>Scale percentage: 50 to 100</text>
-      </text>
-      <input>
-        <placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/>
-        <font resource="fixed"/>
-        <text>%ure_scale_choice%</text>
-        <data name="ure_scale_choice"/>
-        <restrict minlen="2" maxlen="3"/>
-      </input>
-      <text style="caption">
-        <placement x="%col1_x%" y="%row4_1_y%"/>
         <text>Dedicated mounted settings directory; /tmp is volatile</text>
       </text>
       <input>
-        <placement x="%col1_x%" y="%row5_1_y%" w="%input_w%" h="%input_height%"/>
+        <placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/>
         <font resource="fixed"/>
         <text>%ure_scale_directory%</text>
         <data name="ure_scale_directory"/>
@@ -3008,7 +3113,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="500"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Confirm reviewed plan and resume" description="Continue from a verified, retained operation journal.">
             <icon res="ure_history_icon"/>
             <condition var1="ure_can_resume" var2="1"/>
@@ -3091,7 +3196,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="400"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Confirm local destination and capture backup" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_backup_hash" op="!=" var2=""/>
@@ -3195,7 +3300,7 @@
           <text>Hash-verified bytes; no atomic snapshot or restore authorization</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="80" w="%screen_w%" h="800"/>
+          <placement x="0" y="80" w="%screen_w%" h="1168"/>
           <listitem name="Inspect live mounts, writers, swap and USB owners" description="Inspect current state and prerequisites for this target.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_raw_kind" var2="live"/>
@@ -3267,7 +3372,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="760" w="%screen_w%" h="256"/>
+          <placement x="0" y="760" w="%screen_w%" h="496"/>
           <listitem name="Confirm reviewed source and destination; capture backup" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_backup_hash" op="!=" var2=""/>
@@ -3394,7 +3499,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="820" w="%screen_w%" h="400"/>
+          <placement x="0" y="820" w="%screen_w%" h="496"/>
           <listitem name="Confirm reviewed plan, preserve rollback data and restore" description="Review the retained original before recovering the target.">
             <icon res="ure_rollback_icon"/>
             <condition var1="ure_restore_can_execute" var2="1"/>
@@ -3459,7 +3564,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="820" w="%screen_w%" h="600"/>
+          <placement x="0" y="820" w="%screen_w%" h="720"/>
           <listitem name="Confirm continuation from verified current bytes" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_restore_can_resume" var2="1"/>
@@ -3547,7 +3652,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="820" w="%screen_w%" h="400"/>
+          <placement x="0" y="820" w="%screen_w%" h="272"/>
           <listitem name="Return; use the reviewed plan with your host companion" description="Read the proposed changes and checks before confirming.">
             <icon res="ure_editor_icon"/>
             <action function="page">ure_stream_inputs</action>
@@ -3606,7 +3711,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="820" w="%screen_w%" h="600"/>
+          <placement x="0" y="820" w="%screen_w%" h="720"/>
           <listitem name="Confirm rollback direction; host transfer required" description="Review the retained original before recovering the target.">
             <icon res="ure_rollback_icon"/>
             <condition var1="ure_stream_can_rollback" var2="1"/>
@@ -3718,7 +3823,7 @@
           <text>Live writes are gated. Backup records are private. /tmp journals are volatile.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="80" w="%screen_w%" h="1000"/>
+          <placement x="0" y="80" w="%screen_w%" h="2736"/>
           <listitem name="Design ESP / Linux / Windows within userdata" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="page">ure_layout</action>
@@ -3799,7 +3904,7 @@
           <text>Declared model: %ure_stock_job_model%</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="220"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Xiaomi Pad 7" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="uremanager">stock-choice-changed</action>
@@ -3823,7 +3928,7 @@
           <restrict minlen="1" maxlen="4096"/>
         </input>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="480"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Select six image LUNs and verified OEM source files" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_stock_job_sources</action>
@@ -3899,7 +4004,7 @@
           <text>Early firmware, calibration and unit-bound payloads are protected.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="140"/>
+          <placement x="0" y="0" w="%screen_w%" h="272"/>
           <listitem name="Return to stock job choices" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <action function="page">ure_stock_job</action>
@@ -3929,7 +4034,7 @@
           <text>Boot set: %ure_stock_job_boot%; slot selection: %ure_stock_job_slots%</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="250"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Include the stock boot and verified-boot image set" description="Review startup identity and the retained fallback choice.">
             <icon res="ure_boot_icon"/>
             <condition var1="ure_stock_job_boot" var2="0"/>
@@ -3952,7 +4057,7 @@
           <text>Super restore: %ure_stock_job_super%; Android data reset: %ure_stock_job_reset%</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="300"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Include the stock super image" description="Use this option for the next reviewed operation.">
             <icon res="ure_tools_icon"/>
             <condition var1="ure_stock_job_super" var2="0"/>
@@ -3983,7 +4088,7 @@
           <text>Sparse zero policy: %ure_stock_job_zero%. Selected DONT_CARE ranges require this choice.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="300"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Allow reviewed sparse DONT_CARE ranges to be zeroed" description="Read the proposed changes and checks before confirming.">
             <icon res="ure_editor_icon"/>
             <condition var1="ure_stock_job_zero" var2="0"/>
@@ -4025,7 +4130,7 @@
           <text>Selected slots: %ure_stock_job_slots%. This does not switch the active Android slot.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="450"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Slot A only" description="Review startup identity and the retained fallback choice.">
             <icon res="ure_boot_icon"/>
             <action function="uremanager">stock-choice-changed</action>
@@ -4088,7 +4193,7 @@
           <restrict maxlen="4096"/>
         </input>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="250"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Inspect actual bytes and available recovery actions" description="Inspect current state and prerequisites for this target.">
             <icon res="ure_check_icon"/>
             <action function="uremanager">stock-job-inspect</action>
@@ -4121,7 +4226,7 @@
           <text>%ure_stock_job_summary%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="350"/>
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
           <listitem name="Confirm reviewed job: prepare originals, then apply" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_stock_job_can_execute" var2="1"/>
@@ -4159,7 +4264,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="450"/>
+          <placement x="0" y="0" w="%screen_w%" h="944"/>
           <listitem name="Resume verified expected writes" description="Continue from a verified, retained operation journal.">
             <icon res="ure_history_icon"/>
             <condition var1="ure_stock_job_can_resume" var2="1"/>
@@ -4346,7 +4451,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="400"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Confirm reviewed image plan, back up and write metadata" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_gpt_can_execute" var2="1"/>
@@ -4380,7 +4485,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="400"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Confirm image rollback to verified original metadata" description="Review the retained original before recovering the target.">
             <icon res="ure_rollback_icon"/>
             <condition var1="ure_gpt_can_rollback" var2="1"/>
@@ -4416,7 +4521,7 @@
           <text>%ure_output%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="400"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
           <listitem name="Confirm reviewed plan, back up and save" description="Start only the operation and target already reviewed.">
             <icon res="ure_check_icon"/>
             <condition var1="ure_plan_hash" op="!=" var2=""/>

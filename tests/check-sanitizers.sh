@@ -23,7 +23,7 @@ cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-sanitized-clang -G Ninja
     '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined -fno-sanitize=vptr'
 cmake --build build/ure-sanitized-clang -j"$jobs"
 count=$(ctest --test-dir build/ure-sanitized-clang --show-only=json-v1 | jq -er '.tests | length')
-[[ $count -ge 23 ]]
+[[ $count -ge 24 ]]
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
     ctest --test-dir build/ure-sanitized-clang --output-on-failure
 UKE_DRM_SANITIZER=1 bash tests/check-drm-surface.sh

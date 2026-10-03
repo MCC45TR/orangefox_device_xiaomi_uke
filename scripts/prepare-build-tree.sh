@@ -121,9 +121,13 @@ fi
 cp -- "$device_source/ure-gui.cpp" "$recovery_source/gui/ure.cpp"
 display_patch="$component/patches/0006-tablet-interface-density.patch"
 monitor_patch="$component/patches/0007-usb-monitor-and-input.patch"
+preview_present=false
+output_present=false
+if git -C "$recovery_source" apply --reverse --check "$component/patches/0018-scale-preview-widget.patch" 2>/dev/null; then preview_present=true; fi
+if git -C "$recovery_source" apply --reverse --check "$component/patches/0019-scaled-monitor-output.patch" 2>/dev/null; then output_present=true; fi
 monitor_present=false
 if git -C "$recovery_source" apply --reverse --check "$monitor_patch" 2>/dev/null; then monitor_present=true; fi
-if $monitor_present; then
+if $monitor_present || $output_present; then
   : # The stacked patch changes older context; verify the complete stack below.
 elif git -C "$recovery_source" apply --reverse --check "$display_patch" 2>/dev/null; then
   :
@@ -133,7 +137,9 @@ else
   echo 'Unexpected OrangeFox density hooks; refusing an unverified patch' >&2
   exit 1
 fi
-if git -C "$recovery_source" apply --reverse --check "$monitor_patch" 2>/dev/null; then
+if $output_present; then
+  : # The final exact-stack comparison includes the newer monitor wrapper.
+elif git -C "$recovery_source" apply --reverse --check "$monitor_patch" 2>/dev/null; then
   :
 elif git -C "$recovery_source" apply --check "$monitor_patch"; then
   git -C "$recovery_source" apply "$monitor_patch"
@@ -154,7 +160,9 @@ else
   exit 1
 fi
 layout_patch="$component/patches/0008-partition-layout-graph.patch"
-if git -C "$recovery_source" apply --reverse --check "$layout_patch" 2>/dev/null; then
+if $preview_present; then
+  : # The preview sits beside the graph; verify their exact stacked bytes below.
+elif git -C "$recovery_source" apply --reverse --check "$layout_patch" 2>/dev/null; then
   :
 elif git -C "$recovery_source" apply --check "$layout_patch"; then
   git -C "$recovery_source" apply "$layout_patch"
@@ -210,6 +218,23 @@ elif git -C "$recovery_source" apply --check "$described_patch"; then
 else
   echo 'Unexpected described-menu source; refusing an unverified patch' >&2; exit 1
 fi
+navigation_resources_patch="$component/patches/0017-early-extra-navigation-resources.patch"
+if git -C "$recovery_source" apply --reverse --check "$navigation_resources_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$navigation_resources_patch"; then
+  git -C "$recovery_source" apply "$navigation_resources_patch"
+else
+  echo 'Unexpected navigation-resource source; refusing an unverified patch' >&2; exit 1
+fi
+for additional in 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch; do
+  if git -C "$recovery_source" apply --reverse --check "$component/patches/$additional" 2>/dev/null; then
+    :
+  elif git -C "$recovery_source" apply --check "$component/patches/$additional"; then
+    git -C "$recovery_source" apply "$component/patches/$additional"
+  else
+    echo 'Unexpected preview/output source; refusing an unverified patch' >&2; exit 1
+  fi
+done
 # Reconstruct the complete reviewed stack in an isolated index. Later patches
 # may change an earlier patch's context; compare exact final file bytes rather
 # than weakening its context check or accepting unknown active-tree changes.
@@ -217,7 +242,7 @@ verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
 unlink "$verification_index"
 trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
 GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch; do
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch; do
   GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \

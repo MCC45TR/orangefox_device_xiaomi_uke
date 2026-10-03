@@ -132,22 +132,32 @@ int main() {
     std::vector<uint8_t> pixels={1,2,3,255,4,5,6,255,7,8,9,255,10,11,12,255,13,14,15,255,16,17,18,255};
     uke_display::Frame frame{pixels.data(),3,2,12,4,0};
     std::vector<uint8_t> output(2560*1440*4,128);
-    for(unsigned rotation:{0U,90U,180U,270U}) {
+    for(unsigned rotation:{0U,90U,180U,270U})for(int percent=50;percent<=100;percent+=5) {
         frame.rotation=rotation;
-        assert(uke_display::render(frame,output.data(),output.size(),2560,1440,2560*4));
-        uke_display::Viewport viewport{}; assert(uke_display::fit(rotation%180 ? 2 : 3,rotation%180 ? 3 : 2,2560,1440,viewport));
+        assert(uke_display::render(frame,output.data(),output.size(),2560,1440,2560*4,percent));
+        uke_display::Viewport viewport{}; assert(uke_display::fit(rotation%180 ? 2 : 3,rotation%180 ? 3 : 2,2560,1440,viewport,percent));
+        assert(std::abs((2560-viewport.width)-2*viewport.x)<=1 && std::abs((1440-viewport.height)-2*viewport.y)<=1);
         const auto start=std::size_t(viewport.y*2560+viewport.x)*4;
         const uint8_t expected=rotation==0 ? 1 : rotation==90 ? 7 : rotation==180 ? 16 : 10;
         assert(output[start]==expected && output[start+3]==255);
         if(viewport.x)assert(output[0]==0 && output[3]==0);
     }
     frame.rotation=0;
+    const auto retained=output;
+    for(int invalid:{0,49,101,200}) {
+        assert(!uke_display::render(frame,output.data(),output.size(),2560,1440,2560*4,invalid) && output==retained);
+        assert(!ure_mirror_select(2560,1440,75000,invalid));
+    }
     assert(!uke_display::render(frame,output.data(),12,2560,1440,2560*4));
     char path[]="/tmp/ure-drm-test-XXXXXX"; int fd=mkstemp(path); assert(fd>=0); unlink(path);
     fresh(fd); ure_mirror_update(frame); assert(tests==1 && real==1 && displayed.hdisplay==1920);
     const auto reads=property_reads; tick(frame); assert(property_reads==reads); // framebuffer swaps use cached property IDs
     const auto idle=real; std::this_thread::sleep_for(std::chrono::milliseconds(36)); ure_mirror_update(frame,false);
     assert(real==idle); // idle connector polling does not copy or commit an unchanged canvas
+    assert(ure_mirror_select(1920,1080,60000,75));
+    std::this_thread::sleep_for(std::chrono::milliseconds(36)); ure_mirror_update(frame,false);
+    assert(real==idle+1 && displayed.hdisplay==1920); // Scale-only selection redraws the idle sink.
+    assert(ure_mirror_mode().find("image 75%")!=std::string::npos);
     assert(ure_mirror_modes().find("2560x1440")!=std::string::npos);
     assert(ure_mirror_select(2560,1440,75000)); tick(frame); assert(displayed.hdisplay==2560 && displayed.vdisplay==1440);
     assert(ure_mirror_mode().find("75.000")!=std::string::npos);

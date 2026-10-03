@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "uke.h"
+#include "../../src/device/xiaomi/uke/display-mirror.hpp"
+#include <array>
 #include <algorithm>
 #include <atomic>
 #include <charconv>
@@ -25,6 +27,7 @@ public:
 class PageManager { public: inline static int reloads=0; static void RequestUreReload() { ++reloads; } };
 class GUIAction { public: int uremanager(std::string command); };
 inline void gr_external_enable(bool) {}
-inline bool gr_external_select(int,int,int) { return false; }
+inline std::array<int,4> mirror_request{};
+inline int mirror_requests=0;
+inline bool gr_external_configure(int w,int h,int hz,int scale) { mirror_request={w,h,hz,scale}; ++mirror_requests; return true; }
 inline std::string gr_external_modes() { return {}; }
-namespace uke_display { inline bool parse_selection(const std::string&,const std::string&,int&,int&,int&) { return false; } }

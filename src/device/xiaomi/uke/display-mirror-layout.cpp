@@ -23,24 +23,25 @@ bool parse_selection(const std::string& resolution,const std::string& rate,int& 
     if(rate!="auto" && (!number(rate,mhz) || mhz<24000 || mhz>75000))return false;
     width=w; height=h; millihertz=mhz; return true;
 }
-bool fit(int w, int h, int ow, int oh, Viewport& v) {
-    if(w<=0 || h<=0 || w>16384 || h>16384 || ow<320 || oh<200 || ow>2560 || oh>1440)return false;
+bool fit(int w, int h, int ow, int oh, Viewport& v, int percent) {
+    if(w<=0 || h<=0 || w>16384 || h>16384 || ow<320 || oh<200 || ow>2560 || oh>1440 || percent<50 || percent>100)return false;
     if(int64_t(ow)*h<=int64_t(oh)*w) {
         v.width=ow; v.height=std::max(1,int(int64_t(ow)*h/w));
     } else {
         v.height=oh; v.width=std::max(1,int(int64_t(oh)*w/h));
     }
+    v.width=std::max(1,v.width*percent/100); v.height=std::max(1,v.height*percent/100);
     v.x=(ow-v.width)/2; v.y=(oh-v.height)/2;
     return true;
 }
-bool render(const Frame& f,uint8_t* dst,std::size_t capacity,int ow,int oh,int stride) {
+bool render(const Frame& f,uint8_t* dst,std::size_t capacity,int ow,int oh,int stride,int percent) {
     if(!f.pixels || !dst || ow<320 || ow>2560 || oh<200 || oh>1440 || f.width<=0 || f.height<=0 || f.width>16384 || f.height>16384 ||
        (f.bytes_per_pixel!=2 && f.bytes_per_pixel!=4) || f.stride<f.width*f.bytes_per_pixel ||
        f.stride>1024*1024 || (f.rotation!=0 && f.rotation!=90 && f.rotation!=180 && f.rotation!=270) ||
        stride<ow*4 || stride>1024*1024 || oh<=0 || capacity<std::size_t(stride)*std::size_t(oh))return false;
     const int lw=(f.rotation==90 || f.rotation==270) ? f.height : f.width;
     const int lh=(f.rotation==90 || f.rotation==270) ? f.width : f.height;
-    Viewport v{}; if(!fit(lw,lh,ow,oh,v))return false;
+    Viewport v{}; if(!fit(lw,lh,ow,oh,v,percent))return false;
     // Deterministic black bars and padding; no uninitialized scanout bytes.
     std::memset(dst,0,std::size_t(stride)*std::size_t(oh));
     std::array<int,2560> columns{};

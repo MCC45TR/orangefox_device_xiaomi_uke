@@ -32,6 +32,18 @@ int main(int argc,char* argv[]) {
         DataManager::SetValue("ure_scale_choice","invalid");
         check(action.uremanager("scale-apply")==1 && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1,
             "Invalid scale changed the active interface");
+        DataManager::SetValue("ure_mirror_resolution","2560x1440"); DataManager::SetValue("ure_mirror_refresh","75000");
+        for(int percent=50;percent<=100;percent+=5) {
+            DataManager::SetValue("ure_mirror_scale_choice",percent);
+            check(action.uremanager("mirror-apply")==0 && mirror_request==std::array<int,4>{2560,1440,75000,percent} &&
+                value("ure_mirror_scale_requested")==std::to_string(percent) && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1,
+                "Monitor settings changed tablet scale or lost a selected setting");
+        }
+        const int previous_requests=mirror_requests;
+        DataManager::SetValue("ure_mirror_scale_choice","49");
+        check(action.uremanager("mirror-apply")==1 && mirror_requests==previous_requests,"Invalid monitor scale was queued");
+        DataManager::SetValue("ure_mirror_scale_choice","75"); DataManager::SetValue("ure_mirror_resolution","invalid");
+        check(action.uremanager("mirror-apply")==1 && mirror_requests==previous_requests,"Invalid monitor resolution was queued");
         for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_raw_kind","image"},{"ure_raw_source",image.string()},{"ure_raw_sector","512"},
             {"ure_journal_parent",fixture.string()},{"ure_fs_action","format"},{"ure_fs_type","ext4"},{"ure_fs_erase","0"},{"ure_fs_label","URETEST"}})DataManager::SetValue(key,text);
         check(action.uremanager("filesystem-plan")==1 && digest(image)==original,"GUI format accepted missing data-loss choice");

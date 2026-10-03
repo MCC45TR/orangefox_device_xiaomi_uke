@@ -1,0 +1,18 @@
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -502,6 +502,15 @@
+ 			mObjects.push_back(element);
+ 			mRenders.push_back(element);
+ 		}
++		else if (type == "urescalepreview")
++		{
++			extern void ure_create_scale_preview(xml_node<>*, GUIObject*&, RenderObject*&);
++			GUIObject* object = nullptr;
++			RenderObject* render = nullptr;
++			ure_create_scale_preview(child, object, render);
++			mObjects.push_back(object);
++			mRenders.push_back(render);
++		}
+ 		else if (type == "urepartitionmap")
+ 		{
+ 			extern void ure_create_partition_map(xml_node<>*, GUIObject*&, RenderObject*&);

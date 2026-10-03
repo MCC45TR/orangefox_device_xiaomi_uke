@@ -258,6 +258,80 @@ void refresh_editor() {
     pending_plan=ure::Value(); pending_journal.clear(); DataManager::SetValue("ure_plan_hash","");
 }
 }
+// Render-thread-owned sample. Only its two font references change while a size
+// is selected; the theme and every real hit rectangle remain untouched.
+class UreScalePreview : public GUIObject, public RenderObject {
+    FontResource* source_font_=nullptr;
+    FontResource* source_description_=nullptr;
+    void* font_=nullptr;
+    void* description_=nullptr;
+    COLOR background_,foreground_,secondary_,accent_;
+    int selected_=0,applied_=0;
+    void release() {
+        if(font_)twrpTruetype::gr_ttf_freeFont(font_);
+        if(description_)twrpTruetype::gr_ttf_freeFont(description_);
+        font_=description_=nullptr;
+    }
+    bool refresh() {
+        int selected=0,applied=0;
+        try {
+            selected=ure::display_scale_parse(value("ure_scale_choice"));
+            applied=ure::display_scale_parse(value("ure_ui_scale_applied"));
+        } catch(const ure::Error&) {
+            if(!selected_ && !applied_)return false;
+            selected_=applied_=0; release();
+            DataManager::SetValue("ure_scale_warning","Enter a whole percentage from 50 to 100.");
+            return true;
+        }
+        if(selected==selected_ && applied==applied_)return false;
+        release(); selected_=selected; applied_=applied;
+        if(source_font_)font_=twrpTruetype::gr_ttf_scaleFont(source_font_->GetResource(),selected,applied);
+        if(source_description_)description_=twrpTruetype::gr_ttf_scaleFont(source_description_->GetResource(),selected,applied);
+        DataManager::SetValue("ure_scale_warning",selected<=70 ?
+            "Small controls at 70% or below may be hard to tap. A mouse can help." :
+            "Preview only. The full interface changes after Apply.");
+        return true;
+    }
+    static void color(const COLOR& c) { gr_color(c.red,c.green,c.blue,c.alpha); }
+public:
+    explicit UreScalePreview(xml_node<>* node):GUIObject(node) {
+        LoadPlacement(FindNode(node,"placement"),&mRenderX,&mRenderY,&mRenderW,&mRenderH);
+        auto* style=FindNode(node,"sample");
+        source_font_=LoadAttrFont(style,"font"); source_description_=LoadAttrFont(style,"secondaryfont");
+        background_=LoadAttrColor(style,"background"); foreground_=LoadAttrColor(style,"color");
+        secondary_=LoadAttrColor(style,"secondarycolor"); accent_=LoadAttrColor(style,"accent");
+    }
+    ~UreScalePreview() override { release(); }
+    int Update() override { return refresh() ? 2 : 0; }
+    int Render() override {
+        if(!isConditionTrue())return 0;
+        refresh(); color(background_); gr_fill(mRenderX,mRenderY,mRenderW,mRenderH);
+        if(!font_ || !description_ || applied_<=0 || mRenderW<=0 || mRenderH<=0)return 0;
+        const auto size=[&](int units) { return std::max(1,scale_theme_min(units)*selected_/applied_); };
+        const int pad=std::max(1,scale_theme_min(28));
+        const int icon=size(72),gap=size(24),stroke=size(4),title_h=twrpTruetype::gr_ttf_getMaxFontHeight(font_);
+        const int detail_h=twrpTruetype::gr_ttf_getMaxFontHeight(description_);
+        const int row_h=std::max(icon,title_h+detail_h+size(12));
+        const int button_h=size(128),button_y=mRenderY+pad+row_h+size(28);
+        if(button_y+button_h+pad>mRenderY+mRenderH || icon+gap+pad*2>=mRenderW)return 0;
+        const int x=mRenderX+pad,y=mRenderY+pad,tx=x+icon+gap;
+        color(foreground_);
+        // A folder outline demonstrates the same target size and icon gap.
+        gr_fill(x,y+icon/4,icon,stroke); gr_fill(x,y+icon-stroke,icon,stroke);
+        gr_fill(x,y+icon/4,stroke,icon*3/4); gr_fill(x+icon-stroke,y+icon/4,stroke,icon*3/4);
+        gr_fill(x,y+icon/8,icon/2,stroke); gr_fill(x,y+icon/8,stroke,icon/8);
+        gr_textEx_scaleW(tx,y,"Files and folders",font_,mRenderX+mRenderW-pad-tx,0,0);
+        color(secondary_);
+        gr_textEx_scaleW(tx,y+title_h+size(12),"Example menu description",description_,mRenderX+mRenderW-pad-tx,0,0);
+        color(accent_); gr_fill(x,button_y,mRenderW-pad*2,button_h);
+        gr_color(255,255,255,255);
+        gr_textEx_scaleW(x+size(24),button_y+(button_h-title_h)/2,"Sample button",font_,mRenderW-pad*2-size(48),0,0);
+        return 0;
+    }
+};
+void ure_create_scale_preview(xml_node<>* node,GUIObject*& object,RenderObject*& render) {
+    auto* preview=new UreScalePreview(node); object=preview; render=preview;
+}
 // Render-thread-owned graph cache. Action threads publish a bounded JSON value;
 // they never retain a widget pointer or alter scanout resources.
 class UrePartitionMap : public GUIObject, public RenderObject {
@@ -398,8 +472,10 @@ int GUIAction::uremanager(std::string command) {
             int width=0,height=0,rate=0;
             ure::require(uke_display::parse_selection(value("ure_mirror_resolution"),value("ure_mirror_refresh"),width,height,rate),
                 "invalid-display-mode","Select a valid resolution and refresh rate");
-            ure::require(gr_external_select(width,height,rate),"invalid-display-mode","Output selection is outside the supported range");
-            DataManager::SetValue("ure_mirror_status","Mode change queued; unsupported modes preserve the active output");
+            const int percent=ure::display_scale_parse(value("ure_mirror_scale_choice"));
+            ure::require(gr_external_configure(width,height,rate,percent),"invalid-display-mode","Output selection is outside the supported range");
+            DataManager::SetValue("ure_mirror_scale_requested",percent);
+            DataManager::SetValue("ure_mirror_status","Output settings queued; unsupported modes preserve the active resolution");
         } else if(command=="mirror-modes") {
             DataManager::SetValue("ure_mirror_modes",gr_external_modes());
         } else if(command=="scale-reset" || command=="scale-load") {

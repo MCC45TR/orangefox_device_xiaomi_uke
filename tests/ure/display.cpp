@@ -55,7 +55,7 @@ int main() {
         float width=2136.0F/1080.0F,height=1;
         ure_gui_density(width,height,2136,3200);
         check(width==0.75F && height==width && DataManager::GetIntValue("ure_ui_scale_applied")==75,"Tablet default was not compact and uniform");
-        for(const auto geometry:std::array<std::array<int,2>,5>{{{2136,3200},{3200,2136},{1080,1920},{1600,2560},{2560,1600}}})for(const int percent:{50,60,70,75,80,90,100}) {
+        for(const auto geometry:std::array<std::array<int,2>,5>{{{2136,3200},{3200,2136},{1080,1920},{1600,2560},{2560,1600}}})for(int percent=50;percent<=100;percent+=5) {
             DataManager::SetValue("ure_ui_scale_percent",percent);
             width=static_cast<float>(geometry[0])/1080.0F; height=static_cast<float>(geometry[1])/3200.0F;
             ure_gui_density(width,height,geometry[0],geometry[1]); set_scale_values(width,height);

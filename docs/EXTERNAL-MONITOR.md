@@ -5,10 +5,12 @@ entry. Connect one monitor to the hub's HDMI port and a USB HID mouse/keyboard
 to its USB-A data ports. Automatic mirroring starts enabled. The enable and
 disable controls affect the external output independently of the tablet panel.
 
-Choose resolution and refresh rate, then **Apply selected output mode**.
+Choose resolution, refresh rate and **Monitor image size**, then **Apply output
+settings**. Image size offers 50 through 100 percent in five-point steps and is
+independent of the tablet's interface scale. All three choices apply together.
 Resolutions include 1280×720, 1600×900, 1920×1080, 2048×1080 and 2560×1440;
 rates include automatic, 30, 50, 59.94, 60 and 75 Hz. For QHD75, select
-**2560×1440** and **75 Hz**. The active line shows the applied mode separately
+**2560×1440** and **75 Hz**. The active line shows the applied mode and image size separately
 from the selection. **Show monitor's supported modes** lists the reported
 progressive modes within recovery limits. Choices last for this recovery session.
 
@@ -19,8 +21,10 @@ reported. Automatic selection prefers a mode within 1080p60 where available;
 explicit choices support progressive modes through 2560×1440 at nominal 75 Hz.
 
 The complete recovery canvas and cursor are rotated like the GUI and fitted
-with black borders to preserve aspect ratio. Interface scale also affects the
-mirror. Both screens share GUI/pointer coordinates. Selected Hz controls
+with black borders to preserve aspect ratio. A smaller monitor image remains
+centered; changing its image size redraws an idle canvas. Tablet interface scale
+affects the mirrored controls, while monitor image size adjusts their final fit.
+Both screens share GUI/pointer coordinates. Selected Hz controls
 monitor scanout; recovery content updates are limited to about 30 frames/sec.
 Idle canvases are not recopied, coordinate columns and DRM property IDs are
 cached, and connector probes are limited to once per second.
@@ -66,6 +70,6 @@ simultaneous HID and QHD75 scanout on the tablet still require physical tests.
 Host tests compile the actual native sink with fake DRM IOCTLs and exact
 keyboard/evdev functions with platform stand-ins. Rotations/padding, QHD75,
 EDID refusal, failed mode changes, occupied resources, reconnect, blanking,
-on/off, idle/cached paths, keyboard actions and input hotplug are covered.
+on/off, all eleven image sizes, idle/cached paths, keyboard actions and input hotplug are covered.
 They are software evidence. Android, extracted ramdisk and QEMU CLI checks
 are separate; no GPU/USB/monitor success record has been created.

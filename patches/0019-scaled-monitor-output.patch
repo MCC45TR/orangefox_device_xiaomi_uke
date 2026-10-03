@@ -1,0 +1,20 @@
+--- a/minuitwrp/graphics.cpp
++++ b/minuitwrp/graphics.cpp
+@@ -740,6 +740,7 @@
+ void gr_external_enable(bool enabled) { ure_mirror_enable(enabled); }
+ const char* gr_external_status() { return ure_mirror_status(); }
+ bool gr_external_select(int w, int h, int rate) { return ure_mirror_select(w, h, rate); }
++bool gr_external_configure(int w, int h, int rate, int percent) { return ure_mirror_select(w, h, rate, percent); }
+ std::string gr_external_modes() { return ure_mirror_modes(); }
+ std::string gr_external_mode() { return ure_mirror_mode(); }
+ 
+--- a/minuitwrp/include/minuitwrp/minui.h
++++ b/minuitwrp/include/minuitwrp/minui.h
+@@ -48,6 +48,7 @@
+ void gr_external_enable(bool enabled);
+ const char* gr_external_status();
+ bool gr_external_select(int width, int height, int millihertz);
++bool gr_external_configure(int width, int height, int millihertz, int scale_percent);
+ std::string gr_external_modes();
+ std::string gr_external_mode();
+ 

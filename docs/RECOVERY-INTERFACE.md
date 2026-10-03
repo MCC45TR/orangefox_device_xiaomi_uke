@@ -6,12 +6,19 @@ active OrangeFox colors, rounded group cards and trailing navigation arrows.
 Explanations below each entry describe the next action before opening a tool.
 Storage and diagnostics separate inspection from maintenance and recovery.
 
-Interface scale uses a selection followed by Apply. Compact (50%), Balanced
-(75%) and Large (100%) are presets; custom values from 50% through 100% remain
-available. Selecting, resetting or loading a size does not resize the interface.
+Interface scale uses a selection followed by Apply. Very small (55%), Small
+(65%), Medium (75%), Large (85%) and Very large (95%) are presets. Custom scale
+offers every five-point step from 50% through 100%. A live sample previews text,
+icon spacing and button size. Sizes at 70% or below show a touch-target warning.
+Selecting, resetting or loading a size does not resize the interface.
 Apply validates the selection and queues the existing render-thread theme reload.
 Saving records the applied size in an already mounted private directory. A RAM
 directory remains volatile; the interface does not mount storage to save a size.
+
+Monitor image size is selected separately and applied with output resolution and
+refresh rate. Aspect ratio and centering are retained. Automatic rotation and
+brightness remain unavailable until a matching recovery sensor stream is proven;
+the availability page links to existing manual screen settings.
 
 Five footer targets share the full viewport. The gesture indicator remains
 centered inside its own bottom strip. Menu labels reserve a scaled icon column,
@@ -27,6 +34,10 @@ original license ships in the recovery payload and source archive. Each SVG and
 72 by 72 RGBA PNG has a checksum in `src/device/xiaomi/uke/ui-icons/ORIGINS.json`.
 OrangeFox applies the current theme color at runtime. The selected Extra icon
 uses white inside the stock accent pill.
+
+Both Extra glyphs are declared in shared stock resources, before stock pages
+instantiate their footer. Declaring them only in the late maintainer include
+left the inactive glyph missing on Files despite the active Extra page working.
 
 Original SVGs remain under `referances/lucide-0.563.0/`. The host-only
 `scripts/check-ui-icons.sh` checks source and PNG identities, then re-renders
@@ -44,3 +55,8 @@ exercise the actual scale callbacks, including deferred reset/load, explicit
 application and invalid-selection refusal. XML checks verify descriptions and
 the explicit Apply path. These checks complement the separate adapted GUI VM
 review; they do not establish touch/display behavior on tablet hardware.
+
+The actual preview-widget regression covers 605 density/applied/selected
+combinations, bounded drawing, warning thresholds and font reference ownership.
+Fake-DRM tests cover every five-point monitor scale through all four rotations,
+unsupported modes, invalid requests and redraw after an idle scale-only change.

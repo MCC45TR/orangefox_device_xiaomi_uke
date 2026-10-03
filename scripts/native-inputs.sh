@@ -12,9 +12,9 @@ cd "$component"
         patches/0006-tablet-interface-density.patch patches/0011-literal-ure-theme-defaults.patch patches/0012-responsive-stock-theme.patch src/upstream/orangefox-android16/bootable/recovery/gui/pages.cpp \
         src/upstream/orangefox-android16/bootable/recovery/gui/gui.cpp src/upstream/orangefox-android16/bootable/recovery/gui/listbox.cpp
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi/{resources/{vars,images}.xml,pages/{files,settings}.xml,pages/templates/navbar.xml,splash.xml,themes/sed/{splash,splash_orig}.xml}
-    printf '%s\0' patches/0014-preserve-hid-report-boundaries.patch patches/0015-menu-list-default-scroll.patch patches/0016-described-recovery-menus.patch
+    printf '%s\0' patches/0014-preserve-hid-report-boundaries.patch patches/0015-menu-list-default-scroll.patch patches/0016-described-recovery-menus.patch patches/0017-early-extra-navigation-resources.patch patches/0018-scale-preview-widget.patch patches/0019-scaled-monitor-output.patch
     find src/device/xiaomi/uke/ui-icons -type f -print0
-    printf '%s\0' tests/check-menu-rendering.sh scripts/check-ui-icons.sh
+    printf '%s\0' tests/check-menu-rendering.sh scripts/check-ui-icons.sh tests/generate-scale-preview-hooks.sh
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/scrolllist.cpp src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi/pages/templates/base.xml src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi/pages/main.xml
     printf '%s\0' tests/check-tree-backup.sh
     printf '%s\0' tests/check-filesystems.sh tests/check-rescue.sh tests/check-boot-audit.sh tests/check-btrfs-vm.sh \

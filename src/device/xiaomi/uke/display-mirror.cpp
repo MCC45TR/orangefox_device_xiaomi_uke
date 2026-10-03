@@ -27,11 +27,14 @@ using Property=Ptr<drmModePropertyRes,drmModeFreeProperty>;
 using Request=Ptr<drmModeAtomicReq,drmModeAtomicFree>;
 std::atomic<bool> enabled{true};
 std::atomic<bool> requested_blank{false};
-uint64_t pack(unsigned w,unsigned h,unsigned mhz) { return (uint64_t(w)<<48)|(uint64_t(h)<<32)|mhz; }
+uint64_t pack(unsigned w,unsigned h,unsigned mhz,unsigned scale=100) {
+    return (uint64_t(w)<<48)|(uint64_t(h)<<32)|(uint64_t(scale)<<24)|mhz;
+}
 std::atomic<uint64_t> preference{0},applied{0};
 std::atomic<uint64_t> preference_revision{1};
 uint64_t processed=0;
 uint64_t processed_revision=0;
+int content_scale() { const auto scale=unsigned((processed>>24)&0xffU); return scale ? int(scale) : 100; }
 std::mutex mode_mutex;
 std::string supported_modes="Connect a DP/HDMI monitor to list its modes";
 bool selection_failed=false;
@@ -138,15 +141,15 @@ bool supported(const drmModeModeInfo& m) {
 }
 std::string label(uint64_t packed) {
     if(!packed)return "No active monitor mode";
-    char buffer[96]; const unsigned rate=unsigned(packed&0xffffffffU);
+    char buffer[96]; const unsigned rate=unsigned(packed&0xffffffU);
     std::snprintf(buffer,sizeof(buffer),"%ux%u @ %u.%03u Hz",unsigned(packed>>48),unsigned((packed>>32)&0xffffU),rate/1000,rate%1000);
     return buffer;
 }
 bool choose_mode(const drmModeConnector& c) {
     int best=-1; uint64_t score=0;
     if(c.count_modes<=0 || c.count_modes>512)return false;
-    const uint64_t requested=preference.load();
-    const unsigned w=unsigned(requested>>48),h=unsigned((requested>>32)&0xffffU),rate=unsigned(requested&0xffffffffU);
+    const uint64_t requested=processed;
+    const unsigned w=unsigned(requested>>48),h=unsigned((requested>>32)&0xffffU),rate=unsigned(requested&0xffffffU);
     std::string modes;
     for(int i=0;i<c.count_modes;++i) {
         const auto& m=c.modes[i];
@@ -159,7 +162,7 @@ bool choose_mode(const drmModeConnector& c) {
         // Automatic selection starts within 1080p60 where available. Explicit
         // 1440p75 requests use the monitor's reported mode and KMS test.
         const bool conservative=m.hdisplay<=1920 && m.vdisplay<=1080 && millihz<=61000;
-        const uint64_t s=(requested==0 && conservative ? uint64_t(1)<<40 : 0)+
+        const uint64_t s=(!w && !h && !rate && conservative ? uint64_t(1)<<40 : 0)+
             uint64_t(m.hdisplay)*m.vdisplay*100000+millihz*2+((m.type&DRM_MODE_TYPE_PREFERRED) ? 1 : 0);
         if(best<0 || s>score) { best=i; score=s; }
     }
@@ -219,7 +222,7 @@ void reconfigure(const uke_display::Frame& frame) {
     buffers={}; mode_blob=0;
     bool ready=drmModeCreatePropertyBlob(drm_fd,&mode,sizeof(mode),&mode_blob)==0 &&
         allocate(buffers[0]) && allocate(buffers[1]) &&
-        uke_display::render(frame,buffers[0].data,std::size_t(buffers[0].bytes),mode.hdisplay,mode.vdisplay,int(buffers[0].pitch)) &&
+        uke_display::render(frame,buffers[0].data,std::size_t(buffers[0].bytes),mode.hdisplay,mode.vdisplay,int(buffers[0].pitch),content_scale()) &&
         commit(buffers[0].fb,true,true,true) && commit(buffers[0].fb,true,true,false);
     if(!ready) {
         for(auto& b:buffers)release(b);
@@ -232,7 +235,7 @@ void reconfigure(const uke_display::Frame& frame) {
     auto obsolete=old_buffers; for(auto& b:obsolete)release(b);
     drmModeDestroyPropertyBlob(drm_fd,old_blob);
     active=true; front=1; pending_frame=false; next_frame=Clock::now()+std::chrono::milliseconds(34);
-    applied=pack(mode.hdisplay,mode.vdisplay,unsigned(refresh(mode)));
+    applied=pack(mode.hdisplay,mode.vdisplay,unsigned(refresh(mode)),unsigned(content_scale()));
 }
 void probe() {
     if(uncertain || drm_fd<0)return;
@@ -277,14 +280,18 @@ void ure_mirror_detach() {
     drm_fd=-1; mode_blob=connector_id=crtc_id=plane_id=0; active=uncertain=false; applied=0; status="DRM mirror unavailable";
 }
 void ure_mirror_enable(bool value) { enabled.store(value); }
-bool ure_mirror_select(int width,int height,int rate) {
+bool ure_mirror_select(int width,int height,int rate,int percent) {
     if((width!=0 || height!=0) && (width<320 || width>2560 || height<200 || height>1440))return false;
     if(rate!=0 && (rate<24000 || rate>75000))return false;
-    preference=pack(unsigned(width),unsigned(height),unsigned(rate));
+    if(percent<50 || percent>100)return false;
+    preference=pack(unsigned(width),unsigned(height),unsigned(rate),unsigned(percent));
     preference_revision.fetch_add(1); return true;
 }
 std::string ure_mirror_modes() { std::lock_guard<std::mutex> guard(mode_mutex); return supported_modes; }
-std::string ure_mirror_mode() { return label(applied.load()); }
+std::string ure_mirror_mode() {
+    const auto state=applied.load();
+    return label(state)+(state ? " / image "+std::to_string(unsigned((state>>24)&0xffU))+"%" : "");
+}
 void ure_mirror_blank(bool value) { requested_blank.store(value); }
 const char* ure_mirror_status() { return status.load(); }
 bool ure_mirror_update(const uke_display::Frame& frame,bool changed) {
@@ -302,6 +309,7 @@ bool ure_mirror_update(const uke_display::Frame& frame,bool changed) {
     const auto revision=preference_revision.load();
     if(desired!=processed || revision!=processed_revision) {
         processed=desired; processed_revision=revision; selection_failed=false;
+        pending_frame=true; // A scale-only request must redraw even an idle canvas.
         if(connector_id && active && !uncertain)reconfigure(frame);
         else next_probe={};
     }
@@ -309,7 +317,7 @@ bool ure_mirror_update(const uke_display::Frame& frame,bool changed) {
     if(!connector_id || uncertain || !pending_frame || now<next_frame)return before!=status.load();
     next_frame=now+std::chrono::milliseconds(34); // At most ~30 updates/sec.
     auto& b=buffers[front];
-    if(!uke_display::render(frame,b.data,std::size_t(b.bytes),mode.hdisplay,mode.vdisplay,int(b.pitch))) {
+    if(!uke_display::render(frame,b.data,std::size_t(b.bytes),mode.hdisplay,mode.vdisplay,int(b.pitch),content_scale())) {
         if(stop())status="Unsupported recovery framebuffer; mirror stopped";
         return true;
     }
@@ -321,7 +329,7 @@ bool ure_mirror_update(const uke_display::Frame& frame,bool changed) {
     }
     active=true; front=1-front;
     pending_frame=false;
-    applied=pack(mode.hdisplay,mode.vdisplay,unsigned(refresh(mode)));
+    applied=pack(mode.hdisplay,mode.vdisplay,unsigned(refresh(mode)),unsigned(content_scale()));
     if(!selection_failed)status="Mirroring recovery to DP/HDMI";
     return before!=status.load();
 }
