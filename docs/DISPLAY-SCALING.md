@@ -1,11 +1,12 @@
 # Tablet interface scale
 
-Open **Settings → Interface scale for tablet**, or the same entry in the Uke
-Recovery Environment menu. Choose 50, 60, 70, 75, 80, 90 or 100 percent, or enter
-any whole percentage from 50 to 100. The tablet default is 75 percent; selecting
-that preset resets the setting. Smaller percentages reduce text, icons, row
+Open **Settings → Interface scale for tablet**, or **Extra → Display and input**.
+Choose Compact (50%), Balanced (75%) or Large (100%), or enter any whole
+percentage from 50 to 100. The tablet default is 75 percent. Select a size,
+then press **Apply**; resetting or loading selects a size for review.
+Smaller percentages reduce text, icons, row
 dimensions and their touch rectangles together. The current percentage appears
-in the page title. This is a recovery interface setting, not an Android display
+above the preset cards beside the selected size. This is a recovery interface setting, not an Android display
 density or framebuffer-resolution change.
 
 The theme originally scales horizontal and vertical dimensions independently.
@@ -19,7 +20,7 @@ inverse touch transform is applied. Rotation and brightness are independent.
 The built-in OrangeFox theme also derives its status-bar battery/clock edge,
 trailing toolbar buttons, content/console widths, file-search background and
 fields, right-side gesture strip and navigation slots from that viewport.
-The four navigation targets span the full panel; their compact selection pills
+The five navigation targets span the full panel; their compact selection pills
 stay centered on the same targets. Credits tabs use thirds of the available
 width. Centered controls keep their relative offsets; ordinary text, icons,
 spacing and vertical rows retain uniform density. These are explicit reviewed

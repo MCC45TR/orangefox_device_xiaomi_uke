@@ -79,13 +79,22 @@ int main() {
             check(scale_theme_min(48)==scale_theme_y(48),"Font density differs from control density");
             // Load the real stock variables, not a mirror of the layout math.
             // At compact density the status/menu right edge must still reach
-            // the viewport and all four navigation targets must span the panel.
+            // the viewport and all five navigation targets must span the panel.
             std::ifstream vars(std::string(UKE_STOCK_THEME)+"/resources/vars.xml");
             std::string source((std::istreambuf_iterator<char>(vars)),std::istreambuf_iterator<char>());
             check(!source.empty(),"Stock theme fixture is unavailable");
             xml_document<> stock; stock.parse<0>(source.data());
             DataManager::SetValue("status_indent_right",24);
             check(theme.LoadVariables(stock.first_node("recovery")->first_node("variables"))==0,"Stock variables did not load");
+            std::ifstream extra(UKE_DEVICE_THEME);
+            std::string extra_source((std::istreambuf_iterator<char>(extra)),std::istreambuf_iterator<char>());
+            check(!extra_source.empty(),"Extra theme fixture is unavailable");
+            xml_document<> extra_theme; extra_theme.parse<0>(extra_source.data());
+            check(theme.LoadVariables(extra_theme.first_node("recovery")->first_node("variables"))==0,"Extra variables did not load");
+            const int apply_y=DataManager::GetIntValue("scale_apply_y");
+            check(apply_y>0 && apply_y+128<DataManager::GetIntValue("row_nav_y") &&
+                DataManager::GetIntValue("ab_h")+DataManager::GetIntValue("scale_scroll_h")<=apply_y,
+                "Scale content or Apply button crosses the navigation footer");
             check(std::abs(geometry[0]-scale_theme_x(DataManager::GetIntValue("status_right_x"))-scale_theme_x(44))<=1,
                 "Status bar retained the phone right edge");
             check(std::abs(geometry[0]-scale_theme_x(DataManager::GetIntValue("ab_btn1_x"))-scale_theme_x(84))<=1,
@@ -93,7 +102,7 @@ int main() {
             check(DataManager::GetIntValue("content_w")==cw-96 && DataManager::GetIntValue("console_width")==cw-96,
                 "Content or console retained the phone width");
             int previous_right=48;
-            for(int item=1;item<=4;++item) {
+            for(int item=1;item<=5;++item) {
                 const int center=DataManager::GetIntValue("nav_item_"+std::to_string(item));
                 const int slot=DataManager::GetIntValue("nav_item_w");
                 check(center-slot/2>=previous_right-1 && center+slot/2<=cw-48,

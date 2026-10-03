@@ -202,6 +202,14 @@ elif git -C "$recovery_source" apply --check "$menu_patch"; then
 else
   echo 'Unexpected action-menu selection source; refusing an unverified patch' >&2; exit 1
 fi
+described_patch="$component/patches/0016-described-recovery-menus.patch"
+if git -C "$recovery_source" apply --reverse --check "$described_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$described_patch"; then
+  git -C "$recovery_source" apply "$described_patch"
+else
+  echo 'Unexpected described-menu source; refusing an unverified patch' >&2; exit 1
+fi
 # Reconstruct the complete reviewed stack in an isolated index. Later patches
 # may change an earlier patch's context; compare exact final file bytes rather
 # than weakening its context check or accepting unknown active-tree changes.
@@ -209,7 +217,7 @@ verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
 unlink "$verification_index"
 trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
 GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch; do
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch; do
   GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \

@@ -100,6 +100,7 @@ if(BUILD_TESTING)
     # warnings fatal while treating that dependency as a system header.
     target_include_directories(uke-display-tests SYSTEM PRIVATE "${UKE_DISPLAY_RENDERER}")
     target_compile_definitions(uke-display-tests PRIVATE UKE_STOCK_THEME="${UKE_DISPLAY_RENDERER}/theme/portrait_hdpi")
+    target_compile_definitions(uke-display-tests PRIVATE UKE_DEVICE_THEME="${CMAKE_CURRENT_SOURCE_DIR}/../maintainer.xml")
     target_link_libraries(uke-display-tests PRIVATE uke-recovery)
     target_compile_options(uke-display-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror -Wno-float-conversion)
     add_test(NAME ure-tablet-display-density COMMAND uke-display-tests)

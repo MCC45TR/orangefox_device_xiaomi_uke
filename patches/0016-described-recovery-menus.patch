@@ -1,0 +1,196 @@
+--- a/gui/objects.hpp
++++ b/gui/objects.hpp
+@@ -869,6 +869,7 @@
+ 
+ 	// Per-item layout
+ 	FontResource* mFont;
++	FontResource* mSecondaryFont;
+ 	COLOR mFontColor;
+ 	bool hasHighlightColor; // indicates if a highlight color was set
+ 	COLOR mHighlightColor; // background row highlight color
+@@ -1022,6 +1023,7 @@
+ protected:
+ 	struct ListItem {
+ 		std::string displayName;
++		std::string description;
+ 		std::string variableName;
+ 		std::string variableValue;
+ 		std::string id;
+--- a/gui/listbox.cpp
++++ b/gui/listbox.cpp
+@@ -189,6 +189,7 @@
+ 
+ 		// We will parse display names when we get page focus to ensure that translating takes place
+ 		item.displayName = attr->value();
++		item.description = LoadAttrString(child, "description", "");
+ 
+ 		if (requireReload)
+ 			item.unparsedName = attr->value();
+@@ -524,7 +525,8 @@
+ 		}
+ 	}
+ 
+-	RenderStdItem(yPos, selected, icon, text.c_str(), NULL, groupStatus);
++	const std::string description = gui_parse_text(item.description);
++	RenderStdItem(yPos, selected, icon, text.c_str(), description.empty() ? NULL : description.c_str(), groupStatus);
+ }
+ 
+ int GUIListBox::NotifyTouch(TOUCH_STATE state, int x, int y)
+@@ -545,7 +547,7 @@
+ 		int selected = 1 - item.selected;
+ 		item.selected = selected;
+ 		DataManager::SetValue(item.variableName, selected ? "1" : "0");
+-	} else {
++	} else if (!mVariable.empty()) {
+ 		item.selected = 1;
+ 		string str = item.variableValue;
+ 		if (str.empty())
+--- a/gui/scrolllist.cpp
++++ b/gui/scrolllist.cpp
+@@ -54,6 +54,7 @@
+ 	mItemPaddingTop = mItemPaddingBottom = 0;
+ 	groupArrow = mBackground = mHeaderIcon = NULL;
+ 	mFont = NULL;
++	mSecondaryFont = NULL;
+ 	mFastScrollW = mFastScrollLineW = mFastScrollRectW = mFastScrollRectH = 0;
+ 	mFastScrollRectCurrentY = mFastScrollRectCurrentH = mFastScrollRectTouchY = 0;
+ 	lastY = last2Y = fastScroll = 0;
+@@ -122,6 +123,7 @@
+ 		mItemSpacing = LoadAttrIntScaleY(child, "spacing");
+ 	}
+ 
++	mSecondaryFont = LoadAttrFont(FindNode(node, "secondaryfont"), "resource");
+ 	// Load the separator if it exists
+ 	child = FindNode(node, "separator");
+ 	if (child)
+@@ -422,14 +424,14 @@
+ 	}
+ 
+ 	int iconAndTextH = actualItemHeight;
+-	int groupOffset = 45;
++	const int groupOffset = groupStatus > 0 ? scale_theme_x(45) : 0;
+ 
+ 	if (groupStatus > 0) {
+ 		int x = mRenderX + groupOffset;
+ 		int w = mRenderW - 2 * groupOffset;
+ 		int h = iconAndTextH;
+ 		int y = yPos;
+-		int r = 32;
++		int r = scale_theme_min(32);
+ 		RoundedCornerFlags corners = RoundedCornerFlags::NONE;
+ 		int s = 0;
+ 
+@@ -485,7 +487,7 @@
+ 			int arrowH = groupArrow->GetHeight();
+ 			int arrowW = groupArrow->GetWidth();
+ 			int arrowY = yPos + (iconAndTextH - arrowH) / 2;
+-			int arrowX = mRenderW - groupOffset - 75;
++			int arrowX = mRenderX + mRenderW - groupOffset - scale_theme_x(75);
+ 			gr_blit(groupArrow->GetResource(), 0, 0, arrowW, arrowH, arrowX, arrowY);
+ 		}
+ 	} else if (isHighlight) {
+@@ -506,26 +508,28 @@
+ 		int iconH = icon->GetHeight();
+ 		int iconW = icon->GetWidth();
+ 		int iconY = yPos + (iconAndTextH - iconH) / 2;
+-		int iconX = (groupStatus > 0 ? mRenderX + groupOffset : mRenderX) + (maxIconWidth - iconW) / 2 - mPadding; //[f/d] right icon padding
++		int iconX = mRenderX + groupOffset + (maxIconWidth - iconW) / 2 - mPadding;
+ 		gr_blit(icon->GetResource(), 0, 0, iconW, iconH, iconX, iconY);
+ 	}
+ 
+ 	// render label text
+ 	if (mFont && mFont->GetResource()) {
+-		int textX = mRenderX + maxIconWidth + 5;
++		const int textX = mRenderX + groupOffset + maxIconWidth + scale_theme_x(20);
++		const int textRight = mRenderX + mRenderW - groupOffset - scale_theme_x(groupArrow ? 100 : 24);
++		const int textWidth = std::max(0, textRight - textX);
+ 		if (addtext != NULL) { //[f/d] draw 2 lines
+ 			int textY = yPos + (iconAndTextH / 2) - scale_theme_y(34);
+ 			int textYt = yPos + (iconAndTextH / 2) + scale_theme_y(24);
+-			gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
++			gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), textWidth, TEXT_ONLY_RIGHT, 0);
+ 
+ 			COLOR addtext_color = {0, 0, 0, 0};
+ 			ConvertStrToColor(DataManager::GetStrValue("text_secondary"), &addtext_color);
+ 
+ 			gr_color(addtext_color.red, addtext_color.green, addtext_color.blue, addtext_color.alpha); //[f/d] i'm lazy af so use #5F6368 color and don't allow set it using xml ಠ_ಠ
+-			gr_textEx_scaleW(textX, textYt, addtext, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
++			gr_textEx_scaleW(textX, textYt, addtext, mSecondaryFont ? mSecondaryFont->GetResource() : mFont->GetResource(), textWidth, TEXT_ONLY_RIGHT, 0);
+ 		} else { //1 line
+ 			int textY = yPos + (iconAndTextH / 2);
+-			gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
++			gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), textWidth, TEXT_ONLY_RIGHT, 0);
+ 		}
+ 	}
+ }
+--- a/gui/theme/portrait_hdpi/pages/templates/base.xml
++++ b/gui/theme/portrait_hdpi/pages/templates/base.xml
+@@ -262,6 +262,13 @@
+ 				<placement x="%nav_item_4%" y="%nav_item_y%" placement="4"/>
+ 				<action function="page">advanced</action>
+ 			</button>
++<image><condition var1="nav_panel_id" var2="4"/><placement x="%np_pill_x5%" y="%np_pill_y%"/><image resource="nav_pill"/></image>
++<image><condition var1="nav_panel_id" var2="4"/><placement x="%nav_item_5%" y="%nav_icon_y%" placement="4"/><image resource="ure_extra_active"/></image>
++<image><condition var1="nav_panel_id" op="!=" var2="4"/><placement x="%nav_item_5%" y="%nav_icon_y%" placement="4"/><image resource="ure_extra_icon"/></image>
++<text style="nav_panel"><condition var1="nav_panel_id" var2="4"/><placement x="%nav_item_5%" y="%nav_text_y%" placement="4"/><text>Extra</text></text>
++<text style="nav_panel_d"><condition var1="nav_panel_id" op="!=" var2="4"/><placement x="%nav_item_5%" y="%nav_text_y%" placement="4"/><text>Extra</text></text>
++<button style="nav_panel_btn"><placement x="%nav_item_5%" y="%nav_item_y%" placement="4"/><action function="page">ure_home</action></button>
++
+ 
+ 			
+ 			<template name="navbar_home"/>
+--- a/gui/theme/portrait_hdpi/pages/main.xml
++++ b/gui/theme/portrait_hdpi/pages/main.xml
+@@ -102,6 +102,10 @@
+ 				<condition var1="nav_panel_id" var2="3"/>
+ 				<action function="page">advanced</action>
+ 			</action>
++			<action>
++				<condition var1="nav_panel_id" var2="4"/>
++				<action function="page">ure_home</action>
++			</action>
+ 		</page>
+ 
+ 		<page name="welcome">
+--- a/gui/theme/portrait_hdpi/resources/vars.xml
++++ b/gui/theme/portrait_hdpi/resources/vars.xml
+@@ -146,7 +146,7 @@
+ 		<variable name="btn_sfloat_3_y" value="%screen_h%-744"/>
+ 
+ 		<!-- NavPanel -->
+-		<variable name="nav_item_w" value="270"/>
++		<variable name="nav_item_w" value="196"/>
+ 		<variable name="nav_panel_h" value="216"/>
+ 		<variable name="nav_panel_full_h" value="%screen_w%-360"/>
+ 		<variable name="nav_panel_id" value="0"/>
+@@ -156,20 +156,22 @@
+ 		<variable name="nav_icon_y" value="%screen_h%-282"/>
+ 		<variable name="nav_text_y" value="%screen_h%-202"/>
+ 		<variable name="nav_item_y" value="%screen_h%-252"/>
+-		<variable name="nav_item_1" value="171"/>
+-		<variable name="nav_item_2" value="417"/>
+-		<variable name="nav_item_3" value="663"/>
+-		<variable name="nav_item_4" value="909"/>
++		<variable name="nav_item_1" value="146"/>
++		<variable name="nav_item_2" value="343"/>
++		<variable name="nav_item_3" value="540"/>
++		<variable name="nav_item_4" value="736"/>
++		<variable name="nav_item_5" value="933"/>
+ 		<variable name="nav_path_w" value="648"/>
+ 
+ 
+ 		<variable name="np_pill_w" value="192"/>
+ 		<variable name="np_pill_h" value="96"/>
+ 		<variable name="np_pill_y" value="%screen_h%-330"/>
+-		<variable name="np_pill_x1" value="75"/>
+-		<variable name="np_pill_x2" value="321"/>
+-		<variable name="np_pill_x3" value="567"/>
+-		<variable name="np_pill_x4" value="813"/>
++		<variable name="np_pill_x1" value="50"/>
++		<variable name="np_pill_x2" value="247"/>
++		<variable name="np_pill_x3" value="444"/>
++		<variable name="np_pill_x4" value="640"/>
++		<variable name="np_pill_x5" value="837"/>
+ 
+ 		<!-- File Selector w/ NavPanel -->
+ 		<variable name="files_np_w" value="%screen_min_cut%-600"/>

@@ -32,6 +32,8 @@ bash tests/check-partition-map.sh
 bash tests/check-layout.sh
 bash tests/check-partition-job.sh
 bash tests/check-display.sh
+bash tests/check-menu-rendering.sh
+bash scripts/check-ui-icons.sh
 bash tests/check-drm-surface.sh
 bash tests/check-filesystems.sh
 bash tests/check-rescue.sh
@@ -60,6 +62,8 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.cpp_installed_boot_audit_and_operation_policy=true | .validation.cpp_actual_management_callbacks=true |
         .validation.filesystem_staged_tools_and_complete_rollback=true | .validation.distribution_chroot_mount_and_process_cleanup=true |
         .validation.native_boot_asset_codecs=true | .validation.chroot_distro_dispatch_fixture=true | .validation.real_package_database_repair=false |
-        .validation.live_block_write=false | .validation.shipping_btrfs_kernel=false' \
+        .validation.live_block_write=false | .validation.shipping_btrfs_kernel=false |
+        .validation.actual_menu_renderer_spacing_and_descriptions=true | .validation.pinned_icon_rgba_verification=true |
+        .validation.scale_selection_requires_apply=true' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

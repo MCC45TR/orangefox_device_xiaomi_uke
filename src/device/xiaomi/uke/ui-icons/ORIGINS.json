@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "project": "lucide-icons/lucide",
+  "version": "0.563.0",
+  "revision": "e9e060a851a44ab9c33e296caeec9c6c778c51d1",
+  "source": "https://github.com/lucide-icons/lucide",
+  "license": "ISC; Feather portions MIT",
+  "raster": {
+    "width": 72,
+    "height": 72,
+    "alpha": true,
+    "runtime_tint": true
+  },
+  "icons": [
+    {
+      "name": "archive",
+      "svg_sha256": "78c732e34e232db63af06a2330b4448045cfdf49b48b59f2d31922df54c7bb17",
+      "png_sha256": "1a8370531ec33e485460a31defa3f501b3375e830860278ce818fa314078a293"
+    },
+    {
+      "name": "arrow-up-right",
+      "svg_sha256": "50b2503b9d11881142255466b7e3461d022b919735841c321d72003ac9959fe1",
+      "png_sha256": "d85eac3c4a1e241216e4afab62257f723e9bf191c077b946e25d84763902c37f"
+    },
+    {
+      "name": "cpu",
+      "svg_sha256": "ec83bb69ec029d367d749afc445b39c8e95891ebf99b0400652677c2b149b99c",
+      "png_sha256": "98d436d9678a9fa8044702248d6c72ab546b00021a48a734c630bbee57618971"
+    },
+    {
+      "name": "database",
+      "svg_sha256": "471eb14bc8d144896a82dfc4aa9daf350f769f0896f4bef33e50aabdbb51130d",
+      "png_sha256": "e3635eacfe2aebadc782b51dde71e83b0f7a8340e158ebcb3272b6c196dfbc84"
+    },
+    {
+      "name": "download",
+      "svg_sha256": "3daeee13ded5a3afa2198b1bb4e2262d163922f97d96ac6ff9953e8ed4fe039d",
+      "png_sha256": "c20c4d742e708913d7add4cccdad134d1fb2f3935de60cca6215c1b7b2e58c43"
+    },
+    {
+      "name": "file-text",
+      "svg_sha256": "52ca55846c202335fb870c8aa23e9345630ec10489303756d62e750f7109605c",
+      "png_sha256": "fccae71ee18baf9fbf399829d425709d75ca2f4ae2b68b365c6100f61292ddaf"
+    },
+    {
+      "name": "folder-archive",
+      "svg_sha256": "65245230483d9a21bc75bb2e70021022b5c5ca1cb44bbb3135cca5c1ef6e717e",
+      "png_sha256": "5cbf7e8f2b9d203853ee70e0b9317458de326b40e3ea9c1270737de44102013e"
+    },
+    {
+      "name": "folders",
+      "svg_sha256": "667be280e0a8f5d7ccd4f2f8d0dc92fc10ee785e9fb4ad248076f2b1ce5dc382",
+      "png_sha256": "8b69990b8e64578ea54f25c767a8587fbb04023afc536663e257c6bf09a57a91"
+    },
+    {
+      "name": "gauge",
+      "svg_sha256": "d7710543a5085c5a61d0bbac1da8b89ef28e541b38ed739357991dff33d475b5",
+      "png_sha256": "68d2e23c83f9983d7f6dcbaf4465c80c83daa7f69cf218116988a132f2bb97b3"
+    },
+    {
+      "name": "hard-drive",
+      "svg_sha256": "af926f1a95128ba25f9a44bedc1d27dc23847ab3fa9166b1ed34ef4e7866188d",
+      "png_sha256": "7cc1a5ca23ae9a9fdd8e9e6c25e48f05b4015a6b41cf3413c46e3594165728a7"
+    },
+    {
+      "name": "history",
+      "svg_sha256": "a98ff758157910b9fc9d42d5d5dc80c2f4e037afa5f8ea4dee5f5649f03d438d",
+      "png_sha256": "a55c7a0c7a88cfe258226b93910de18ca09a760503810a5c7248a30bec1606ea"
+    },
+    {
+      "name": "layers",
+      "svg_sha256": "ce16d0a955e3581cda17f6b2fd5c5bc2034b405f9cecc31c8ebb8495b4afc1bb",
+      "png_sha256": "81f88f5a7fae1bd58c1e6539c51842008efce3f9d0e3171c2dd23f28151534e8"
+    },
+    {
+      "name": "layout-grid",
+      "svg_sha256": "b8903f61d09b1d75e55c71158277d26570962f69c2099446a251871e0a2d6678",
+      "png_sha256": "d7eebaf117166126b67ee64cc7aeefbcaa415518c6b2fd9497ef8ceff025354a"
+    },
+    {
+      "name": "monitor",
+      "svg_sha256": "d1a443233345724859de8e4fb48968ba91e885e12ddbd710701548bd91b39428",
+      "png_sha256": "d06cfebdb70409d0cbf2c007d36c36df9992d809baf24c11e73695c4ceebd573"
+    },
+    {
+      "name": "rotate-ccw",
+      "svg_sha256": "622685386ab4017eabfde01cd74550a20b1924df233b353f73b6b155371f2afd",
+      "png_sha256": "a28997a77df3af92220014df3725702b29142a9afc4752a941cc54625e7d4819"
+    },
+    {
+      "name": "settings-2",
+      "svg_sha256": "06d06c191bd7eb28afaf9d40acb5c49ef69448fdeda91801d9823d7c440a4e10",
+      "png_sha256": "464c0ff33d01a8cb9857d3efaf2cae09321325ed9334f02dd1f069ac414a5a73"
+    },
+    {
+      "name": "shield-check",
+      "svg_sha256": "8d4fcdbde5bba4abb1a2f6fe53e37ceb6343a1d5449a9d88f6f97c1971d26c4e",
+      "png_sha256": "7a1c31cddf99ac13bd8d2f6e1d769ac3334c57ec27fc6f69e5aa3f913a4b34fb"
+    },
+    {
+      "name": "sliders-horizontal",
+      "svg_sha256": "e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4",
+      "png_sha256": "537f3096ea0876b06ad91c1dd6d65b3e5183a017c4de733d2435424562f4c06d"
+    },
+    {
+      "name": "square-terminal",
+      "svg_sha256": "1fd2b783881ed8b0675995910fe98625789119e390420931eca6ddbc91c17932",
+      "png_sha256": "d512698b9f54ef98ea059bfe5a5d74dbaf8c456fd6683c8265d0a353fc2168fd"
+    },
+    {
+      "name": "stethoscope",
+      "svg_sha256": "a5621a048bcb911d4d51a6b8e6b5821dc68b0e7554dc001389ee9bc5f251c3ad",
+      "png_sha256": "85d76dabfcd02d73e0440a486a675f734d95efc02ec085c3e66e6b4907080aff"
+    },
+    {
+      "name": "terminal",
+      "svg_sha256": "4f9b6488b237757d5cb615ccd07502fa99774826839e2a99017784bdb2596f1a",
+      "png_sha256": "6e9e2a740fd3722efa63caa83ca29d890f833bfb302f4e524607d8e63ef3f9c4"
+    },
+    {
+      "name": "upload",
+      "svg_sha256": "42816ee1fa0e9d3b82272a97615c1e562b0e9de64780ebf21963bc1db0ceffd1",
+      "png_sha256": "c5fcb8f1fbd5a00f7cef14abfd8da82fad3f95a7d57e03e95311629ba54db79b"
+    },
+    {
+      "name": "wrench",
+      "svg_sha256": "b5f3bf792743edb9e81b543dd1b13ccc26d3afe1d33500a1cd8dee2e052d6197",
+      "png_sha256": "4980c2692a734b7a357993857a3529bdd69a040e5881a390f7f52bf03f2fe7c0"
+    }
+  ]
+}

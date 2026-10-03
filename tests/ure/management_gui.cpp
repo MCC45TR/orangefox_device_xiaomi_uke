@@ -18,6 +18,20 @@ int main(int argc,char* argv[]) {
     try {
         const auto image=fixture/"filesystem.img"; { std::ofstream file(image); file.seekp(32*1024*1024-1); file.put('\0'); }
         const auto original=digest(image); GUIAction action;
+        DataManager::SetValue("ure_ui_scale_percent",100); DataManager::SetValue("ure_ui_scale_applied",100);
+        DataManager::SetValue("ure_scale_choice",50);
+        check(value("ure_ui_scale_percent")=="100" && PageManager::reloads==0,"Selecting a preset changed the active scale");
+        check(action.uremanager("scale-reset")==0 && value("ure_scale_choice")=="75" && value("ure_ui_scale_percent")=="100" && PageManager::reloads==0,
+            "Reset applied a scale before explicit confirmation");
+        DataManager::SetValue("ure_scale_directory",(fixture/"scale").string());
+        ure::display_settings_save((fixture/"scale").string(),50);
+        check(action.uremanager("scale-load")==0 && value("ure_scale_choice")=="50" && value("ure_ui_scale_percent")=="100" && PageManager::reloads==0,
+            "Loading a selection changed the active scale");
+        check(action.uremanager("scale-apply")==0 && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1,
+            "Explicit scale application did not queue one renderer reload");
+        DataManager::SetValue("ure_scale_choice","invalid");
+        check(action.uremanager("scale-apply")==1 && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1,
+            "Invalid scale changed the active interface");
         for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_raw_kind","image"},{"ure_raw_source",image.string()},{"ure_raw_sector","512"},
             {"ure_journal_parent",fixture.string()},{"ure_fs_action","format"},{"ure_fs_type","ext4"},{"ure_fs_erase","0"},{"ure_fs_label","URETEST"}})DataManager::SetValue(key,text);
         check(action.uremanager("filesystem-plan")==1 && digest(image)==original,"GUI format accepted missing data-loss choice");

@@ -25,7 +25,10 @@ codec=/mnt/out-public/target/product/uke/system/lib64/libzstd.so
 readelf -h "$codec" | grep -q 'Machine:.*AArch64'
 cp -- "$codec" "$payload/system/lib64/libzstd.so"
 cp -- /mnt/device/xiaomi/uke/maintainer.xml "$payload/sbin/maintainer.xml"
+mkdir -p "$payload/twres/images/URE"
+cp -- /mnt/device/xiaomi/uke/ui-icons/*.png "$payload/twres/images/URE/"
 mkdir -p "$payload/system/etc/ure/licenses"
+cp -- /mnt/device/xiaomi/uke/ui-icons/LICENSE "$payload/system/etc/ure/licenses/lucide.txt"
 cp -- /mnt/device/xiaomi/uke/ure-tools.lock.json "$payload/system/etc/ure/tools.lock.json"
 cp -- /mnt/external/ure-wimlib/COPYING "$payload/system/etc/ure/licenses/wimlib.txt"
 cp -- /mnt/external/ure-wimlib/COPYING.GPLv3 "$payload/system/etc/ure/licenses/wimlib-GPLv3.txt"

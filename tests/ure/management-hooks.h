@@ -22,7 +22,7 @@ public:
     static void SetValue(const std::string& key,const std::string& value) { std::lock_guard<std::mutex> guard(management_variable_mutex); management_variables[key]=value; }
     static void SetValue(const std::string& key,int value) { SetValue(key,std::to_string(value)); }
 };
-class PageManager { public: static void RequestUreReload() {} };
+class PageManager { public: inline static int reloads=0; static void RequestUreReload() { ++reloads; } };
 class GUIAction { public: int uremanager(std::string command); };
 inline void gr_external_enable(bool) {}
 inline bool gr_external_select(int,int,int) { return false; }

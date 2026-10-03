@@ -341,16 +341,16 @@ bool ure_gui_variable(const std::string& name,std::string& output) {
     for(const auto& anchor:trailing)if(name==anchor.name) { output=std::to_string(width-anchor.inset); return true; }
     for(const auto& anchor:widths)if(name==anchor.name) { output=std::to_string(std::max(1,width-anchor.inset)); return true; }
     const int nav_width=std::max(1,width-96);
-    static constexpr const char* items[]={"nav_item_1","nav_item_2","nav_item_3","nav_item_4"};
-    static constexpr const char* pills[]={"np_pill_x1","np_pill_x2","np_pill_x3","np_pill_x4"};
+    static constexpr const char* items[]={"nav_item_1","nav_item_2","nav_item_3","nav_item_4","nav_item_5"};
+    static constexpr const char* pills[]={"np_pill_x1","np_pill_x2","np_pill_x3","np_pill_x4","np_pill_x5"};
     static constexpr const char* cards[]={"ws_cards_x1","ws_cards_x2","ws_cards_x3","ws_cards_x4"};
-    for(int index=1;index<=4;++index) {
-        const int center=48+nav_width*(2*index-1)/8;
+    for(int index=1;index<=5;++index) {
+        const int center=48+nav_width*(2*index-1)/10;
         if(name==items[index-1]) { output=std::to_string(center); return true; }
         if(name==pills[index-1]) { output=std::to_string(center-96); return true; }
-        if(name==cards[index-1]) { output=std::to_string(28+(width-56)*(2*index-1)/8); return true; }
+        if(index<=4 && name==cards[index-1]) { output=std::to_string(28+(width-56)*(2*index-1)/8); return true; }
     }
-    if(name=="nav_item_w")output=std::to_string(nav_width/4);
+    if(name=="nav_item_w")output=std::to_string(nav_width/5);
     else if(name=="back_button_x")output=std::to_string(width/6);
     else if(name=="slideout_button_x")output=std::to_string(width-width/6);
     else if(name=="row_navbtn_w")output=std::to_string(std::max(1,width/3-42));
@@ -402,12 +402,14 @@ int GUIAction::uremanager(std::string command) {
             DataManager::SetValue("ure_mirror_status","Mode change queued; unsupported modes preserve the active output");
         } else if(command=="mirror-modes") {
             DataManager::SetValue("ure_mirror_modes",gr_external_modes());
-        } else if(command=="scale-apply" || command=="scale-reset" || command=="scale-load") {
-            int percent=75;
-            if(command=="scale-apply")percent=ure::display_scale_parse(value("ure_scale_choice"));
-            if(command=="scale-load")percent=ure::display_settings_load(value("ure_scale_directory"))["scale_percent"].asInt();
+        } else if(command=="scale-reset" || command=="scale-load") {
+            const int percent=command=="scale-reset" ? 75 : ure::display_settings_load(value("ure_scale_directory"))["scale_percent"].asInt();
+            DataManager::SetValue("ure_scale_choice",percent);
+            DataManager::SetValue("ure_scale_status","Selection ready. Apply to change the interface size.");
+        } else if(command=="scale-apply") {
+            const int percent=ure::display_scale_parse(value("ure_scale_choice"));
             DataManager::SetValue("ure_ui_scale_percent",percent);
-            DataManager::SetValue("ure_scale_status",command=="scale-load" ? "Saved scale loaded; no storage was mounted" : "Scale applied to text, icons and touch targets");
+            DataManager::SetValue("ure_scale_status","Applied to text, icons and touch targets.");
             PageManager::RequestUreReload();
         } else if(command=="scale-save") {
             const auto saved=ure::display_settings_save(value("ure_scale_directory"),ure::display_scale_parse(value("ure_ui_scale_applied")));
