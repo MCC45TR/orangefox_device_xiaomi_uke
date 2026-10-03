@@ -71,6 +71,13 @@ before reboot; it is volatile. Prefer the ZIP to a manual flash.
 An older/different inactive firmware causes refusal too. Do not update, clone
 or switch that slot just to satisfy this experimental installer.
 
+The current source also distinguishes OEM image lengths from full partition
+programming checksums. Its reviewed DTBO check includes the source bytes, zero
+gap and AVB footer duplicated at the 24 MiB partition end; it never pads or
+rewrites an existing DTBO to pass. This is a source-derived AOSP layout, not an
+accepted physical dump. A different installed tail policy remains refused;
+see [the boot preflight contract](STOCK-BOOT-PREFLIGHT.md).
+
 ## Manual recovery flash and stock return
 
 First pass the native preflight above, save current recovery, and record the

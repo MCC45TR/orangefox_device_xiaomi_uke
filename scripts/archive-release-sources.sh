@@ -99,6 +99,7 @@ cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOS
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"
 cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$source_work/project/"
+cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$source_work/project/"
 cp -- "$component/docs/DISPLAY-SCALING.md" "$source_work/project/"
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$source_work/project/"
 cp -- "$component/docs/TREE-BACKUP.md" "$source_work/project/"
@@ -148,6 +149,9 @@ if [[ -f $component/reports/URE-PARTITION-JOB-BUILD.md ]]; then
 fi
 if [[ -f $component/reports/URE-STOCK-JOB-BUILD.md ]]; then
     cp -- "$component/reports/URE-STOCK-JOB-BUILD.md" "$source_work/project/STOCK-JOB-BUILD-REPORT.md"
+fi
+if [[ -f $component/reports/URE-STOCK-PREFLIGHT-BUILD.md ]]; then
+    cp -- "$component/reports/URE-STOCK-PREFLIGHT-BUILD.md" "$source_work/project/STOCK-PREFLIGHT-BUILD-REPORT.md"
 fi
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"

@@ -72,7 +72,7 @@ if [[ $candidate == ure-partition-job-alpha ]]; then
     cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 fi
-if [[ $candidate == ure-stock-job-alpha ]]; then
+if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alpha ]]; then
     jq -e '.validation.cpp_six_lun_stock_jobs_and_sigkill and .validation.cpp_android_sparse_and_logical_range_oracles and .validation.cpp_actual_six_lun_stock_gui and .validation.stock_job_cli and (.validation.stock_model_sku_physical_acceptance==false) and (.validation.tablet_forced_reboot==false)' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_six_lun_stock_job and .validation.qemu_user_six_lun_stock_job' \
@@ -87,6 +87,13 @@ if [[ $candidate == ure-stock-job-alpha ]]; then
     sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
     # The earlier partition candidate's guest-reset record describes a different
     # CLI. Leave both VM records null rather than transferring that evidence.
+fi
+if [[ $candidate == ure-stock-preflight-alpha ]]; then
+    jq -e '.validation.cpp_capacity_adjusted_boot_programming_pins and .validation.installer_full_partition_dtbo_and_corruption and .validation.independent_stock_boot_programming_catalog' \
+        "$component/reports/private/native-verification.json" >/dev/null
+    jq -e '.validation.source_built_capacity_adjusted_stock_preflight' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
+    cp -- "$component/manifests/stock-boot-programming-global.json" "$destination/STOCK-BOOT-PROGRAMMING.json"
+    cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$destination/STOCK-BOOT-PREFLIGHT.md"
 fi
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
 (cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"

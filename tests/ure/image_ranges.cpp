@@ -2,6 +2,7 @@
 // Logical-byte oracles and hostile Android sparse fixtures; regular files only.
 #include "uke.h"
 #include "stock_payloads.h"
+#include "../install_policy.h"
 #include <algorithm>
 #include <fcntl.h>
 #include <iostream>
@@ -95,12 +96,22 @@ int main(int argc,char** argv) {
             auto stock_out=fresh(work/"metadata-expanded.img"); const auto result=ure::stock_image_expand(metadata.get(),stock_out.get(),true);
             check(ure::json(result)==ure::json(observed) && ure::storage_bytes(stock_out.get())==64*1024*1024 && observed["expanded_digest"].asString()==ure::storage_image_range_digest(stock_out.get(),0,64*1024*1024),"OEM metadata expansion lost logical-byte binding");
         }
-        if(argc==3) {
+        if(argc>=3) {
             const auto catalog=ure::parse_json(ure::bounded_read(argv[2],65536)); check(catalog["payloads"].size()==std::size(ure::stock_source::global),"Source catalog and native pin counts differ");
             for(const auto& pin:ure::stock_source::global) {
                 const ure::Value* observed=nullptr; for(const auto& row:catalog["payloads"])if(row["filename"]==pin.filename) { check(observed==nullptr,"Duplicate source catalog pin"); observed=&row; }
                 check(observed!=nullptr && (*observed)["source_bytes"].asUInt64()==pin.source_bytes && (*observed)["expanded_bytes"].asUInt64()==pin.expanded_bytes &&
                     (*observed)["source_sha256"]==pin.sha256 && (*observed)["encoding"]==pin.encoding,"Native stock payload pin differs from independent archive catalog");
+            }
+        }
+        if(argc==4) {
+            const auto catalog=ure::parse_json(ure::bounded_read(argv[3],65536));
+            check(catalog["images"].size()==std::size(uke::global_stock) && catalog["validation"]["physical_device"]==false,"Programming catalog scope differs");
+            for(const auto& pin:uke::global_stock) {
+                const ure::Value* observed=nullptr; for(const auto& row:catalog["images"])if(row["name"]==pin.name) { check(observed==nullptr,"Duplicate boot programming pin"); observed=&row; }
+                check(observed && (*observed)["source_bytes"].asUInt64()==pin.source_bytes && (*observed)["partition_bytes"].asUInt64()==pin.partition_bytes &&
+                    (*observed)["source_sha256"]==pin.source_sha256 && (*observed)["partition_sha256"]==pin.partition_sha256 && (*observed)["programming_layout"]==pin.programming_layout,
+                    "Native installed boot policy differs from the independently generated programming catalog");
             }
         }
         ure::fs::remove_all(work); std::cout<<"PASS canonical image ranges, private sparse expansion and malformed-input refusals\n"; return 0;

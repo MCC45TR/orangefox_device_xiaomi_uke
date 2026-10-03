@@ -57,6 +57,7 @@ cp -- "$component/docs/URE-NATIVE.md" "$package_work/URE-NATIVE.md"
 cp -- "$component/docs/HOST-RESTORE.md" "$package_work/HOST-RESTORE.md"
 cp -- "$component/docs/PARTITION-MANAGER.md" "$package_work/PARTITION-MANAGER.md"
 cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$package_work/STOCK-IMAGE-RESTORE.md"
+cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$package_work/STOCK-BOOT-PREFLIGHT.md"
 cp -- "$component/docs/DISPLAY-SCALING.md" "$package_work/DISPLAY-SCALING.md"
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$package_work/EXTERNAL-MONITOR.md"
 cp -- "$component/docs/TREE-BACKUP.md" "$package_work/TREE-BACKUP.md"
@@ -69,7 +70,7 @@ find "$package_work" -type f -exec touch -d '@1790726400' {} +
 zipfile="$destination/OrangeFox-uke-flashable.zip"
 [[ ! -e $zipfile ]] || mv -- "$zipfile" "$package_work/previous.zip"
 (cd -- "$package_work" && zip -X -9 "$zipfile" META-INF/com/google/android/update-binary \
-    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md PARTITION-MANAGER.md STOCK-IMAGE-RESTORE.md DISPLAY-SCALING.md EXTERNAL-MONITOR.md TREE-BACKUP.md FILESYSTEM-MANAGER.md LINUX-RESCUE-AND-BOOT.md BTRFS-MANAGER.md LICENSE >/dev/null)
+    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md PARTITION-MANAGER.md STOCK-IMAGE-RESTORE.md STOCK-BOOT-PREFLIGHT.md DISPLAY-SCALING.md EXTERNAL-MONITOR.md TREE-BACKUP.md FILESYSTEM-MANAGER.md LINUX-RESCUE-AND-BOOT.md BTRFS-MANAGER.md LICENSE >/dev/null)
 unzip -t "$zipfile" >/dev/null
 cp -- "$component/manifests/orangefox-android16-uke.lock.xml" "$destination/ORANGEFOX-SOURCE-PINS.xml"
 cp -- "$component/manifests/stock-kernel-source.json" "$destination/STOCK-KERNEL-SOURCE.json"

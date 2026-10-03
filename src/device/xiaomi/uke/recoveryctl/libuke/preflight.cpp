@@ -68,17 +68,20 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
         if(stack)for(const auto& image:uke::global_stock)for(const auto* slot:{"_a","_b"}) {
             if(std::string(image.name)=="recovery" && suffix==slot)continue; // The active custom recovery is expected.
             Value result; result["label"]=std::string(image.name)+slot; bool found=false;
+            result["source_bytes"]=Json::UInt64(image.source_bytes); result["partition_bytes"]=Json::UInt64(image.partition_bytes);
+            result["source_sha256"]=image.source_sha256; result["expected_partition_sha256"]=image.partition_sha256;
+            result["programming_layout"]=image.programming_layout; result["checksum_scope"]="whole-partition";
             try {
                 for(const auto& object:graph["objects"])if(object["label"]==result["label"]) {
                     require(!found,"ambiguous-firmware","Duplicate stock boot-stack label"); found=true; auto selected=storage_select(system,object["stable_id"].asString());
-                    const auto hash=sha256(selected.descriptor.get()); result["matching"]=selected.identity["bytes"].asUInt64()==image.bytes && hash==image.sha256;
+                    const auto hash=sha256(selected.descriptor.get()); result["matching"]=selected.identity["bytes"].asUInt64()==image.partition_bytes && hash==image.partition_sha256;
                     result["sha256"]=hash; storage_revalidate(selected,&system);
                 }
             } catch(const Error& error) { result["error_code"]=error.code; result["matching"]=false; }
             stack=stack && found && result["matching"]==true; images.append(result);
         }
         out["stock_boot_stack"]=images; out["firmware_identity_validated"]=stack;
-        check(out,"exact-stock-boot-stack",stack,"The accepted Global firmware's actual A/B boot, init_boot, vendor_boot, DTBO and inactive recovery hashes must match");
+        check(out,"exact-stock-boot-stack",stack,"Both boot slots and inactive recovery must match the reviewed whole-partition Global programming layouts, including DTBO's zero gap and duplicated end footer; this is not model/SKU acceptance");
     }
     check(out,"accepted-live-transaction-backend",false,"Live writes remain disabled: Uke/SKU-specific range provenance and the complete native write adapter are not accepted yet");
     out["image_job_eligible"]=false; out["live_job_eligible"]=out["blockers"].empty(); return out;

@@ -49,6 +49,9 @@ for marker in ure-linux-boot-audit filesystem.manage btrfs.manage linux.rescue p
     strings "$work/root/system/bin/uke-recoveryctl" | rg -F "$marker" >/dev/null
 done
 cmp "$tree/out-public/target/product/uke/system/lib64/libminuitwrp.so" "$work/root/system/lib64/libminuitwrp.so"
+for binary in uke-recoveryctl uke-recovery-install; do
+    strings "$work/root/system/bin/$binary" | rg -F '9e55ff8afdf178e424187f0dc7d6dd2fa570308e22d8df7ac895d65017dbc0d7' >/dev/null
+done
 cmp "$tree/out-public/target/product/uke/system/lib64/libzstd.so" "$work/root/system/lib64/libzstd.so"
 for symbol in gr_external_select gr_external_update ure_mirror_select; do
     readelf --dyn-syms --wide "$work/root/system/lib64/libminuitwrp.so" | grep -F "$symbol" > /dev/null
@@ -78,4 +81,6 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" \
     --argjson bytes "$bytes" --argjson qemu "$qemu" \
     '{schema_version:1,recovery_image_sha256:$image,compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
+jq '.validation.source_built_capacity_adjusted_stock_preflight=true' "$report" > "$work/capacity-preflight-audit.json"
+mv -- "$work/capacity-preflight-audit.json" "$report"
 echo 'Final compressed ramdisk audit passed; source, emulation and hardware evidence remain separate.'

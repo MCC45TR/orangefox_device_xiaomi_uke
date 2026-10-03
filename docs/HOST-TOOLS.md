@@ -11,6 +11,12 @@ The host client is archived as `android-repo` in the workspace source catalog at
 
 `unpack_bootimg` and `mkbootimg` are AOSP host tools for inspecting and constructing boot images. Their archived AOSP sources are pinned in the workspace. They are also excluded from tablet payloads. Packaging uses `mkbootimg` and `avbtool` compiled by the locked Android tree, not an arbitrary system package; their source commits and executable hashes are recorded with the artifact manifest. Their embedded upstream Python build machinery is host-only. A future build container still needs to pin the full host OS/package closure.
 
+The same pinned host avbtool info_image command is used to inspect the OEM DTBO
+footer and embedded vbmeta during programming-layout research. It is read-only
+and host-only; the target checks use native C++ and whole-partition hashes.
+The Bash catalog recipe and independent C++ fixtures reconstruct the reviewed
+AOSP capacity-adjusted layout without executing fastboot or OEM scripts.
+
 `scripts/build-public.sh` builds at `/mnt` inside an unprivileged Bubblewrap namespace with neutral build-user/host names. `FOX_BUILD_BASH=1` is exported before lunch because OrangeFox's vendor script reads a captured shell environment; a make-only flag does not prevent it from copying its prebuilt Bash. The source-built Bash avoids the vendor binary's unrelated home-directory locale/debugger prefixes. `out-public` must start empty for the first build; incremental rebuilds afterward use the same namespace.
 
 `scripts/package-prerelease.sh` constructs the separate temporary-boot candidate and a project-owned slot-safe ZIP. `scripts/archive-release-sources.sh` supplies the stock GKI commit snapshot and recovery/GPL utility sources, including recursive Magisk utility dependencies. These are source archives, not tablet payloads. They do not constitute offline archives of all 399 Android repositories or prove binary reproducibility.

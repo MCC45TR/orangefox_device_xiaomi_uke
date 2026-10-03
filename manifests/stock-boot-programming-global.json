@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "format": "ure-stock-boot-programming-catalog",
+  "firmware_profile": "global-os3.0.303.0",
+  "source_archive": {
+    "filename": "uke_global_images_OS3.0.303.0.WOZMIXM_20260625.0000.00_16.0_global_0a5b1b6851.tgz",
+    "sha256": "f811ae6255b7535d32f80548d800487a6494a87ddb4cca592799337fab24cd0d"
+  },
+  "programming_source": {
+    "project": "AOSP system/core",
+    "revision": "1efa79514b2f520c20a837c9216ff6b6e7e0dda3",
+    "function": "fastboot/copy_avb_footer"
+  },
+  "images": [
+    {
+      "name": "boot",
+      "source_bytes": 100663296,
+      "source_sha256": "efdee1d4e1acd7f6e77615330dbcb045caeeccad8568d89fa6abd627f606e77f",
+      "partition_bytes": 100663296,
+      "partition_sha256": "efdee1d4e1acd7f6e77615330dbcb045caeeccad8568d89fa6abd627f606e77f",
+      "programming_layout": "exact-source"
+    },
+    {
+      "name": "dtbo",
+      "source_bytes": 20971520,
+      "source_sha256": "044aae9d9a144e9a05b91d2785a2ff4504c78caa11f8c22781839ba2f6c76490",
+      "partition_bytes": 25165824,
+      "partition_sha256": "9e55ff8afdf178e424187f0dc7d6dd2fa570308e22d8df7ac895d65017dbc0d7",
+      "programming_layout": "aosp-fastboot-copy-avb-footer"
+    },
+    {
+      "name": "init_boot",
+      "source_bytes": 8388608,
+      "source_sha256": "c4eb22f5c379678aead0cf7ab003f7534d923be16b0601a0b4da7d1705af10b2",
+      "partition_bytes": 8388608,
+      "partition_sha256": "c4eb22f5c379678aead0cf7ab003f7534d923be16b0601a0b4da7d1705af10b2",
+      "programming_layout": "exact-source"
+    },
+    {
+      "name": "recovery",
+      "source_bytes": 104857600,
+      "source_sha256": "a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b",
+      "partition_bytes": 104857600,
+      "partition_sha256": "a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b",
+      "programming_layout": "exact-source"
+    },
+    {
+      "name": "vendor_boot",
+      "source_bytes": 100663296,
+      "source_sha256": "c2811677d6aa07753b615747c4f2dba110dd4519cf52ff3a89e41e00a5b02bcc",
+      "partition_bytes": 100663296,
+      "partition_sha256": "c2811677d6aa07753b615747c4f2dba110dd4519cf52ff3a89e41e00a5b02bcc",
+      "programming_layout": "exact-source"
+    }
+  ],
+  "validation": {
+    "source_files_verified": true,
+    "canonical_layouts_verified": true,
+    "physical_device": false,
+    "installed_firmware_verified": false,
+    "live_write_authorized": false
+  }
+}

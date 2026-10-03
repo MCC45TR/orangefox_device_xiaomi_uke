@@ -7,14 +7,23 @@
 #include <string_view>
 
 namespace uke {
-struct StockImage { const char* name; std::uint64_t bytes; const char* sha256; };
+struct StockImage {
+    const char* name;
+    std::uint64_t source_bytes, partition_bytes;
+    const char* source_sha256;
+    const char* partition_sha256;
+    const char* programming_layout;
+};
 inline constexpr std::uint64_t recovery_bytes = 104857600;
+// The DTBO source is smaller than its OEM partition. Its reviewed whole-
+// partition digest includes the preserved source, zero gap and duplicated AVB
+// footer produced by AOSP fastboot copy_avb_footer. It is not a physical dump.
 inline constexpr std::array<StockImage, 5> global_stock{{
-    {"boot", 100663296, "efdee1d4e1acd7f6e77615330dbcb045caeeccad8568d89fa6abd627f606e77f"},
-    {"init_boot", 8388608, "c4eb22f5c379678aead0cf7ab003f7534d923be16b0601a0b4da7d1705af10b2"},
-    {"vendor_boot", 100663296, "c2811677d6aa07753b615747c4f2dba110dd4519cf52ff3a89e41e00a5b02bcc"},
-    {"dtbo", 25165824, "044aae9d9a144e9a05b91d2785a2ff4504c78caa11f8c22781839ba2f6c76490"},
-    {"recovery", recovery_bytes, "a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b"}
+    {"boot", 100663296, 100663296, "efdee1d4e1acd7f6e77615330dbcb045caeeccad8568d89fa6abd627f606e77f", "efdee1d4e1acd7f6e77615330dbcb045caeeccad8568d89fa6abd627f606e77f", "exact-source"},
+    {"init_boot", 8388608, 8388608, "c4eb22f5c379678aead0cf7ab003f7534d923be16b0601a0b4da7d1705af10b2", "c4eb22f5c379678aead0cf7ab003f7534d923be16b0601a0b4da7d1705af10b2", "exact-source"},
+    {"vendor_boot", 100663296, 100663296, "c2811677d6aa07753b615747c4f2dba110dd4519cf52ff3a89e41e00a5b02bcc", "c2811677d6aa07753b615747c4f2dba110dd4519cf52ff3a89e41e00a5b02bcc", "exact-source"},
+    {"dtbo", 20971520, 25165824, "044aae9d9a144e9a05b91d2785a2ff4504c78caa11f8c22781839ba2f6c76490", "9e55ff8afdf178e424187f0dc7d6dd2fa570308e22d8df7ac895d65017dbc0d7", "aosp-fastboot-copy-avb-footer"},
+    {"recovery", recovery_bytes, recovery_bytes, "a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b", "a22c93ccd0d439d610547a47ab4d8001f72ee769f791991f65d47d5724db049b", "exact-source"}
 }};
 inline bool valid_hash(std::string_view s) {
     if (s.size() != 64) return false;

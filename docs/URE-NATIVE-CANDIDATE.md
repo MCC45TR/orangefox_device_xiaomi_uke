@@ -30,6 +30,14 @@ evidence. The earlier partition candidate's generic guest-reset proof describes
 its own CLI and is not a reset result for the stock candidate. Neither proves
 the Uke UFS controller or shipping-kernel reset durability.
 
+The separate stock-preflight checkpoint distinguishes source and whole-partition
+boot checksums. Its canonical DTBO layout preserves the source and duplicates
+its AVB footer at the larger partition end with a zero gap. Both preflight and
+installer continue to require the full partition digest, including that gap
+and footer. Different installed layouts are refused; no verification rewrites
+firmware. Read `STOCK-BOOT-PREFLIGHT.md`. This fixes the earlier source/capacity
+hash mismatch without accepting live storage writes or physical model profiles.
+
 The partition layout GUI allocates ESP/Linux/Windows only from the original
 userdata extent, using keyboard sizes in GB/GiB/MiB or percentages. Standard
 mode preserves existing identities and userdata start. Advanced mode permits

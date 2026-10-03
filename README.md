@@ -35,6 +35,10 @@ GPTs and selected hash-pinned Global OS images under one inspected image journal
 Its [CLI and GUI contract](docs/STOCK-IMAGE-RESTORE.md) covers sparse decoding,
 capacity-derived layouts, protected firmware/tails and complete changed-range
 rollback. Model/SKU declarations do not establish either tablet's acceptance.
+The [stock preflight correction](reports/URE-STOCK-PREFLIGHT-BUILD.md) separates
+source-file checksums from complete programming-layout checksums. DTBO's
+reviewed larger layout includes its zero gap and duplicated AVB end footer;
+[verification](docs/STOCK-BOOT-PREFLIGHT.md) does not rewrite installed firmware.
 The [storage checkpoint](reports/URE-STORAGE-BUILD.md) adds bounded ownership
 observations and identity-bound storage backup software with shared CLI/GUI/host
 reception. The raw-image restore engine adds verified original/target mirrors,
