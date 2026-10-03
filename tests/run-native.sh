@@ -2,10 +2,22 @@
 # Host-only source, transaction, installer and forbidden-payload fixtures.
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
+    exec bash "$component/scripts/with-host-budget.sh" native bash "$component/tests/run-native.sh" "$@"
+fi
+jobs=${UKE_HOST_JOBS:-2}
+[[ $jobs =~ ^([1-9]|1[0-6])$ ]]
 cd "$component"
+export CCACHE_DIR=${CCACHE_DIR:-"$component/build/ccache/native"}
+mkdir -p "$CCACHE_DIR"
 mkdir -p reports/private
-cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-host -G Ninja
-cmake --build build/ure-host -j4
+initial_inputs=$(mktemp reports/private/native-initial-inputs-XXXXXX)
+trap 'rm -f -- "$initial_inputs"' EXIT
+bash scripts/native-inputs.sh > "$initial_inputs"
+cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-host -G Ninja \
+    -DCMAKE_CXX_COMPILER="${CXX:-/usr/bin/c++}" \
+    -DCMAKE_CXX_COMPILER_LAUNCHER="$component/scripts/host-ccache.sh"
+cmake --build build/ure-host -j"$jobs"
 ctest --test-dir build/ure-host --output-on-failure
 bash tests/check-ure.sh
 bash tests/check-backup.sh
@@ -29,7 +41,8 @@ UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/ch
 bash tests/check-installer.sh
 bash tests/check-stock-boot-programming.sh
 bash tests/check-payload-fixtures.sh
-bash scripts/native-inputs.sh > reports/private/native-test-inputs.sha256
+cmp <(bash scripts/native-inputs.sh) "$initial_inputs"
+cp -- "$initial_inputs" reports/private/native-test-inputs.sha256
 jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut -d' ' -f1)" \
     --arg binary "$(sha256sum build/ure-host/uke-recoveryctl | cut -d' ' -f1)" \
     '{schema_version:1,native_test_inputs_sha256:$inputs,host_cli_sha256:$binary,validation:{cpp_negative_and_transaction_fixtures:true,cpp_interruption_and_streaming_fixtures:true,cpp_gpt_backup_repair_restore_fixtures:true,cpp_storage_ownership_policy_fixtures:true,cpp_raw_restore_interruption_fixtures:true,cpp_host_stream_restore_fixtures:true,cpp_stock_gpt_reconstruction_and_oem_xml_oracle:true,stock_gpt_cli_fixtures:true,cpp_partition_map_and_bounded_signatures:true,partition_map_cli_fixtures:true,cli_fixtures:true,backup_cli_and_mock_transport_fixtures:true,storage_image_backup_cli_fixtures:true,raw_restore_cli_fixtures:true,host_stream_restore_cli_and_duplex_transport_fixtures:true,gpt_cli_fixtures:true,legacy_identity_fixtures:true,installer_policy_fixtures:true,forbidden_payload_fixtures:true,physical_device:false}}' \

@@ -1,0 +1,17 @@
+diff -ruN a/ui/build/soong.go b/ui/build/soong.go
+--- a/ui/build/soong.go	2026-10-03 11:59:16.237621713 +0300
++++ b/ui/build/soong.go	2026-10-03 11:59:16.246122249 +0300
+@@ -214,6 +214,13 @@
+ 
+ 	commonArgs = append(commonArgs, "-l", filepath.Join(pb.config.FileListDir(), "Android.bp.list"))
+ 	invocationEnv := make(map[string]string)
++	// Host-only runtime limits survive the clean builder environment.
++	// These do not change target compiler flags or tablet payloads.
++	for _, key := range []string{"GOMEMLIMIT", "GOGC"} {
++		if value := os.Getenv(key); value != "" {
++			invocationEnv[key] = value
++		}
++	}
+ 	if pb.debugPort != "" {
+ 		//debug mode
+ 		commonArgs = append(commonArgs, "--delve_listen", pb.debugPort,

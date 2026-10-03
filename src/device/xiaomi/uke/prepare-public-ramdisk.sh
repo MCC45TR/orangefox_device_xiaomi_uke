@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Host-only OrangeFox packaging callback; never installed or run on the tablet.
 set -euo pipefail
+export LC_ALL=C LANG=C
 payload=${1:?Missing staged ramdisk}
 phase=${2:?Missing callback phase}
 [[ $phase == --first-call ]] || exit 0

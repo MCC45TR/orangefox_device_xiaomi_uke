@@ -20,7 +20,8 @@ cd "$component"
         patches/0004-link-native-ure.patch src/upstream/orangefox-android16/bootable/recovery/Android.mk \
         src/upstream/orangefox-android16/external/zstd/Android.bp
     printf '%s\0' tests/check-layout.sh tests/generate-layout-hooks.sh src/device/xiaomi/uke/maintainer.xml patches/0008-partition-layout-graph.patch
-    printf '%s\0' tests/check-partition-job.sh tests/check-partition-job-vm.sh tests/check-sanitizers.sh
+    printf '%s\0' tests/check-partition-job.sh tests/check-partition-job-vm.sh tests/check-sanitizers.sh scripts/with-host-budget.sh scripts/host-ccache.sh
+    printf '%s\0' patches/0013-soong-host-memory-policy.patch src/upstream/orangefox-android16/build/soong/ui/build/soong.go
     printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
     printf '%s\0' tests/installer_test.cpp tests/check-stock-boot-programming.sh scripts/describe-stock-boot-programming.sh manifests/stock-boot-programming-global.json
     printf '%s\0' tests/check-boot-router.sh tests/check-aarch64.sh

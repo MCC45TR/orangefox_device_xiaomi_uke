@@ -18,6 +18,15 @@ entry=$(jq -ce --arg id "$profile" '.profiles[] | select(.id==$id and .download_
 }
 [[ -d $tree/.repo && -f $tree/build/envsetup.sh ]] || { echo 'OrangeFox source sync is incomplete' >&2; exit 1; }
 [[ -d $device_source && ! -L $device_source ]] || { echo 'Project device source is unavailable' >&2; exit 1; }
+soong_source="$tree/build/soong"
+soong_patch="$component/patches/0013-soong-host-memory-policy.patch"
+if git -C "$soong_source" apply --reverse --check "$soong_patch" 2>/dev/null; then
+  :
+elif git -C "$soong_source" apply --check "$soong_patch"; then
+  git -C "$soong_source" apply "$soong_patch"
+else
+  echo 'Unexpected host builder environment; refusing an unverified patch' >&2; exit 1
+fi
 [[ -f $vendor_directory_patch ]] || { echo 'Recovery vendor directory patch is missing' >&2; exit 1; }
 if git -C "$build_make" apply --unidiff-zero --reverse --check "$vendor_directory_patch" 2>/dev/null; then
   : # Already applied.
@@ -161,15 +170,6 @@ elif git -C "$recovery_source" apply --check "$drm_patch"; then
 else
   echo 'Unexpected DRM allocation source; refusing an unverified patch' >&2; exit 1
 fi
-# Reconstruct the complete reviewed stack in an isolated index. Later patches
-# may change an earlier patch's context; compare exact final file bytes rather
-# than weakening its context check or accepting unknown active-tree changes.
-verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
-unlink "$verification_index"
-trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
-GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch; do
-  GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 literal_patch="$component/patches/0011-literal-ure-theme-defaults.patch"
 if git -C "$recovery_source" apply --reverse --check "$literal_patch" 2>/dev/null; then
   :
@@ -202,6 +202,15 @@ elif git -C "$recovery_source" apply --check "$menu_patch"; then
 else
   echo 'Unexpected action-menu selection source; refusing an unverified patch' >&2; exit 1
 fi
+# Reconstruct the complete reviewed stack in an isolated index. Later patches
+# may change an earlier patch's context; compare exact final file bytes rather
+# than weakening its context check or accepting unknown active-tree changes.
+verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
+unlink "$verification_index"
+trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
+GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch; do
+  GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \
     <(git -C "$recovery_source" diff --name-only HEAD)

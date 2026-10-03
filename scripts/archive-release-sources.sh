@@ -35,7 +35,7 @@ done < <(git -C "$magisk" submodule foreach --quiet --recursive 'printf "%s\n" "
 
 # GPL/LGPL utilities plus their dependency sources. Per-file original licenses
 # remain in these archives. The complete Android project lock is also included.
-sources=(bootable/recovery vendor/recovery vendor/twrp external/bash external/nano
+sources=(build/soong bootable/recovery vendor/recovery vendor/twrp external/bash external/nano
     external/e2fsprogs external/f2fs-tools external/gptfdisk external/exfatprogs
     external/lzma external/magisk-prebuilt external/libncurses
     external/lz4 external/zlib external/zstd external/boringssl
@@ -61,7 +61,8 @@ for path in "${sources[@]}"; do
     [[ -d "$tree/$path/.git" || -f "$tree/$path/.git" ]] || { echo "Missing source: $path" >&2; exit 1; }
     if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
         case "$path" in
-        bootable/recovery) exclusions=(':(exclude)gui/theme/common/fonts/*.ttf');;
+            build/soong) verify_reviewed_patch "$tree/$path" 0013-soong-host-memory-policy.patch;;
+            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
@@ -96,6 +97,7 @@ cp -a -- "$component/patches" "$component/manifests" "$component/scripts" "$comp
 cp -a -- "$component/configs" "$source_work/project/"
 cp -- "$component/.gitattributes" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
+cp -- "$component/docs/HOST-BUILD-BUDGET.md" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"
 cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$source_work/project/"
