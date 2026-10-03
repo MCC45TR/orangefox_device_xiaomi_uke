@@ -1,0 +1,661 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "stock-namespace-with-synthetic-physical-geometry",
+  "source_record": "STOCK-ADB-20261003-01",
+  "source_date": "2026-10-03",
+  "installed_profile": {
+    "model": "25099RP08G",
+    "product": "uke_p_global",
+    "build_fingerprint": "POCO/uke_p_global/uke:15/AQ3A.240801.002/OS2.0.205.0.VOZMIXM:user/release-keys",
+    "android_release": "15",
+    "hardware_sku": "ukepgl"
+  },
+  "physical_geometry_observed": false,
+  "physical_gpt_captured": false,
+  "ufs_lu_numbers_known": false,
+  "encrypted_userdata_reproduced": false,
+  "physical_partition_labels": [
+    {
+      "name": "ALIGN_TO_128K_1",
+      "device": "/dev/block/sdd1"
+    },
+    {
+      "name": "ALIGN_TO_128K_2",
+      "device": "/dev/block/sdf1"
+    },
+    {
+      "name": "abl_a",
+      "device": "/dev/block/sde8"
+    },
+    {
+      "name": "abl_b",
+      "device": "/dev/block/sde36"
+    },
+    {
+      "name": "aop_a",
+      "device": "/dev/block/sde2"
+    },
+    {
+      "name": "aop_b",
+      "device": "/dev/block/sde30"
+    },
+    {
+      "name": "aop_config_a",
+      "device": "/dev/block/sde3"
+    },
+    {
+      "name": "aop_config_b",
+      "device": "/dev/block/sde31"
+    },
+    {
+      "name": "apdp",
+      "device": "/dev/block/sdb6"
+    },
+    {
+      "name": "apdpb",
+      "device": "/dev/block/sdc6"
+    },
+    {
+      "name": "bk01",
+      "device": "/dev/block/sda4"
+    },
+    {
+      "name": "bk02",
+      "device": "/dev/block/sda5"
+    },
+    {
+      "name": "bk03",
+      "device": "/dev/block/sda6"
+    },
+    {
+      "name": "bk04",
+      "device": "/dev/block/sda7"
+    },
+    {
+      "name": "bk05",
+      "device": "/dev/block/sda13"
+    },
+    {
+      "name": "bk06",
+      "device": "/dev/block/sda20"
+    },
+    {
+      "name": "bk07",
+      "device": "/dev/block/sda22"
+    },
+    {
+      "name": "bk51",
+      "device": "/dev/block/sdf2"
+    },
+    {
+      "name": "blackbox",
+      "device": "/dev/block/sda25"
+    },
+    {
+      "name": "bluetooth_a",
+      "device": "/dev/block/sde7"
+    },
+    {
+      "name": "bluetooth_b",
+      "device": "/dev/block/sde35"
+    },
+    {
+      "name": "boot_a",
+      "device": "/dev/block/sde11"
+    },
+    {
+      "name": "boot_b",
+      "device": "/dev/block/sde39"
+    },
+    {
+      "name": "cdt",
+      "device": "/dev/block/sdd2"
+    },
+    {
+      "name": "charger",
+      "device": "/dev/block/sda23"
+    },
+    {
+      "name": "connsec",
+      "device": "/dev/block/sde62"
+    },
+    {
+      "name": "countrycode_a",
+      "device": "/dev/block/sda10"
+    },
+    {
+      "name": "countrycode_b",
+      "device": "/dev/block/sda11"
+    },
+    {
+      "name": "cpucp_a",
+      "device": "/dev/block/sde19"
+    },
+    {
+      "name": "cpucp_b",
+      "device": "/dev/block/sde47"
+    },
+    {
+      "name": "cpucp_dtb_a",
+      "device": "/dev/block/sde27"
+    },
+    {
+      "name": "cpucp_dtb_b",
+      "device": "/dev/block/sde54"
+    },
+    {
+      "name": "dbg",
+      "device": "/dev/block/sda3"
+    },
+    {
+      "name": "ddr",
+      "device": "/dev/block/sdd3"
+    },
+    {
+      "name": "devcfg_a",
+      "device": "/dev/block/sde12"
+    },
+    {
+      "name": "devcfg_b",
+      "device": "/dev/block/sde40"
+    },
+    {
+      "name": "devinfo",
+      "device": "/dev/block/sda16"
+    },
+    {
+      "name": "dpm",
+      "device": "/dev/block/sde67"
+    },
+    {
+      "name": "dsp_a",
+      "device": "/dev/block/sde9"
+    },
+    {
+      "name": "dsp_b",
+      "device": "/dev/block/sde37"
+    },
+    {
+      "name": "dtbo_a",
+      "device": "/dev/block/sde15"
+    },
+    {
+      "name": "dtbo_b",
+      "device": "/dev/block/sde43"
+    },
+    {
+      "name": "featenabler_a",
+      "device": "/dev/block/sde20"
+    },
+    {
+      "name": "featenabler_b",
+      "device": "/dev/block/sde48"
+    },
+    {
+      "name": "ffu",
+      "device": "/dev/block/sda15"
+    },
+    {
+      "name": "frp",
+      "device": "/dev/block/sda9"
+    },
+    {
+      "name": "fsc",
+      "device": "/dev/block/sdf6"
+    },
+    {
+      "name": "fsg",
+      "device": "/dev/block/sdf5"
+    },
+    {
+      "name": "gsort",
+      "device": "/dev/block/sde57"
+    },
+    {
+      "name": "hyp_a",
+      "device": "/dev/block/sde5"
+    },
+    {
+      "name": "hyp_b",
+      "device": "/dev/block/sde33"
+    },
+    {
+      "name": "imagefv_a",
+      "device": "/dev/block/sde17"
+    },
+    {
+      "name": "imagefv_b",
+      "device": "/dev/block/sde45"
+    },
+    {
+      "name": "init_boot_a",
+      "device": "/dev/block/sde26"
+    },
+    {
+      "name": "init_boot_b",
+      "device": "/dev/block/sde53"
+    },
+    {
+      "name": "keymaster_a",
+      "device": "/dev/block/sde10"
+    },
+    {
+      "name": "keymaster_b",
+      "device": "/dev/block/sde38"
+    },
+    {
+      "name": "keystore",
+      "device": "/dev/block/sda8"
+    },
+    {
+      "name": "logfs",
+      "device": "/dev/block/sda14"
+    },
+    {
+      "name": "mbnconfig",
+      "device": "/dev/block/sda29"
+    },
+    {
+      "name": "mdcompress",
+      "device": "/dev/block/sde61"
+    },
+    {
+      "name": "mem",
+      "device": "/dev/block/sda19"
+    },
+    {
+      "name": "metadata",
+      "device": "/dev/block/sda21"
+    },
+    {
+      "name": "misc",
+      "device": "/dev/block/sda12"
+    },
+    {
+      "name": "modem_a",
+      "device": "/dev/block/sde6"
+    },
+    {
+      "name": "modem_b",
+      "device": "/dev/block/sde34"
+    },
+    {
+      "name": "modemst1",
+      "device": "/dev/block/sdf3"
+    },
+    {
+      "name": "modemst2",
+      "device": "/dev/block/sdf4"
+    },
+    {
+      "name": "mtdblk",
+      "device": "/dev/block/sda24"
+    },
+    {
+      "name": "multiimgoem_a",
+      "device": "/dev/block/sdb5"
+    },
+    {
+      "name": "multiimgoem_b",
+      "device": "/dev/block/sdc5"
+    },
+    {
+      "name": "multiimgqti_a",
+      "device": "/dev/block/sdb4"
+    },
+    {
+      "name": "multiimgqti_b",
+      "device": "/dev/block/sdc4"
+    },
+    {
+      "name": "oops",
+      "device": "/dev/block/sda26"
+    },
+    {
+      "name": "opconfig",
+      "device": "/dev/block/sda28"
+    },
+    {
+      "name": "persist",
+      "device": "/dev/block/sdf7"
+    },
+    {
+      "name": "pvmfw_a",
+      "device": "/dev/block/sde28"
+    },
+    {
+      "name": "pvmfw_b",
+      "device": "/dev/block/sde55"
+    },
+    {
+      "name": "qmcs",
+      "device": "/dev/block/sde22"
+    },
+    {
+      "name": "qupfw_a",
+      "device": "/dev/block/sde13"
+    },
+    {
+      "name": "qupfw_b",
+      "device": "/dev/block/sde41"
+    },
+    {
+      "name": "qweslicstore_a",
+      "device": "/dev/block/sde23"
+    },
+    {
+      "name": "qweslicstore_b",
+      "device": "/dev/block/sde50"
+    },
+    {
+      "name": "rawdump",
+      "device": "/dev/block/sda27"
+    },
+    {
+      "name": "recovery_a",
+      "device": "/dev/block/sde24"
+    },
+    {
+      "name": "recovery_b",
+      "device": "/dev/block/sde51"
+    },
+    {
+      "name": "rescue",
+      "device": "/dev/block/sda30"
+    },
+    {
+      "name": "secdata",
+      "device": "/dev/block/sde60"
+    },
+    {
+      "name": "shrm_a",
+      "device": "/dev/block/sde18"
+    },
+    {
+      "name": "shrm_b",
+      "device": "/dev/block/sde46"
+    },
+    {
+      "name": "spunvm",
+      "device": "/dev/block/sde64"
+    },
+    {
+      "name": "ssd",
+      "device": "/dev/block/sda2"
+    },
+    {
+      "name": "storsec",
+      "device": "/dev/block/sde58"
+    },
+    {
+      "name": "super",
+      "device": "/dev/block/sda31"
+    },
+    {
+      "name": "switch",
+      "device": "/dev/block/sda1"
+    },
+    {
+      "name": "toolsfv",
+      "device": "/dev/block/sde56"
+    },
+    {
+      "name": "tz_a",
+      "device": "/dev/block/sde4"
+    },
+    {
+      "name": "tz_b",
+      "device": "/dev/block/sde32"
+    },
+    {
+      "name": "tzsc",
+      "device": "/dev/block/sde63"
+    },
+    {
+      "name": "uefi_a",
+      "device": "/dev/block/sde1"
+    },
+    {
+      "name": "uefi_b",
+      "device": "/dev/block/sde29"
+    },
+    {
+      "name": "uefisecapp_a",
+      "device": "/dev/block/sde16"
+    },
+    {
+      "name": "uefisecapp_b",
+      "device": "/dev/block/sde44"
+    },
+    {
+      "name": "uefivarstore",
+      "device": "/dev/block/sde59"
+    },
+    {
+      "name": "userdata",
+      "device": "/dev/block/sda32"
+    },
+    {
+      "name": "vbmeta_a",
+      "device": "/dev/block/sde14"
+    },
+    {
+      "name": "vbmeta_b",
+      "device": "/dev/block/sde42"
+    },
+    {
+      "name": "vbmeta_system_a",
+      "device": "/dev/block/sda17"
+    },
+    {
+      "name": "vbmeta_system_b",
+      "device": "/dev/block/sda18"
+    },
+    {
+      "name": "vendor_boot_a",
+      "device": "/dev/block/sde21"
+    },
+    {
+      "name": "vendor_boot_b",
+      "device": "/dev/block/sde49"
+    },
+    {
+      "name": "xbl_a",
+      "device": "/dev/block/sdb1"
+    },
+    {
+      "name": "xbl_b",
+      "device": "/dev/block/sdc1"
+    },
+    {
+      "name": "xbl_config_a",
+      "device": "/dev/block/sdb2"
+    },
+    {
+      "name": "xbl_config_b",
+      "device": "/dev/block/sdc2"
+    },
+    {
+      "name": "xbl_config_nof_a",
+      "device": "/dev/block/sdb3"
+    },
+    {
+      "name": "xbl_config_nof_b",
+      "device": "/dev/block/sdc3"
+    },
+    {
+      "name": "xbl_ramdump_a",
+      "device": "/dev/block/sde25"
+    },
+    {
+      "name": "xbl_ramdump_b",
+      "device": "/dev/block/sde52"
+    },
+    {
+      "name": "xbl_sc_logs",
+      "device": "/dev/block/sde66"
+    },
+    {
+      "name": "xbl_sc_test_mode",
+      "device": "/dev/block/sde65"
+    }
+  ],
+  "logical": {
+    "enabled": true,
+    "partitions": [
+      {
+        "name": "odm",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "1188937728",
+        "fs_size": "1166589952",
+        "fs_used": "1166589952",
+        "fs_type": "erofs"
+      },
+      {
+        "name": "product",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "3533979648",
+        "fs_size": "3467726848",
+        "fs_used": "3467726848",
+        "fs_type": "erofs"
+      },
+      {
+        "name": "system",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "668504064",
+        "fs_size": "655896576",
+        "fs_used": "655896576",
+        "fs_type": "ext4"
+      },
+      {
+        "name": "system_dlkm",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "14942208",
+        "fs_size": "14577664",
+        "fs_used": "14577664",
+        "fs_type": "ext4"
+      },
+      {
+        "name": "system_ext",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "492347392",
+        "fs_size": "483037184",
+        "fs_used": "483037184",
+        "fs_type": "erofs"
+      },
+      {
+        "name": "vendor",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "1335808000",
+        "fs_size": "1310711808",
+        "fs_used": "1310711808",
+        "fs_type": "erofs"
+      },
+      {
+        "name": "vendor_dlkm",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "38133760",
+        "fs_size": "37339136",
+        "fs_used": "37339136",
+        "fs_type": "erofs"
+      },
+      {
+        "name": "mi_ext",
+        "group_name": "qti_dynamic_partitions",
+        "is_dynamic": true,
+        "size": "663859200",
+        "fs_size": "653488128",
+        "fs_used": "653488128",
+        "fs_type": "erofs"
+      }
+    ],
+    "groups": [
+      {
+        "name": "qti_dynamic_partitions",
+        "maximum_size": "11263803392"
+      }
+    ],
+    "block_devices": [
+      {
+        "name": "super",
+        "size": "11274289152",
+        "block_size": "4096",
+        "alignment": "1048576"
+      }
+    ],
+    "super_device": {
+      "name": "super",
+      "used_size": "7936512000",
+      "total_size": "11274289152"
+    }
+  },
+  "logical_active_extents": [
+    {
+      "start_sector": 2048,
+      "end_sector_exclusive": 2324192,
+      "name": "odm_a",
+      "sector_count": 2322144,
+      "size_bytes": 1188937728
+    },
+    {
+      "start_sector": 2324480,
+      "end_sector_exclusive": 9226784,
+      "name": "product_a",
+      "sector_count": 6902304,
+      "size_bytes": 3533979648
+    },
+    {
+      "start_sector": 9228288,
+      "end_sector_exclusive": 10533960,
+      "name": "system_a",
+      "sector_count": 1305672,
+      "size_bytes": 668504064
+    },
+    {
+      "start_sector": 10534912,
+      "end_sector_exclusive": 10564096,
+      "name": "system_dlkm_a",
+      "sector_count": 29184,
+      "size_bytes": 14942208
+    },
+    {
+      "start_sector": 10565632,
+      "end_sector_exclusive": 11527248,
+      "name": "system_ext_a",
+      "sector_count": 961616,
+      "size_bytes": 492347392
+    },
+    {
+      "start_sector": 11528192,
+      "end_sector_exclusive": 14137192,
+      "name": "vendor_a",
+      "sector_count": 2609000,
+      "size_bytes": 1335808000
+    },
+    {
+      "start_sector": 14137344,
+      "end_sector_exclusive": 14211824,
+      "name": "vendor_dlkm_a",
+      "sector_count": 74480,
+      "size_bytes": 38133760
+    },
+    {
+      "start_sector": 14213120,
+      "end_sector_exclusive": 15509720,
+      "name": "mi_ext_a",
+      "sector_count": 1296600,
+      "size_bytes": 663859200
+    }
+  ],
+  "lpdump_linear_extent_sector_bytes": 512,
+  "snapshot_state_observed": "none",
+  "source_markdown_sha256": "6b7c6e7301283e4443462a8d54885cca9729d3b0e6b3612a35d1896cff3ce350",
+  "source_json_sha256": "af65d0124e897678807cf67468c139fdd3e7b9b921420d29039ca6b418079d8c"
+}
