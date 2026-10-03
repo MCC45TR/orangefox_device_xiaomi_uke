@@ -72,14 +72,16 @@ if [[ $candidate == ure-partition-job-alpha ]]; then
     cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 fi
-if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alpha ]]; then
+if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha ]]; then
+    expected_tests=21
+    if [[ $candidate == ure-boot-router-alpha ]]; then expected_tests=23; fi
     jq -e '.validation.cpp_six_lun_stock_jobs_and_sigkill and .validation.cpp_android_sparse_and_logical_range_oracles and .validation.cpp_actual_six_lun_stock_gui and .validation.stock_job_cli and (.validation.stock_model_sku_physical_acceptance==false) and (.validation.tablet_forced_reboot==false)' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_six_lun_stock_job and .validation.qemu_user_six_lun_stock_job' \
         "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
     cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
-    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
-        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==21 and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
+    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" --argjson count "$expected_tests" \
+        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==$count and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
         "$component/reports/private/partition-sanitizer-verification.json" >/dev/null
     cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     cp -- "$component/manifests/stock-payloads-global.json" "$destination/STOCK-PAYLOAD-CATALOG.json"
@@ -88,12 +90,21 @@ if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alp
     # The earlier partition candidate's guest-reset record describes a different
     # CLI. Leave both VM records null rather than transferring that evidence.
 fi
-if [[ $candidate == ure-stock-preflight-alpha ]]; then
+if [[ $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha ]]; then
     jq -e '.validation.cpp_capacity_adjusted_boot_programming_pins and .validation.installer_full_partition_dtbo_and_corruption and .validation.independent_stock_boot_programming_catalog' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_capacity_adjusted_stock_preflight' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
     cp -- "$component/manifests/stock-boot-programming-global.json" "$destination/STOCK-BOOT-PROGRAMMING.json"
     cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$destination/STOCK-BOOT-PREFLIGHT.md"
+fi
+if [[ $candidate == ure-boot-router-alpha ]]; then
+    jq -e '.validation.cpp_one_shot_boot_and_actual_sigkill and .validation.cpp_actual_boot_gui_callbacks and
+        .validation.boot_router_cli and .validation.uefi_variable_fixture_only and
+        (.validation.uke_boot_routing_accepted==false)' "$component/reports/private/native-verification.json" >/dev/null
+    jq -e '.validation.source_built_one_shot_boot_and_gui and .validation.qemu_user_one_shot_boot_fixtures and
+        (.validation.real_efi_variable_write==false) and (.validation.uke_boot_routing_accepted==false)' \
+        "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
+    cp -- "$component/docs/BOOT-ROUTING.md" "$destination/BOOT-ROUTING.md"
 fi
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
 (cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"

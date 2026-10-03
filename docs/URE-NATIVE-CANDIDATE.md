@@ -38,6 +38,14 @@ and footer. Different installed layouts are refused; no verification rewrites
 firmware. Read `STOCK-BOOT-PREFLIGHT.md`. This fixes the earlier source/capacity
 hash mismatch without accepting live storage writes or physical model profiles.
 
+The boot-router checkpoint adds registered EFI target/default review, owned
+one-shot requests, a single consumed attempt, correlated fixture receipts and
+inspected fallback/history. A retired plan is rejected even through a new journal
+directory. The GUI exposes these reviews and private-fixture journal actions;
+real EFI writes, application launch and reboot remain blocked. Read
+`BOOT-ROUTING.md`. Declarations of CN/Global or either commercial model do not
+change this recovery image's Global-only firmware target.
+
 The partition layout GUI allocates ESP/Linux/Windows only from the original
 userdata extent, using keyboard sizes in GB/GiB/MiB or percentages. Standard
 mode preserves existing identities and userdata start. Advanced mode permits

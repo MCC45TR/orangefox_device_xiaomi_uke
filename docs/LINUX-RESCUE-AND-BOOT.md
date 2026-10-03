@@ -90,6 +90,10 @@ successful boot. Initramfs module-directory releases are inspected, but every
 embedded executable/module is not yet audited as a complete runtime closure.
 Synthetic unit assets prove parser/mismatch detection, not kernel execution.
 Installed boot selection and one-shot boot still require an accepted Uke backend.
+The separate [boot-routing contract](BOOT-ROUTING.md) provides registered EFI
+inventory, exact request review, consumed private-fixture attempts, retired-plan
+replay refusal and inspected fallback/history. It does not execute an EFI image
+or turn these installed-boot audit findings into routing acceptance.
 
 Primary interface references: [Arch chroot](https://man.archlinux.org/man/arch-chroot.8)
 and [Boot Loader Specification](https://uapi-group.org/specifications/specs/boot_loader_specification/).

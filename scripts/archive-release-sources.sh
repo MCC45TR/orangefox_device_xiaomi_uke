@@ -104,6 +104,7 @@ cp -- "$component/docs/DISPLAY-SCALING.md" "$source_work/project/"
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$source_work/project/"
 cp -- "$component/docs/TREE-BACKUP.md" "$source_work/project/"
 cp -- "$component/docs/FILESYSTEM-MANAGER.md" "$component/docs/LINUX-RESCUE-AND-BOOT.md" "$component/docs/BTRFS-MANAGER.md" "$source_work/project/"
+cp -- "$component/docs/BOOT-ROUTING.md" "$source_work/project/"
 cp -- "$component/docs/COMPREHENSIVE-ROADMAP.md" "$component/docs/FEATURE-PARITY.md" \
     "$component/docs/ARCHITECTURE.md" "$source_work/project/"
 cp -- "$component/reports/URE-NATIVE-BUILD.md" "$source_work/project/BUILD-REPORT.md"

@@ -39,6 +39,10 @@ The [stock preflight correction](reports/URE-STOCK-PREFLIGHT-BUILD.md) separates
 source-file checksums from complete programming-layout checksums. DTBO's
 reviewed larger layout includes its zero gap and duplicated AVB end footer;
 [verification](docs/STOCK-BOOT-PREFLIGHT.md) does not rewrite installed firmware.
+The [boot-routing contract](docs/BOOT-ROUTING.md) adds registered EFI inventory,
+target/default review and one-shot private-fixture journals with consumed
+attempts, retired-plan replay refusal and inspected fallback/history. Real
+firmware writes, EFI execution and Uke/Aloha routing remain unaccepted.
 The [storage checkpoint](reports/URE-STORAGE-BUILD.md) adds bounded ownership
 observations and identity-bound storage backup software with shared CLI/GUI/host
 reception. The raw-image restore engine adds verified original/target mirrors,
