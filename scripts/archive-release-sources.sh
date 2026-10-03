@@ -62,7 +62,7 @@ for path in "${sources[@]}"; do
     if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
         case "$path" in
             build/soong) verify_reviewed_patch "$tree/$path" 0013-soong-host-memory-policy.patch;;
-            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch
+            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
@@ -89,7 +89,14 @@ for tool in wimlib dropbear; do
     git -C "$reference" archive --format=tar --prefix="ure-upstream/$tool/" HEAD > "$source_work/part.tar"
     tar --concatenate --file="$source_work/recovery.tar" "$source_work/part.tar"
 done
-mkdir -p "$source_work/project/src"
+mkdir -p "$source_work/project/src" "$source_work/project/icon-sources"
+origins="$component/src/device/xiaomi/uke/ui-icons/ORIGINS.json"
+while read -r name expected; do
+    svg="$component/referances/lucide-0.563.0/icons/$name.svg"
+    [[ $(sha256sum "$svg" | cut -d' ' -f1) == "$expected" ]]
+    cp -- "$svg" "$source_work/project/icon-sources/"
+done < <(jq -r '.icons[]|"\(.name) \(.svg_sha256)"' "$origins")
+cp -- "$component/referances/lucide-0.563.0/LICENSE" "$source_work/project/icon-sources/"
 for path in device installer inventory; do
     cp -a -- "$component/src/$path" "$source_work/project/src/"
 done
@@ -103,6 +110,7 @@ cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "
 cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$source_work/project/"
 cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$source_work/project/"
 cp -- "$component/docs/DISPLAY-SCALING.md" "$source_work/project/"
+cp -- "$component/docs/RECOVERY-INTERFACE.md" "$component/docs/STOCK-VM-FIXTURE.md" "$component/docs/SENSOR-READINESS.md" "$source_work/project/"
 cp -- "$component/docs/EXTERNAL-MONITOR.md" "$source_work/project/"
 cp -- "$component/docs/TREE-BACKUP.md" "$source_work/project/"
 cp -- "$component/docs/FILESYSTEM-MANAGER.md" "$component/docs/LINUX-RESCUE-AND-BOOT.md" "$component/docs/BTRFS-MANAGER.md" "$source_work/project/"

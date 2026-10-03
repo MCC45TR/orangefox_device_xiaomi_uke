@@ -54,7 +54,7 @@ for binary in uke-recoveryctl uke-recovery-install; do
     strings "$work/root/system/bin/$binary" | rg -F '9e55ff8afdf178e424187f0dc7d6dd2fa570308e22d8df7ac895d65017dbc0d7' >/dev/null
 done
 cmp "$tree/out-public/target/product/uke/system/lib64/libzstd.so" "$work/root/system/lib64/libzstd.so"
-for symbol in gr_external_select gr_external_update ure_mirror_select; do
+for symbol in gr_external_select gr_external_configure gr_external_update ure_mirror_select; do
     readelf --dyn-syms --wide "$work/root/system/lib64/libminuitwrp.so" | grep -F "$symbol" > /dev/null
 done
 cmp "$component/src/device/xiaomi/uke/ure-tools.lock.json" "$work/root/system/etc/ure/tools.lock.json"

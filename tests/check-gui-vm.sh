@@ -14,7 +14,7 @@ height=${UKE_GUI_VM_HEIGHT:-1600}
 scale=${UKE_GUI_VM_SCALE:-75}
 seconds=${UKE_GUI_VM_SECONDS:-240}
 [[ $width =~ ^[1-9][0-9]{2,3}$ && $height =~ ^[1-9][0-9]{2,3}$ && $scale =~ ^[0-9]{2,3}$ && $seconds =~ ^[0-9]{2,3}$ ]]
-((width>=1080 && width<=3840 && height>=1080 && height<=3840 && scale>=50 && scale<=100 && seconds>=90 && seconds<=600))
+((width>=1080 && width<=3840 && height>=1080 && height<=3840 && scale>=50 && scale<=100 && seconds>=90 && seconds<=900))
 qemu=${UKE_QEMU_SYSTEM_AARCH64:-$(type -P qemu-system-aarch64 || true)}
 [[ -f $kernel && ! -L $kernel && -d $modules/lib/modules/$version && -x $qemu ]]
 payload="$component/src/upstream/orangefox-android16/out-public/target/product/uke/recovery/root"
