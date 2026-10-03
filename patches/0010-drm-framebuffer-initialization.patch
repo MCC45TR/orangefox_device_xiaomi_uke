@@ -1,0 +1,48 @@
+diff --git a/minuitwrp/graphics_drm.cpp b/minuitwrp/graphics_drm.cpp
+index ce0cf2c..53ee36e 100644
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -76,7 +76,9 @@ struct drm_surface {
+ 
+ #define NUM_MAIN 1
+ #define NUM_PLANES 4
+-#define DEFAULT_NUM_LMS 2
++// Standard DRM uses one primary plane unless the connector advertises a
++// reviewed vendor topology. Do not assume a second plane is another mixer.
++#define DEFAULT_NUM_LMS 1
+ 
+ #define SPR_INIT_PARAM_SIZE_1 4
+ #define SPR_INIT_PARAM_SIZE_2 5
+@@ -714,7 +716,7 @@ static drm_surface *drm_create_surface(int width, int height) {
+     }
+     surface->handle = create_dumb.handle;
+ 
+-    uint32_t handles[4], pitches[4], offsets[4];
++    uint32_t handles[4] = {}, pitches[4] = {}, offsets[4] = {};
+ 
+     handles[0] = surface->handle;
+     pitches[0] = create_dumb.pitch;
+@@ -984,7 +986,6 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+   if (!drm_surfaces[0] || !drm_surfaces[1]) {
+     drm_destroy_surface(drm_surfaces[0]);
+     drm_destroy_surface(drm_surfaces[1]);
+-    drmModeFreeResources(res);
+     close(drm_fd);
+     return nullptr;
+   }
+@@ -994,7 +995,6 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+     printf("failed to alloc draw_buf\n");
+     drm_destroy_surface(drm_surfaces[0]);
+     drm_destroy_surface(drm_surfaces[1]);
+-    drmModeFreeResources(res);
+     close(drm_fd);
+     return nullptr;
+   }
+@@ -1006,7 +1006,6 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+     free(draw_buf);
+     drm_destroy_surface(drm_surfaces[0]);
+     drm_destroy_surface(drm_surfaces[1]);
+-    drmModeFreeResources(res);
+     close(drm_fd);
+     return nullptr;
+   }

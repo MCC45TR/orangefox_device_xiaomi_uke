@@ -22,6 +22,7 @@ cd "$component"
     printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
     printf '%s\0' tests/installer_test.cpp tests/check-stock-boot-programming.sh scripts/describe-stock-boot-programming.sh manifests/stock-boot-programming-global.json
     printf '%s\0' tests/check-boot-router.sh tests/check-aarch64.sh
+    printf '%s\0' tests/check-drm-surface.sh patches/0010-drm-framebuffer-initialization.patch
     printf '%s\0' src/device/xiaomi/uke/display-mirror.hpp src/device/xiaomi/uke/display-mirror.cpp \
         src/device/xiaomi/uke/display-mirror-layout.cpp patches/0007-usb-monitor-and-input.patch \
         tests/generate-input-hooks.sh tests/generate-events-hooks.sh

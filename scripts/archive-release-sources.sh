@@ -61,7 +61,7 @@ for path in "${sources[@]}"; do
     [[ -d "$tree/$path/.git" || -f "$tree/$path/.git" ]] || { echo "Missing source: $path" >&2; exit 1; }
     if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
         case "$path" in
-            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch
+            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"

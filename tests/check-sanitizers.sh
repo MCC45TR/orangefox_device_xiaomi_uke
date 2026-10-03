@@ -18,6 +18,7 @@ count=$(ctest --test-dir build/ure-sanitized-clang --show-only=json-v1 | jq -er 
 [[ $count -ge 23 ]]
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
     ctest --test-dir build/ure-sanitized-clang --output-on-failure
+UKE_DRM_SANITIZER=1 bash tests/check-drm-surface.sh
 cmp <(bash scripts/native-inputs.sh) reports/private/partition-sanitizer-inputs.sha256
 jq -n --arg inputs "$(sha256sum reports/private/partition-sanitizer-inputs.sha256 | cut -d' ' -f1)" \
     --arg compiler "$expected" --argjson count "$count" \

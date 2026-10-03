@@ -20,6 +20,7 @@ bash tests/check-partition-map.sh
 bash tests/check-layout.sh
 bash tests/check-partition-job.sh
 bash tests/check-display.sh
+bash tests/check-drm-surface.sh
 bash tests/check-filesystems.sh
 bash tests/check-rescue.sh
 bash tests/check-boot-audit.sh
