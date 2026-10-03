@@ -6,18 +6,29 @@
 #include <algorithm>
 #include <atomic>
 #include <charconv>
+#include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
+#include "rapidxml.hpp"
+using namespace rapidxml;
+using std::string;
 
 class DataManager {
 public:
     inline static std::map<std::string,std::string> values;
+    inline static const std::map<std::string,std::string> constants{{"center_y","1600"},{"screen_original_h","3200"}};
     inline static int flushes=0,settings_reads=0;
-    static int SetValue(const std::string& name,const std::string& value) { values[name]=value; return 0; }
-    static int SetValue(const std::string& name,int value) { return SetValue(name,std::to_string(value)); }
+    static int SetValue(const std::string& name,const std::string& value,int = 0) {
+        if(constants.contains(name))return -1;
+        values[name]=value; return 0;
+    }
+    static int SetValue(const std::string& name,int value,int = 0) { return SetValue(name,std::to_string(value)); }
     static int GetValue(const std::string& name,std::string& result) {
-        const auto item=values.find(name); if(item==values.end())return -1; result=item->second; return 0;
+        const auto key=name.size()>2 && name.front()=='%' && name.back()=='%' ? name.substr(1,name.size()-2) : name;
+        const auto fixed=constants.find(key); if(fixed!=constants.end()) { result=fixed->second; return 0; }
+        const auto item=values.find(key); if(item==values.end())return -1; result=item->second; return 0;
     }
     static int GetValue(const std::string& name,int& result) {
         std::string value; if(GetValue(name,value)!=0)return -1;
@@ -30,6 +41,37 @@ public:
     static void Flush() { ++flushes; }
     static void ReadSettingsFile() { ++settings_reads; }
 };
+class PageSet {
+public:
+    int LoadVariables(xml_node<>*);
+};
+struct ListItem {
+    std::string variableValue,variableName,displayName,unparsedName;
+    bool selected=false,mConditions=true;
+    void* action=nullptr;
+};
+class GUIScrollList {
+public:
+    int firstDisplayedItem=0;
+    void NotifyVarChange(const std::string&,const std::string&) {}
+    void SetPageFocus(int) {}
+    void SetVisibleListLocation(size_t index) { firstDisplayedItem=static_cast<int>(index); }
+};
+inline bool UpdateConditions(bool visible,const std::string&) { return visible; }
+class GUIListBox:public GUIScrollList {
+public:
+    std::string mVariable,currentValue;
+    std::vector<ListItem> mListItems;
+    std::vector<size_t> mVisibleItems;
+    bool requireReload=false,isCheckList=false,isTextParsed=false;
+    int mUpdate=0;
+    bool isConditionTrue() const { return true; }
+    void CreateEncryptUsersList() {}
+    void ReadFileToList(const char*) {}
+    int NotifyVarChange(const std::string&,const std::string&);
+    void SetPageFocus(int);
+};
+void initialize_actual_list_item(xml_node<>*,const std::string&,const std::string&,ListItem&);
 inline std::string value(const std::string& name) { return DataManager::GetStrValue(name); }
 void ure_gui_density(float&,float&,int,int);
 bool ure_gui_variable(const std::string&,std::string&);
@@ -41,6 +83,12 @@ extern "C" int scale_theme_y(int);
 extern "C" int scale_theme_min(int);
 extern "C" float get_scale_w();
 extern "C" float get_scale_h();
+inline int gr_fb_width() { return scale_theme_x(DataManager::GetIntValue("ure_canvas_width")); }
+inline int gr_fb_height() { return scale_theme_y(DataManager::GetIntValue("ure_canvas_height")); }
+std::string LoadAttrString(xml_node<>*,const char*,const char* = "");
+int LoadAttrInt(xml_node<>*,const char*,int = 0);
+int LoadAttrIntScaleX(xml_node<>*,const char*,int = 0);
+int LoadAttrIntScaleY(xml_node<>*,const char*,int = 0);
 
 struct MockResources {
     std::string FindString(const std::string& name) const { return name; }
@@ -61,6 +109,7 @@ public:
         ++reloads; paths.push_back(path);
         if(mStartPage!="ure_display")++main_page_side_effects;
         if(!ure_gui_keep_variable("ure_root"))DataManager::SetValue("ure_root","/default-fixture-root");
+        DataManager::SetValue("pass_open","0"); // Actual stock variables reset this during package loading.
         float width=2136.0F/1080.0F,height=1.0F;
         ure_gui_density(width,height,2136,3200); set_scale_values(width,height);
         // Simulate a failure after theme density was already recomputed.

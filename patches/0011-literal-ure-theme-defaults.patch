@@ -1,0 +1,18 @@
+diff --git a/gui/pages.cpp b/gui/pages.cpp
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -1579,6 +1579,14 @@ int PageSet::LoadVariables(xml_node<>* vars)
+ 			// retain the same density as their text and physical hit rectangles.
+ 			ure_gui_variable(name->value(), valstr);
+ 
++			// URE selections are typed later by the native manager. Firmware
++			// names, paths and JSON must not become theme arithmetic.
++			if (strncmp(name->value(), "ure_", 4) == 0) {
++				DataManager::SetValue(name->value(), valstr, p);
++				child = child->next_sibling("variable");
++				continue;
++			}
++
+ 			if (valstr.find("+") != string::npos) {
+ 				string val1str = valstr;
+ 				val1str = val1str.substr(0, val1str.find('+'));

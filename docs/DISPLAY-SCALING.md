@@ -16,6 +16,15 @@ framebuffer. Touch input retains framebuffer coordinates; rendered objects
 and their hit rectangles use the same existing scaling functions. No additional
 inverse touch transform is applied. Rotation and brightness are independent.
 
+The built-in OrangeFox theme also derives its status-bar battery/clock edge,
+trailing toolbar buttons, content/console widths, file-search background and
+fields, right-side gesture strip and navigation slots from that viewport.
+The four navigation targets span the full panel; their compact selection pills
+stay centered on the same targets. Credits tabs use thirds of the available
+width. Centered controls keep their relative offsets; ordinary text, icons,
+spacing and vertical rows retain uniform density. These are explicit reviewed
+theme anchors, rather than a general rewrite of every stored numeric variable.
+
 Applying a scale defers resource rebuilding to the render thread and returns to
 the scale page. The density reload uses the built-in reviewed theme, with no
 upstream settings flush, userdata mount, custom ZIP-theme lookup or calibration
@@ -54,6 +63,24 @@ Host tests compile the actual project density/variable hooks and reviewed
 upstream text, coordinate and deferred-reload functions with platform stand-ins.
 They cover portrait/landscape presets, bottom-row rectangles, percentage labels,
 failed reload recovery, private settings and absence of mount/flush calls.
+They additionally load the real stock theme variables and check physical status
+and toolbar edges, navigation target separation and pill alignment, content
+widths and fixed-coordinate regressions in the patched XML. URE model/profile,
+paths and JSON defaults remain literal strings; upstream geometry arithmetic
+still applies to theme coordinates.
 Android compilation, extracted AArch64 CLI fixtures, graphical rendering and
 physical touch acceptance are separate evidence classes. This feature does not
 close outstanding GUI rendering or hardware gates.
+
+The gesture indicator is centered vertically in the reserved bottom navigation
+area. Its home-swipe region covers that area without overlapping the four menu
+targets. The stock and customized splash templates declare full-viewport centers
+and dimensions before placing their logo and captions. HID keyboards and relative
+mice keep their report synchronization separate from touchscreen translation;
+mouse sync packets cannot synthesize a finger-up event that cancels a click.
+
+Direct XML placement also resolves the whitelisted viewport geometry before
+looking up immutable OrangeFox constants. This keeps vertical centers accurate
+without rewriting the constant store. Optional back/home/console buttons occupy
+three equally spaced cells with disjoint hit bounds. Action-only menus start at
+their first entries; lists with a stored value retain selection scrolling.

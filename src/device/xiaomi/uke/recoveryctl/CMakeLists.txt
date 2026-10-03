@@ -91,10 +91,14 @@ if(BUILD_TESTING)
     set(UKE_DISPLAY_RENDERER "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/bootable/recovery/gui")
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/display-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-display-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/display-hooks.cpp"
-        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../ure-gui.cpp" "${UKE_DISPLAY_RENDERER}/gui.cpp" "${UKE_DISPLAY_RENDERER}/pages.cpp"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../ure-gui.cpp" "${UKE_DISPLAY_RENDERER}/gui.cpp" "${UKE_DISPLAY_RENDERER}/pages.cpp" "${UKE_DISPLAY_RENDERER}/listbox.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-display-hooks.sh")
     add_executable(uke-display-tests ../../../../../tests/ure/display.cpp "${CMAKE_CURRENT_BINARY_DIR}/display-hooks.cpp")
     target_include_directories(uke-display-tests PRIVATE libuke ../../../../../tests/ure)
+    # Pinned upstream RapidXML has signedness warnings under Clang. Keep project
+    # warnings fatal while treating that dependency as a system header.
+    target_include_directories(uke-display-tests SYSTEM PRIVATE "${UKE_DISPLAY_RENDERER}")
+    target_compile_definitions(uke-display-tests PRIVATE UKE_STOCK_THEME="${UKE_DISPLAY_RENDERER}/theme/portrait_hdpi")
     target_link_libraries(uke-display-tests PRIVATE uke-recovery)
     target_compile_options(uke-display-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror -Wno-float-conversion)
     add_test(NAME ure-tablet-display-density COMMAND uke-display-tests)

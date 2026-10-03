@@ -1,0 +1,20 @@
+--- a/gui/listbox.cpp
++++ b/gui/listbox.cpp
+@@ -194,7 +194,7 @@
+ 			item.unparsedName = attr->value();
+ 
+ 		item.variableValue = gui_parse_text(child->value());
+-		item.selected = (child->value() == currentValue);
++		item.selected = !mVariable.empty() && (child->value() == currentValue);
+ 		item.action = NULL;
+ 
+ 		xml_node<>* action = child->first_node("action");
+@@ -444,7 +444,7 @@
+ 				item.selected = (val != "0");
+ 				mUpdate = 1;
+ 			}
+-		} else if (varName == mVariable) {
++		} else if (!mVariable.empty() && varName == mVariable) {
+ 			if (item.variableValue == currentValue) {
+ 				item.selected = 1;
+ 				SetVisibleListLocation(mVisibleItems.empty() ? 0 : mVisibleItems.size() - 1);

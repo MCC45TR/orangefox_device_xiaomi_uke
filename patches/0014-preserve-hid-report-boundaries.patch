@@ -1,0 +1,47 @@
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -117,6 +117,7 @@
+     char deviceName[64];
+ 
+     int ignored;
++    bool touch;
+ 
+     struct position p, mt_p;
+     int down;
+@@ -343,6 +344,15 @@
+ #define LONG(x) ((x)/BITS_PER_LONG)
+ #define test_bit(bit, array)	((array[LONG(bit)] >> OFF(bit)) & 1)
+ 
++static bool has_touch_axes(int fd)
++{
++    unsigned long axes[NBITS(ABS_MAX + 1)] = {};
++    if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(axes)), axes) < 0)
++        return false;
++    return (test_bit(ABS_X, axes) && test_bit(ABS_Y, axes)) ||
++           (test_bit(ABS_MT_POSITION_X, axes) && test_bit(ABS_MT_POSITION_Y, axes));
++}
++
+ // Check for EV_REL (REL_X and REL_Y) and, because touchscreens can have those too,
+ // check also for EV_KEY (BTN_LEFT and BTN_RIGHT)
+ static void check_mouse(int fd, const char* deviceName)
+@@ -399,6 +409,7 @@
+ 
+             /* Load virtualkeys if there are any */
+             vk_init(&evs[ev_count]);
++            evs[ev_count].touch = has_touch_axes(fd);
+ 
+             if (!evs[ev_count].ignored)
+                 check_mouse(fd, evs[ev_count].deviceName);
+@@ -501,6 +512,12 @@
+     // This is used to ditch useless event handlers, like an accelerometer
+     if (e->ignored)     return 1;
+ 
++    // HID sync packets do not describe a finger. Feeding them into the shared
++    // touchscreen state creates phantom ABS releases and cancels mouse clicks.
++    // Keep their key/relative edges intact and retain SYN_DROPPED above.
++    if (!e->touch && (ev->type == EV_SYN || ev->type == EV_ABS))
++        return 1;
++
+     if (ev->type == EV_REL && ev->code == REL_Z)
+     {
+         // This appears to be an accelerometer or another strange input device. It's not the touchscreen.

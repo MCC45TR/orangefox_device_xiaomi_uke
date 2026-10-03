@@ -1,0 +1,404 @@
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -210,7 +210,12 @@
+ {
+ 	string value = LoadAttrString(element, attrname);
+ 	// resolve variables
+-	DataManager::GetValue(value, value);
++	const string variable = value.size() > 2 && value.front() == '%' && value.back() == '%'
++		? value.substr(1, value.size() - 2) : value;
++	// Geometry constants (e.g. center_y) are immutable in DataManager. Resolve
++	// only the explicit viewport names at read time, without changing that store.
++	if (!ure_gui_variable(variable, value))
++		DataManager::GetValue(value, value);
+ 	return value.empty() ? defaultvalue : atoi(value.c_str());
+ }
+ 
+--- a/gui/theme/portrait_hdpi/resources/vars.xml
++++ b/gui/theme/portrait_hdpi/resources/vars.xml
+@@ -107,6 +107,19 @@
+ 		<variable name="welcome_text2" value="%center_y%+260"/>
+ 		<variable name="empty_text_y" value="%center_y%+288"/>
+ 
++		<variable name="main_switch_w" value="%screen_w%-80"/>
++
++		<!-- Responsive placement variables must exist for LoadAttrInt. -->
++		<variable name="fm_sort_x" value="816"/>
++		<variable name="fm_menu_x" value="954"/>
++		<variable name="fm_input_w" value="816"/>
++		<variable name="credits_width" value="1032"/>
++		<variable name="tab_third_w" value="360"/>
++		<variable name="tab_second_x" value="360"/>
++		<variable name="tab_third_x" value="720"/>
++		<variable name="tab_indicator_second_x" value="384"/>
++		<variable name="tab_indicator_third_x" value="744"/>
++
+ 		<!-- Screen size -->
+ 		<variable name="cutout_w" value="%status_h%-72"/>
+ 		<variable name="center_x" value="540"/>
+@@ -643,7 +656,7 @@
+ 
+ 		<!-- Gesture -->
+ 		<variable name="gst_keyboard_y" value="%keyboard_y%-%ab_h%"/>
+-		<variable name="gst_line_y" value="%screen_h%-123"/>
++		<variable name="gst_line_y" value="%screen_h%-72"/>
+ 
+ 		<!-- Rows -->
+ 		<variable name="row0_y" value="240+%cutout_w%"/>
+--- a/gui/theme/portrait_hdpi/resources/images.xml
++++ b/gui/theme/portrait_hdpi/resources/images.xml
+@@ -17,23 +17,23 @@
+ 		<shape name="btn_flat_qw" w="%btn_half_w%" h="%btn_h%" radius="-1" stroke="3" color="#666666"/>
+ 
+ 		<shape name="btn_raised_warn" w="%btn_w%" h="%btn_h%" radius="-1" color="#E51C23" />
+-		<shape name="nav_empty" w="200" h="168" color="#00000000"/>
+-		<shape name="nav_hl" color="#B8B8B842" radius="36" w="200" h="168"/>
++		<shape name="nav_empty" w="%nav_item_w%" h="168" color="#00000000"/>
++		<shape name="nav_hl" color="#B8B8B842" radius="36" w="%nav_item_w%" h="168"/>
+ 
+ 		<shape name="nb_gesture_line" w="210" h="7" color="%text%" radius="-1" />
+-		<shape name="search_bar_bg" color="%cards_bg%" radius="36" w="984" h="260" />
++		<shape name="search_bar_bg" color="%cards_bg%" radius="36" w="%content_w%" h="260" />
+ 		<shape name="nav_pill" color="%accent%" radius="-1" w="%np_pill_w%" h="%np_pill_h%" />
+ 
+ 		<shape name="power_card" color="%cards_bg%" radius="32" w="324" h="294" />
+ 
+-		<shape name="nb_empty" color="#00000000" w="318" h="144" />
+-		<shape name="nb_hl" color="#B8B8B842" radius="-1" w="318" h="144" />
++		<shape name="nb_empty" color="#00000000" w="%row_navbtn_w%" h="144" />
++		<shape name="nb_hl" color="#B8B8B842" radius="-1" w="%row_navbtn_w%" h="144" />
+ 		
+ 		<shape name="nav_bg" color="%cards_bg%" radius="36" w="%nav_panel_w%" h="%nav_panel_h%" />
+ 
+ 		<!-- Main switch background -->
+-		<shape name="main_switch_card_active" color="%accent%" radius="48" w="1000" h="168"/>
+-		<shape name="main_switch_card_not_active" color="%disabled_bg%" radius="48" w="1000" h="168"/>
++		<shape name="main_switch_card_active" color="%accent%" radius="48" w="%main_switch_w%" h="168"/>
++		<shape name="main_switch_card_not_active" color="%disabled_bg%" radius="48" w="%main_switch_w%" h="168"/>
+ 
+ 		<!-- Current maintainer chip -->
+ 		<shape name="maintainer_chip_bg" color="%accent%" radius="32" w="270" h="70"/>
+--- a/gui/theme/portrait_hdpi/pages/files.xml
++++ b/gui/theme/portrait_hdpi/pages/files.xml
+@@ -53,7 +53,7 @@
+ 			</image>
+ 
+ 			<fill color="%background%">
+-				<placement x="48" y="%search_bar_line_y%" w="984" h="4"/>
++				<placement x="48" y="%search_bar_line_y%" w="%content_w%" h="4"/>
+ 			</fill>
+ 			
+ 			<button>
+@@ -85,7 +85,7 @@
+ 			<!--arrow-->
+ 
+ 			<button style="menu_btn">
+-				<placement x="0" y="%path_y%" w="1080" h="92" />
++				<placement x="0" y="%path_y%" w="%screen_w%" h="92" />
+ 				<action function="set">tw_filename1=tw_file_location1</action>
+ 				<action function="set">tw_file_location1_tmp=tw_file_location1</action>
+ 				<action function="set">tw_fm_isfolder=1</action>
+@@ -93,12 +93,12 @@
+ 			</button>
+ 			
+ 			<button style="actionbar">
+-				<placement x="816" y="%ab_search_y%" placement="4"/>
++				<placement x="%fm_sort_x%" y="%ab_search_y%" placement="4"/>
+ 				<action function="overlay">fm_sort</action>
+ 			</button>
+ 
+ 			<image>
+-				<placement x="816" y="%ab_search_y%" placement="4"/>
++				<placement x="%fm_sort_x%" y="%ab_search_y%" placement="4"/>
+ 				<image resource="actionbar_sort"/>
+ 			</image>
+ 
+@@ -108,12 +108,12 @@
+ 			</image>
+ 
+ 			<button style="actionbar">
+-				<placement x="954" y="%ab_search_y%" placement="4"/>
++				<placement x="%fm_menu_x%" y="%ab_search_y%" placement="4"/>
+ 				<action function="page">menu</action>
+ 			</button>
+ 
+ 			<image>
+-				<placement x="954" y="%ab_search_y%" placement="4"/>
++				<placement x="%fm_menu_x%" y="%ab_search_y%" placement="4"/>
+ 				<image resource="actionbar_menu"/>
+ 			</image>
+ 			
+@@ -178,7 +178,7 @@
+ 			<template name="files_qa_base"/>
+ 			<input>
+ 				<background color="%background%"/>
+-				<placement x="%col1_x_indent%" y="%ab_bc_search_y%"  w="816" h="%input_height%"/>
++				<placement x="%col1_x_indent%" y="%ab_bc_search_y%"  w="%fm_input_w%" h="%input_height%"/>
+ 				<data name="tw_file_location1_tmp"/>
+ 				<text>%tw_file_location1_tmp%</text>
+ 				<action function="set">tw_file_location1=tw_file_location1_tmp</action>
+@@ -190,7 +190,7 @@
+ 			<template name="files_sp_base"/>
+ 			<input>
+ 				<background color="%background%"/>
+-				<placement x="%col1_x_indent%" y="%ab_bc_search_y%"  w="816" h="%input_height%"/>
++				<placement x="%col1_x_indent%" y="%ab_bc_search_y%"  w="%fm_input_w%" h="%input_height%"/>
+ 				<data name="location_input_tmp"/>
+ 				<text>%location_input_tmp%</text>
+ 				<action function="set">tw_zip_location_tmp=location_input_tmp</action>
+@@ -383,7 +383,7 @@
+ 			
+ 			<input>
+ 				<background color="%background%"/>
+-				<placement x="%col1_x_indent%" y="%ab_bc_search_y%"  w="816" h="%input_height%"/>
++				<placement x="%col1_x_indent%" y="%ab_bc_search_y%"  w="%fm_input_w%" h="%input_height%"/>
+ 				<text>%tw_name_filter%</text>
+ 				<data name="tw_name_filter"/>
+ 				<action function="set">tw_reload_fm=1</action>
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -1216,19 +1216,19 @@
+ 			
+ 			<listbox style="textbox">
+ 				<condition var1="credits_page" var2="0"/>
+-				<placement x="24" y="%tab_title_h%" w="1032" h="%credits_listbox_h%"/>
++				<placement x="24" y="%tab_title_h%" w="%credits_width%" h="%credits_listbox_h%"/>
+ 				<read filename="/twres/credits.txt"/>
+ 			</listbox>
+ 
+ 			<listbox style="textbox">
+ 				<condition var1="credits_page" var2="1"/>
+-				<placement x="24" y="%tab_title_h%" w="1032" h="%credits_listbox_h%"/>
++				<placement x="24" y="%tab_title_h%" w="%credits_width%" h="%credits_listbox_h%"/>
+ 				<read filename="/twres/translators.txt"/>
+ 			</listbox>
+ 
+ 			<listbox style="textbox">
+ 				<condition var1="credits_page" var2="2"/>
+-				<placement x="24" y="%tab_title_h%" w="1032" h="%credits_listbox_h%"/>
++				<placement x="24" y="%tab_title_h%" w="%credits_width%" h="%credits_listbox_h%"/>
+ 				<read filename="/twres/changelog.txt"/>
+ 			</listbox>
+ 
+@@ -1243,40 +1243,40 @@
+ 
+ 			<button style="tab_btn">
+ 				<condition var1="credits_page" op="!=" var2="0"/>
+-				<placement x="0" y="%tab_btn_y%" w="360" h="84"/>
++				<placement x="0" y="%tab_btn_y%" w="%tab_third_w%" h="84"/>
+ 				<text>{@abt_credits}</text>
+ 				<action function="set">credits_page=0</action>
+ 			</button>
+ 
+ 			<button style="tab_btn">
+ 				<condition var1="credits_page" op="!=" var2="1"/>
+-				<placement x="360" y="%tab_btn_y%" w="360" h="84"/>
++				<placement x="%tab_second_x%" y="%tab_btn_y%" w="%tab_third_w%" h="84"/>
+ 				<text>{@abt_trans}</text>
+ 				<action function="set">credits_page=1</action>
+ 			</button>
+ 
+ 			<button style="tab_btn">
+ 				<condition var1="credits_page" op="!=" var2="2"/>
+-				<placement x="720" y="%tab_btn_y%" w="360" h="84"/>
++				<placement x="%tab_third_x%" y="%tab_btn_y%" w="%tab_third_w%" h="84"/>
+ 				<text>{@abt_changes}</text>
+ 				<action function="set">credits_page=2</action>
+ 			</button>
+ 
+ 			<button style="tab_btn_hl">
+ 				<condition var1="credits_page" var2="0"/>
+-				<placement x="0" y="%tab_btn_y%" w="360" h="84"/>
++				<placement x="0" y="%tab_btn_y%" w="%tab_third_w%" h="84"/>
+ 				<text>{@abt_credits}</text>
+ 			</button>
+ 
+ 			<button style="tab_btn_hl">
+ 				<condition var1="credits_page" var2="1"/>
+-				<placement x="360" y="%tab_btn_y%" w="360" h="84"/>
++				<placement x="%tab_second_x%" y="%tab_btn_y%" w="%tab_third_w%" h="84"/>
+ 				<text>{@abt_trans}</text>
+ 			</button>
+ 
+ 			<button style="tab_btn_hl">
+ 				<condition var1="credits_page" var2="2"/>
+-				<placement x="720" y="%tab_btn_y%" w="360" h="84"/>
++				<placement x="%tab_third_x%" y="%tab_btn_y%" w="%tab_third_w%" h="84"/>
+ 				<text>{@abt_changes}</text>
+ 			</button>
+ 			
+@@ -1287,12 +1287,12 @@
+ 
+ 			<image style="tab">
+ 				<condition var1="credits_page" var2="1"/>
+-				<placement x="384" y="%tab_title_h%" placement="2"/>
++				<placement x="%tab_indicator_second_x%" y="%tab_title_h%" placement="2"/>
+ 			</image>
+ 
+ 			<image style="tab">
+ 				<condition var1="credits_page" var2="2"/>
+-				<placement x="744" y="%tab_title_h%" placement="2"/>
++				<placement x="%tab_indicator_third_x%" y="%tab_title_h%" placement="2"/>
+ 			</image>
+ 
+ 			<template name="gestures"/>
+--- a/gui/theme/portrait_hdpi/pages/templates/navbar.xml
++++ b/gui/theme/portrait_hdpi/pages/templates/navbar.xml
+@@ -27,7 +27,7 @@
+ 			<gesture>
+ 				<condition var1="tw_busy" var2="0"/>
+ 				<condition var1="real_gestures_enable" var2="1"/>
+-				<placement x="0" y="%row_nav_y%" w="%screen_w%" h="48"/>
++				<placement x="0" y="%row_nav_y%" w="%screen_w%" h="%nav_h%"/>
+ 				<fill color="#00000000"/>
+ 				<settings side="0" sense="300" />
+ 				<action function="key">home</action>
+@@ -43,7 +43,7 @@
+ 			<gesture>
+ 				<condition var1="tw_busy" var2="0"/>
+ 				<condition var1="gst_back_right" var2="1"/>
+-				<placement x="1032" y="%ab_h%" w="48" h="%gst_keyboard_y%"/>
++				<placement x="%col1_x_neg%" y="%ab_h%" w="48" h="%gst_keyboard_y%"/>
+ 				<fill color="#00000000"/>
+ 				<settings side="1" sense="200" />
+ 				<action function="key">back</action>
+@@ -55,7 +55,7 @@
+ 			<gesture>
+ 				<condition var1="tw_busy" var2="0"/>
+ 				<condition var1="real_gestures_enable" var2="1"/>
+-				<placement x="0" y="%row_nav_y%" w="%screen_w%" h="48"/>
++				<placement x="0" y="%row_nav_y%" w="%screen_w%" h="%nav_h%"/>
+ 				<fill color="#00000000"/>
+ 				<settings side="0" sense="300" />
+ 				<action function="key">home</action>
+@@ -71,7 +71,7 @@
+ 			<gesture>
+ 				<condition var1="tw_busy" var2="0"/>
+ 				<condition var1="gst_back_right" var2="1"/>
+-				<placement x="1032" y="%ab_h%" w="48" h="%screen_h%"/>
++				<placement x="%col1_x_neg%" y="%ab_h%" w="48" h="%screen_h%"/>
+ 				<fill color="#00000000"/>
+ 				<settings side="1" sense="200" />
+ 				<action function="key">back</action>
+--- a/gui/theme/portrait_hdpi/splash.xml
++++ b/gui/theme/portrait_hdpi/splash.xml
+@@ -17,6 +17,10 @@
+ 	</resources>
+ 
+ 	<variables>
++		<variable name="screen_w" value="1080"/>
++		<variable name="screen_h" value="1920"/>
++		<variable name="center_x" value="540"/>
++		<variable name="center_y" value="960"/>
+ 		<variable name="of" value="%screen_h%-400"/>
+ 		<variable name="rec" value="%screen_h%-320"/>
+ 		<variable name="screen_width" value="1080"/>
+@@ -35,22 +39,22 @@
+ 
+ 			<image>
+ 				<image resource="splash_bg"/>
+-				<placement x="540" y="%center_y%" placement="4"/>
++				<placement x="%center_x%" y="%center_y%" placement="4"/>
+ 			</image>
+ 
+ 			<image>
+ 				<image resource="splash_logo"/>
+-				<placement x="540" y="%center_y%" placement="4"/>
++				<placement x="%center_x%" y="%center_y%" placement="4"/>
+ 			</image>
+ 
+ 			<text style="menu_text">
+-				<placement x="540" y="%of%" placement="4"/>
++				<placement x="%center_x%" y="%of%" placement="4"/>
+ 				<font resource="of" color="#ffffff"/>
+ 				<text>OrangeFox</text>
+ 			</text>
+ 
+ 			<text style="menu_text">
+-				<placement x="540" y="%rec%" placement="4"/>
++				<placement x="%center_x%" y="%rec%" placement="4"/>
+ 				<font resource="recovery" color="#ffffff"/>
+ 				<text>Recovery</text>
+ 			</text>
+--- a/gui/theme/portrait_hdpi/themes/sed/splash.xml
++++ b/gui/theme/portrait_hdpi/themes/sed/splash.xml
+@@ -15,29 +15,33 @@
+ 		<font name="recovery" filename="EuclidFlex-Regular.ttf" size="52"/#SHOWOFR#>
+ 	</resources>
+ 
+-	<#SHOWOFR#variables>
++	<variables>
++		<variable name="screen_w" value="1080"/>
++		<variable name="screen_h" value="1920"/>
++		<variable name="center_x" value="540"/>
++		<variable name="center_y" value="960"/>
+ 		<variable name="of" value="%screen_h%-400"/>
+ 		<variable name="rec" value="%screen_h%-320"/>
+-	</variables#SHOWOFR#>
++	</variables>
+ 
+ 	<pages>
+ 		<page name="splash">
+ 			<background color="#BG_COLOR#"/>
+ 			<#BG_IMG#image>
+ 				<image resource="splash_bg"/>
+-				<placement x="540" y="%center_y%" placement="4"/>
++				<placement x="%center_x%" y="%center_y%" placement="4"/>
+ 			</image#BG_IMG#>
+ 			<#LOGO_ON#image>
+ 				<image resource="splash_logo"/>
+-				<placement x="540" y="%center_y%" placement="4"/>
++				<placement x="%center_x%" y="%center_y%" placement="4"/>
+ 			</image#LOGO_ON#>
+ 			<#SHOWOFR#text style="menu_text">
+-				<placement x="540" y="%of%" placement="4"/>
++				<placement x="%center_x%" y="%of%" placement="4"/>
+ 				<font resource="of" color="##TCOLOR#"/>
+ 				<text>OrangeFox</text>
+ 			</text>
+ 			<text style="menu_text">
+-				<placement x="540" y="%rec%" placement="4"/>
++				<placement x="%center_x%" y="%rec%" placement="4"/>
+ 				<font resource="recovery" color="##TCOLOR#"/>
+ 				<text>Recovery</text>
+ 			</text#SHOWOFR#>
+--- a/gui/theme/portrait_hdpi/themes/sed/splash_orig.xml
++++ b/gui/theme/portrait_hdpi/themes/sed/splash_orig.xml
+@@ -17,6 +17,10 @@
+ 	</resources>
+ 
+ 	<variables>
++		<variable name="screen_w" value="1080"/>
++		<variable name="screen_h" value="1920"/>
++		<variable name="center_x" value="540"/>
++		<variable name="center_y" value="960"/>
+ 		<variable name="of" value="%screen_h%-400"/>
+ 		<variable name="rec" value="%screen_h%-320"/>
+ 		<variable name="screen_width" value="1080"/>
+@@ -35,22 +39,22 @@
+ 
+ 			<image>
+ 				<image resource="splash_bg"/>
+-				<placement x="540" y="%center_y%" placement="4"/>
++				<placement x="%center_x%" y="%center_y%" placement="4"/>
+ 			</image>
+ 
+ 			<image>
+ 				<image resource="splash_logo"/>
+-				<placement x="540" y="%center_y%" placement="4"/>
++				<placement x="%center_x%" y="%center_y%" placement="4"/>
+ 			</image>
+ 
+ 			<text style="menu_text">
+-				<placement x="540" y="%of%" placement="4"/>
++				<placement x="%center_x%" y="%of%" placement="4"/>
+ 				<font resource="of" color="#ffffff"/>
+ 				<text>OrangeFox</text>
+ 			</text>
+ 
+ 			<text style="menu_text">
+-				<placement x="540" y="%rec%" placement="4"/>
++				<placement x="%center_x%" y="%rec%" placement="4"/>
+ 				<font resource="recovery" color="#ffffff"/>
+ 				<text>Recovery</text>
+ 			</text>

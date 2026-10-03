@@ -20,6 +20,8 @@
 inline unsigned devices=1,listing=0;
 inline long modified=1,now_seconds=1;
 inline bool fail_stat=false,hangup=false,relative_mouse=true;
+inline bool absolute_touch=false;
+inline bool touch_probe_failed=false,single_axis=false;
 inline unsigned closes=0,opens=0;
 inline std::deque<input_event> queue;
 inline int gr_fb_width() { return 2560; }
@@ -54,14 +56,20 @@ inline int fake_ioctl(int,unsigned long request,void* destination) {
     const unsigned number=_IOC_NR(request),size=_IOC_SIZE(request);
     if(number==6) { std::snprintf(static_cast<char*>(destination),size,"fixture USB HID"); return 16; }
     if(number>=0x20 && number<=0x20+EV_MAX) {
+        if(number==0x20+EV_ABS && touch_probe_failed)return -1;
         std::memset(destination,0,size); auto* bits=static_cast<unsigned char*>(destination);
         const auto bit=[&](unsigned value) { assert(value/8<size); bits[value/8]|=uint8_t(1U<<(value%8)); };
-        if(number==0x20) { bit(EV_KEY); if(relative_mouse)bit(EV_REL); }
+        if(number==0x20) { bit(EV_KEY); if(relative_mouse)bit(EV_REL); if(absolute_touch)bit(EV_ABS); }
+        if(number==0x20+EV_ABS && absolute_touch) { bit(ABS_MT_POSITION_X); if(!single_axis)bit(ABS_MT_POSITION_Y); }
         if(number==0x20+EV_REL && relative_mouse) { bit(REL_X); bit(REL_Y); }
         if(number==0x20+EV_KEY)bit(BTN_LEFT); // one-button mouse is valid
         return 0;
     }
-    if(number>=0x40) { std::memset(destination,0,size); return 0; }
+    if(number>=0x40) {
+        std::memset(destination,0,size);
+        if(absolute_touch)static_cast<input_absinfo*>(destination)->maximum=4095;
+        return 0;
+    }
     return -1;
 }
 #define TW_NO_HAPTICS 1

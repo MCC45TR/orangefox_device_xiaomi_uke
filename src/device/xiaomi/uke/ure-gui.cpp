@@ -319,14 +319,62 @@ void ure_gui_density(float& scale_w,float& scale_h,int width,int height) {
     }
 }
 bool ure_gui_variable(const std::string& name,std::string& output) {
-    if(name!="screen_w" && name!="screen_h" && name!="screen_original_h" && name!="center_x" && name!="center_y" && name!="input_w")return false;
+    if(name.compare(0,4,"ure_")==0)return false;
     int width=0,height=0; DataManager::GetValue("ure_canvas_width",width); DataManager::GetValue("ure_canvas_height",height);
     if(width<=0 || height<=0)return false;
-    if(name=="screen_w")output=std::to_string(width);
-    else if(name=="screen_h" || name=="screen_original_h")output=std::to_string(height);
+    // Density changes control sizes, while the logical viewport changes anchors.
+    // Explicit stock-theme names avoid changing stored selections or guessing
+    // whether an arbitrary numeric variable is a dimension, color or preference.
+    struct Anchor { const char* name; int inset; };
+    static constexpr Anchor trailing[]={
+        {"btn_float_x",132},{"col1_x_neg",48},{"col2_x",372},{"col2_x_text",484},
+        {"bs_del",144},{"bs_del_i",108},{"ab_btn1_x",84},{"ab_btn2_x",228},{"ab_btn3_x",372},
+        {"main_switch_icon_x",134},{"ab_menu_x",108},{"ab_menu_sort_x",492},{"ab_menu_sort_text_x",442},
+        {"btn_raised_right_x",48},{"card1_mtag_x",336},{"card1_ctag_x",332},
+        {"snackbar_button_x",304},{"snackbar_button_2_x",568},
+        {"fm_sort_x",264},{"fm_menu_x",126}
+    };
+    static constexpr Anchor widths[]={
+        {"input_w",96},{"content_w",96},{"console_width",96},{"terminal_width",48},
+        {"slidervalue_w",176},{"nav_path_w",432},{"fm_input_w",264},{"credits_width",48}
+    };
+    for(const auto& anchor:trailing)if(name==anchor.name) { output=std::to_string(width-anchor.inset); return true; }
+    for(const auto& anchor:widths)if(name==anchor.name) { output=std::to_string(std::max(1,width-anchor.inset)); return true; }
+    const int nav_width=std::max(1,width-96);
+    static constexpr const char* items[]={"nav_item_1","nav_item_2","nav_item_3","nav_item_4"};
+    static constexpr const char* pills[]={"np_pill_x1","np_pill_x2","np_pill_x3","np_pill_x4"};
+    static constexpr const char* cards[]={"ws_cards_x1","ws_cards_x2","ws_cards_x3","ws_cards_x4"};
+    for(int index=1;index<=4;++index) {
+        const int center=48+nav_width*(2*index-1)/8;
+        if(name==items[index-1]) { output=std::to_string(center); return true; }
+        if(name==pills[index-1]) { output=std::to_string(center-96); return true; }
+        if(name==cards[index-1]) { output=std::to_string(28+(width-56)*(2*index-1)/8); return true; }
+    }
+    if(name=="nav_item_w")output=std::to_string(nav_width/4);
+    else if(name=="back_button_x")output=std::to_string(width/6);
+    else if(name=="slideout_button_x")output=std::to_string(width-width/6);
+    else if(name=="row_navbtn_w")output=std::to_string(std::max(1,width/3-42));
+    else if(name=="btn_w")output=std::to_string(std::max(1,(width-138)/2));
+    else if(name=="tab_third_w")output=std::to_string(width/3);
+    else if(name=="tab_second_x")output=std::to_string(width/3);
+    else if(name=="tab_third_x")output=std::to_string(width*2/3);
+    else if(name=="tab_indicator_second_x")output=std::to_string(width/3+24);
+    else if(name=="tab_indicator_third_x")output=std::to_string(width*2/3+24);
+    else if(name=="tab_w")output=std::to_string(std::max(1,width/3-48));
+    else if(name=="status_right_x" || name=="battery_12_x" || name=="battery_24_x" || name=="battery_2_12_x" || name=="battery_2_24_x") {
+        const int inset=name=="status_right_x" ? 20 : name=="battery_12_x" ? 200 : name=="battery_24_x" ? 140 : name=="battery_2_12_x" ? 180 : 120;
+        output=std::to_string(width-inset-DataManager::GetIntValue("status_indent_right"));
+    }
+    else if(name=="ab_btn01_x")output=std::to_string(width/2-72);
+    else if(name=="ab_btn02_x")output=std::to_string(width/2+72);
+    else if(name=="db_left_x")output=std::to_string(width/2-160);
+    else if(name=="db_right_x")output=std::to_string(width/2+104);
+    else if(name=="ota_update_progress_x")output=std::to_string(width/2-214);
+    else if(name=="pattern_x")output=std::to_string(width/2-324);
+    else if(name=="screen_w" || name=="screen_width")output=std::to_string(width);
+    else if(name=="screen_h" || name=="screen_height" || name=="screen_original_h")output=std::to_string(height);
     else if(name=="center_x")output=std::to_string(width/2);
     else if(name=="center_y")output=std::to_string(height/2);
-    else if(name=="input_w")output=std::to_string(std::max(1,width-96));
     else return false;
     return true;
 }

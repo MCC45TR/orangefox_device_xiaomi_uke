@@ -168,8 +168,40 @@ verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
 unlink "$verification_index"
 trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
 GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch; do
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch; do
   GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
+literal_patch="$component/patches/0011-literal-ure-theme-defaults.patch"
+if git -C "$recovery_source" apply --reverse --check "$literal_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$literal_patch"; then
+  git -C "$recovery_source" apply "$literal_patch"
+else
+  echo 'Unexpected theme variable loader; refusing an unverified patch' >&2; exit 1
+fi
+responsive_patch="$component/patches/0012-responsive-stock-theme.patch"
+if git -C "$recovery_source" apply --reverse --check "$responsive_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$responsive_patch"; then
+  git -C "$recovery_source" apply "$responsive_patch"
+else
+  echo 'Unexpected stock theme geometry; refusing an unverified patch' >&2; exit 1
+fi
+hid_patch="$component/patches/0014-preserve-hid-report-boundaries.patch"
+if git -C "$recovery_source" apply --reverse --check "$hid_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$hid_patch"; then
+  git -C "$recovery_source" apply "$hid_patch"
+else
+  echo 'Unexpected HID report handling; refusing an unverified patch' >&2; exit 1
+fi
+menu_patch="$component/patches/0015-menu-list-default-scroll.patch"
+if git -C "$recovery_source" apply --reverse --check "$menu_patch" 2>/dev/null; then
+  :
+elif git -C "$recovery_source" apply --check "$menu_patch"; then
+  git -C "$recovery_source" apply "$menu_patch"
+else
+  echo 'Unexpected action-menu selection source; refusing an unverified patch' >&2; exit 1
+fi
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \
     <(git -C "$recovery_source" diff --name-only HEAD)
