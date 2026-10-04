@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
 #include "operation_guard.hpp"
+#include "tree_listing.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -157,18 +158,8 @@ Value stamp(const struct stat& st) {
     out["bytes"]=Json::UInt64(S_ISREG(st.st_mode) && st.st_size>=0 ? static_cast<std::uint64_t>(st.st_size) : 0);
     out["rdev"]=Json::UInt64(st.st_rdev); return out;
 }
-std::vector<std::string> names(int fd) {
-    Fd copy(::openat(fd,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC));
-    require(copy.get()>=0,"io-error","Cannot retain directory listing");
-    DIR* stream=::fdopendir(::dup(copy.get())); require(stream,"io-error","Cannot enumerate tree directory");
-    std::unique_ptr<DIR,int(*)(DIR*)> guard(stream,closedir);
-    std::vector<std::string> out;
-    while(true) {
-        errno=0; auto* entry=::readdir(stream); if(!entry) { require(errno==0,"io-error","Tree listing failed"); break; }
-        const std::string name=entry->d_name; if(name=="." || name=="..")continue;
-        require(out.size()<100000,"size-limit","A tree directory exceeds 100000 children"); out.push_back(name);
-    }
-    std::sort(out.begin(),out.end()); return out;
+std::string listing_hash(SortedTreeDirectory& names) {
+    Hash hash; std::string name; names.rewind(); while(names.next(name))hash.add(hex(name)+"\n"); names.rewind(); return hash.finish();
 }
 Value extents(int fd,std::uint64_t bytes) {
     Value out(Json::arrayValue); std::uint64_t offset=0;
@@ -184,14 +175,17 @@ Value extents(int fd,std::uint64_t bytes) {
         out.append(e); require(out.size()<=16384,"size-limit","File sparse extent count exceeds its limit"); offset=end;
     } return out;
 }
-Value entry(int root,const std::string& path,bool content) {
+Value entry(int root,const std::string& path,bool content,TreeListingBudget& budget,int scratch,SortedTreeDirectory* prepared=nullptr) {
     auto fd=open_tree(root,path,O_PATH|O_NONBLOCK); const auto st=info(fd.get()); Value out=stamp(st); out["path_hex"]=hex(path);
     require(out["kind"]!="unknown","unsupported-tree-entry","Unknown file type in source tree");
     if(S_ISREG(st.st_mode) || S_ISDIR(st.st_mode)) {
         auto data=open_tree(root,path,O_RDONLY|O_NONBLOCK|O_NOATIME|(S_ISDIR(st.st_mode) ? O_DIRECTORY : 0));
         require(json(stamp(info(data.get())))==json(stamp(st)),"stale-source","Tree entry changed while opening"); out["xattrs"]=attrs(data.get());
         if(S_ISREG(st.st_mode) && content) { require(st.st_size>=0,"invalid-file","Tree files require a finite size"); out["sha256"]=content_hash(data.get(),out["bytes"].asUInt64()); out["extents"]=extents(data.get(),out["bytes"].asUInt64()); }
-        if(S_ISDIR(st.st_mode)) { Hash listing; for(const auto& name:names(data.get()))listing.add(hex(name)+"\n"); out["children_sha256"]=listing.finish(); }
+        if(S_ISDIR(st.st_mode)) {
+            if(prepared)out["children_sha256"]=listing_hash(*prepared);
+            else { SortedTreeDirectory names(data.get(),scratch,budget); out["children_sha256"]=listing_hash(names); }
+        }
         require(json(stamp(info(data.get())))==json(stamp(st)),"stale-source","Tree entry changed during inspection");
     } else {
         const fs::path relative(path); auto parent=open_tree(root,relative.parent_path().empty() ? "." : relative.parent_path().string(),O_RDONLY|O_DIRECTORY);
@@ -322,10 +316,10 @@ Root selected(const Root& context,const Value& plan) {
     auto fd=context.open(plan["selected_path"].asString(),O_RDONLY|O_DIRECTORY); root_gate(fd.get());
     require(json(stamp(info(fd.get())))==json(plan["source_identity"]) && mount_id(fd.get())==plan["source_mount_id"].asUInt64(),"stale-source","Selected tree root changed"); return Root(std::move(fd));
 }
-void source_match(int root,const Value& e) {
+void source_match(int root,const Value& e,TreeListingBudget& budget,int scratch) {
     auto expected=e; expected.removeMember("hardlink_hex");
     expected.removeMember("sha256"); expected.removeMember("extents");
-    auto current=entry(root,path_of(e),false);
+    auto current=entry(root,path_of(e),false,budget,scratch);
     require(json(current)==json(expected),"stale-source","Tree namespace, content or metadata changed since planning");
 }
 }
@@ -359,11 +353,20 @@ Value backup_tree_plan(const Root& context,const std::string& relative,const std
     std::map<std::pair<std::uint64_t,std::uint64_t>,std::string> hardlinks;
     auto flush=[&]() { if(records.empty())return; require(plan["pages"].size()<page_limit && json(records).size()<=page_bytes,"size-limit","Tree page count or size exceeds its limit");
         const auto index=plan["pages"].size(); store.save_record(page_name(index),records); plan["pages"].append(sha256(json(records))); records=Value(Json::arrayValue); };
-    std::function<void(const std::string&)> walk=[&](const std::string& path) {
+    struct Frontier { std::string path,expected; SortedTreeDirectory names; };
+    TreeListingBudget enumeration;
+    // Precharge the complete bounded frontier before its allocation. Directory
+    // metadata is retained as a digest, never as an ancestor JSON/name vector.
+    TreeListingMemory frontier_memory(enumeration,65*(sizeof(Frontier)+2*(4097+65)));
+    std::vector<Frontier> frontier; frontier.reserve(65);
+    const auto visit=[&](const std::string& path) {
+        require(count<entry_limit,"size-limit","Tree exceeds one million entries"); ++count;
         auto current=open_tree(source.get(),path,O_PATH|O_NONBLOCK);
         require(!same(info(current.get()),info(store.fd())),"recursive-backup","Source traversal reached its own backup directory");
-        if(S_ISDIR(info(current.get()).st_mode)) { auto directory=open_tree(source.get(),path,O_RDONLY|O_DIRECTORY); root_gate(directory.get()); }
-        auto e=entry(source.get(),path,true); require(++count<=entry_limit,"size-limit","Tree exceeds one million entries");
+        const auto observed=stamp(info(current.get())); const bool is_directory=observed["kind"]=="directory"; SortedTreeDirectory names;
+        if(is_directory) { auto directory=open_tree(source.get(),path,O_RDONLY|O_DIRECTORY); root_gate(directory.get()); names=SortedTreeDirectory(directory.get(),store.fd(),enumeration,true); }
+        auto e=entry(source.get(),path,true,enumeration,store.fd(),is_directory ? &names : nullptr);
+        for(const auto& key:observed.getMemberNames())require(json(observed[key])==json(e[key]),"stale-source","Tree entry changed before its planned listing was inspected");
         require(bytes<=UINT64_MAX-e["bytes"].asUInt64(),"size-limit","Tree byte count overflows"); bytes+=e["bytes"].asUInt64();
         if(e["kind"]=="file") {
             const auto key=std::make_pair(e["device"].asUInt64(),e["inode"].asUInt64());
@@ -374,12 +377,31 @@ Value backup_tree_plan(const Root& context,const std::string& relative,const std
         if(e["kind"]=="socket")++sockets;
         if(!records.empty() && (records.size()>=256 || json(records).size()+json(e).size()*2+256>page_bytes))flush();
         require(json(e).size()<page_bytes,"size-limit","Tree entry exceeds page size"); records.append(e);
-        if(e["kind"]=="directory") { auto directory=open_tree(source.get(),path,O_RDONLY|O_DIRECTORY); for(const auto& child:names(directory.get()))walk(path=="." ? child : path+"/"+child); }
-        source_match(source.get(),e);
+        if(is_directory) { require(frontier.size()<65,"size-limit","Tree directory depth exceeds its limit"); frontier.push_back({path,sha256(json(e)),std::move(names)}); }
+        else source_match(source.get(),e,enumeration,store.fd());
     };
-    walk("."); flush(); require(json(stamp(info(source.get())))==json(initial),"stale-source","Source root changed during planning");
+    visit(".");
+    while(!frontier.empty()) {
+        std::string child;
+        if(frontier.back().names.next(child)) {
+            const auto& parent=frontier.back().path;
+            require(parent=="." || parent.size()+1+child.size()<=4096,"size-limit","Tree path exceeds its byte limit");
+            const auto path=parent=="." ? child : parent+"/"+child; visit(path);
+        } else {
+            const auto& finished=frontier.back();
+            require(sha256(json(entry(source.get(),finished.path,false,enumeration,store.fd())))==finished.expected,
+                "stale-source","Tree directory changed while its descendants were planned"); frontier.pop_back();
+        }
+    }
+    flush(); require(json(stamp(info(source.get())))==json(initial),"stale-source","Source root changed during planning");
+    require(enumeration.admitted_entries==count && enumeration.scratch==0,"stale-source","Tree enumeration did not complete its exact admitted frontier");
     plan["entries"]=count; plan["logical_bytes"]=Json::UInt64(bytes); plan["stored_data_bytes"]=Json::UInt64(stored); plan["runtime_sockets"]=sockets;
     plan["restore_requirements"]="new destination; Unix metadata support; required ownership/ACL/xattr privileges; runtime sockets recreated by services";
+    plan["enumeration"]["working_memory_limit_bytes"]=Json::UInt64(TreeListingBudget::memory_limit);
+    plan["enumeration"]["peak_accounted_working_bytes"]=Json::UInt64(enumeration.peak_memory);
+    plan["enumeration"]["scratch_limit_bytes"]=Json::UInt64(TreeListingBudget::scratch_limit);
+    plan["enumeration"]["peak_scratch_bytes"]=Json::UInt64(enumeration.peak_scratch);
+    plan["enumeration"]["listing_order"]="sorted-bytewise-depth-first";
     plan["plan_sha256"]=seal(plan); store.save_record("plan.json",plan);
     held=Fd(); return operation.finish(summary(plan,"PLANNED"),true,true,"COMPLETE");
 }
@@ -391,13 +413,14 @@ Value backup_tree_capture(const Root& context,const fs::path& directory,const st
         operation_targets(operation_target(source.fd(),"tree-source"))));
     auto held=lock(store);
     require(json(read_record(store,"plan.json"))==json(plan),"stale-tree-plan","Tree plan changed during capture admission"); selected(context,plan);
-    all_entries(store,plan,[&](const Value& e) { source_match(source.fd(),e); });
+    TreeListingBudget enumeration;
+    all_entries(store,plan,[&](const Value& e) { source_match(source.fd(),e,enumeration,store.fd()); });
     Value state; state["plan_sha256"]=plan["plan_sha256"]; state["state"]="CAPTURING"; state["completed_files"]=0; store.save_record("state.json",state,true);
     unsigned completed=0,processed_entries=0; std::set<std::string> verified;
     try {
         all_entries(store,plan,[&](const Value& e) {
             ++processed_entries;
-            source_match(source.fd(),e); if(e["kind"]!="file")return;
+            source_match(source.fd(),e,enumeration,store.fd()); if(e["kind"]!="file")return;
             const auto blob=blob_name(e); if(verified.contains(blob))return;
             if(store.exists(blob)) {
                 if(store.exists("partial.bin") && same(store.stat(blob),store.stat("partial.bin"))) {
@@ -414,13 +437,13 @@ Value backup_tree_capture(const Root& context,const fs::path& directory,const st
                 std::uint64_t needed=16*1024*1024; for(const auto& extent:e["extents"]) { require(needed<=UINT64_MAX-extent["bytes"].asUInt64(),"size-limit","Tree space budget overflows"); needed+=extent["bytes"].asUInt64(); }
                 require(space.f_bavail>=needed/space.f_frsize+(needed%space.f_frsize!=0),"no-space","Insufficient tree backup space");
                 auto output=store.open(temporary,O_RDWR|O_CREAT|O_EXCL,0600); auto input=open_tree(source.fd(),path_of(e),O_RDONLY|O_NONBLOCK|O_NOATIME);
-                copy_extents(input.get(),output.get(),e); source_match(source.fd(),e);
+                copy_extents(input.get(),output.get(),e); source_match(source.fd(),e,enumeration,store.fd());
                 require(content_hash(output.get(),e["bytes"].asUInt64())==e["sha256"].asString(),"stale-source","Captured tree content differs from the plan");
                 require(::fsync(output.get())==0 && ::linkat(store.fd(),temporary,store.fd(),blob.c_str(),0)==0 && ::unlinkat(store.fd(),temporary,0)==0 && ::fsync(store.fd())==0,"io-error","Cannot publish verified tree data");
             }
             cache_insert(verified,blob); state["completed_files"]=++completed; state["completed_entries"]=processed_entries; store.save_record("state.json",state,true);
         });
-        all_entries(store,plan,[&](const Value& e) { source_match(source.fd(),e); }); selected(context,plan);
+        all_entries(store,plan,[&](const Value& e) { source_match(source.fd(),e,enumeration,store.fd()); }); selected(context,plan);
         state["state"]="COMPLETE"; state["verified"]=true; state["completed_entries"]=plan["entries"]; store.save_record("state.json",state,true);
         held=Fd(); return operation.finish(summary(plan,"COMPLETE"),true,true);
     } catch(...) { state["state"]="INCOMPLETE"; state["verified"]=false; try { store.save_record("state.json",state,true); } catch(...) {} throw; }
@@ -477,11 +500,13 @@ void apply_metadata(int root,const Value& e) {
     else require(::fsync(parent.get())==0,"io-error","Cannot sync restored special entry");
 }
 void verify_restored(const Root& store,const Value& plan,int root) {
+    TreeListingBudget enumeration;
     struct Namespace { std::string path; Hash expected; };
     std::vector<Namespace> directories;
     const auto finish_directory=[&] {
         auto directory=open_tree(root,directories.back().path,O_RDONLY|O_DIRECTORY); Hash observed;
-        for(const auto& name:names(directory.get()))observed.add(hex(name)+"\n");
+        SortedTreeDirectory names(directory.get(),store.fd(),enumeration); std::string name;
+        while(names.next(name))observed.add(hex(name)+"\n");
         require(observed.finish()==directories.back().expected.finish(),"restore-verification-error",
             "Restored directory contains missing or unarchived entries"); directories.pop_back();
     };
@@ -498,7 +523,7 @@ void verify_restored(const Root& store,const Value& plan,int root) {
             require(::fstatat(parent.get(),fs::path(path).filename().c_str(),&omitted,AT_SYMLINK_NOFOLLOW)<0 && errno==ENOENT,
                 "restore-verification-error","Runtime socket unexpectedly exists in the restored tree"); return;
         }
-        const auto current=entry(root,path,true);
+        const auto current=entry(root,path,true,enumeration,store.fd());
         if(kind=="directory")directories.push_back({path,Hash{}});
         for(const auto* key:{"kind","uid","gid","mode","bytes","rdev","mtime_seconds","mtime_nanoseconds","xattrs"})
             require(json(current[key])==json(e[key]),"restore-verification-error",std::string("Restored entry readback differs: ")+key);

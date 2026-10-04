@@ -85,6 +85,36 @@ Android compilation and extracted AArch64 QEMU CLI checks are separate gates.
 No physical Linux/home backup or rollback is recorded. Stock recovery still
 lacks Btrfs kernel support; snapshot/send/receive backups remain unfinished.
 
+## Enumeration resources
+
+Planning uses an iterative depth-first frontier. Directory metadata is retained
+as a digest; ancestor name vectors and ancestor JSON records are not kept in
+memory. Names are sorted in runs of 1,024 and merged with a bounded heap into
+anonymous files in the retained private backup store. Bytewise sibling order and
+existing namespace hashes are preserved, including non-UTF-8 filenames.
+
+One operation-wide budget allows at most 2 MiB of accounted listing/frontier
+working storage and 512 MiB of live scratch payload. Those figures exclude the
+separately bounded metadata pages, hardlink index, allocator/runtime overhead
+and filesystem cache; they are not a total-process RSS guarantee. The global
+one-million-entry admission occurs before a child name is copied. A directory
+still has a 100,000-child limit, and source paths retain the 64-component limit.
+The sealed plan reports the limits and accounted peaks under `enumeration`.
+Older plans without those informational fields remain readable.
+
+Scratch writes preserve a 16 MiB free-space reserve. Allocation, space, entry
+and write failures close the retained descriptors and refund scratch accounting;
+they do not write source data or replace existing backups. A new failed planning
+store may contain incomplete metadata pages and must not be treated as a sealed
+backup. Capture still resumes from the immutable plan at verified file boundaries.
+
+The preferred scratch form is `O_TMPFILE`. On filesystems without it, a random
+exclusive private file is immediately unlinked before use. A forced restart in
+that creation/unlink gap can leave an unreferenced `enumeration-*.tmp`; it is not
+a restore record and must be inspected before cleanup. RAM-backed backup stores
+also charge scratch to RAM and remain volatile. Use mounted disk storage for
+large trees and durable backups.
+
 API contracts follow [Linux sparse seeking](https://man7.org/linux/man-pages/man2/lseek.2.html),
 [mount identity](https://man7.org/linux/man-pages/man2/statx.2.html) and
 [extended attributes](https://man7.org/linux/man-pages/man2/getxattr.2.html).

@@ -76,6 +76,23 @@ int main() {
         check(paged["entries"].asUInt()==301 && paged["page_count"].asUInt()>=2,"Manifest pagination missing");
         check(ure::backup_tree_capture(many_root,many_store,paged["plan_sha256"].asString())["verified"]==true,"Paged capture failed");
         check(ure::backup_tree_verify(many_store)["verified"]==true,"Paged verify failed");
+        const auto deep=work.path/"deep",deep_store=work.path/"deep-store";
+        ure::fs::create_directory(deep); auto level=deep;
+        for(unsigned depth=0;depth<64;++depth) {
+            for(unsigned index=0;index<16;++index)put(level/("file-"+std::to_string(index)+std::string(245,'x')),"bounded frontier");
+            if(depth<63) { level/="00-next"; ure::fs::create_directory(level); }
+        }
+        ure::Root deep_root(deep); const auto iterative=ure::backup_tree_plan(deep_root,".","global-os3.0.303.0",deep_store);
+        check(iterative["entries"].asUInt()==1088 && iterative["enumeration"]["peak_accounted_working_bytes"].asUInt64()<=2*1024*1024,
+            "Deep traversal lost entries or exceeded aggregate listing/frontier memory");
+        check(ure::backup_tree_capture(deep_root,deep_store,iterative["plan_sha256"].asString())["verified"]==true,"Deep paged capture failed");
+        const auto deep_restored=work.path/"deep-restored";
+        check(ure::backup_tree_restore(deep_store,deep_restored,iterative["plan_sha256"].asString())["verified"]==true,"Deep iterative restore failed");
+        const auto deepest_file=level/("file-15"+std::string(245,'x'));
+        ure::Root deep_result(deep_restored); check(deep_result.read(ure::fs::relative(deepest_file,deep).string())=="bounded frontier","Deepest restored content differs");
+        std::cout<<"Deep enumeration: directories=64, entries="<<iterative["entries"].asUInt()
+            <<", accounted_peak_bytes="<<iterative["enumeration"]["peak_accounted_working_bytes"].asUInt64()
+            <<", scratch_peak_bytes="<<iterative["enumeration"]["peak_scratch_bytes"].asUInt64()<<'\n';
         std::cout<<"Tree metadata, hardlinks, opaque names, sparse data, capture/resume, pagination, independent verification, restore and refusals passed; synthetic directories only.\n";
         return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }

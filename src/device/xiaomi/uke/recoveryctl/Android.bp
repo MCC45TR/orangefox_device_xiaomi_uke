@@ -15,7 +15,7 @@ cc_library_static {
     cflags: ["-Wall", "-Wextra", "-Werror"],
     srcs: ["libuke/core.cpp", "libuke/storage.cpp", "libuke/systems.cpp", "libuke/boot_audit.cpp", "libuke/boot_router.cpp",
            "libuke/transaction.cpp", "libuke/diagnostics.cpp", "libuke/tools.cpp",
-           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/installer_job.cpp", "libuke/tree.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/stock.cpp", "libuke/partition.cpp", "libuke/layout.cpp", "libuke/display.cpp", "libuke/ownership.cpp",
+           "libuke/cli.cpp", "libuke/editor.cpp", "libuke/backup.cpp", "libuke/installer_job.cpp", "libuke/tree.cpp", "libuke/tree_listing.cpp", "libuke/block.cpp", "libuke/gpt.cpp", "libuke/stock.cpp", "libuke/partition.cpp", "libuke/layout.cpp", "libuke/display.cpp", "libuke/ownership.cpp",
            "libuke/preflight.cpp", "libuke/device_profile.cpp", "libuke/filesystems.cpp", "libuke/partition_job.cpp", "libuke/image_ranges.cpp", "libuke/stock_job.cpp", "libuke/rescue.cpp", "libuke/rescue_resources.cpp", "libuke/gui_job.cpp", "libuke/btrfs_backup.cpp", "libuke/btrfs_manager.cpp", "libuke/management.cpp", "libuke/operation_lease.cpp", "libuke/operation_guard.cpp", "libuke/lifecycle_bridge.cpp"],
     export_include_dirs: ["libuke"],
     static_libs: ["libjsoncpp", "liblzma"],

@@ -16,7 +16,7 @@ add_library(uke-jsoncpp STATIC
 target_include_directories(uke-jsoncpp SYSTEM PUBLIC ${UKE_JSONCPP_SOURCE}/include)
 target_compile_definitions(uke-jsoncpp PRIVATE JSON_USE_EXCEPTION=0 JSONCPP_NO_LOCALE_SUPPORT)
 add_library(uke-recovery STATIC libuke/core.cpp libuke/storage.cpp libuke/systems.cpp libuke/boot_audit.cpp libuke/boot_router.cpp libuke/editor.cpp
-    libuke/transaction.cpp libuke/backup.cpp libuke/installer_job.cpp libuke/tree.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
+    libuke/transaction.cpp libuke/backup.cpp libuke/installer_job.cpp libuke/tree.cpp libuke/tree_listing.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
     libuke/preflight.cpp libuke/device_profile.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/image_ranges.cpp libuke/stock_job.cpp libuke/rescue.cpp libuke/rescue_resources.cpp libuke/gui_job.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp libuke/operation_lease.cpp libuke/operation_guard.cpp libuke/lifecycle_bridge.cpp)
 target_compile_features(uke-recovery PUBLIC cxx_std_20)
 target_compile_options(uke-recovery PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
@@ -315,6 +315,13 @@ if(BUILD_TESTING)
     target_link_libraries(uke-tree-tests PRIVATE uke-recovery)
     target_compile_options(uke-tree-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
     ure_test(ure-linux-home-tree-backup uke-tree-tests)
+    add_executable(uke-tree-listing-tests ../../../../../tests/ure/tree_listing.cpp)
+    target_include_directories(uke-tree-listing-tests PRIVATE libuke)
+    target_link_libraries(uke-tree-listing-tests PRIVATE uke-recovery)
+    target_link_options(uke-tree-listing-tests PRIVATE -Wl,--wrap=write -Wl,--wrap=openat -Wl,--wrap=fstatvfs)
+    target_compile_options(uke-tree-listing-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    ure_test(ure-bounded-tree-enumeration uke-tree-listing-tests ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(ure-bounded-tree-enumeration PROPERTIES TIMEOUT 120)
     add_executable(uke-layout-tests ../../../../../tests/ure/layout.cpp)
     target_compile_features(uke-layout-tests PRIVATE cxx_std_20)
     target_include_directories(uke-layout-tests PRIVATE libuke)

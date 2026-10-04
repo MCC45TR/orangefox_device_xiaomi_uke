@@ -672,3 +672,16 @@ acceptance status.
 No measured speedup percentage is claimed. Initial latency/RSS targets should
 be chosen after a baseline on the constrained host and the actual tablet;
 generic TCG wall times are not tablet throughput benchmarks.
+
+## AUD-015 superseding source/host remediation — 4 October 2026
+
+The original directory-allocation finding remains preserved above. Current
+source uses an iterative frontier and bounded deterministic anonymous sorted
+runs, with aggregate entry admission before copying names. Four matching native
+and sanitizer checks, the 100,000 maximum-length-name RSS fixture, 64-level
+capture/restore and the actual tree CLI SIGKILL/resume checks passed. See
+[the ordered remediation record](URE-P1-REMEDIATION-2026-10-04.md) and
+[the enumeration resource contract](../docs/TREE-BACKUP.md#enumeration-resources)
+for exact limits, final inputs, failed trials and residual scratch/runtime
+boundaries. This resolves the reviewed source allocation structure; target,
+combined VM and physical acceptance remain open.

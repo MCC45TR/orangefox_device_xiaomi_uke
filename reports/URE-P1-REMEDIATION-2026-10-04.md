@@ -17,8 +17,8 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-010 | Populated/fragmented/damaged ext4 and populated F2FS/NTFS/FAT oracles; inspectable space refusal, exact persisted size and volume identity guards; four native/four sanitizer controls and six-format CLI sets passed | Fresh target/combined guest, arbitrary damage and encrypted-data acceptance separate |
 | AUD-012 | Compiled aggregate cgroup-v2 envelope, GUI/ancestor headroom, blocked-worker admission, read-only proc and supervisor protection, exact-owner cancellation and conservative cleanup; eight native/eight sanitizer controls plus real host stress and namespace CLI sets passed | Fresh target/combined guest, GUI latency (AUD-013), protected negative OOM inheritance and external forced-restart recovery remain separate; shipping backend/physical acceptance unaccepted |
 | AUD-013 | Owned worker, frozen session inputs, short GUI locks, bounded single completion, stale-view refusal and truthful advisory stop; nine native/nine sanitizer controls and exact reviewed source-stack controls passed | Fresh target, rendered-frame/combined visual guest and physical acceptance remain separate; global lifetime and exact backend GUI control follow in AUD-014 |
-| AUD-014 | Detached maintenance removed as part of the owned executor; concurrent worker shutdown joins | Global lifecycle registry, application teardown and separate exact-owner GUI maintenance/rescue controllers remain pending |
-| AUD-015 | Global directory-memory admission | Pending |
+| AUD-014 | Retained runtime lifecycle leases, exact rescue/Btrfs controllers, pause/error cleanup and joined application teardown; eighteen native/eighteen sanitizer controls passed | Fresh target, combined guest, rendered/locale and physical acceptance remain separate; registry is volatile cooperating ownership |
+| AUD-015 | Iterative frontier, global pre-copy entry/memory admission and anonymous deterministic sorted runs; four native/four sanitizer controls plus actual tree CLI interruption/resume passed | Fresh target/combined guest and physical acceptance remain separate; accounted listing budget excludes bounded metadata/index/runtime overhead and RAM-backed scratch remains volatile |
 | AUD-022 | Host reserve and separate parallelism | Pending |
 | AUD-023 | Nested disk temporary storage | Pending |
 | AUD-024 | Immutable build-completion evidence | Pending |
@@ -120,3 +120,40 @@ The detached worker is removed, but AUD-014's global lifecycle, orderly teardown
 and separate exact-owner GUI backend controllers remain unfinished. Fresh target,
 rendered-frame/combined guest, full release and physical acceptance remain open.
 See `docs/GUI-JOB-EXECUTION.md` and the dated parent engineering lessons.
+
+AUD-015 replaces recursive ancestor name vectors with an iterative frontier and
+sorted 1,024-name runs. The shared limits are 2 MiB of accounted listing/frontier
+storage, 512 MiB of live anonymous scratch and one million entries admitted
+before name copying; per-directory and path-depth limits remain 100,000 and 64.
+The backup store retains a 16 MiB free-space reserve. Bytewise sibling ordering,
+opaque filenames and existing namespace hashes remain compatible. Older sealed
+plans without the new informational enumeration fields remain readable.
+
+The final frozen input manifest is
+`30e2670dee369bf077754600df74492c25336eb944f5c55a10003fad787dc4f3`.
+Four focused native checks passed in 57.20 seconds; matching leak-enabled pinned
+Clang ASan/UBSan checks passed in 148.26 seconds. The actual CLI capture/verify/
+restore and observed SIGKILL/resume suite passed separately. The wide fixture
+contains 100,000 actual children with 255-byte names: accounted working peak is
+425,056 bytes and scratch peak 51,400,000 bytes. Isolated native maximum RSS grew
+from 5,484 to 6,144 KiB; sanitizer maximum RSS grew from 14,640 to 19,308 KiB.
+These are measurements for enumeration, not a whole-backup RSS guarantee.
+The 64-directory / 1,088-entry fixture completed actual plan/capture/restore,
+with 972,356 accounted bytes and 268,131 scratch bytes at peak.
+
+The same 32 MiB RSS-growth assertion first failed under sanitizers. Successful
+per-name guards were constructing error strings on every check; failure-only
+construction removed allocator/quarantine churn without relaxing the assertion.
+Earlier compile and deep-count/namespace-oracle failures are preserved. The
+final namespace oracle independently reopens and compares the actual source
+inode and names rather than relying on a reused listing cursor. Allocation,
+ENOSPC/reserve, short-write/EINTR, global entry exhaustion, 100,001-child refusal
+and observed child SIGKILL checks verify descriptor/accounting cleanup. Existing
+CLI interruption tests retain durable capture recovery.
+
+Preferred scratch is anonymous `O_TMPFILE`; the immediate-unlink fallback has a
+creation/unlink forced-restart gap that may leave an unreferenced private
+`enumeration-*.tmp`. RAM-backed stores charge scratch to RAM and are volatile.
+Metadata pages, hardlink indexes, allocator/runtime overhead and page cache are
+separate from the 2 MiB budget. No fresh Android package, combined guest, live
+storage writer, physical backup or whole-process low-memory acceptance is claimed.
