@@ -169,7 +169,7 @@ index 3b8d3e49..260c22cb 100755
  	bool remount_system = PartitionManager.Is_Mounted_By_Path(PartitionManager.Get_Android_Root_Path());
  	int op_status;
 diff --git a/partition.cpp b/partition.cpp
-index 1914cf41..0bcc0226 100644
+index 1914cf41..2bcf0aff 100644
 --- a/partition.cpp
 +++ b/partition.cpp
 @@ -20,8 +20,11 @@
@@ -202,15 +202,28 @@ index 1914cf41..0bcc0226 100644
 +		}
  		return true;
  	} else if (!Can_Be_Mounted) {
-@@ -1652,5 +1663,5 @@ bool TWPartition::Mount(bool Display_Error) {
+@@ -1651,6 +1662,10 @@ bool TWPartition::Mount(bool Display_Error) {
+ 	// Check the current file system before mounting
  	Check_FS_Type();
++	if (!ure::legacy_read_only_filesystem_supported(Current_File_System)) {
++		ure_legacy_write_guard(ure::LegacyWrite::WritableMount);
++		return false;
++	}
  	if (Current_File_System == "exfat" && TWFunc::Path_Exists("/system/bin/exfat-fuse")) {
 -		string cmd = "/system/bin/exfat-fuse -o big_writes,max_read=131072,max_write=131072 " + Actual_Block_Device + " " + Mount_Point;
 +		string cmd = "/system/bin/exfat-fuse -o ro,big_writes,max_read=131072,max_write=131072 " + Actual_Block_Device + " " + Mount_Point;
  		LOGINFO("cmd: %s\n", cmd.c_str());
  		string result;
-@@ -1744,11 +1755,18 @@ bool TWPartition::Mount(bool Display_Error) {
+@@ -1741,14 +1756,25 @@ bool TWPartition::Mount(bool Display_Error) {
+ 
+ 	mount_fs = Current_File_System;
+-	if (Current_File_System == "exfat" && TWFunc::Path_Exists("/sys/module/texfat"))
++	if (!exfat_mounted && Current_File_System == "exfat" && TWFunc::Path_Exists("/sys/module/texfat"))
  		mount_fs = "texfat";
++	if (!ure::legacy_read_only_filesystem_supported(mount_fs)) {
++		ure_legacy_write_guard(ure::LegacyWrite::WritableMount);
++		return false;
++	}
  
 +	recovery_option = ure::legacy_read_only_recovery_option(Current_File_System);
 +	safe_mount_options = Mount_Options;
@@ -231,175 +244,175 @@ index 1914cf41..0bcc0226 100644
 +			if (mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), "vfat", flags, NULL) != 0) {
  				if (Display_Error)
  					gui_msg(Msg(msg::kError, "fail_mount=Failed to mount '{1}' ({2})")(Mount_Point)(strerror(errno)));
-@@ -1847,4 +1865,5 @@ bool TWPartition::ReMount(bool Display_Error) {
+@@ -1847,4 +1873,5 @@ bool TWPartition::ReMount(bool Display_Error) {
  
  bool TWPartition::ReMount_RW(bool Display_Error) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return false;
  	// No need to remount if already mounted rw
  	if (Is_File_System_Writable())
-@@ -1862,4 +1881,5 @@ bool TWPartition::ReMount_RW(bool Display_Error) {
+@@ -1862,4 +1889,5 @@ bool TWPartition::ReMount_RW(bool Display_Error) {
  
  bool TWPartition::BlkDiscard() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
  	string cmd;
  	LOGINFO("Perform BLKDISCARD on block device %s\n", Actual_Block_Device.c_str());
-@@ -1869,4 +1889,5 @@ bool TWPartition::BlkDiscard() {
+@@ -1869,4 +1897,5 @@ bool TWPartition::BlkDiscard() {
  
  bool TWPartition::Wipe(string New_File_System) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	bool wiped = false, update_crypt = false, recreate_media = true;
  	int check;
-@@ -1964,4 +1985,5 @@ bool TWPartition::Wipe() {
+@@ -1964,4 +1993,5 @@ bool TWPartition::Wipe() {
  
  bool TWPartition::Wipe_AndSec(void) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
  	if (!Has_Android_Secure)
  		return false;
-@@ -1976,4 +1998,5 @@ bool TWPartition::Wipe_AndSec(void) {
+@@ -1976,4 +2006,5 @@ bool TWPartition::Wipe_AndSec(void) {
  
  bool TWPartition::Wipe_Data_Cache(void) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
  	if (!Mount(true))
  		return false;
-@@ -2000,4 +2023,5 @@ bool TWPartition::Can_Repair() {
+@@ -2000,4 +2031,5 @@ bool TWPartition::Can_Repair() {
  
  bool TWPartition::Repair() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Repair)) return false;
  	string command;
  
-@@ -2124,4 +2148,5 @@ bool TWPartition::Can_Resize() {
+@@ -2124,4 +2156,5 @@ bool TWPartition::Can_Resize() {
  
  bool TWPartition::Resize() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Resize)) return false;
  	string command;
  
-@@ -2189,4 +2214,5 @@ bool TWPartition::Backup(PartitionSettings *part_settings, pid_t *tar_fork_pid)
+@@ -2189,4 +2222,5 @@ bool TWPartition::Backup(PartitionSettings *part_settings, pid_t *tar_fork_pid)
  
  bool TWPartition::Restore(PartitionSettings *part_settings) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
    	if (DataManager::GetIntValue(FOX_RUN_SURVIVAL_BACKUP) != 1) {
  	    TWFunc::GUI_Operation_Text(TW_RESTORE_TEXT, Display_Name, gui_parse_text("{@restoring_hdr}"));
-@@ -2240,4 +2266,5 @@ string TWPartition::Backup_Method_By_Name() {
+@@ -2240,4 +2274,5 @@ string TWPartition::Backup_Method_By_Name() {
  
  bool TWPartition::Decrypt(string Password) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return false;
  	LOGINFO("STUB TWPartition::Decrypt, password: '%s'\n", Password.c_str());
  	// Is this needed?
-@@ -2246,4 +2273,5 @@ bool TWPartition::Decrypt(string Password) {
+@@ -2246,4 +2281,5 @@ bool TWPartition::Decrypt(string Password) {
  
  bool TWPartition::Wipe_Encryption() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	bool Save_Data_Media = Has_Data_Media;
  	bool ret = false;
-@@ -2374,4 +2402,5 @@ void TWPartition::Check_FS_Type() {
+@@ -2374,4 +2410,5 @@ void TWPartition::Check_FS_Type() {
  
  bool TWPartition::Wipe_EXTFS(string File_System) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	if (!UnMount(true))
  		return false;
-@@ -2475,4 +2504,5 @@ bool TWPartition::Wipe_EXTFS(string File_System) {
+@@ -2475,4 +2512,5 @@ bool TWPartition::Wipe_EXTFS(string File_System) {
  
  bool TWPartition::Wipe_EXT4() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  #ifdef USE_EXT4
  	int ret;
-@@ -2533,4 +2563,5 @@ bool TWPartition::Wipe_EXT4() {
+@@ -2533,4 +2571,5 @@ bool TWPartition::Wipe_EXT4() {
  
  bool TWPartition::Wipe_FAT() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	string command;
  	if (!UnMount(true))
-@@ -2559,4 +2590,5 @@ bool TWPartition::Wipe_FAT() {
+@@ -2559,4 +2598,5 @@ bool TWPartition::Wipe_FAT() {
  
  bool TWPartition::Wipe_EXFAT() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	string command;
  
-@@ -2582,4 +2614,5 @@ bool TWPartition::Wipe_EXFAT() {
+@@ -2582,4 +2622,5 @@ bool TWPartition::Wipe_EXFAT() {
  
  bool TWPartition::Wipe_MTD() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	if (!UnMount(true))
  		return false;
-@@ -2615,4 +2648,5 @@ bool TWPartition::Wipe_MTD() {
+@@ -2615,4 +2656,5 @@ bool TWPartition::Wipe_MTD() {
  
  bool TWPartition::Wipe_RMRF() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
  	if (!Mount(true))
  		return false;
-@@ -2630,4 +2664,5 @@ bool TWPartition::Wipe_RMRF() {
+@@ -2630,4 +2672,5 @@ bool TWPartition::Wipe_RMRF() {
  
  bool TWPartition::Wipe_F2FS() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	std::string f2fs_command;
  
-@@ -2743,4 +2778,5 @@ bool TWPartition::Wipe_F2FS() {
+@@ -2743,4 +2786,5 @@ bool TWPartition::Wipe_F2FS() {
  
  bool TWPartition::Wipe_NTFS() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
  	string command;
  	string Ntfsmake_Binary;
-@@ -2771,4 +2807,5 @@ bool TWPartition::Wipe_NTFS() {
+@@ -2771,4 +2815,5 @@ bool TWPartition::Wipe_NTFS() {
  
  bool TWPartition::Wipe_Data_Without_Wiping_Media() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
  #ifdef TW_OEM_BUILD
  	// In an OEM Build we want to do a full format
-@@ -2789,4 +2826,5 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media() {
+@@ -2789,4 +2834,5 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media() {
  
  bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unused) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
  	string dir;
  
-@@ -2830,4 +2868,5 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unu
+@@ -2830,4 +2876,5 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unu
  
  void TWPartition::Wipe_Crypto_Key() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return;
  	Find_Actual_Block_Device();
  	if (Crypto_Key_Location.empty())
-@@ -2975,4 +3014,5 @@ bool TWPartition::Backup_Image(PartitionSettings *part_settings) {
+@@ -2975,4 +3022,5 @@ bool TWPartition::Backup_Image(PartitionSettings *part_settings) {
  
  bool TWPartition::Raw_Read_Write(PartitionSettings *part_settings) {
 +    if (part_settings->PM_Method != PM_BACKUP && !ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
  	unsigned long long RW_Block_Size, Remain = Backup_Size;
  	int src_fd = -1, dest_fd = -1;
-@@ -3145,4 +3185,5 @@ unsigned long long TWPartition::Get_Restore_Size(PartitionSettings *part_setting
+@@ -3145,4 +3193,5 @@ unsigned long long TWPartition::Get_Restore_Size(PartitionSettings *part_setting
  
  bool TWPartition::Restore_Tar(PartitionSettings *part_settings) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
  	string Full_FileName;
  	bool ret = false;
-@@ -3228,4 +3269,5 @@ bool TWPartition::Restore_Tar(PartitionSettings *part_settings) {
+@@ -3228,4 +3277,5 @@ bool TWPartition::Restore_Tar(PartitionSettings *part_settings) {
  
  bool TWPartition::Restore_Image(PartitionSettings *part_settings) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
  	string Full_FileName;
  	string Restore_File_System = Get_Restore_File_System(part_settings);
-@@ -3511,4 +3553,5 @@ uint64_t TWPartition::Get_Max_FileSize() {
+@@ -3511,4 +3561,5 @@ uint64_t TWPartition::Get_Max_FileSize() {
  
  bool TWPartition::Flash_Image(PartitionSettings *part_settings) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
  	string Restore_File_System, full_filename;
  
-@@ -3571,4 +3614,5 @@ bool TWPartition::Is_Sparse_Image(const string& Filename) {
+@@ -3571,4 +3622,5 @@ bool TWPartition::Is_Sparse_Image(const string& Filename) {
  
  bool TWPartition::Flash_Sparse_Image(const string& Filename) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
  	string Command;
  
-@@ -3586,4 +3630,5 @@ bool TWPartition::Flash_Sparse_Image(const string& Filename) {
+@@ -3586,4 +3638,5 @@ bool TWPartition::Flash_Sparse_Image(const string& Filename) {
  
  bool TWPartition::Flash_Image_FI(const string& Filename, ProgressTracking *progress) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
  	string Command;
  	unsigned long long file_size;
-@@ -3608,4 +3653,5 @@ bool TWPartition::Flash_Image_FI(const string& Filename, ProgressTracking *progr
+@@ -3608,4 +3661,5 @@ bool TWPartition::Flash_Image_FI(const string& Filename, ProgressTracking *progr
  
  void TWPartition::Change_Mount_Read_Only(bool new_value) {
 +    if (!new_value && !ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return;
  	Mount_Read_Only = new_value;
  }
-@@ -3648,4 +3694,5 @@ int TWPartition::Check_Lifetime_Writes() {
+@@ -3648,4 +3702,5 @@ int TWPartition::Check_Lifetime_Writes() {
  
  int TWPartition::Decrypt_Adopted() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return 1;

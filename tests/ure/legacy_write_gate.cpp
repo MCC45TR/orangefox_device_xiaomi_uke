@@ -50,7 +50,7 @@ void mounts(const string& original) {
     require(GateProbe::probes==0 && GateProbe::mounts.empty() && GateProbe::commands.empty(),"Writable mount looked up or opened storage");
     unchanged(original);
     partition.Mount_Read_Only=true;
-    for (const string fs : {"ext4","f2fs","vfat"}) {
+    for (const string fs : {"ext2","ext3","ext4","f2fs","vfat","erofs","squashfs"}) {
         GateProbe::reset(); partition.Current_File_System=partition.Fstab_File_System=fs;
         GateProbe::mount_results={-1,0};
         require(partition.Mount(true),"Readonly mount fallback failed");
@@ -60,6 +60,12 @@ void mounts(const string& original) {
             const string option=ure::legacy_read_only_recovery_option(fs);
             require(option.empty() || mount.options.find(option)!=string::npos,"Readonly retry allowed journal replay");
         }
+        unchanged(original);
+    }
+    for (const string fs : {"auto","mifs","yaffs2","tntfs","texfat","unknown"}) {
+        GateProbe::reset(); partition.Current_File_System=partition.Fstab_File_System=fs;
+        require(!partition.Mount(true),"Unknown/unreviewed filesystem was mounted");
+        require(GateProbe::mounts.empty() && GateProbe::commands.empty(),"Unsupported filesystem reached a mount helper");
         unchanged(original);
     }
     for (bool failure : {false,true}) {

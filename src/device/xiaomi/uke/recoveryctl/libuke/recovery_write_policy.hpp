@@ -44,7 +44,12 @@ constexpr const char* legacy_write_name(LegacyWrite operation) noexcept {
 // MS_RDONLY alone permits ext4 journal replay. Preserve the no-replay option
 // even when a filesystem mount retries without user-supplied fstab options.
 constexpr const char* legacy_read_only_recovery_option(std::string_view filesystem) noexcept {
-    return filesystem == "ext4" ? "noload" : filesystem == "f2fs" ? "norecovery" : "";
+    return filesystem == "ext3" || filesystem == "ext4" ? "noload" : filesystem == "f2fs" ? "norecovery" : "";
+}
+constexpr bool legacy_read_only_filesystem_supported(std::string_view filesystem) noexcept {
+    return filesystem == "ext2" || filesystem == "ext3" || filesystem == "ext4" ||
+        filesystem == "f2fs" || filesystem == "vfat" || filesystem == "ntfs" ||
+        filesystem == "exfat" || filesystem == "erofs" || filesystem == "squashfs";
 }
 // Fastbootd keeps transport/readback and explicit reboot routes. Everything
 // else, including newly added and OEM commands, is denied before dispatch.

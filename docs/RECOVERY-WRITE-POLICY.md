@@ -44,10 +44,12 @@ Read-only inspection and unmount/namespace cleanup are retained. Fastbootd
 permits `getvar`, RAM-only `download`, `fetch` and explicit reboot/shutdown
 controls; reboot routes may update their normal boot-control message.
 
-Readonly ext4 mounts retain `noload`, including fallback attempts. F2FS retains
+Readonly ext3/ext4 mounts retain `noload`, including fallback attempts. F2FS retains
 `norecovery`. An existing writable or uninspectable mount is refused instead of
 silently accepted or remounted. NTFS/exFAT helpers receive `ro`, and the exFAT
-kernel-to-FAT fallback retains `MS_RDONLY`. The device fstab also requests
+kernel-to-FAT fallback retains `MS_RDONLY`. Unknown and unreviewed proprietary filesystem
+types cannot enter a new mount or a fallback through an implicit `auto` type.
+The device fstab also requests
 readonly, no-replay mounts for data, metadata and persist. Linux documents that
 ext4 can replay its journal even under `ro`; skipping replay can expose an
 inconsistent view after an unclean shutdown. See the [ext4 mount contract](https://docs.kernel.org/admin-guide/ext4.html)
