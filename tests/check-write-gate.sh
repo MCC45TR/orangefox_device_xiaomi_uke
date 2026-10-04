@@ -28,6 +28,11 @@ cmp "$component/src/device/xiaomi/uke/ure-write-gate.hpp" "$tree/bootable/recove
 cmp "$component/src/device/xiaomi/uke/recoveryctl/libuke/recovery_write_policy.hpp" "$tree/device/xiaomi/uke/recoveryctl/libuke/recovery_write_policy.hpp"
 git -C "$tree/bootable/recovery" apply --reverse --check "$component/patches/0020-shared-recovery-write-gate.patch"
 git -C "$tree/system/core" apply --reverse --check "$component/patches/0021-fastbootd-write-gate.patch"
+# An early queued error is translated after theme loading. A missing fallback
+# can re-enter GUIConsole::Translate_Now through FindString's error logging.
+language="$tree/bootable/recovery/gui/theme/common/languages/en.xml"
+[[ $(xmllint --xpath 'count(/language/resources/string[@name="ure_device_write_blocked"])' "$language") == 1 ]]
+[[ $(xmllint --xpath 'string(/language/resources/string[@name="ure_device_write_blocked"])' "$language") == 'Device writes are unavailable: verified device and firmware checks, a backup and a reviewed URE storage plan are required.' ]]
 awk '$2=="/data" || $2=="/metadata" { if ($4 !~ /(^|,)ro(,|$)/ || $4 !~ /(^|,)norecovery(,|$)/) exit 1; n++ }
      $2=="/persist" { if ($4 !~ /(^|,)ro(,|$)/ || $4 !~ /(^|,)noload(,|$)/) exit 1; p++ }
      END { if (n!=2 || p!=1) exit 1 }' "$component/src/device/xiaomi/uke/recovery/root/system/etc/recovery.fstab"

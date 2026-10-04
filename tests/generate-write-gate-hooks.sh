@@ -17,12 +17,21 @@ extract() {
     printf '%s\n' '#include "write-gate-hooks.h"' \
         '#define mount(...) ure_test_mount(__VA_ARGS__)' \
         '#define statvfs(...) ure_test_statvfs(__VA_ARGS__)' \
-        '#define chmod(...) ure_test_chmod(__VA_ARGS__)'
+        '#define chmod(...) ure_test_chmod(__VA_ARGS__)' \
+        '#define unlink(...) ure_test_unlink(__VA_ARGS__)'
     extract "$recovery/partitionmanager.cpp" 'int TWPartitionManager::Format_Data(void) {'
     extract "$recovery/partitionmanager.cpp" 'void TWPartitionManager::Set_Active_Slot(const string& Slot) {'
     extract "$recovery/partition.cpp" 'void TWPartition::Change_Mount_Read_Only(bool new_value) {'
     extract "$recovery/partition.cpp" 'bool TWPartition::Mount(bool Display_Error) {'
+    extract "$recovery/openrecoveryscript.cpp" 'int OpenRecoveryScript::copy_script_file(string filename) {'
+    extract "$recovery/openrecoveryscript.cpp" 'int OpenRecoveryScript::Run_ORS_File(const std::string& filename) {'
+    extract "$recovery/gui/action.cpp" 'int GUIAction::dd(std::string arg)'
+    extract "$recovery/gui/action.cpp" 'int GUIAction::cmd(std::string arg)'
+    extract "$recovery/gui/action.cpp" 'int GUIAction::ftls(std::string arg)'
+    extract "$recovery/twrpRepacker.cpp" 'bool twrpRepacker::Flash_Current_Twrp() {'
+    extract "$recovery/twrp-functions.cpp" 'int TWFunc::stream_adb_backup(string &Restore_Name) {'
     extract "$fastboot/device/fastboot_device.cpp" 'void FastbootDevice::ExecuteCommands() {'
     extract "$fastboot/device/utility.cpp" 'bool OpenPartition(FastbootDevice* device, const std::string& name, PartitionHandle* handle,'
-    printf '%s\n' '#undef mount' '#undef statvfs' '#undef chmod'
+    extract "$fastboot/device/variables.cpp" 'bool GetPartitionSize(FastbootDevice* device, const std::vector<std::string>& args,'
+    printf '%s\n' '#undef mount' '#undef statvfs' '#undef chmod' '#undef unlink'
 } > "$output"

@@ -25,7 +25,7 @@ index 7aafdb44..a4825673 100644
  
  ifneq ($(TW_DEVICE_VERSION),)
 diff --git a/gui/action.cpp b/gui/action.cpp
-index 91caa0d8..844891a2 100644
+index 91caa0d8..86b58c1c 100644
 --- a/gui/action.cpp
 +++ b/gui/action.cpp
 @@ -20,4 +20,6 @@
@@ -53,30 +53,106 @@ index 91caa0d8..844891a2 100644
 +   if (!ure_legacy_write_guard(ure::LegacyWrite::InstallPackage)) return INSTALL_ERROR;
     if (!TWFunc::Path_Exists(Fox_Bin_Dir + "/ozip_decrypt"))
        {
-@@ -2047,4 +2052,5 @@ int GUIAction::killterminal(std::string arg __unused)
+@@ -1755,4 +1760,5 @@ int GUIAction::refreshsizes(std::string arg __unused)
+ int GUIAction::nandroid(std::string arg)
+ {
++	if (arg == "restore" && !ure_legacy_write_guard(ure::LegacyWrite::Restore)) return 1;
+ 	if (simulate) {
+ 		PartitionManager.stop_backup.set_value(0);
+@@ -1800,5 +1806,4 @@ int GUIAction::nandroid(std::string arg)
+ 					ret = 1; // failure
+ 				DataManager::SetValue("tw_enable_adb_backup", 0);
+-				ret = 0; // assume success???
+ 			} else {
+ 				if (PartitionManager.Run_Restore(Restore_Name))
+@@ -1873,4 +1878,5 @@ int GUIAction::fixpermissions(std::string arg)
+ int GUIAction::dd(std::string arg)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return 1;
+   operation_start("imaging");
+ 
+@@ -1920,4 +1926,5 @@ int GUIAction::partitionsd(std::string arg __unused)
+ int GUIAction::cmd(std::string arg)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return 1;
+   int op_status = 0;
+ 
+@@ -1941,4 +1948,5 @@ int GUIAction::cmd(std::string arg)
+ int GUIAction::ftls(std::string arg)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return 1;
+   int op_status = 0;
+   DataManager::SetValue("ftls_running", "1");
+@@ -2047,4 +2055,5 @@ int GUIAction::killterminal(std::string arg __unused)
  int GUIAction::reinjecttwrp(std::string arg __unused)
  {
 +  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
    int op_status = 0;
    operation_start("ReinjectTWRP");
-@@ -2590,4 +2596,5 @@ int GUIAction::togglebacklight(std::string arg __unused)
+@@ -2590,4 +2599,5 @@ int GUIAction::togglebacklight(std::string arg __unused)
  int GUIAction::setbootslot(std::string arg)
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::SlotSwitch)) return 1;
  	operation_start("Set Boot Slot");
  	if (!simulate) {
-@@ -2893,4 +2900,5 @@ exit:
+@@ -2689,4 +2699,5 @@ int GUIAction::flashlightImpl(std::string arg __unused)
+ int GUIAction::calldeactivateprocess(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+   operation_start("Patch DM-Verity and Forced-Encryption");
+   if (simulate)
+@@ -2707,4 +2718,5 @@ int GUIAction::calldeactivateprocess(std::string arg __unused)
+ int GUIAction::disable_replace(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+   operation_start("Disable stocker recovery's replace");
+   if (simulate)
+@@ -2728,4 +2740,5 @@ int GUIAction::disableled(std::string arg __unused)
+ int GUIAction::wlfw(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+   operation_start("WLFW");
+   if (simulate)
+@@ -2743,4 +2756,5 @@ int GUIAction::wlfw(std::string arg __unused)
+ int GUIAction::wlfx(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+   operation_start("WLFX");
+   if (simulate)
+@@ -2785,4 +2799,5 @@ int GUIAction::adb(std::string arg)
+ int GUIAction::repackimage(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+ 	int op_status = 1;
+ 	twrpRepacker repacker;
+@@ -2812,4 +2827,5 @@ exit:
+ int GUIAction::reflashtwrp(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+ 	int op_status = 1;
+ 	twrpRepacker repacker;
+@@ -2893,4 +2909,5 @@ exit:
  int GUIAction::cmdf(std::string arg, std::string file)
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return 1;
    char buff[1024];
    sprintf(buff, gui_parse_text(arg).c_str(), file.c_str());
-@@ -3080,4 +3088,5 @@ int GUIAction::changeterminal(std::string arg) {
+@@ -3080,4 +3097,5 @@ int GUIAction::changeterminal(std::string arg) {
  
  int GUIAction::mergesnapshots(string arg __unused) {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::PartitionMetadata)) return 1;
  	int op_status = 1;
  	if (PartitionManager.Check_Pending_Merges()) {
+diff --git a/gui/theme/common/languages/en.xml b/gui/theme/common/languages/en.xml
+index d798317c..a4a9b4cb 100644
+--- a/gui/theme/common/languages/en.xml
++++ b/gui/theme/common/languages/en.xml
+@@ -371,4 +371,5 @@
+ 
+ 		<!-- Various console messages - these consist of user displayed messages, oftentimes errors -->
++		<string name="ure_device_write_blocked">Device writes are unavailable: verified device and firmware checks, a backup and a reviewed URE storage plan are required.</string>
+ 		<string name="no_kernel_selinux">Kernel does not have support for reading SELinux contexts.</string>
+ 		<string name="full_selinux">Full SELinux support is present.</string>
 diff --git a/install/adb_install.cpp b/install/adb_install.cpp
 index 1f6e3b7e..2457b930 100755
 --- a/install/adb_install.cpp
@@ -138,7 +214,7 @@ index 647f2df5..7763aab9 100644
    // RecoveryUI* ui = device->GetUI();
    // ui->Print("\n-- Wiping data %.*s...\n", static_cast<int>(data_fstype.size()), data_fstype.data());
 diff --git a/openrecoveryscript.cpp b/openrecoveryscript.cpp
-index 3b8d3e49..260c22cb 100755
+index 3b8d3e49..ba294bf2 100755
 --- a/openrecoveryscript.cpp
 +++ b/openrecoveryscript.cpp
 @@ -21,4 +21,6 @@
@@ -148,13 +224,42 @@ index 3b8d3e49..260c22cb 100755
 +
  #include <stdio.h>
  #include <stdlib.h>
-@@ -398,4 +400,5 @@ int OpenRecoveryScript::run_script_file(void) {
+@@ -67,4 +69,5 @@ OpenRecoveryScript::VoidFunction OpenRecoveryScript::call_after_cli_command;
+ 
+ int OpenRecoveryScript::check_for_script_file(void) {
++	if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return 0;
+ 	std::string logDir = TWFunc::get_log_dir();
+ 	std::string orsFile;
+@@ -91,4 +94,5 @@ int OpenRecoveryScript::check_for_script_file(void) {
+ 
+ int OpenRecoveryScript::copy_script_file(string filename) {
++	if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return 0;
+ 	if (TWFunc::Path_Exists(filename)) {
+ 		LOGINFO("Script file found: '%s'\n", filename.c_str());
+@@ -150,4 +154,9 @@ int OpenRecoveryScript::run_script_file(void) {
+ 				gui_print("command is: '%s' and there is no value\n", command);
+ 			}
++			if (!ure::legacy_ors_command_permitted(command, value[0] == '\0') &&
++			    !ure_legacy_write_guard(ure::LegacyWrite::Script)) {
++				ret_val = 1;
++				break;
++			}
+ 			if (strcmp(command, "install") == 0) {
+ 				// Install Zip
+@@ -398,4 +407,5 @@ int OpenRecoveryScript::run_script_file(void) {
  					TWFunc::tw_reboot(rb_system);
  			} else if (strcmp(command, "cmd") == 0) {
 +                if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) { ret_val = 1; break; }
  				DataManager::SetValue("tw_action_text2", gui_parse_text("{@running_command}"));
  				if (cindex != 0) {
-@@ -496,5 +499,6 @@ int OpenRecoveryScript::run_script_file(void) {
+@@ -485,5 +495,5 @@ int OpenRecoveryScript::run_script_file(void) {
+ 		tmp_tmp = ret_val;
+ 		//* DJ9 - disable auto-reboot after incremental OTA updates? *//
+-		if (DataManager::GetIntValue(FOX_DISABLE_OTA_AUTO_REBOOT) == 1) 
++		if (ret_val == 0 && DataManager::GetIntValue(FOX_DISABLE_OTA_AUTO_REBOOT) == 1)
+ 		  {
+ 		     ret_val = 3; // forces booting to the home page - also runs DM-Verity patch
+@@ -496,5 +506,6 @@ int OpenRecoveryScript::run_script_file(void) {
  	}
  
 -	if (install_cmd && DataManager::GetIntValue(TW_HAS_INJECTTWRP) == 1 &&
@@ -162,7 +267,13 @@ index 3b8d3e49..260c22cb 100755
 +	DataManager::GetIntValue(TW_HAS_INJECTTWRP) == 1 &&
  	DataManager::GetIntValue(TW_INJECT_AFTER_ZIP) == 1) {
  		gui_msg("injecttwrp=Injecting TWRP into boot image...");
-@@ -839,4 +843,5 @@ int OpenRecoveryScript::Run_ORS_File(const std::string& filename) {
+@@ -830,4 +841,5 @@ int OpenRecoveryScript::Run_ORS_Line(const std::string& command) {
+ // exit code. Used by 'fox ors <script>'.
+ int OpenRecoveryScript::Run_ORS_File(const std::string& filename) {
++	if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return 1;
+ 	if (copy_script_file(filename) == 0) {
+ 		LOGINFO("fox: unable to copy script file '%s'\n", filename.c_str());
+@@ -839,4 +851,5 @@ int OpenRecoveryScript::Run_ORS_File(const std::string& filename) {
  int OpenRecoveryScript::remountrw(void)
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return 1;
@@ -419,7 +530,7 @@ index 1914cf41..2bcf0aff 100644
  #ifdef TW_INCLUDE_CRYPTO
  	int ret = 1;
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
-index 2fe66948..7c021261 100755
+index 2fe66948..1ba853f2 100755
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -20,4 +20,6 @@
@@ -579,7 +690,13 @@ index 2fe66948..7c021261 100755
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return false;
  	if (TWFunc::Path_Exists(Folder))
  		TWFunc::removeDir(Folder, false);
-@@ -4888,4 +4915,5 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+@@ -4798,4 +4825,5 @@ bool TWPartitionManager::Recreate_Logs_Dir() {
+ 
+ void TWPartitionManager::Unlock_Block_Partitions() {
++	if (!ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return;
+ 	int fd, OFF = 0;
+ 
+@@ -4888,4 +4916,5 @@ bool TWPartitionManager::Unmap_Super_Devices() {
  
  bool TWPartitionManager::Check_Pending_Merges() {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::PartitionMetadata)) return false;
@@ -611,7 +728,7 @@ index 107dad15..7afb1eff 100644
    const auto entries = android::fs_mgr::GetEntriesForPath(&fstab, volume);
    if (entries.empty()) {
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index ef35ae73..87a6693e 100755
+index ef35ae73..6baf6d83 100755
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -21,4 +21,6 @@
@@ -651,36 +768,76 @@ index ef35ae73..87a6693e 100755
 +  if (!do_unpack && !ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
    string result, tmpstr, output;
    std::string k = "/";
-@@ -3493,4 +3500,5 @@ std::string GetFileHeaderMagic (string fname)
+@@ -3405,4 +3412,5 @@ bool TWFunc::isNumber(string strtocheck)
+ 
+ int TWFunc::stream_adb_backup(string &Restore_Name) {
++	if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return -1;
+ 	string cmd = "/system/bin/bu --twrp stream " + Restore_Name;
+ 	LOGINFO("stream_adb_backup: %s\n", cmd.c_str());
+@@ -3416,4 +3424,5 @@ void TWFunc::Read_Write_Specific_Partition(string path, string partition_name,
+ 					   bool backup) // credits PBRP
+ {
++  if (!backup && !ure_legacy_write_guard(ure::LegacyWrite::Restore)) return;
+   TWPartition *Partition =
+     PartitionManager.Find_Partition_By_Path(partition_name);
+@@ -3493,4 +3502,5 @@ std::string GetFileHeaderMagic (string fname)
  bool TWFunc::Repack_Image(string mount_point)
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
    bool is_boot = (mount_point == "/boot");
    return (PackRepackImage_MagiskBoot(false, is_boot));
-@@ -4400,4 +4408,5 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+@@ -4400,4 +4410,5 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
  void TWFunc::Deactivation_Process(void)
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return;
    if (TWFunc::To_Skip_OrangeFox_Process())
       {
-@@ -4469,4 +4478,5 @@ void TWFunc::Deactivation_Process(void)
+@@ -4469,4 +4480,5 @@ void TWFunc::Deactivation_Process(void)
  void TWFunc::Patch_AVB20(bool silent)
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return;
  #if defined(OF_PATCH_AVB20) && !defined(OF_SKIP_ORANGEFOX_PROCESS) && !defined(FOX_VANILLA_BUILD) && !defined(FOX_AB_DEVICE) && !defined(AB_OTA_UPDATER)
  std::string zipname = FFiles_dir + "/OF_avb20/OF_avb20.zip";
-@@ -4507,4 +4517,5 @@ std::string magiskboot = TWFunc::Get_MagiskBoot();
+@@ -4507,4 +4519,5 @@ std::string magiskboot = TWFunc::Get_MagiskBoot();
  int TWFunc::Patch_DMVerity_ForcedEncryption_Magisk(void)
  {
 +  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return -1;
  std::string keepdmverity, keepforcedencryption;
  std::string zipname = FFiles_dir + "/OF_verity_crypt/OF_verity_crypt.zip";
-@@ -5095,4 +5106,5 @@ std::string res = path;
+@@ -5095,4 +5108,5 @@ std::string res = path;
  bool TWFunc::Magiskboot_Repack_Patch_VBMeta()
  {
 +    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
     #if defined(FOX_PATCH_VBMETA_FLAG)
     return true;
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+index ca3f8243..bea206f5 100755
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -21,4 +21,5 @@
+ 
+ #include <string>
++#include "ure-write-gate.hpp"
+ 
+ #include "data.hpp"
+@@ -31,4 +32,5 @@
+ 
+ bool twrpRepacker::Prepare_Empty_Folder(const std::string& Folder) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return false;
+ 	if (TWFunc::Path_Exists(Folder))
+ 		TWFunc::removeDir(Folder, false);
+@@ -127,4 +129,5 @@ static bool is_AB_for_repacker() {
+ 
+ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+ 	if (!TWFunc::Path_Exists(TWFunc::Get_MagiskBoot())) {
+ 		LOGERR("Image repacking tool not present in this TWRP build!");
+@@ -323,4 +326,5 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 
+ bool twrpRepacker::Flash_Current_Twrp() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+ #ifndef OF_RECOVERY_AB_FULL_REFLASH_RAMDISK
+ 	// A/B with dedicated recovery partition
 diff --git a/twrpinstall/adb_install.cpp b/twrpinstall/adb_install.cpp
 index d9a517f0..6791aa16 100755
 --- a/twrpinstall/adb_install.cpp

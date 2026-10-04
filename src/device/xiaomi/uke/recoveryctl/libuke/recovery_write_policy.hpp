@@ -58,4 +58,13 @@ constexpr bool legacy_fastboot_command_permitted(std::string_view command) noexc
         command == "reboot" || command == "reboot-bootloader" ||
         command == "reboot-fastboot" || command == "reboot-recovery" || command == "shutdown";
 }
+// ORS is a managed script interpreter, not the explicitly selected root
+// terminal. Preserve inspection/UI/reboot controls and deny unknown commands
+// before a handler can copy files, execute a writer or discard a refusal.
+constexpr bool legacy_ors_command_permitted(std::string_view command, bool empty_value) noexcept {
+    return command == "mount" || command == "unmount" || command == "umount" ||
+        command == "set" || command == "setval" || command == "print" || command == "listmounts" ||
+        command == "reloadtheme" || command == "reload_theme" || command == "reboot" ||
+        (command == "set_active" && empty_value);
+}
 } // namespace ure

@@ -36,7 +36,10 @@ if(BUILD_TESTING)
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-write-gate-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         DEPENDS "${UKE_RECOVERY_SOURCE}/partitionmanager.cpp" "${UKE_RECOVERY_SOURCE}/partition.cpp"
+            "${UKE_RECOVERY_SOURCE}/gui/action.cpp" "${UKE_RECOVERY_SOURCE}/openrecoveryscript.cpp"
+            "${UKE_RECOVERY_SOURCE}/twrp-functions.cpp" "${UKE_RECOVERY_SOURCE}/twrpRepacker.cpp"
             "${UKE_FASTBOOT_SOURCE}/device/fastboot_device.cpp" "${UKE_FASTBOOT_SOURCE}/device/utility.cpp"
+            "${UKE_FASTBOOT_SOURCE}/device/variables.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-write-gate-hooks.sh")
     foreach(variant IN ITEMS default exfat-kernel)
         add_executable(uke-write-gate-${variant}-tests ../../../../../tests/ure/legacy_write_gate.cpp "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp")

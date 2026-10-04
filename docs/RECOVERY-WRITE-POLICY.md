@@ -20,7 +20,12 @@ separate supported host/VM capability.
   scripts, including unsuccessful installation cleanup paths.
 - Writable mounts and readonly-to-writable transitions; credential/decryption
   entry points; USB mass-storage exposure and the writable MTP service.
-- Managed file commands, SELinux context changes and arbitrary ORS commands.
+- Managed file commands, GUI raw imaging/shell helpers, external ADB restore,
+  SELinux context changes and ORS mutations. ORS discovery/copy refuses before
+  deleting its caller-owned source. Unknown ORS commands refuse before dispatch,
+  and a failure cannot be replaced by the legacy no-auto-reboot success code.
+- Recovery repack/reflash, including direct active-to-inactive `dd` copying,
+  and startup attempts to clear block-device readonly protection.
 - Fastbootd erase/flash, slot and logical-partition mutation, super/GSI/snapshot
   updates, OEM commands and any command absent from the explicit allowlist.
   Direct mutating handlers and writable partition opens are guarded as well.
@@ -30,12 +35,19 @@ separate supported host/VM capability.
 
 The fixed census in `configs/ure/legacy-write-entry-points.tsv` requires an
 early guard at each enumerated native entry. Complete production Format Data,
-slot, mount, fastboot dispatch and block-open functions are compiled with fake
+slot, mount, managed GUI/shell, ORS file, recovery reflash, external restore,
+fastboot dispatch and block-open functions are compiled with fake
 hardware callbacks. Their tests independently verify unchanged fixture bytes.
 The production installer is tested with intercepted open/fork/ioctl calls. A
 deliberately removed Format Data guard must fail both the census and the
 compiled behavioral fixture. This is a regression gate, not proof that a new
 upstream mutation API can be added without review.
+
+The refusal message is present in the base English theme. Early startup can
+queue that message before language resources exist; the later console
+translation must not fall into missing-resource logging while holding its own
+lock. Source and extracted-image gates require this base resource. The wider
+localization draft remains a separate, unfinished change.
 
 ## Read and recovery behavior
 

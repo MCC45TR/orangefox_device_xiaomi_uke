@@ -186,3 +186,16 @@ index 0652d9399..f5fa6709c 100644
      // We prioritize logical partitions over physical ones, and do this
      // consistently for other partition operations (like getvar:partition-size).
      if (LogicalPartitionExists(device, name)) {
+diff --git a/fastboot/device/variables.cpp b/fastboot/device/variables.cpp
+index 56163eea6..46ef32ad6 100644
+--- a/fastboot/device/variables.cpp
++++ b/fastboot/device/variables.cpp
+@@ -343,7 +343,7 @@ bool GetPartitionSize(FastbootDevice* device, const std::vector<std::string>& ar
+     }
+     // Otherwise, open the partition as normal.
+     PartitionHandle handle;
+-    if (!OpenPartition(device, args[0], &handle)) {
++    if (!OpenPartition(device, args[0], &handle, O_RDONLY)) {
+         *message = "Could not open partition";
+         return false;
+     }

@@ -37,6 +37,46 @@ void format_and_slot(const string& original) {
     require(manager.Active_Slot_Display=="A","Invalid slot changed state");
     unchanged(original);
 }
+void managed_writers(const string& original) {
+    GUIAction action;
+    for (bool simulate : {false,true}) {
+        action.simulate=simulate;
+        for (auto handler : {&GUIAction::dd,&GUIAction::cmd,&GUIAction::ftls}) {
+            GateProbe::reset();
+            require((action.*handler)("caller-controlled-command")==1,"Managed GUI writer reported success");
+            require(GateProbe::commands.empty() && GateProbe::probes==0 && GateProbe::data_manager==0,
+                "Managed GUI writer executed or changed state before refusal");
+            require(GateProbe::errors.size()==1,"Managed GUI writer did not expose its refusal");
+            unchanged(original);
+        }
+    }
+    twrpRepacker repacker;
+    GateProbe::reset();
+    require(!repacker.Flash_Current_Twrp(),"Recovery reflash reported success");
+    require(GateProbe::probes==0 && GateProbe::lookups==0 && GateProbe::commands.empty(),
+        "Recovery reflash inspected a slot or opened a writer before refusal");
+    unchanged(original);
+    GateProbe::reset();
+    string restore=GateProbe::fixture;
+    require(TWFunc::stream_adb_backup(restore)==-1,"External ADB restore reported success");
+    require(GateProbe::commands.empty(),"External restore spawned the backup utility");
+    unchanged(original);
+    for (const string& file : {GateProbe::fixture,string(SCRIPT_FILE_TMP),string("/not-present.ors")}) {
+        GateProbe::reset();
+        require(OpenRecoveryScript::copy_script_file(file)==0,"ORS source copy reported success");
+        require(OpenRecoveryScript::Run_ORS_File(file)==1,"ORS file execution reported success");
+        require(GateProbe::probes==0 && GateProbe::namespace_effects==0,
+            "ORS file entry probed, copied or removed the source before refusal");
+        unchanged(original);
+    }
+    for (const string cmd : {"format","wipe","mkdir","backup","restore","cmd","install","sideload","unknown","", "PRINT", "print "})
+        for (bool empty : {false,true})
+            require(!ure::legacy_ors_command_permitted(cmd,empty),"ORS mutation/unknown command was permitted");
+    for (const string cmd : {"mount","unmount","umount","set","setval","print","listmounts","reloadtheme","reload_theme","reboot"})
+        require(ure::legacy_ors_command_permitted(cmd,false),"ORS inspection/UI/cleanup command was refused");
+    require(ure::legacy_ors_command_permitted("set_active",true) && !ure::legacy_ors_command_permitted("set_active",false),
+        "ORS slot observation was confused with a requested slot mutation");
+}
 void mounts(const string& original) {
     GateProbe::reset();
     TWPartition partition;
@@ -96,6 +136,15 @@ void mounts(const string& original) {
 }
 void fastboot(const string& original) {
     PartitionHandle handle;
+    for (const string name : {"logical-fixture","physical-fixture","zero-fixture"}) {
+        GateProbe::reset(); string message;
+        require(GetPartitionSize(nullptr,{name},&message),"Read-only fastboot partition-size query failed");
+        require(message==(name=="zero-fixture" ? "0x0" : "0x1000"),"Partition-size query changed its response");
+        unchanged(original);
+    }
+    GateProbe::reset(); string message;
+    require(!GetPartitionSize(nullptr,{},&message) && message=="Missing argument" && GateProbe::lookups==0,
+        "Partition-size argument rejection changed");
     for (int flags : {O_WRONLY,O_RDWR,O_RDONLY|O_TRUNC,O_RDONLY|O_CREAT,O_RDONLY|O_APPEND}) {
         GateProbe::reset();
         require(!OpenPartition(nullptr,"logical-fixture",&handle,flags),"Unsafe block open flags were accepted");
@@ -162,9 +211,9 @@ int main() {
         }
         for (const string command : {"FLASH","flash "," getvar","","continue","boot","oem reboot"})
             require(!ure::legacy_fastboot_command_permitted(command),"Ambiguous/unknown fastboot command was accepted");
-        format_and_slot(original); mounts(original); fastboot(original);
+        format_and_slot(original); managed_writers(original); mounts(original); fastboot(original);
         std::filesystem::remove_all(root);
-        std::cout << "Actual Format Data, slot, readonly mounts and fastboot dispatch gates passed.\n";
+        std::cout << "Actual Format Data, managed writers, slot, readonly mounts and fastboot dispatch gates passed.\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n'; std::filesystem::remove_all(root); return 1;

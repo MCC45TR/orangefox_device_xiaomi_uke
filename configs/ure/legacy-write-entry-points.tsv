@@ -55,6 +55,7 @@ bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Flash_Image(stri
 bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Flash_Repacked_Image(string & path,	Flash
 bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Prepare_Empty_Folder(const std::string& Folder)	FileMutation
 bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Check_Pending_Merges()	PartitionMetadata
+bootable/recovery/partitionmanager.cpp	void TWPartitionManager::Unlock_Block_Partitions()	WritableMount
 bootable/recovery/twrp-functions.cpp	bool TWFunc::RunStartupScript(void)	Script
 bootable/recovery/twrp-functions.cpp	bool TWFunc::RunFoxScript(const std::string script, const std::string args)	Script
 bootable/recovery/twrp-functions.cpp	void TWFunc::check_and_run_script(const char *script_file,	Script
@@ -65,6 +66,11 @@ bootable/recovery/twrp-functions.cpp	void TWFunc::Deactivation_Process(void)	Boo
 bootable/recovery/twrp-functions.cpp	void TWFunc::Patch_AVB20(bool silent)	BootPatch
 bootable/recovery/twrp-functions.cpp	int TWFunc::Patch_DMVerity_ForcedEncryption_Magisk(void)	BootPatch
 bootable/recovery/twrp-functions.cpp	bool TWFunc::Magiskboot_Repack_Patch_VBMeta()	BootPatch
+bootable/recovery/twrp-functions.cpp	int TWFunc::stream_adb_backup(string &Restore_Name)	Restore
+bootable/recovery/twrp-functions.cpp	void TWFunc::Read_Write_Specific_Partition(string path, string partition_name,	Restore
+bootable/recovery/twrpRepacker.cpp	bool twrpRepacker::Prepare_Empty_Folder(const std::string& Folder)	FileMutation
+bootable/recovery/twrpRepacker.cpp	bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image,	BootPatch
+bootable/recovery/twrpRepacker.cpp	bool twrpRepacker::Flash_Current_Twrp()	BootPatch
 bootable/recovery/gui/action.cpp	int GUIAction::flash_zip(std::string filename, int *wipe_cache)	InstallPackage
 bootable/recovery/gui/action.cpp	int GUIAction::ozip_decrypt(string zip_path)	InstallPackage
 bootable/recovery/gui/action.cpp	void GUIAction::reinject_after_flash()	BootPatch
@@ -72,10 +78,17 @@ bootable/recovery/gui/action.cpp	int GUIAction::reinjecttwrp(std::string arg __u
 bootable/recovery/gui/action.cpp	int GUIAction::setbootslot(std::string arg)	SlotSwitch
 bootable/recovery/gui/action.cpp	int GUIAction::cmdf(std::string arg, std::string file)	FileMutation
 bootable/recovery/gui/action.cpp	int GUIAction::mergesnapshots(string arg __unused)	PartitionMetadata
+bootable/recovery/gui/action.cpp	int GUIAction::dd(std::string arg)	Flash
+bootable/recovery/gui/action.cpp	int GUIAction::cmd(std::string arg)	Script
+bootable/recovery/gui/action.cpp	int GUIAction::ftls(std::string arg)	Script
+bootable/recovery/gui/action.cpp	int GUIAction::nandroid(std::string arg)	Restore
 bootable/recovery/twrpinstall/twinstall.cpp	int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)	InstallPackage
 bootable/recovery/twrpinstall/install.cpp	int install_package(const std::string& path, bool should_wipe_cache, bool needs_mount,	InstallPackage
 bootable/recovery/twrpinstall/adb_install.cpp	  int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action)	InstallPackage
 bootable/recovery/openrecoveryscript.cpp	int OpenRecoveryScript::remountrw(void)	WritableMount
+bootable/recovery/openrecoveryscript.cpp	int OpenRecoveryScript::check_for_script_file(void)	Script
+bootable/recovery/openrecoveryscript.cpp	int OpenRecoveryScript::copy_script_file(string filename)	Script
+bootable/recovery/openrecoveryscript.cpp	int OpenRecoveryScript::Run_ORS_File(const std::string& filename)	Script
 bootable/recovery/install/install.cpp	InstallResult InstallPackage(Package* package, const std::string_view package_id,	InstallPackage
 bootable/recovery/install/adb_install.cpp	  int ApplyFromAdb(const char* install_file, Device::BuiltinAction* reboot_action)	InstallPackage
 bootable/recovery/install/wipe_data.cpp	bool WipeCache(const std::function<bool()>& confirm_func, std::string_view new_fstype)	Wipe
@@ -92,3 +105,9 @@ system/core/fastboot/device/commands.cpp	bool FlashHandler(FastbootDevice* devic
 system/core/fastboot/device/commands.cpp	bool UpdateSuperHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
 system/core/fastboot/device/commands.cpp	bool GsiHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
 system/core/fastboot/device/commands.cpp	bool SnapshotUpdateHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
+bootable/recovery/gui/action.cpp	int GUIAction::calldeactivateprocess(std::string arg __unused)	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::disable_replace(std::string arg __unused)	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::wlfw(std::string arg __unused)	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::wlfx(std::string arg __unused)	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::repackimage(std::string arg __unused)	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::reflashtwrp(std::string arg __unused)	BootPatch
