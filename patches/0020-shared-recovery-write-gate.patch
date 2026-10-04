@@ -1,5 +1,5 @@
 diff --git a/Android.bp b/Android.bp
-index 83cae59e..31ae98bc 100644
+index 83cae59e..5e476710 100644
 --- a/Android.bp
 +++ b/Android.bp
 @@ -60,4 +60,5 @@ license {
@@ -8,6 +8,12 @@ index 83cae59e..31ae98bc 100644
 +    header_libs: ["libuke-recovery-write-policy-headers"],
  
      cflags: [
+@@ -97,4 +98,5 @@ cc_library_shared {
+     name: "libaosprecovery",
+     defaults: ["libaosprecovery_defaults"],
++    header_libs: ["libuke-recovery-write-policy-headers"],
+     cflags: [
+         "-std=gnu++2a",
 diff --git a/Android.mk b/Android.mk
 index 7aafdb44..a4825673 100644
 --- a/Android.mk
