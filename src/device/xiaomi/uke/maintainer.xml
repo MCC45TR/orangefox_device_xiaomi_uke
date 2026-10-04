@@ -1117,6 +1117,10 @@
           <placement x="%gl_text_x%" y="0"/>
           <text>To retain an existing shared ESP, set the new ESP size to zero.</text>
         </text>
+        <text style="caption">
+          <placement x="%gl_text_x%" y="0"/>
+          <text>Filesystem and GPT changes currently use regular images. Live-device and encrypted-data changes require separate acceptance.</text>
+        </text>
         <urepartitionmap>
           <placement x="%gl_text_x%" y="0" w="%input_w%" h="64"/>
         </urepartitionmap>
@@ -1125,7 +1129,12 @@
           <text>Purple: userdata; gold: ESP; green: Linux; blue: Windows; grey: free.</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="2512"/>
+          <placement x="0" y="0" w="%screen_w%" h="2736"/>
+          <listitem name="Review supported partition workflows" description="See image operations, required filesystem tools and the reasons live-device changes are unavailable.">
+            <icon res="ure_check_icon"/>
+            <action function="uremanager">partition-capabilities</action>
+            <action function="page">ure_output</action>
+          </listitem>
           <listitem name="Select disk image or live LUN" description="Choose an already available path for the selected operation.">
             <icon res="ure_files_icon"/>
             <action function="page">ure_gpt_select</action>

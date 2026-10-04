@@ -19,9 +19,60 @@ inputs and selected capacity, preserving original disk/partition identities.
 Reviewed per-image stock metadata execution/readback/rollback uses the shared
 GPT journal. A separate combined image job now prepares and checks filesystems,
 then applies userdata payloads and GPT with one persistent recovery journal.
-Physical writes, encrypted-data migration, multi-LUN stock orchestration and
-installed-system boot acceptance remain unfinished. The layout pages use this
+Six-LUN stock orchestration also works on distinct regular images, with retained
+originals and exact selected payload/GPT recovery. Physical writes, encrypted-data
+migration, live six-LUN geometry and installed-system boot acceptance remain
+unfinished. The layout pages use this
 combined job for regular images; they do not authorize a live partition job.
+
+## Explicit capability and admission contract
+
+`partition capabilities` reports source implementations and runtime filesystem
+tools for **regular images**, separately from unavailable live-device workflows.
+The general `capabilities` result embeds the same contract under
+`partition_management`. The layout page exposes a read-only review action.
+Tool presence does not validate a selected filesystem, free space, minimum size,
+device or firmware; `target_validation_required` remains true.
+
+| Workflow | Current source scope | Additional conditions |
+|---|---|---|
+| Layout preview | Read-only healthy GPT observation | No filesystem or Android boot acceptance |
+| Metadata transaction | Regular image GPT only | Exact plan/target, complete original/replacement records and readback |
+| Combined shrink and new OS filesystems | Regular image, original userdata pool only | Unencrypted ext4/F2FS, actual supported tools/checks, confirmed complete journal |
+| Before-userdata placement | Regular image erase/recreate | Explicit advanced mode and recreate policy; original files are destroyed |
+| Shared ESP | Exact existing payload bytes retained | Set new ESP allocation to zero to retain an existing ESP; migration is unavailable |
+| Coordinated six-LUN stock restore | Six regular images, separately pinned Global source | Declared model/SKU tags are not accepted installed unit identities |
+| Live repartition, shrink/recreate and six-LUN restore | Unavailable | Exact unit/firmware, six-LUN geometry, FBE/TEE, exclusive ownership, inactive snapshots, fallback and physical durability admission |
+
+Live blockers have stable codes with explanations. They include
+`live-storage-writer-unaccepted`, `device-profile-unaccepted`,
+`six-lun-geometry-unverified`, `installed-firmware-unverified`,
+`android-fbe-trust-unverified`, `virtual-ab-state-unverified`,
+`exclusive-storage-ownership-unverified`, `physical-fallback-unverified` and
+`forced-restart-durability-unverified`. Source/GUI/CLI cannot remove them by
+supplying a profile JSON record, advanced choice or environment variable.
+
+Compound `partition job-* --object` routes refuse with
+`live-repartition-unavailable` before selecting a target, opening a request or
+journal, using credentials, creating a mapper or invoking mounts. Direct native
+job planning checks regular-image scope before GPT or filesystem work. Read-only
+inventory and GPT observations remain separate APIs; their observations do not
+authorize a live plan. Existing private image recovery journals retain their
+captured schema and original byte interpretation.
+
+Encrypted userdata preservation and before-userdata **data migration** remain
+unimplemented. Erase/recreate does not solve Android encryption or validate the
+new filesystem's Android boot policy. Advanced GUID edits remain explicit GPT
+metadata work; content-format changes outside userdata require an unavailable
+separate transaction. Advanced mode never bypasses live admission.
+
+Focused host controls include all unavailable live routes with unopened FIFO
+requests and missing system roots, direct native refusal without a descriptor,
+strict options, actual GUI capability review, shared ESP protection, fscrypt
+refusal, host SIGKILL and complete original-image rollback. A front-placement
+fixture checks loss of the original file, independent new filesystem signatures,
+and exact original-byte rollback. It is a host image result, not evidence that
+encrypted Android userdata can be recreated and booted on either commercial unit.
 
 `gpt map` now reports every partition and OEM reserved record, actual byte
 ranges, protected label hints and signature observations relative to each

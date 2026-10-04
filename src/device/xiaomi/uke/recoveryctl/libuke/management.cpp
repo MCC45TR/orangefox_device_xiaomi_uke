@@ -45,7 +45,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(command=="backup")return op=="tree-recover";
     if(command=="installer")return op.starts_with("image-");
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
-    if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
+    if(command=="partition")return op=="capabilities" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="storage")return op=="preflight" || op=="profile-status" || op=="profile-compare-fixture";
     if(command=="boot")return op.starts_with("route-");
@@ -129,6 +129,19 @@ Value management_dispatch(std::vector<std::string> args) {
         return stock_job_recover(words[2],action,action=="inspect" ? "" : options.need("--confirm"));
     }
     if(command=="partition") {
+        if(operation=="capabilities") { positional(options,2); options.allow({}); return partition_capabilities(); }
+        // All compound device routes are unavailable before target selection,
+        // request/journal reads, credentials, mapping or mount helpers. Advanced
+        // requests and imported profile declarations cannot change this gate.
+        require(!(options.has("--image") && options.has("--object")),"invalid-options","Select one image or stable live identity");
+        if(options.has("--object")) {
+            positional(options,3);
+            if(operation=="job-plan")options.allow({"--system-root","--object","--profile","--output"});
+            else if(operation=="job-execute")options.allow({"--system-root","--object","--journal","--confirm"});
+            else { options.allow({"--system-root","--object","--confirm"});
+                require(operation!="job-inspect" || !options.has("--confirm"),"invalid-options","Read-only partition journal inspection does not accept confirmation"); }
+            throw Error("live-repartition-unavailable","Live repartitioning and encrypted userdata are unaccepted; inspect partition capabilities for exact blockers");
+        }
         positional(options,3); Root system(options.get("--system-root","/"));
         if(operation=="job-plan") { options.allow({"--system-root","--image","--object","--sector-size","--profile","--output"}); auto selected=target(options,system);
             const auto plan=partition_job_plan(system,selected,json_file(words[2]),options.need("--profile")); save_json(options.need("--output"),plan); return plan; }

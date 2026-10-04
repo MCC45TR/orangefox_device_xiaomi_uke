@@ -593,6 +593,7 @@ int GUIAction::uremanager(std::string command) {
                 result["console_preview"]=ure::storage_read(file.get(),0,static_cast<std::size_t>(std::min<std::uint64_t>(bytes,65536))); result["console_preview_truncated"]=bytes>65536; }
             publish(result);
         } else if(command=="filesystem-capabilities")publish(ure::filesystem_capabilities());
+        else if(command=="partition-capabilities")publish(ure::partition_capabilities());
         else if(command=="filesystem-inspect" || command=="filesystem-check" || command=="storage-preflight") {
             auto target=backup_target(system);
             publish(command=="filesystem-inspect" ? ure::filesystem_probe(target.descriptor.get()) : command=="filesystem-check" ? ure::filesystem_check(target.descriptor.get()) : ure::storage_preflight(system,target,"global-os3.0.303.0"));

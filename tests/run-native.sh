@@ -34,6 +34,7 @@ bash tests/check-stream-restore.sh
 bash tests/check-gpt.sh
 bash tests/check-stock-gpt.sh
 bash tests/check-stock-job.sh
+bash tests/check-partition-capabilities.sh
 bash tests/check-partition-map.sh
 bash tests/check-layout.sh
 bash tests/check-partition-job.sh

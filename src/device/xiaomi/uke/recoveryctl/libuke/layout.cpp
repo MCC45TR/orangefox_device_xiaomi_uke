@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "recovery_write_policy.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -73,6 +74,50 @@ std::string guid_bytes(const std::string& id) {
     return out;
 }
 } // namespace
+
+Value partition_live_blockers() {
+    // Enabling a device writer requires a reviewed change to this capability
+    // contract as well as profile, ownership and durability admission.
+    static_assert(!live_storage_backend_accepted(),"Review partition capability admission before enabling live writes");
+    Value out(Json::arrayValue);
+    struct Blocker { const char* code; const char* reason; };
+    constexpr std::array blockers{
+        Blocker{"live-storage-writer-unaccepted","No native device writer is accepted for this release"},
+        Blocker{"device-profile-unaccepted","Commercial model, SKU, capacity and installed firmware need exact accepted unit evidence"},
+        Blocker{"six-lun-geometry-unverified","Complete measured six-LUN GPT geometry and same-unit original backups are required"},
+        Blocker{"installed-firmware-unverified","Package source pins and Android property declarations do not establish installed firmware trust"},
+        Blocker{"android-fbe-trust-unverified","KeyMint, TEE and installed encryption policy are required before credential use, mapping or encrypted data operations"},
+        Blocker{"virtual-ab-state-unverified","Known inactive merge and reviewed super/logical partition ownership are required"},
+        Blocker{"exclusive-storage-ownership-unverified","Accepted device-wide operation ownership, unmounted targets and snapshot exclusion are required"},
+        Blocker{"physical-fallback-unverified","An independently rehearsed stock recovery route and verified original backups are required"},
+        Blocker{"forced-restart-durability-unverified","Host SIGKILL does not establish tablet forced-restart recovery or durable writes"}
+    };
+    for(const auto& blocker:blockers) { Value item; item["code"]=blocker.code; item["reason"]=blocker.reason; out.append(item); }
+    return out;
+}
+Value partition_capabilities() {
+    Value out; out["schema"]=1; out["format"]="ure-partition-capabilities"; out["read_only"]=true; out["physical_test_record"]=false;
+    auto& image=out["regular_image"]; image["source_implemented"]=true; image["target_validation_required"]=true;
+    image["layout_preview"]=true; image["gpt_metadata_transaction"]=true; image["filesystem_and_gpt_job"]=true;
+    image["allocation_pool"]="ORIGINAL_USERDATA_ONLY"; image["minimum_userdata_bytes"]=Json::UInt64(32*1024*1024);
+    image["maximum_userdata_bytes"]=Json::UInt64(512ULL*1024*1024*1024);
+    image["preserve_userdata_filesystems"]=Value(Json::arrayValue); image["preserve_userdata_filesystems"].append("ext4"); image["preserve_userdata_filesystems"].append("f2fs");
+    image["encrypted_userdata_preservation"]=false; image["encrypted_userdata_reason_code"]="userdata-encryption-unverified";
+    image["before_userdata_data_migration"]=false; image["before_userdata_reason_code"]="userdata-migration-required";
+    image["before_userdata_recreate"]=true; image["before_userdata_required_mode"]="advanced"; image["before_userdata_required_policy"]="recreate";
+    image["before_userdata_destroys_original_data"]=true; image["existing_shared_esp_policy"]="PRESERVE_EXACT_BYTES";
+    image["existing_shared_esp_migration"]=false; image["existing_os_partition_reason_code"]="existing-os-partition";
+    image["new_esp_allocation_to_retain_existing"]="zero"; image["advanced_non_userdata_content_jobs"]=false;
+    image["advanced_guid_edits_scope"]="EXPLICIT_GPT_METADATA_ONLY"; image["android_userdata_boot_compatibility_verified"]=false;
+    image["filesystem_tools"]=filesystem_capabilities()["filesystems"];
+    image["six_lun_stock_restore"]=true; image["stock_source_profiles"]=Value(Json::arrayValue); image["stock_source_profiles"].append("global-os3.0.303.0");
+    image["firmware_and_model_tags"]="DECLARATIONS_ONLY"; image["forced_restart_evidence"]="HOST_PROCESS_SIGKILL_ONLY";
+    auto& live=out["live_device"]; live["repartition_available"]=false; live["userdata_shrink_available"]=false; live["userdata_recreate_available"]=false;
+    live["before_userdata_data_migration_available"]=false; live["six_lun_stock_restore_available"]=false; live["advanced_mode_bypasses_admission"]=false;
+    live["blockers"]=partition_live_blockers(); live["imported_declarations_authorize_writes"]=false;
+    live["credential_use_allowed"]=false; live["mapper_creation_allowed"]=false; live["encrypted_mount_allowed"]=false;
+    return out;
+}
 
 std::uint64_t layout_size_bytes(const std::string& amount,const std::string& unit,std::uint64_t pool) {
     require(pool<=INT64_MAX,"invalid-size","Layout pool exceeds supported storage offsets"); const auto quantity=decimal(amount);
@@ -205,6 +250,7 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     out["allocated_bytes"]=Json::UInt64(cursor-start); out["unallocated_bytes"]=Json::UInt64(end-cursor); out["alignment_bytes"]=Json::UInt64(mib);
     out["percent_basis"]="ALIGNED_ORIGINAL_USERDATA_CAPACITY"; out["percent_basis_bytes"]=Json::UInt64(pool); out["read_only"]=true; out["physical_test_record"]=false; out["private_record"]=true;
     out["formats_filesystems"]=false; out["migrates_data"]=false; out["live_write_backend_ready"]=false; out["complete_partition_job"]=false;
+    out["execution_scope"]="READ_ONLY_GPT_LAYOUT_PREVIEW"; out["live_repartition_blockers"]=partition_live_blockers();
     out["required_live_checks"]=Value(Json::arrayValue);
     for(const auto* check:{"DEVICE_AND_FIRMWARE_IDENTITY","VERIFIED_OFF_DEVICE_DATA_AND_GPT_BACKUPS","UFS_LUN_OWNERSHIP_AND_EXCLUSIVE_ACCESS","INSTALLED_ANDROID_FBE_TRUST","VIRTUAL_AB_MERGE_AND_SUPER_STATE","FILESYSTEM_SIZE_AND_SUPPORTED_SHRINK_OR_RECREATE","NEW_FILESYSTEM_FORMAT_AND_READBACK","STOCK_RECOVERY_ROUTE"})out["required_live_checks"].append(check);
     out["warnings"]=Value(Json::arrayValue);
@@ -214,6 +260,7 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     if(policy=="recreate")out["warnings"].append("DATA LOSS: erase/recreate destroys Android userdata. Placement before userdata changes its start; it does not solve encryption or preserve existing encrypted data.");
     if(!edits.empty())out["warnings"].append("ADVANCED: explicitly selected existing GUID/content changes can break boot, Android, firmware or recovery. Unselected records and every non-userdata partition range remain unchanged.");
     out["warnings"].append("GPT metadata execution on an image does not resize, move or format its filesystem. Android FBE and Virtual A/B merge state are not authorized by this preview.");
+    out["warnings"].append("Advanced mode changes reviewed choices only; it cannot bypass unaccepted device firmware, encryption trust, storage ownership or forced-restart durability.");
     out["warnings"].append("Advanced mode changes the requested plan, not device trust requirements. No live write is authorized by a mode switch.");
     out["warnings"].append("Xiaomi Pad 7 and POCO Pad X1 require their own detected model, firmware, capacity and original-unit evidence before any live operation.");
     out["layout_sha256"]=seal(out,"layout_sha256"); storage_revalidate(target,system); return out;

@@ -18,6 +18,9 @@ int main(int argc,char* argv[]) {
     try {
         const auto image=fixture/"filesystem.img"; { std::ofstream file(image); file.seekp(32*1024*1024-1); file.put('\0'); }
         const auto original=digest(image); GUIAction action;
+        check(action.uremanager("partition-capabilities")==0 && ure::parse_json(value("ure_output"))["live_device"]["repartition_available"]==false &&
+            ure::parse_json(value("ure_output"))["regular_image"]["existing_shared_esp_policy"]=="PRESERVE_EXACT_BYTES" && digest(image)==original,
+            "GUI capability review enabled live repartitioning or changed its selected image");
         DataManager::SetValue("ure_ui_scale_percent",100); DataManager::SetValue("ure_ui_scale_applied",100);
         DataManager::SetValue("ure_scale_choice",50);
         check(value("ure_ui_scale_percent")=="100" && PageManager::reloads==0,"Selecting a preset changed the active scale");

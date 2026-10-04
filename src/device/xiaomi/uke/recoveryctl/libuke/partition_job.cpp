@@ -343,6 +343,8 @@ Value apply(StorageTarget& target,const Root& store,const fs::path& path,Review 
 } // namespace
 
 Value partition_job_plan(const Root& system,const StorageTarget& target,const Value& request,const std::string& profile) {
+    require(target.identity["kind"]=="regular-image","live-repartition-unavailable",
+        "Live repartitioning is unaccepted; review partition capabilities before firmware, encryption, ownership and durability admission");
     auto metadata=gpt_layout_plan(target,request,profile,&system); const auto& layout=metadata["layout"]; const auto& pool=layout["pool"];
     const auto bytes=pool["original_bytes"].asUInt64(); require(bytes>=32*mib && bytes<=maximum,"unsupported-filesystem-size","Combined image jobs require 32 MiB to 512 GiB userdata");
     const auto signature=filesystem_probe_range(target.descriptor.get(),pool["offset"].asUInt64(),bytes); const auto capabilities=filesystem_capabilities();
@@ -364,6 +366,7 @@ Value partition_job_plan(const Root& system,const StorageTarget& target,const Va
     plan["estimated_journal_bytes"]=Json::UInt64(bytes*3+margin); plan["chunk_bytes"]=Json::UInt64(std::max<std::uint64_t>(mib,((bytes+8191)/8192+mib-1)/mib*mib));
     plan["execution_scope"]="FILESYSTEMS_AND_GPT_WITHIN_ORIGINAL_USERDATA"; plan["formats_filesystems"]=true; plan["preserves_userdata_files"]=layout["userdata_policy"]=="preserve";
     plan["before_userdata_data_migration"]=false; plan["complete_partition_job"]=false; plan["live_write_backend_ready"]=false; plan["physical_test_record"]=false; plan["private_record"]=true;
+    plan["live_repartition_blockers"]=partition_live_blockers(); plan["image_job_only"]=true;
     plan["shared_esp_policy"]="Existing ESP payloads are protected. Set the new ESP allocation to zero to retain an existing shared ESP; boot registration requires a separately reviewed operation.";
     plan["interrupt_scenario"]="FORCED_REBOOT"; plan["recovery_policy"]="Inspect exact before/after bytes; resume or rollback only expected writes; refuse unrelated divergence";
     plan["risk"]=layout["userdata_policy"]=="recreate" ? "ERASE_USERDATA_AND_CREATE_OS_FILESYSTEMS" : "OFFLINE_USERDATA_SHRINK_AND_CREATE_OS_FILESYSTEMS";

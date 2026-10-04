@@ -124,6 +124,8 @@ Value filesystem_probe_range(int fd, std::uint64_t offset, std::uint64_t bytes);
 Value partition_map(const StorageTarget& target, const Root* system = nullptr);
 std::uint64_t layout_size_bytes(const std::string& amount, const std::string& unit, std::uint64_t pool);
 Value partition_layout(const StorageTarget& target, const Value& request, const std::string& profile, const Root* system = nullptr);
+Value partition_capabilities();
+Value partition_live_blockers();
 Value partition_layout_bar(const Value& layout, unsigned width);
 std::string partition_layout_text(const Value& layout);
 std::vector<StorageRange> gpt_layout_regions(const StorageTarget& target, const Value& request,

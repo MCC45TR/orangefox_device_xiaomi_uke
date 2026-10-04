@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <set>
 #include <unistd.h>
 using namespace std::string_literals;
 namespace {
@@ -112,6 +113,29 @@ int main() {
         reject([&] { ure::management_dispatch({"linux","audit","--root",tree.string(),"--confirm","unused"}); },"invalid-options");
         reject([&] { ure::management_dispatch({"filesystem","capabilities","--profile","unused"}); },"invalid-options");
         check(ure::storage_preflight(system,target,"fixture-profile")["live_job_eligible"]==false,"An image forged live firmware proof");
+        const auto partition=ure::management_dispatch({"partition","capabilities"});
+        check(partition["format"]=="ure-partition-capabilities" && partition["read_only"]==true && partition["physical_test_record"]==false,
+            "Partition capabilities lost their read-only evidence scope");
+        const auto& image_caps=partition["regular_image"]; const auto& live_caps=partition["live_device"];
+        check(image_caps["allocation_pool"]=="ORIGINAL_USERDATA_ONLY" && image_caps["encrypted_userdata_preservation"]==false &&
+            image_caps["before_userdata_data_migration"]==false && image_caps["before_userdata_recreate"]==true &&
+            image_caps["before_userdata_required_mode"]=="advanced" && image_caps["before_userdata_required_policy"]=="recreate" &&
+            image_caps["existing_shared_esp_policy"]=="PRESERVE_EXACT_BYTES" && image_caps["filesystem_tools"].size()==6,
+            "Partition capabilities overstate encrypted preservation, before-userdata migration or shared ESP behavior");
+        for(const auto* key:{"repartition_available","userdata_shrink_available","userdata_recreate_available","before_userdata_data_migration_available",
+            "six_lun_stock_restore_available","advanced_mode_bypasses_admission","imported_declarations_authorize_writes","credential_use_allowed","mapper_creation_allowed","encrypted_mount_allowed"})
+            check(live_caps[key]==false,"An unaccepted live capability was enabled");
+        std::set<std::string> blockers; for(const auto& item:live_caps["blockers"])
+            check(item["code"].isString() && item["reason"].isString() && blockers.insert(item["code"].asString()).second,"Invalid or duplicate live blocker");
+        check(blockers.size()==9 && blockers.contains("android-fbe-trust-unverified") && blockers.contains("device-profile-unaccepted") &&
+            blockers.contains("forced-restart-durability-unverified"),"Required live trust or durability blocker was omitted");
+        check(ure::json(ure::capabilities(system)["partition_management"])==ure::json(partition),"General and partition capability reports disagree");
+        reject([&]{ure::management_dispatch({"partition","capabilities","--profile","global-os3.0.303.0"});},"invalid-options");
+        for(const auto* op:{"job-plan","job-execute","job-inspect","job-resume","job-rollback","job-cancel"})
+            reject([&]{ure::management_dispatch({"partition",op,(work/"unopened-request-or-journal").string(),"--object","sysfs:fixture-only",
+                "--system-root",(work/"nonexistent-system-root").string()});},"live-repartition-unavailable");
+        ure::StorageTarget unopened; unopened.identity["kind"]="block";
+        reject([&]{ure::partition_job_plan(system,unopened,ure::Value(),"global-os3.0.303.0");},"live-repartition-unavailable");
         std::cout<<"Installed-system aliases, module/boot mismatch detection and management authorization fixtures passed.\n";
         ure::fs::remove_all(work); return 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<"\n"; ure::fs::remove_all(work); return 1; }

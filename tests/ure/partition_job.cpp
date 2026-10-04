@@ -121,7 +121,8 @@ int main(int argc,char* argv[]) {
             const auto image=work.path/(std::to_string(sector)+".img"),journal=work.path/("job-"+std::to_string(sector)); fixture(image,sector,false,sector==512);
             const auto original=digest(image); auto target=ure::storage_image(image,sector); auto choices=request();
             auto mismatch=choices; mismatch["rows"][3]["filesystem"]="f2fs"; reject([&] { ure::partition_job_plan(system,target,mismatch,"fixture"); },"userdata-filesystem-mismatch");
-            auto plan=ure::partition_job_plan(system,target,choices,"fixture"); check(plan["execution_scope"]=="FILESYSTEMS_AND_GPT_WITHIN_ORIGINAL_USERDATA" && plan["live_write_backend_ready"]==false,"False job scope or hardware claim");
+            auto plan=ure::partition_job_plan(system,target,choices,"fixture"); check(plan["execution_scope"]=="FILESYSTEMS_AND_GPT_WITHIN_ORIGINAL_USERDATA" && plan["live_write_backend_ready"]==false &&
+                plan["image_job_only"]==true && plan["live_repartition_blockers"].size()==9,"False job scope, missing live blockers or hardware claim");
             const auto confirmation=plan["plan_sha256"].asString(); auto writer=ure::storage_image(image,sector,true);
             reject([&] { ure::partition_job_execute(system,writer,plan,journal,"bad"); },"confirmation-required"); check(!ure::fs::exists(journal),"Bad confirmation created a journal");
             const auto done=ure::partition_job_execute(system,writer,plan,journal,confirmation); check(done["state"]=="COMMITTED" && done["verified"]==true && done["complete_partition_job"]==true,"Combined filesystem/GPT job did not commit"); retained(image,plan);
@@ -140,6 +141,24 @@ int main(int argc,char* argv[]) {
             auto crypt=ure::storage_image(image,sector); reject([&] { ure::partition_job_plan(system,crypt,choices,"fixture"); },"userdata-encryption-unverified"); write(writable.descriptor.get(),feature,16*mib+1120); check(::fsync(writable.descriptor.get())==0,"Cannot restore encryption fixture");
             ure::fs::remove(image); ure::fs::remove_all(journal);
         }
+        // Front placement explicitly recreates userdata; it never migrates an
+        // encrypted filesystem or borrows a preservation claim from an image.
+        const auto front_image=work.path/"front.img"; fixture(front_image,4096); const auto front_before=digest(front_image);
+        auto front_choices=request(); front_choices["placement"]="before_userdata"; auto front_target=ure::storage_image(front_image,4096);
+        reject([&]{ure::partition_job_plan(system,front_target,front_choices,"fixture");},"userdata-migration-required");
+        front_choices["mode"]="advanced"; front_choices["userdata_policy"]="recreate";
+        const auto front_plan=ure::partition_job_plan(system,front_target,front_choices,"fixture"); const auto front_journal=work.path/"front-job";
+        check(front_plan["preserves_userdata_files"]==false && front_plan["before_userdata_data_migration"]==false &&
+            front_plan["gpt"]["layout"]["rows"][3]["destroys_existing_data"]==true && front_plan["android_userdata_boot_compatibility_verified"]==false,
+            "Front recreation claimed preserved data, encryption migration or Android boot acceptance");
+        auto front_writer=ure::storage_image(front_image,4096,true);
+        check(ure::partition_job_execute(system,front_writer,front_plan,front_journal,front_plan["plan_sha256"].asString())["state"]=="COMMITTED","Explicit front recreation did not commit");
+        retained(front_image,front_plan);
+        const auto& front_userdata=front_plan["gpt"]["layout"]["rows"][3]; const auto recreated=work.path/"front-recreated.img",missing=work.path/"should-not-exist.bin";
+        extract(front_writer.descriptor.get(),recreated,front_userdata["offset"].asUInt64(),front_userdata["bytes"].asUInt64());
+        debugfs(recreated,"dump /kept "+missing.string()); check(!ure::fs::exists(missing),"Recreated userdata retained the original file unexpectedly");
+        check(ure::partition_job_recover(system,front_writer,front_journal,"rollback",front_plan["plan_sha256"].asString())["state"]=="ROLLED_BACK" &&
+            digest(front_image)==front_before,"Front recreation rollback did not restore every original byte");
         const auto image=work.path/"shared.img",journal=work.path/"shared-job"; fixture(image,4096,true); const auto original=digest(image); auto choices=request(); choices["rows"][0]["size"]="0";
         auto selected=ure::storage_image(image,4096); const auto shared_plan=ure::partition_job_plan(system,selected,choices,"fixture"); auto writer=ure::storage_image(image,4096,true);
         const auto done=ure::partition_job_execute(system,writer,shared_plan,journal,shared_plan["plan_sha256"].asString()); check(done["protected_ranges_verified"]==true,"Existing shared ESP was not protected");

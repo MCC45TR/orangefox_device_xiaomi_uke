@@ -140,6 +140,7 @@ Value capabilities(const Root& system) {
         result["capabilities"].append(item);
     }
     result["filesystem_management"]=filesystem_capabilities();
+    result["partition_management"]=partition_capabilities();
     result["live_storage_writer_accepted"]=false; result["btrfs_receive_implemented"]=false;
     result["device_profile_admission"]["accepted_live_profile_count"]=0;
     result["device_profile_admission"]["live_plan_allowed"]=false;

@@ -13,7 +13,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-005 | Common process-independent host ownership, explicit compound delegation, durable exact retirement, retained tree/stream recovery and shared lifecycle/control callbacks; native/sanitizer and CLI controls passed | Fresh target/combined guest; Android coordinator and physical durability unaccepted; rescue aggregate resources and GUI worker ownership follow in AUD-012–014 |
 | AUD-006 | Bounded exact model/SKU/firmware and six-LUN declaration comparator; unit-bound original GUID backups, complete A/B boot declarations, stable profile blockers and early live preflight refusal; three native and three sanitizer controls plus JSON CLI checks passed | Fresh target/combined guest; no live profile accepted because the OS2 stock inventory lacks full physical GPT/geometry and boot/fallback evidence |
 | AUD-007 | Explicit exact-profile whole boot programming; default preserved tails, separate full-layout results, complete DTBO-tail mirrors, legacy/offline recovery and actual host SIGKILL; focused native/sanitizer, CLI and independent catalog controls passed | Fresh target/combined guest; installed Android boot trust, unit geometry and physical durability remain unaccepted |
-| AUD-009 | Explicit image/live repartition capabilities | Pending |
+| AUD-009 | Dedicated image/live capability contract, stable trust/geometry/ownership/fallback blockers, earlier refusal before request/target access, actual GUI review and explicit front recreation/original rollback; five native/five sanitizer controls and both CLI sets passed | Native physical writer and encrypted userdata migration remain unimplemented/unaccepted; fresh target and combined guest pending |
 | AUD-010 | Populated, fragmented and damaged filesystem oracles | Pending |
 | AUD-012 | Aggregate rescue resource envelope | Pending |
 | AUD-013 | Owned GUI executor and immutable inputs | Pending |
@@ -81,3 +81,13 @@ change. A successful prefix write can report a noncanonical preserved tail;
 whole programming requires the complete compiled layout before commit. Both
 keep boot-ready and Android-compatibility results false. These focused receipts
 do not constitute a fresh target, complete release or combined VM acceptance.
+
+AUD-009's five-control sets passed native in 147.69 seconds and under pinned
+Clang ASan/UBSan/leak checks in 334.41 seconds. Both native/instrumented
+capability and layout CLI controls passed; exact frozen inputs remained
+unchanged. The front-recreation fixture verifies original-file loss, independent
+filesystem signatures and complete original-image rollback. Unaccepted live
+compound routes refuse with stable reasons before request/root/target access.
+This closes the ambiguous scope reporting and late admission behavior, not the
+native device-writer or Android encryption implementation gap. Those capabilities
+remain unavailable pending exact unit, trust, ownership and durability evidence.
