@@ -62,6 +62,11 @@ int main() {
         ure::Value target; target["kind"]="mock-file"; target["role"]="lifecycle-oracle";
         ure::Value targets(Json::arrayValue); targets.append(target); ure::Value journal; journal["fixture"]=true;
         const ure::OperationBinding binding{"fixture.lifecycle","lifecycle-test",ure::sha256("exact-lifecycle-plan"),targets,journal};
+        {
+            auto gui_job=ure::RuntimeActivityLease::acquire("abcdef0123456789abcdef0123456789");
+            check(gui_job.valid(),"Cannot register global GUI lifetime fixture"); blocked();
+        }
+        check(ure::runtime_active_jobs()==0,"Global GUI lifetime fixture was not retired");
 #ifdef __ANDROID__
         // Host execution of Android's compile-time policy, with no real device
         // mount/reboot syscall. Environment settings cannot open management.

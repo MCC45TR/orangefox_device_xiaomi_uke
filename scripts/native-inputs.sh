@@ -5,6 +5,7 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$component"
 {
     find src/device/xiaomi/uke/recoveryctl tests/ure -type f -print0
+    printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' scripts/native-inputs.sh tests/run-native.sh tests/check-ure.sh \
         tests/check-recoveryctl.sh tests/check-installer.sh tests/check-payload.sh \
         tests/check-nested-payloads.sh tests/check-payload-fixtures.sh tests/check-backup.sh tests/check-storage-backup.sh tests/check-restore.sh tests/check-stream-restore.sh tests/check-gpt.sh tests/check-stock-gpt.sh tests/check-partition-map.sh scripts/receive-backup.sh scripts/restore-from-host.sh
@@ -48,7 +49,7 @@ cd "$component"
     printf '%s\0' tests/check-device-profile.sh
     printf '%s\0' tests/check-partition-capabilities.sh
     printf '%s\0' tests/check-populated-filesystems.sh
-    printf '%s\0' tests/with-rescue-cgroup.sh patches/0026-owned-management-jobs.patch
+    printf '%s\0' tests/with-rescue-cgroup.sh patches/0026-owned-management-jobs.patch patches/0027-join-management-jobs-before-teardown.patch
     # Optional owner work can be consumed by the GUI fixture scaffolding. Its
     # exact inputs belong in a local receipt even before a separate review.
     for path in src/device/xiaomi/uke/ure-localization.hpp src/device/xiaomi/uke/ure-locale-keys.hpp; do
@@ -57,7 +58,7 @@ cd "$component"
     find src/upstream/orangefox-android16/external/freetype/{src,include,builds/unix} -type f -print0
     find src/upstream/orangefox-android16/bootable/recovery/libpixelflinger/include -type f -print0
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/theme/common/languages/en.xml
-    printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/{Android.bp,partition.cpp,partitionmanager.cpp,twrp-functions.cpp,openrecoveryscript.cpp,ure-write-gate.hpp} \
+    printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/{Android.bp,twrp.cpp,partition.cpp,partitionmanager.cpp,twrp-functions.cpp,openrecoveryscript.cpp,ure-write-gate.hpp} \
         src/upstream/orangefox-android16/bootable/recovery/{install/{install.cpp,wipe_data.cpp,adb_install.cpp},twrpinstall/{install.cpp,twinstall.cpp,adb_install.cpp},recovery_utils/roots.cpp,gui/action.cpp,twrpRepacker.cpp} \
         src/upstream/orangefox-android16/system/core/fastboot/{Android.bp,device/{commands.cpp,fastboot_device.cpp,utility.cpp,variables.cpp,utility.h}}
     printf '%s\0' src/device/xiaomi/uke/display-mirror.hpp src/device/xiaomi/uke/display-mirror.cpp \

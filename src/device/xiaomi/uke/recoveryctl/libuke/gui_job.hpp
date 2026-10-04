@@ -18,6 +18,7 @@ class GuiJobControl {
     std::shared_ptr<GuiJobShared> state_;
 public:
     explicit GuiJobControl(std::shared_ptr<GuiJobShared> state):state_(std::move(state)) {}
+    std::string job_id() const;
     bool cancellation_requested() const noexcept;
     // Callers explicitly mark a checkpoint as safe for cooperative stopping.
     // A stop is not a storage rollback or permission to retire an owner.
@@ -43,6 +44,6 @@ public:
     Value collect(std::uint64_t current_view_epoch);
     // Join owned work; no detached worker can outlive its roots or GUI owner.
     // A noninterruptible backend may delay shutdown; never fabricate cleanup.
-    void shutdown();
+    void shutdown(bool request_cancellation=true);
 };
 } // namespace ure

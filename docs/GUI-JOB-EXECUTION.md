@@ -55,13 +55,40 @@ is `ADVISORY_FLAG_ONLY`, with backend cleanup unverified. A returned worker is
 not evidence of canceled kernel maintenance, empty namespaces, restored bytes or
 retired durable ownership; inspect the native result and journal separately.
 
-The previous detached scrub/balance worker has been removed. It runs inside the
-same joinable executor, and concurrent shutdown callers wait for that owned
-thread. This closes the detached publication path, but does not finish AUD-014.
-The global lifecycle registry, orderly application teardown and separate GUI
-controllers for exact-owner rescue/Btrfs cancellation remain to be connected.
-Existing native exact-owner controls remain separate CLI interfaces. Do not
-treat the GUI advisory flag as their acknowledgement or enable live writes.
+The previous detached scrub/balance worker has been removed. Every queued worker
+first acquires a shared runtime activity lock. Stock recovery and fastbootd
+lifecycle guards retain an exclusive lock through their complete effect, so a
+new job cannot start between a busy check and unmount/reboot. GUI work is already
+registered before native hashing or journal admission. The runtime domain has
+64 local entries, exact job identities, private real-directory/file checks and
+descriptor identity revalidation. Android uses compiled `/tmp/ure-job-registry`;
+only reference-host fixtures configure another domain. A failed registry refuses
+job/lifecycle admission. This cooperating volatile lock makes no forced-restart
+durability claim and does not enable the unaccepted Android persistent writer.
+
+A separate joinable controller worker captures the original root descriptor,
+sealed plan, job identity and journal before rescue or scrub/balance enters its
+backend. `job-cancel` may queue the corresponding native exact-owner controller
+in addition to its advisory flag. Queue admission is not its native result:
+`Read backend control result` exposes the acknowledgement, error and original
+job identity separately. A control requested before native journal readiness can
+be refused; inspect its result and retry while the exact worker remains active.
+Changing the page, selected root or journal cannot retarget that controller.
+
+Balance pause preserves its durable operation owner after worker return. The
+captured cancel controller remains available; `Verify stopped Btrfs cleanup`
+uses exact-plan recovery only after the original worker has returned and native
+maintenance status independently reports inactivity. Failed maintenance retains
+the same explicit verification route. Unavailable or uncertain cleanup does not
+retire its owner. Rescue cleanup belongs to its original namespace supervisor.
+
+Application teardown ends new management admission, queues an available exact
+stop controller, joins controller work without canceling that queued controller,
+and joins the original supervisors outside the GUI state mutex. Native
+noninterruptible I/O may delay the join. The reviewed `twrp.cpp` hook runs before
+application resources are disposed. Concurrent shutdown callers retain their
+existing joined-worker behavior. A returned worker still does not prove backend
+cleanup, restored contents or successful maintenance.
 
 ## Host acceptance scope
 
@@ -72,6 +99,15 @@ Timed controls use real 512 MiB image hashing and backup plus 320 MiB ext4 resiz
 and rollback. They continue sampling status, acknowledge stop requests, reject a
 second job, check single collection, detect worker access to GUI variables and
 independently verify the backup, ext4 superblock size and original-image digest.
+
+Additional controls compile the dependency-free shipping lifecycle header with
+exceptions and RTTI disabled, test independent-process runtime exclusion and
+unsafe/replaced registry paths, and exercise production lifecycle callbacks.
+Actual rescue GUI cancellation/teardown uses a paused pre-unshare native
+supervisor and resource-factory stand-in. Actual scrub cancel, balance
+pause/cancel, worker error and inactive cleanup use exact-descriptor host ioctl
+stand-ins. These fixtures run no real namespace, cgroup or Btrfs maintenance and
+must not be reported as kernel or tablet acceptance.
 
 These are source and reference-host tests. They do not measure rendered frames,
 tablet input latency, the shipping Android coordinator, six physical UFS LUNs or

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "recovery_write_policy.hpp"
+#include "job_registry.hpp"
 
 namespace ure {
 // Android management effects are unavailable until the same persistent domain
 // is accepted for operation admission and every lifecycle transition. Stock
-// recovery reboot/unmount remain usable while no such operation can exist.
+// recovery reboot/unmount also retain a cooperating runtime activity lock.
+// That volatile lock does not enable Android's persistent operation backend.
 constexpr bool device_operation_coordinator_accepted() noexcept { return false; }
 #ifndef __ANDROID__
 void* lifecycle_acquire(const char* action, bool adopt_staged_reboot) noexcept;
@@ -15,6 +17,9 @@ bool lifecycle_stage_reboot() noexcept;
 #endif
 class LegacyLifecycleGuard {
     void* token_ = nullptr;
+#ifdef __ANDROID__
+    RuntimeActivityLease runtime_;
+#endif
 #ifndef __ANDROID__
     bool owned_ = false;
 #endif
@@ -23,8 +28,13 @@ public:
                                   bool adopt_staged_reboot = false) noexcept {
 #ifdef __ANDROID__
         static_assert(!device_operation_coordinator_accepted(), "Connect the accepted Android coordinator to lifecycle admission before enabling it");
-        (void)action; (void)adopt_staged_reboot;
-        if(!parent || parent->active())token_=this;
+        if(!action || (std::strcmp(action,"reboot") && std::strcmp(action,"unmount") && std::strcmp(action,"mount") && std::strcmp(action,"shutdown")))return;
+        if(parent) { if(parent->active())token_=parent->token_; }
+        else {
+            if(adopt_staged_reboot && std::strcmp(action,"reboot"))return;
+            runtime_=runtime_lifecycle_acquire(adopt_staged_reboot);
+            if(runtime_.valid())token_=&runtime_;
+        }
 #else
         if(parent) { if(parent->active())token_=parent->token_; }
         else { token_=lifecycle_acquire(action,adopt_staged_reboot); owned_=token_!=nullptr; }
@@ -39,7 +49,7 @@ public:
     LegacyLifecycleGuard& operator=(const LegacyLifecycleGuard&) = delete;
     bool active() const noexcept {
 #ifdef __ANDROID__
-        return token_!=nullptr;
+        return token_ && static_cast<const RuntimeActivityLease*>(token_)->valid();
 #else
         return token_ && lifecycle_validate(token_);
 #endif
@@ -48,7 +58,7 @@ public:
 inline bool stage_legacy_reboot() noexcept {
 #ifdef __ANDROID__
     static_assert(!device_operation_coordinator_accepted(), "Bind Android's staged reboot to the accepted coordinator");
-    return true;
+    return runtime_stage_reboot();
 #else
     return lifecycle_stage_reboot();
 #endif

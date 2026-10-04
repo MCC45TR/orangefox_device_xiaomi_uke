@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Portable executor contract only. This is not actual GUI/frame acceptance.
 #include "gui_job.hpp"
+#include "lifecycle_policy.hpp"
+#include "operation_lease.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -52,6 +54,11 @@ int main(int argc,char** argv) {
         input["selection"]="changed"; source=ure::Fd();
         for(unsigned attempt=0;!gate->entered && attempt<1000;++attempt)::poll(nullptr,0,2);
         check(gate->entered,"Worker never entered its separate native call");
+        check(ure::runtime_active_jobs()==1,"Executor did not retain global activity ownership");
+        for(const auto* transition:{"mount","unmount","reboot","shutdown"}) {
+            ure::LegacyLifecycleGuard lifecycle(transition); check(!lifecycle.active(),"Blocked GUI work allowed a stock lifecycle transition");
+        }
+        rejected([&] { static_cast<void>(ure::LifecycleLease::acquire("reboot")); },"gui-lifecycle-busy");
         rejected([&] { static_cast<void>(executor.start(input,13,{},false,[](const auto&,auto&) { return ure::Value(); })); },"gui-job-busy");
         rejected([&] { static_cast<void>(executor.request_cancel(std::string(32,'0'))); },"gui-job-mismatch");
         std::uint64_t max_status=0;
@@ -68,6 +75,7 @@ int main(int argc,char** argv) {
             result["output"]["contents"]=="immutable descriptor\n" && result["output"]["cancel_observed"]==true && result["backend_cleanup_verified"]==false,
             "Stale completion changed the active view, reread live inputs or invented cancellation cleanup");
         check(::fcntl(gate->descriptor,F_GETFD)<0 && errno==EBADF,"Job exposed completion before releasing its descriptor");
+        check(ure::runtime_active_jobs()==0,"Job exposed completion before retiring runtime activity");
         check(executor.collect(13)["ready"]==false,"Completion was delivered twice");
         auto cooperative=std::make_shared<Gate>();
         const auto cancellable=executor.start(input,14,{},true,[cooperative](const auto&,auto& control) {
@@ -109,6 +117,7 @@ int main(int argc,char** argv) {
         ::poll(nullptr,0,20); const bool retained=!joined && !second_joined && executor.status()["active"]==true;
         shutdown->release=true; owner.join(); second_owner.join(); check(retained,"Concurrent shutdown detached or discarded blocked native work");
         check(joined && executor.status()["active"]==false,"Owner shutdown did not join native work");
+        check(ure::runtime_active_jobs()==0,"Joined teardown left registered work");
         check(collect(executor,17)["output"]["native_returned"]==true,"Shutdown lost its inspectable completion");
         rejected([&] { static_cast<void>(executor.start(input,18,{},false,[](const auto&,auto&) { return ure::Value(); })); },"gui-job-busy");
         ure::fs::remove_all(work);

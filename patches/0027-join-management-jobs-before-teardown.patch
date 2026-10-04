@@ -1,0 +1,14 @@
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -646,6 +646,11 @@
+ 		gui_startPage("reapply_settings", 1, 0);
+ 	} else gui_start();
+ 
++	// End management admission and join owned supervisors before disposing
++	// application resources. Returning from a GUI page alone is not cleanup.
++	extern void ure_gui_shutdown_jobs();
++	ure_gui_shutdown_jobs();
++
+ 	delete adb_bu_fifo;
+ 	TWFunc::Update_Intent_File(startup.Get_Intent());
+ 

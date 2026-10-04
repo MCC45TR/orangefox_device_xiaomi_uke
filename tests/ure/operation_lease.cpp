@@ -383,7 +383,7 @@ int main(int argc,char** argv) {
             auto lifecycle=ure::LifecycleLease::acquire("unmount"); lifecycle.require_active();
             child_check([&] {
                 reject([&]{ure::OperationLease::acquire(binding);},"operation-busy");
-                reject([&]{ure::LifecycleLease::acquire("reboot");},"operation-busy");
+                reject([&]{ure::LifecycleLease::acquire("reboot");},"gui-lifecycle-busy");
                 reject([&]{lifecycle.require_active();},"operation-lease-inactive");
             });
             check(ure::operation_lease_status()["active_exclusion"]==true,"Lifecycle exclusion was released before the simulated effect");

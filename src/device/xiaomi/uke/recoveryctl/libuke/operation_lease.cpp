@@ -433,9 +433,10 @@ void OwnerControlLease::require_binding(const OperationBinding& binding) const {
 }
 
 struct LifecycleLease::Impl {
+    RuntimeActivityLease activity;
     Domain domain;
     Exclusion held;
-    Impl(Domain selected,Exclusion exclusion_fd):domain(std::move(selected)),held(std::move(exclusion_fd)) {}
+    Impl(RuntimeActivityLease runtime,Domain selected,Exclusion exclusion_fd):activity(std::move(runtime)),domain(std::move(selected)),held(std::move(exclusion_fd)) {}
 };
 LifecycleLease::LifecycleLease(std::unique_ptr<Impl> impl):impl_(std::move(impl)) {}
 LifecycleLease::~LifecycleLease()=default;
@@ -443,15 +444,20 @@ LifecycleLease::LifecycleLease(LifecycleLease&&) noexcept=default;
 LifecycleLease& LifecycleLease::operator=(LifecycleLease&&) noexcept=default;
 LifecycleLease LifecycleLease::acquire(const std::string& action) {
     require(action=="reboot" || action=="unmount" || action=="mount" || action=="shutdown","invalid-lifecycle-action","An explicit managed lifecycle action is required");
+    auto activity=RuntimeActivityLease::acquire(nullptr,true);
+    require(activity.acquired() && activity.valid(),activity.error()[0] ? activity.error() : "gui-registry-domain-changed",
+        "An active GUI job or unavailable runtime registry prevents this lifecycle transition");
     auto domain=open_domain(true); auto serial=exclusion(domain.admission.get(),"operation-coordinator-busy","Another process is updating lifecycle admission");
     domain.verify(true); idle_control(domain);
     auto held=exclusion(domain.operation.get(),"operation-busy","An operation or lifecycle transition still owns the coordinator");
     require(retained_owner(domain).isNull(),"operation-recovery-required","Retained operation ownership prevents an unreviewed lifecycle transition");
-    unlock(serial.get()); return LifecycleLease(std::make_unique<Impl>(std::move(domain),std::move(held)));
+    unlock(serial.get()); return LifecycleLease(std::make_unique<Impl>(std::move(activity),std::move(domain),std::move(held)));
 }
 void LifecycleLease::require_active() const {
-    require(impl_ && impl_->held.get()>=0,"operation-lease-inactive","The explicit lifecycle lease is no longer active"); impl_->domain.verify();
+    require(impl_ && impl_->held.get()>=0,"operation-lease-inactive","The explicit lifecycle lease is no longer active");
     impl_->held.require_process();
+    require(impl_->activity.valid(),"gui-registry-domain-changed","The lifecycle runtime registry changed while its exclusion was retained");
+    impl_->domain.verify();
     require(retained_owner(impl_->domain).isNull(),"operation-owner-mismatch","Unexpected retained operation ownership appeared during a lifecycle transition");
 }
 

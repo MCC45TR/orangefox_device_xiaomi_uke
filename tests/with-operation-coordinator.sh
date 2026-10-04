@@ -9,6 +9,7 @@ build=$(realpath -e -- "$build")
 scope=$(mktemp -d "$build/operation-fixture-XXXXXX")
 chmod 0700 "$scope"
 export URE_OPERATION_COORDINATOR="$scope/coordinator"
+export URE_GUI_JOB_REGISTRY="$scope/gui-registry"
 set +e
 "$@"
 result=$?

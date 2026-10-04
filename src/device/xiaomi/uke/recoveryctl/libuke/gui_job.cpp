@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "gui_job.hpp"
+#include "job_registry.hpp"
 #include <atomic>
 #include <condition_variable>
 #include <cmath>
@@ -54,6 +55,7 @@ int GuiJobRequest::descriptor(std::size_t index) const {
     require(index<descriptors_.size(),"invalid-job-descriptor","Select a descriptor captured by this exact job"); return descriptors_[index].get();
 }
 bool GuiJobControl::cancellation_requested() const noexcept { return state_->cancel.load(); }
+std::string GuiJobControl::job_id() const { return state_->id; }
 void GuiJobControl::checkpoint(const std::string& phase,std::uint64_t completed,std::uint64_t total,bool safe_to_stop) {
     require(identifier(phase) && phase.size()<=64 && (!total || completed<=total),"invalid-job-progress","Job progress must be bounded and internally consistent");
     if(safe_to_stop && cancellation_requested())throw Error("gui-job-checkpoint-stop","The job stopped at its caller-reviewed checkpoint; inspect backend cleanup separately");
@@ -69,7 +71,7 @@ struct GuiJobExecutor::Impl {
     std::condition_variable startup_finished;
     bool starting=false,stopping=false,joining=false;
 };
-GuiJobExecutor::GuiJobExecutor():impl_(std::make_unique<Impl>()) {}
+GuiJobExecutor::GuiJobExecutor():impl_(std::make_unique<Impl>()) { initialize_runtime_registry_lifetime(); }
 GuiJobExecutor::~GuiJobExecutor() { shutdown(); }
 std::string GuiJobExecutor::start(const Value& inputs,std::uint64_t epoch,const std::vector<int>& descriptors,bool cooperative,Work work) {
     {
@@ -87,6 +89,9 @@ std::string GuiJobExecutor::start(const Value& inputs,std::uint64_t epoch,const 
         Fd retained(::fcntl(descriptor,F_DUPFD_CLOEXEC,3)); require(retained.get()>=0,"invalid-job-descriptor","Cannot retain the exact job descriptor"); owned.push_back(std::move(retained));
     }
     auto selected=std::make_shared<GuiJobShared>(); selected->id=operation_id(); selected->epoch=epoch; selected->cooperative=cooperative;
+    auto activity=RuntimeActivityLease::acquire(selected->id.c_str());
+    require(activity.acquired() && activity.valid(),activity.error()[0] ? activity.error() : "gui-registry-domain-changed",
+        "The global runtime registry must admit this job before any worker starts");
     std::thread previous;
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
@@ -97,11 +102,12 @@ std::string GuiJobExecutor::start(const Value& inputs,std::uint64_t epoch,const 
     }
     if(previous.joinable())previous.join();
     try {
-        std::thread launched([selected,request=GuiJobRequest(std::move(frozen),std::move(owned)),task=std::move(work)]() mutable {
+        std::thread launched([selected,activity=std::move(activity),request=GuiJobRequest(std::move(frozen),std::move(owned)),task=std::move(work)]() mutable {
             std::string output,state="RETURNED"; bool started=false;
             try {
                 GuiJobControl control(selected);
                 control.checkpoint("before-backend",0,0,true);
+                require(activity.valid(),"gui-registry-domain-changed","The job's runtime registry changed before backend admission");
                 { std::lock_guard<std::mutex> lock(selected->mutex); selected->worker_state="RUNNING"; }
                 started=true; auto result=task(request,control);
                 require(result.isObject(),"invalid-gui-job-result","A backend must return an explicit object result");
@@ -119,7 +125,7 @@ std::string GuiJobExecutor::start(const Value& inputs,std::uint64_t epoch,const 
             // Destroy callback captures and captured descriptors before making
             // completion observable. Worker completion alone is never a proof
             // of a backend's mount, storage or durable-owner cleanup.
-            task={}; request=GuiJobRequest{};
+            task={}; request=GuiJobRequest{}; activity=RuntimeActivityLease{};
             std::lock_guard<std::mutex> lock(selected->mutex);
             selected->worker_state=state; selected->phase="finished"; selected->output=std::move(output);
             selected->done=true; selected->active=false;
@@ -136,6 +142,8 @@ Value GuiJobExecutor::status() const {
     std::shared_ptr<GuiJobShared> selected; bool stopping=false;
     { std::lock_guard<std::mutex> lock(impl_->mutex); selected=impl_->current; stopping=impl_->stopping; }
     Value result; result["schema"]=1; result["stopping"]=stopping; result["physical_test_record"]=false;
+    result["local_registered_jobs"]=Json::UInt64(runtime_active_jobs());
+    result["lifecycle_exclusion_kind"]="COOPERATING_RUNTIME_FLOCK";
     if(!selected) { result["state"]="IDLE"; result["active"]=false; return result; }
     std::lock_guard<std::mutex> lock(selected->mutex);
     result["job_id"]=selected->id; result["view_epoch"]=Json::UInt64(selected->epoch); result["state"]=selected->worker_state;
@@ -172,7 +180,7 @@ Value GuiJobExecutor::collect(std::uint64_t epoch) {
     }
     result["ready"]=true; result["backend_cleanup_verified"]=false; return result;
 }
-void GuiJobExecutor::shutdown() {
+void GuiJobExecutor::shutdown(bool request_cancellation) {
     std::thread owned;
     {
         std::unique_lock<std::mutex> lock(impl_->mutex);
@@ -181,7 +189,7 @@ void GuiJobExecutor::shutdown() {
         if(impl_->joining) { impl_->startup_finished.wait(lock,[&] { return !impl_->joining; }); return; }
         require(!impl_->worker.joinable() || impl_->worker.get_id()!=std::this_thread::get_id(),"gui-job-self-join","Owned work cannot destroy or join its own supervisor");
         impl_->stopping=true;
-        if(impl_->current)impl_->current->cancel=true;
+        if(request_cancellation && impl_->current)impl_->current->cancel=true;
         owned=std::move(impl_->worker);
         impl_->joining=owned.joinable();
     }

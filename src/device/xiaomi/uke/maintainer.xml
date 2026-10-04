@@ -2911,7 +2911,7 @@
           <text>%ure_job_notice%</text>
         </textbox>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="720"/>
+          <placement x="0" y="0" w="%screen_w%" h="1200"/>
           <listitem name="Refresh status" description="Collect completed work; keep running work open">
             <icon res="ure_check_icon"/>
             <action function="uremanager">job-collect</action>
@@ -2925,6 +2925,16 @@
             <icon res="ure_history_icon"/>
             <action function="uremanager">job-result</action>
             <action function="page">ure_output</action>
+          </listitem>
+          <listitem name="Read backend control result" description="Inspect the exact controller acknowledgement separately from final cleanup">
+            <icon res="ure_history_icon"/>
+            <action function="uremanager">job-controller-result</action>
+            <action function="page">ure_output</action>
+          </listitem>
+          <listitem name="Verify stopped Btrfs cleanup" description="Release the retained owner only after native checks prove maintenance has stopped">
+            <icon res="ure_check_icon"/>
+            <condition var1="ure_job_backend_cleanable" var2="1"/>
+            <action function="uremanager">job-backend-cleanup</action>
           </listitem>
         </listbox>
       </scroll>

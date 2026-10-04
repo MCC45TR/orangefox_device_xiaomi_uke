@@ -256,6 +256,29 @@ global job registry, with explicit terminal and cleanup states. **Acceptance:**
 leave the page, switch root, unmount, request reboot, cancel and handle a worker
 exception while maintenance is running. Keep controller cancellation available.
 
+**Superseding source/host remediation, 4 October:** detached maintenance was
+removed in AUD-013. The [runtime job registry and teardown contract](../docs/GUI-JOB-EXECUTION.md)
+now retain shared activity ownership before queueing GUI work and exclusive
+ownership through stock recovery/fastbootd lifecycle effects. The dependency-free
+shipping header uses a compiled private registry path, exact descriptor identity
+checks and bounded local registrations. A separate joinable controller captures
+the original root, plan, journal and job; changing the GUI selection cannot
+retarget rescue cancellation or Btrfs scrub/balance controls. Pause and errors
+retain durable ownership until an explicit inactive-backend cleanup check passes.
+Application teardown ends admission and joins controllers and supervisors before
+disposing application resources.
+
+Eighteen focused native tests passed in 90.61 seconds and the same eighteen
+ASan/UBSan tests passed in 160.54 seconds against frozen input manifest
+`4f1ee855ee61042e0b219fc42da1084d0499b4d6ba44a42f02fcd17811d91622`.
+They cover independent-process exclusion, unsafe/replaced registry paths,
+production lifecycle refusal, page/root changes, exact cancellation, pause,
+backend exceptions, verified cleanup and existing management/display regressions.
+The independently compiled English-only GUI publication source also passed the
+actual rescue and Btrfs controller fixtures. Host namespace/resource/ioctl
+stand-ins are explicit: no real kernel maintenance, fresh Android image,
+combined guest, localization, visual or physical acceptance is claimed.
+
 ### AUD-015 — P1: directory enumeration is not bounded by one memory budget
 
 **Confirmed allocation structure; worst-case RSS not measured.**

@@ -15,6 +15,8 @@
 #include <mutex>
 #include <map>
 #include "gui_job.hpp"
+#include "operation_lease.hpp"
+#include "lifecycle_policy.hpp"
 #include <set>
 #include <thread>
 #include <unistd.h>
@@ -24,6 +26,8 @@ std::string value(const std::string& name) { std::string result; DataManager::Ge
 struct ManagementSession {
     ure::Value variables, updates{Json::objectValue};
     std::size_t update_bytes=0;
+    std::function<void(const std::string&,const ure::Root&,const ure::Value&,const std::string&)> bind_backend_control;
+    std::function<void(const ure::Value&)> backend_control_result;
     int run(const std::string& command);
     void set(const std::string& name,const std::string& text) {
         ure::require(name.rfind("ure_",0)==0 && name.size()<=128 && text.size()<=128*1024,"gui-job-output-limit","GUI updates exceed their bounded publication budget; inspect the backend journal");
@@ -56,9 +60,6 @@ std::string managed_kind,managed_journal,reviewed_filesystem_journal;
 std::string edited_management_field;
 ure::Value boot_plan,boot_reviewed_selection,boot_journal_selection;
 std::string boot_pending_journal,boot_reviewed_journal;
-std::shared_ptr<ure::Root> maintenance_root;
-ure::Value maintenance_plan;
-std::string maintenance_journal;
 std::size_t current_line=0;
 std::string value(const std::string& name) const { return variables.get(name,"").asString(); }
 void publish(const ure::Value& data) {
@@ -634,7 +635,9 @@ int ManagementSession::run(const std::string& command) {
         } else if(command=="rescue-execute") {
             const auto request=rescue_request(); reviewed_management("rescue",management_selection("rescue",request)); auto root=os_root(); auto esp=selected_esp();
             set("ure_manage_journal",managed_journal);
+            if(bind_backend_control)bind_backend_control("rescue",root,managed_plan,managed_journal);
             const auto result=ure::linux_rescue_execute(root,managed_plan,managed_journal,value("ure_manage_hash"),esp.get()); publish(result);
+            if(backend_control_result)backend_control_result(result);
             set("ure_status",result["state"].asString()+"; private console is available in the session journal");
             set("ure_manage_hash",""); set("ure_manage_can_apply","0"); if(result["successful"]!=true)return 1;
         } else if(command=="rescue-inspect") {
@@ -674,18 +677,7 @@ int ManagementSession::run(const std::string& command) {
             else if(command=="btrfs-backup-inspect")publish(ure::btrfs_backup_inspect(value("ure_btrfs_store")));
             else if((command=="btrfs-plan" || command=="btrfs-execute") &&
                 (value("ure_btrfs_action")=="scrub-cancel" || value("ure_btrfs_action")=="balance-pause" || value("ure_btrfs_action")=="balance-cancel")) {
-                ure::require(maintenance_root && !maintenance_plan.empty(),"owner-control-required","Inspect the captured maintenance job before requesting its control");
-                ure::Value selection; selection["action"]=value("ure_btrfs_action"); selection["journal"]=maintenance_journal;
-                selection["operation_id"]=maintenance_plan["operation_id"];
-                if(command=="btrfs-plan") {
-                    review_management("btrfs-control",maintenance_plan,selection); managed_journal=maintenance_journal;
-                    set("ure_manage_journal",maintenance_journal);
-                    set("ure_status","Control the captured maintenance filesystem; confirm its running plan hash");
-                } else {
-                    reviewed_management("btrfs-control",selection);
-                    publish(ure::btrfs_manage_control(*maintenance_root,maintenance_plan,maintenance_journal,selection["action"].asString(),value("ure_manage_hash")));
-                    set("ure_manage_hash",""); set("ure_manage_can_apply","0");
-                }
+                throw ure::Error("owner-control-required","Use the exact captured maintenance controller; do not derive its target from mutable selections");
             }
             else {
                 auto root=os_root("ure_btrfs_root");
@@ -693,7 +685,10 @@ int ManagementSession::run(const std::string& command) {
                 else if(command=="btrfs-plan") { const auto request=btrfs_request(root); review_management("btrfs",ure::btrfs_manage_plan(root,request,"global-os3.0.303.0"),management_selection("btrfs",request)); }
                 else if(command=="btrfs-execute") {
                     reviewed_management("btrfs",management_selection("btrfs",btrfs_request(root))); set("ure_manage_journal",managed_journal);
-                    publish(ure::btrfs_manage_execute(root,managed_plan,managed_journal,value("ure_manage_hash")));
+                    const auto action=managed_plan["request"]["action"].asString();
+                    if(bind_backend_control && (action=="scrub" || action=="balance"))bind_backend_control(action,root,managed_plan,managed_journal);
+                    const auto result=ure::btrfs_manage_execute(root,managed_plan,managed_journal,value("ure_manage_hash")); publish(result);
+                    if(backend_control_result && (action=="scrub" || action=="balance"))backend_control_result(result);
                     set("ure_manage_hash",""); set("ure_manage_can_apply","0");
                 } else if(command=="btrfs-snapshot-plan" || command=="btrfs-send-plan") {
                     const auto snapshot=command=="btrfs-snapshot-plan";
@@ -1067,14 +1062,62 @@ int ManagementSession::run(const std::string& command) {
 }
 }
 namespace {
+struct GuiBackendControl {
+    std::string job_id,kind,journal;
+    std::shared_ptr<ure::Root> root;
+    ure::Value plan;
+};
+struct GuiBackendMailbox {
+    std::mutex mutex;
+    std::shared_ptr<const GuiBackendControl> selected;
+    bool running=false;
+    void bind(const std::string& job,const std::string& kind,const ure::Root& root,const ure::Value& plan,const std::string& journal) {
+        ure::require((kind=="rescue" || kind=="scrub" || kind=="balance") && ure::hash_valid(plan["plan_sha256"].asString()) &&
+            journal.size()<=4096 && ure::json(plan).size()<=4*1024*1024,"invalid-backend-controller","A controller needs a bounded exact native plan and journal");
+        ure::Fd retained(::fcntl(root.fd(),F_DUPFD_CLOEXEC,3)); ure::require(retained.get()>=0,"controller-root-unavailable","Cannot retain the original controller root");
+        auto captured=std::make_shared<GuiBackendControl>(); captured->job_id=job; captured->kind=kind; captured->journal=journal;
+        captured->plan=plan; captured->root=std::make_shared<ure::Root>(std::move(retained));
+        std::lock_guard<std::mutex> lock(mutex);
+        ure::require(!selected,"owner-control-required","Resolve the previous captured backend before starting another controlled backend");
+        selected=std::move(captured); running=true;
+    }
+    std::shared_ptr<const GuiBackendControl> snapshot(const std::string& job="") {
+        std::lock_guard<std::mutex> lock(mutex); return selected && (job.empty() || selected->job_id==job) ? selected : nullptr;
+    }
+    void result(const std::string& job,const ure::Value& result) {
+        if(result["operation_owner_released"]==true) {
+            std::lock_guard<std::mutex> lock(mutex); if(selected && selected->job_id==job) { selected.reset(); running=false; }
+        }
+    }
+    void finished(const std::string& job) {
+        auto captured=snapshot(job); if(!captured)return;
+        // Native errors may occur before journal or owner admission. Observe
+        // the cooperating domain on the worker, never under the GUI mutex.
+        ure::Value owner;
+        try { owner=ure::operation_lease_status(); } catch(...) { /* Uncertain owner remains retained; this worker has still returned. */ }
+        const bool idle=owner["available"]==true && owner["retained_owner"]!=true && owner["active_exclusion"]!=true;
+        struct stat journal{};
+        const bool journal_absent=::lstat(captured->journal.c_str(),&journal)<0 && errno==ENOENT;
+        const bool unavailable_before_admission=journal_absent && owner["available"]==false && owner["code"]=="ownership-unavailable";
+        std::lock_guard<std::mutex> lock(mutex);
+        if(selected!=captured)return;
+        running=false; if(idle || unavailable_before_admission)selected.reset();
+    }
+    bool backend_running(const std::shared_ptr<const GuiBackendControl>& captured) {
+        std::lock_guard<std::mutex> lock(mutex); return selected==captured && running;
+    }
+};
 struct GuiManagementOwner {
     std::mutex mutex;
     std::shared_ptr<ManagementSession> session=std::make_shared<ManagementSession>(),running;
     ure::Value inputs;
     std::uint64_t epoch=0,last_poll=0;
     std::string published_status;
+    std::shared_ptr<GuiBackendMailbox> backend=std::make_shared<GuiBackendMailbox>();
+    bool accepting=true;
     // Declared last: the owned worker joins before its roots/session are freed.
     ure::GuiJobExecutor jobs;
+    ure::GuiJobExecutor controls;
 };
 GuiManagementOwner management_owner;
 ure::Value management_inputs() {
@@ -1215,17 +1258,53 @@ void apply_management_updates(const ure::Value& updates) {
     for(auto it=updates.begin();it!=updates.end();++it)DataManager::SetValue(it.name(),it->asString());
 }
 void publish_job_status() {
-    const auto status=management_owner.jobs.status();
+    auto status=management_owner.jobs.status(); const auto control=management_owner.controls.status(); status["controller"]=control;
+    const auto captured=management_owner.backend->snapshot();
+    if(captured) {
+        status["bound_backend"]["job_id"]=captured->job_id; status["bound_backend"]["kind"]=captured->kind;
+        status["bound_backend"]["plan_sha256"]=captured->plan["plan_sha256"]; status["bound_backend"]["journal"]=captured->journal;
+        status["bound_backend"]["running"]=management_owner.backend->backend_running(captured);
+    }
     const auto encoded=ure::json(status); if(encoded==management_owner.published_status)return;
     management_owner.published_status=encoded;
     DataManager::SetValue("ure_job_status",encoded);
     DataManager::SetValue("ure_job_state",status["state"].asString());
-    DataManager::SetValue("ure_job_active",status["active"]==true ? "1" : "0");
-    DataManager::SetValue("ure_job_result_pending",status["result_pending"]==true ? "1" : "0");
+    DataManager::SetValue("ure_job_active",status["active"]==true || control["active"]==true ? "1" : "0");
+    DataManager::SetValue("ure_job_result_pending",status["result_pending"]==true || control["result_pending"]==true ? "1" : "0");
+    DataManager::SetValue("ure_job_backend_owner_id",captured ? captured->job_id : "");
+    DataManager::SetValue("ure_job_backend_cleanable",captured && captured->kind!="rescue" && !management_owner.backend->backend_running(captured) ? "1" : "0");
     if(status.isMember("job_id"))DataManager::SetValue("ure_job_id",status["job_id"].asString());
     DataManager::SetValue("ure_job_phase",status.get("phase","idle").asString());
 }
+void collect_backend_control() {
+    const auto result=management_owner.controls.collect(management_owner.epoch);
+    if(result["ready"]==true) {
+        DataManager::SetValue("ure_job_control_result",ure::json(result));
+        DataManager::SetValue("ure_job_notice","The exact backend controller returned. Read its result; an acknowledgement alone does not prove cleanup.");
+    }
+}
+ure::Value queue_backend_control(const std::shared_ptr<const GuiBackendControl>& captured,const std::string& action) {
+    ure::require(captured!=nullptr,"owner-control-required","There is no captured backend to control"); collect_backend_control();
+    const bool cleanup=action=="verify-cleanup";
+    ure::require(!cleanup || (captured->kind!="rescue" && !management_owner.backend->backend_running(captured)),
+        "controller-cleanup-unavailable","Wait for the original Btrfs worker before independently verifying cleanup");
+    ure::require(cleanup || (captured->kind=="rescue" && action=="rescue-cancel") || (captured->kind=="scrub" && action=="scrub-cancel") ||
+        (captured->kind=="balance" && (action=="balance-pause" || action=="balance-cancel")),"invalid-maintenance-control","Controller action must match the captured backend");
+    ure::Value input; input["owner_job_id"]=captured->job_id; input["action"]=action; input["plan_sha256"]=captured->plan["plan_sha256"];
+    const auto mailbox=management_owner.backend;
+    const auto id=management_owner.controls.start(input,management_owner.epoch,{},false,[captured,action,mailbox,cleanup](const auto&,auto& progress) {
+        progress.checkpoint("exact-backend-control"); const auto hash=captured->plan["plan_sha256"].asString();
+        ure::Value result;
+        if(cleanup)result=ure::btrfs_manage_execute(*captured->root,captured->plan,captured->journal,hash);
+        else if(captured->kind=="rescue")result=ure::linux_rescue_cancel(captured->journal,hash);
+        else result=ure::btrfs_manage_control(*captured->root,captured->plan,captured->journal,action,hash);
+        mailbox->result(captured->job_id,result); result["controlled_job_id"]=captured->job_id; return result;
+    });
+    ure::Value ack; ack["state"]="CONTROLLER_QUEUED"; ack["controller_job_id"]=id; ack["controlled_job_id"]=captured->job_id;
+    ack["action"]=action; ack["plan_sha256"]=captured->plan["plan_sha256"]; ack["backend_cleanup_verified"]=false; return ack;
+}
 int collect_management_job() {
+    collect_backend_control();
     const auto status=management_owner.jobs.status();
     if(status["result_pending"]!=true)return 0;
     const auto input=management_inputs();
@@ -1272,12 +1351,43 @@ int GUIAction::uremanager(std::string command) {
     try {
         if(command=="job-status") { publish_job_status(); return 0; }
         if(command=="job-result") { DataManager::SetValue("ure_output",value("ure_job_result")); return 0; }
+        if(command=="job-controller-result") { DataManager::SetValue("ure_output",value("ure_job_control_result")); return 0; }
         if(command=="job-collect")return collect_management_job();
         if(command=="job-cancel") {
-            const auto ack=management_owner.jobs.request_cancel(value("ure_job_id"));
+            const auto id=value("ure_job_id"); auto ack=management_owner.jobs.request_cancel(id);
+            const auto captured=management_owner.backend->snapshot(id);
+            if(captured) {
+                try { ack["backend_controller"]=queue_backend_control(captured,captured->kind=="rescue" ? "rescue-cancel" : captured->kind+"-cancel"); }
+                catch(const ure::Error& error) { ack["backend_controller_error"]=error.code; }
+            }
             DataManager::SetValue("ure_job_cancel_ack",ure::json(ack));
             DataManager::SetValue("ure_job_notice","Stop requested. A running native operation may finish before stopping; inspect its final journal and cleanup state.");
             publish_job_status(); return 0;
+        }
+        if(command=="job-backend-cleanup") {
+            const auto captured=management_owner.backend->snapshot(value("ure_job_backend_owner_id"));
+            ure::require(captured && value("ure_job_backend_owner_id")==captured->job_id,"owner-control-required","Select the exact retained backend shown in Job status");
+            DataManager::SetValue("ure_job_cancel_ack",ure::json(queue_backend_control(captured,"verify-cleanup"))); publish_job_status(); return 0;
+        }
+        if((command=="btrfs-plan" || command=="btrfs-execute") &&
+            (value("ure_btrfs_action")=="scrub-cancel" || value("ure_btrfs_action")=="balance-pause" || value("ure_btrfs_action")=="balance-cancel")) {
+            const auto captured=management_owner.backend->snapshot(); ure::require(captured && captured->kind!="rescue","owner-control-required","Inspect the captured Btrfs backend before its control");
+            ure::require((captured->kind=="scrub" && value("ure_btrfs_action")=="scrub-cancel") ||
+                (captured->kind=="balance" && (value("ure_btrfs_action")=="balance-pause" || value("ure_btrfs_action")=="balance-cancel")),
+                "invalid-maintenance-control","Choose the controller action for the original captured maintenance job");
+            if(command=="btrfs-plan") {
+                ure::Value review; review["operation"]="btrfs.exact-controller"; review["owner_job_id"]=captured->job_id;
+                review["action"]=value("ure_btrfs_action"); review["journal"]=captured->journal; review["captured_plan"]=captured->plan;
+                const auto text=ure::json(review); ure::require(text.size()<=128*1024,"gui-job-output-limit","Controller review exceeds its display budget");
+                DataManager::SetValue("ure_output",text); DataManager::SetValue("ure_manage_hash",captured->plan["plan_sha256"].asString());
+                DataManager::SetValue("ure_manage_journal",captured->journal); DataManager::SetValue("ure_job_controller_owner_id",captured->job_id);
+                DataManager::SetValue("ure_manage_can_apply","1");
+                DataManager::SetValue("ure_status","Control the original captured filesystem and journal. Confirm its plan hash; current root selections do not retarget it."); return 0;
+            }
+            ure::require(value("ure_job_controller_owner_id")==captured->job_id && value("ure_manage_hash")==captured->plan["plan_sha256"].asString(),
+                "confirmation-required","Review and confirm this exact captured backend first");
+            DataManager::SetValue("ure_job_cancel_ack",ure::json(queue_backend_control(captured,value("ure_btrfs_action"))));
+            DataManager::SetValue("ure_manage_can_apply","0"); publish_job_status(); return 0;
         }
         if(command=="job-view-changed") { ++management_owner.epoch; return 0; }
         if(immediate_display_command(command)) {
@@ -1285,16 +1395,26 @@ int GUIAction::uremanager(std::string command) {
             apply_management_updates(display.updates); return code;
         }
         static_cast<void>(collect_management_job());
-        ure::require(management_owner.jobs.status()["active"]!=true && management_owner.session,"gui-job-busy","An owned job is running. Job status and stop requests remain available.");
+        ure::require(management_owner.accepting && management_owner.jobs.status()["active"]!=true && management_owner.controls.status()["active"]!=true && management_owner.session,
+            "gui-job-busy","An owned job, backend controller or shutdown is active. Job status and exact controls remain available.");
         auto input=management_inputs(); auto owned=management_owner.session;
         owned->variables=input; owned->updates=ure::Value(Json::objectValue); owned->update_bytes=0;
         management_owner.inputs=input; ++management_owner.epoch;
         management_owner.running=owned; management_owner.session.reset();
+        const auto mailbox=management_owner.backend;
         try {
             const auto id=management_owner.jobs.start(input,management_owner.epoch,{},true,
-                [owned,command](const ure::GuiJobRequest& request,ure::GuiJobControl& control) {
+                [owned,command,mailbox](const ure::GuiJobRequest& request,ure::GuiJobControl& control) {
                     owned->variables=request.inputs(); control.checkpoint("native-operation",0,0,true);
-                    const auto code=owned->run(command);
+                    const auto id=control.job_id();
+                    owned->bind_backend_control=[mailbox,id](const auto& kind,const auto& root,const auto& plan,const auto& journal) { mailbox->bind(id,kind,root,plan,journal); };
+                    owned->backend_control_result=[mailbox,id](const auto& result) { mailbox->result(id,result); };
+                    int code=1;
+                    try { code=owned->run(command); }
+                    catch(...) {
+                        owned->bind_backend_control={}; owned->backend_control_result={}; mailbox->finished(id); throw;
+                    }
+                    owned->bind_backend_control={}; owned->backend_control_result={}; mailbox->finished(id);
                     ure::Value result; result["exit_code"]=code; result["command"]=command; result["updates"]=std::move(owned->updates);
                     result["native_io_may_be_noninterruptible"]=true; result["backend_cleanup_verified"]=false; return result;
                 });
@@ -1312,5 +1432,14 @@ int GUIAction::uremanager(std::string command) {
 }
 void ure_gui_shutdown_jobs() {
     // Never join under the GUI state mutex. Native I/O may be noninterruptible.
+    {
+        std::lock_guard<std::mutex> lock(management_owner.mutex); management_owner.accepting=false;
+        const auto captured=management_owner.backend->snapshot();
+        if(captured && management_owner.backend->backend_running(captured)) {
+            try { static_cast<void>(queue_backend_control(captured,captured->kind=="rescue" ? "rescue-cancel" : captured->kind+"-cancel")); }
+            catch(const ure::Error&) { /* Existing controller or unavailable admission: retain and join the original supervisor. */ }
+        }
+    }
+    management_owner.controls.shutdown(false);
     management_owner.jobs.shutdown();
 }
