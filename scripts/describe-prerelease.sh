@@ -19,6 +19,12 @@ if [[ $candidate == prerelease ]]; then repeat_record="$component/reports/privat
 }
 (cd -- "$destination" && sha256sum -c "$repeat_record" >/dev/null)
 [[ -s $destination/EXTRACTED-RAMDISK-AUDIT.json && -s $component/reports/private/native-verification.json ]]
+# This regression gate applies to every newly sealed candidate, independent of
+# its name. Historical manifests and binaries remain immutable.
+jq -e '.validation.shared_legacy_write_gate and .validation.actual_format_data_refuses_before_side_effects and
+    .validation.actual_fastbootd_dispatch_and_block_open_refusals and .validation.production_installer_refuses_before_open and
+    .validation.read_only_mounts_preserve_no_replay_options' "$component/reports/private/native-verification.json" >/dev/null
+jq -e '.validation.source_built_shared_legacy_write_policy' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e '.validation.cpp_storage_ownership_policy_fixtures and .validation.storage_image_backup_cli_fixtures and .validation.cpp_raw_restore_interruption_fixtures and .validation.raw_restore_cli_fixtures and .validation.cpp_host_stream_restore_fixtures and .validation.host_stream_restore_cli_and_duplex_transport_fixtures and .validation.cpp_stock_gpt_reconstruction_and_oem_xml_oracle and .validation.stock_gpt_cli_fixtures and .validation.cpp_partition_map_and_bounded_signatures and .validation.partition_map_cli_fixtures and (.validation.physical_device==false)' \
     "$component/reports/private/native-verification.json" >/dev/null
 jq -e '.validation.cpp_tablet_display_density_and_actual_renderer_hooks and .validation.display_cli_settings_fixtures' \

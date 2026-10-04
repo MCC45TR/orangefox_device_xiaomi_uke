@@ -1,0 +1,94 @@
+# Pinned native mutation-entry census: source<TAB>signature prefix<TAB>policy operation.
+# Conditional read paths are also tested by compiling the complete production functions.
+bootable/recovery/partition.cpp	bool TWPartition::Mount(bool Display_Error)	WritableMount
+bootable/recovery/partition.cpp	bool TWPartition::ReMount_RW(bool Display_Error)	WritableMount
+bootable/recovery/partition.cpp	bool TWPartition::BlkDiscard()	Wipe
+bootable/recovery/partition.cpp	bool TWPartition::Wipe(string New_File_System)	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_AndSec(void)	Wipe
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_Data_Cache(void)	Wipe
+bootable/recovery/partition.cpp	bool TWPartition::Repair()	Repair
+bootable/recovery/partition.cpp	bool TWPartition::Resize()	Resize
+bootable/recovery/partition.cpp	bool TWPartition::Restore(PartitionSettings *part_settings)	Restore
+bootable/recovery/partition.cpp	bool TWPartition::Decrypt(string Password)	EncryptionAccess
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_Encryption()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_EXTFS(string File_System)	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_EXT4()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_FAT()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_EXFAT()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_MTD()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_RMRF()	Wipe
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_F2FS()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_NTFS()	Format
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_Data_Without_Wiping_Media()	Wipe
+bootable/recovery/partition.cpp	bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unused)	Wipe
+bootable/recovery/partition.cpp	void TWPartition::Wipe_Crypto_Key()	Wipe
+bootable/recovery/partition.cpp	bool TWPartition::Raw_Read_Write(PartitionSettings *part_settings)	Restore
+bootable/recovery/partition.cpp	bool TWPartition::Restore_Tar(PartitionSettings *part_settings)	Restore
+bootable/recovery/partition.cpp	bool TWPartition::Restore_Image(PartitionSettings *part_settings)	Restore
+bootable/recovery/partition.cpp	bool TWPartition::Flash_Image(PartitionSettings *part_settings)	Flash
+bootable/recovery/partition.cpp	bool TWPartition::Flash_Sparse_Image(const string& Filename)	Flash
+bootable/recovery/partition.cpp	bool TWPartition::Flash_Image_FI(const string& Filename, ProgressTracking *progress)	Flash
+bootable/recovery/partition.cpp	void TWPartition::Change_Mount_Read_Only(bool new_value)	WritableMount
+bootable/recovery/partition.cpp	int TWPartition::Decrypt_Adopted()	EncryptionAccess
+bootable/recovery/partitionmanager.cpp	bool Do_Disable_AVB2(string File_Name, char Disable_Flags, bool Display_Info)	BootPatch
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Disable_AVB2(bool Display_Info)	BootPatch
+bootable/recovery/partitionmanager.cpp	void TWPartitionManager::Decrypt_Data()	EncryptionAccess
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Restore_Partition(PartitionSettings *part_settings)	Restore
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Run_Restore(const string& Restore_Name)	Restore
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_By_Path(string Path)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_By_Path(string Path, string New_File_System)	Format
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Factory_Reset(void)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Dalvik_Cache(void)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Rotate_Data(void)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Battery_Stats(void)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Android_Secure(void)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Format_Data(void)	Format
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Media_From_Data(void)	Wipe
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Repair_By_Path(string Path, bool Display_Error)	Repair
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Resize_By_Path(string Path, bool Display_Error)	Resize
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Decrypt_Device(string Password, int user_id)	EncryptionAccess
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Fix_Contexts(void)	FileMutation
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::usb_storage_enable(void)	WritableMount
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Partition_SDCard(void)	PartitionMetadata
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Enable_MTP(void)	FileMutation
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Flash_Image(string& path, string& filename)	Flash
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Flash_Repacked_Image(string & path,	Flash
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Prepare_Empty_Folder(const std::string& Folder)	FileMutation
+bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Check_Pending_Merges()	PartitionMetadata
+bootable/recovery/twrp-functions.cpp	bool TWFunc::RunStartupScript(void)	Script
+bootable/recovery/twrp-functions.cpp	bool TWFunc::RunFoxScript(const std::string script, const std::string args)	Script
+bootable/recovery/twrp-functions.cpp	void TWFunc::check_and_run_script(const char *script_file,	Script
+bootable/recovery/twrp-functions.cpp	void TWFunc::Disable_Stock_Recovery_Replace_Func(void)	BootPatch
+bootable/recovery/twrp-functions.cpp	bool TWFunc::PackRepackImage_MagiskBoot(bool do_unpack, bool is_boot)	BootPatch
+bootable/recovery/twrp-functions.cpp	bool TWFunc::Repack_Image(string mount_point)	BootPatch
+bootable/recovery/twrp-functions.cpp	void TWFunc::Deactivation_Process(void)	BootPatch
+bootable/recovery/twrp-functions.cpp	void TWFunc::Patch_AVB20(bool silent)	BootPatch
+bootable/recovery/twrp-functions.cpp	int TWFunc::Patch_DMVerity_ForcedEncryption_Magisk(void)	BootPatch
+bootable/recovery/twrp-functions.cpp	bool TWFunc::Magiskboot_Repack_Patch_VBMeta()	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::flash_zip(std::string filename, int *wipe_cache)	InstallPackage
+bootable/recovery/gui/action.cpp	int GUIAction::ozip_decrypt(string zip_path)	InstallPackage
+bootable/recovery/gui/action.cpp	void GUIAction::reinject_after_flash()	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::reinjecttwrp(std::string arg __unused)	BootPatch
+bootable/recovery/gui/action.cpp	int GUIAction::setbootslot(std::string arg)	SlotSwitch
+bootable/recovery/gui/action.cpp	int GUIAction::cmdf(std::string arg, std::string file)	FileMutation
+bootable/recovery/gui/action.cpp	int GUIAction::mergesnapshots(string arg __unused)	PartitionMetadata
+bootable/recovery/twrpinstall/twinstall.cpp	int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)	InstallPackage
+bootable/recovery/twrpinstall/install.cpp	int install_package(const std::string& path, bool should_wipe_cache, bool needs_mount,	InstallPackage
+bootable/recovery/twrpinstall/adb_install.cpp	  int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action)	InstallPackage
+bootable/recovery/openrecoveryscript.cpp	int OpenRecoveryScript::remountrw(void)	WritableMount
+bootable/recovery/install/install.cpp	InstallResult InstallPackage(Package* package, const std::string_view package_id,	InstallPackage
+bootable/recovery/install/adb_install.cpp	  int ApplyFromAdb(const char* install_file, Device::BuiltinAction* reboot_action)	InstallPackage
+bootable/recovery/install/wipe_data.cpp	bool WipeCache(const std::function<bool()>& confirm_func, std::string_view new_fstype)	Wipe
+bootable/recovery/install/wipe_data.cpp	bool WipeData(Device* device, bool keep_memtag_mode, std::string_view data_fstype)	Format
+bootable/recovery/recovery_utils/roots.cpp	bool WipeBlockDevice(const char* path)	Wipe
+bootable/recovery/recovery_utils/roots.cpp	int format_volume(const std::string& volume, const std::string& directory,	Format
+system/core/fastboot/device/commands.cpp	bool EraseHandler(FastbootDevice* device, const std::vector<std::string>& args)	Wipe
+system/core/fastboot/device/commands.cpp	bool OemCmdHandler(FastbootDevice* device, const std::vector<std::string>& args)	Script
+system/core/fastboot/device/commands.cpp	bool SetActiveHandler(FastbootDevice* device, const std::vector<std::string>& args)	SlotSwitch
+system/core/fastboot/device/commands.cpp	bool CreatePartitionHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
+system/core/fastboot/device/commands.cpp	bool DeletePartitionHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
+system/core/fastboot/device/commands.cpp	bool ResizePartitionHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
+system/core/fastboot/device/commands.cpp	bool FlashHandler(FastbootDevice* device, const std::vector<std::string>& args)	Flash
+system/core/fastboot/device/commands.cpp	bool UpdateSuperHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
+system/core/fastboot/device/commands.cpp	bool GsiHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata
+system/core/fastboot/device/commands.cpp	bool SnapshotUpdateHandler(FastbootDevice* device, const std::vector<std::string>& args)	PartitionMetadata

@@ -49,6 +49,12 @@ for marker in ure-linux-boot-audit filesystem.manage btrfs.manage linux.rescue p
     strings "$work/root/system/bin/uke-recoveryctl" | rg -F "$marker" >/dev/null
 done
 strings "$work/root/system/bin/recovery" | rg -F 'boot-route-stage-fixture' >/dev/null
+bash "$component/tests/check-write-gate.sh"
+for binary in recovery fastbootd uke-recovery-install; do
+    strings "$work/root/system/bin/$binary" | rg -F 'ure-legacy-write-unavailable' >/dev/null
+    cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/$binary" "$work/root/system/bin/$binary"
+done
+strings "$work/root/system/bin/recovery" | rg -F 'URE_STORAGE_WRITE_BLOCKED' >/dev/null
 cmp "$tree/out-public/target/product/uke/system/lib64/libminuitwrp.so" "$work/root/system/lib64/libminuitwrp.so"
 for binary in uke-recoveryctl uke-recovery-install; do
     strings "$work/root/system/bin/$binary" | rg -F '9e55ff8afdf178e424187f0dc7d6dd2fa570308e22d8df7ac895d65017dbc0d7' >/dev/null
@@ -62,7 +68,7 @@ cmp "$tree/out-public/target/product/uke/system/etc/mke2fs.conf" "$work/root/sys
 grep -q 'page">ure_home<' "$work/root/twres/pages/advanced.xml"
 [[ $(readlink -- "$work/root/system/bin/dropbearkey") == /system/bin/dropbear ]]
 [[ ! -e $work/root/system/bin/keystore_cli_v2 ]]
-for tool in uke-recoveryctl uke-recovery-install recovery dropbear wimlib-imagex ntfsresize fsck.exfat dump.exfat mkfs.exfat fsck.f2fs make_f2fs; do
+for tool in uke-recoveryctl uke-recovery-install recovery fastbootd dropbear wimlib-imagex ntfsresize fsck.exfat dump.exfat mkfs.exfat fsck.f2fs make_f2fs; do
     cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/$tool" "$work/root/system/bin/$tool"
 done
 [[ ! -e $work/root/system/bin/uke-btrfs-vm-fixture && $(readlink "$work/root/system/bin/resize.f2fs") == fsck.f2fs ]]
@@ -84,6 +90,7 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     '{schema_version:1,recovery_image_sha256:$image,compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
 jq --argjson qemu "$qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
     .validation.source_built_one_shot_boot_and_gui=true | .validation.qemu_user_one_shot_boot_fixtures=$qemu |
+    .validation.source_built_shared_legacy_write_policy=true |
     .validation.real_efi_variable_write=false | .validation.uke_boot_routing_accepted=false' "$report" > "$work/capacity-preflight-audit.json"
 mv -- "$work/capacity-preflight-audit.json" "$report"
 echo 'Final compressed ramdisk audit passed; source, emulation and hardware evidence remain separate.'

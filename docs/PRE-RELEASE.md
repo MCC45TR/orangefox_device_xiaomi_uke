@@ -43,14 +43,21 @@ host package check says nothing about whether an Uke bootloader will accept it.
 
 ## ZIP installation and preflight
 
-Use a working recovery with an operational boot-control HAL. The ZIP uses a
+The current source disables ZIP/device installation until the live URE backend
+has its own acceptance record. `uke-recovery-install install` refuses before
+opening an image or a device. The ZIP invokes that mode and therefore cannot
+install this checkpoint. Older sealed packages retain their original behavior;
+their instructions are historical, not acceptance for the new source.
+
+The read-only `check` mode uses a working recovery with an operational
+boot-control HAL. The ZIP includes a
 static AArch64 C++ helper, not the upstream dual-slot installer. It requires
 `uke`, unlocked-state evidence, exactly two consistent slots, snapshot status
 `none`, a bootable inactive slot, exact stock303 hashes for boot, init_boot,
 vendor_boot and dtbo on **both slots**, and stock recovery on the inactive slot. It
-checks real block-device labels and sizes. It backs up current recovery in RAM,
-then writes only active recovery and verifies a full SHA-256 read-back. It does
-not format/mount userdata, switch slots, touch vbmeta or reboot automatically.
+checks real block-device labels and sizes. These checks do not authorize a
+write through the disabled installer. It does not format/mount userdata,
+switch slots, touch vbmeta or reboot automatically.
 
 To run the same checks without writing, extract the helper and send it and the
 recovery image to `/tmp` in the working recovery:
@@ -64,9 +71,10 @@ adb shell chmod 700 /tmp/uke-recovery-install
 
 Run `/tmp/uke-recovery-install check /tmp/OrangeFox-uke-recovery.img SHA256`
 through `adb shell`, replacing `SHA256` with the image hash in `SHA256SUMS`.
-Missing evidence is a rejection, not permission to bypass checks. After
-installation, copy the printed `/tmp/uke-recovery-backup-*` file to your host
-before reboot; it is volatile. Prefer the ZIP to a manual flash.
+Missing evidence is a rejection, not permission to bypass checks. No backup
+or installation is produced by the disabled `install` mode. Read
+[the shared native write policy](RECOVERY-WRITE-POLICY.md) before considering
+the separate, unaccepted bootloader experiment below.
 
 An older/different inactive firmware causes refusal too. Do not update, clone
 or switch that slot just to satisfy this experimental installer.

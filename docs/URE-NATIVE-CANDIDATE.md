@@ -74,6 +74,13 @@ stock-return instructions are in the accompanying `STOCK-RETURN.md`. Read it
 before considering a device experiment. The temporary-boot image must never be
 flashed. Preserve the firmware-matched stock recovery and inactive stock slot.
 
+Current-source builds refuse legacy device writes, including OrangeFox Format
+Data, package/OTA installation, writable mounts, fastbootd mutations and the
+packaged installer's `install` mode. The ZIP cannot install this checkpoint.
+Read `RECOVERY-WRITE-POLICY.md` for the native coverage, preserved reads and the
+root-command boundary. Earlier sealed candidates have not been rebuilt by
+this source correction.
+
 Verify `SHA256SUMS` from the host. A hash/build/QEMU pass is not a tablet boot
 result. The build report records the exact scope of each verification stage.
 

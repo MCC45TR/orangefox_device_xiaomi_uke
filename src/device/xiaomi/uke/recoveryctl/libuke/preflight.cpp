@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "recovery_write_policy.hpp"
 #include "../install_policy.h"
 #include <algorithm>
 #include <array>
@@ -34,7 +35,7 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
     Value out; out["schema"]=1; out["format"]="ure-storage-preflight"; out["target_identity"]=target.identity;
     out["firmware_profile"]=profile; out["checks"]=Value(Json::arrayValue); out["blockers"]=Value(Json::arrayValue);
     out["private_record"]=true; out["physical_test_record"]=false; out["atomic_snapshot"]=false; out["android_fbe_access_authorized"]=false;
-    out["native_live_writer_ready"]=false; out["firmware_identity_validated"]=false;
+    out["native_live_writer_ready"]=live_storage_backend_accepted(); out["firmware_identity_validated"]=false;
     if(target.identity["kind"]=="regular-image") {
         check(out,"regular-file-identity",true,"Selected image inode, geometry and metadata were revalidated");
         check(out,"physical-storage-write",false,"Image fixtures do not prove live firmware, slot, snapshot or storage ownership");
@@ -83,7 +84,7 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
         out["stock_boot_stack"]=images; out["firmware_identity_validated"]=stack;
         check(out,"exact-stock-boot-stack",stack,"Both boot slots and inactive recovery must match the reviewed whole-partition Global programming layouts, including DTBO's zero gap and duplicated end footer; this is not model/SKU acceptance");
     }
-    check(out,"accepted-live-transaction-backend",false,"Live writes remain disabled: Uke/SKU-specific range provenance and the complete native write adapter are not accepted yet");
+    check(out,"accepted-live-transaction-backend",live_storage_backend_accepted(),"Live writes remain disabled: Uke/SKU-specific range provenance and the complete native write adapter are not accepted yet");
     out["image_job_eligible"]=false; out["live_job_eligible"]=out["blockers"].empty(); return out;
 }
 } // namespace ure

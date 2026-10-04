@@ -85,8 +85,9 @@ TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
 TARGET_USES_LOGD := true
 TWRP_INCLUDE_LOGCAT := true
 
-# Decryption and destructive data operations stay disabled until the installed
-# firmware's KeyMint/TEE path and both storage variants pass device tests.
+# Crypto flags disable decryption only. The shared recovery write policy also
+# blocks legacy formatting, restore, flash, OTA and fastbootd mutations. Neither
+# a writable mount preference nor advanced mode grants an unreviewed live write.
 TW_INCLUDE_CRYPTO := false
 TW_INCLUDE_CRYPTO_FBE := false
 TW_INCLUDE_FBE_METADATA_DECRYPT := false

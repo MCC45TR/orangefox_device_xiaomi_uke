@@ -1,4 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+// Small dependency-free policy shared with stock recovery and fastbootd.
+cc_library_headers {
+    name: "libuke-recovery-write-policy-headers",
+    host_supported: true,
+    recovery_available: true,
+    export_include_dirs: ["libuke"],
+}
+
 cc_library_static {
     name: "libuke-recovery",
     recovery_available: true,

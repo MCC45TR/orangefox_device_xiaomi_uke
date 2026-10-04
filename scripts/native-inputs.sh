@@ -29,6 +29,12 @@ cd "$component"
     printf '%s\0' tests/installer_test.cpp tests/check-stock-boot-programming.sh scripts/describe-stock-boot-programming.sh manifests/stock-boot-programming-global.json
     printf '%s\0' tests/check-boot-router.sh tests/check-aarch64.sh
     printf '%s\0' tests/check-drm-surface.sh patches/0010-drm-framebuffer-initialization.patch
+    printf '%s\0' tests/check-write-gate.sh tests/generate-write-gate-hooks.sh configs/ure/legacy-write-entry-points.tsv \
+        patches/0020-shared-recovery-write-gate.patch patches/0021-fastbootd-write-gate.patch src/device/xiaomi/uke/ure-write-gate.hpp \
+        src/device/xiaomi/uke/BoardConfig.mk src/device/xiaomi/uke/recovery/root/system/etc/recovery.fstab
+    printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/{Android.bp,partition.cpp,partitionmanager.cpp,twrp-functions.cpp,openrecoveryscript.cpp,ure-write-gate.hpp} \
+        src/upstream/orangefox-android16/bootable/recovery/{install/{install.cpp,wipe_data.cpp,adb_install.cpp},twrpinstall/{install.cpp,twinstall.cpp,adb_install.cpp},recovery_utils/roots.cpp,gui/action.cpp} \
+        src/upstream/orangefox-android16/system/core/fastboot/{Android.bp,device/{commands.cpp,fastboot_device.cpp,utility.cpp}}
     printf '%s\0' src/device/xiaomi/uke/display-mirror.hpp src/device/xiaomi/uke/display-mirror.cpp \
         src/device/xiaomi/uke/display-mirror-layout.cpp patches/0007-usb-monitor-and-input.patch \
         tests/generate-input-hooks.sh tests/generate-events-hooks.sh

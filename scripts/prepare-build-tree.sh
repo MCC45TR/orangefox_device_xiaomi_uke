@@ -226,7 +226,7 @@ elif git -C "$recovery_source" apply --check "$navigation_resources_patch"; then
 else
   echo 'Unexpected navigation-resource source; refusing an unverified patch' >&2; exit 1
 fi
-for additional in 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch; do
+for additional in 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch; do
   if git -C "$recovery_source" apply --reverse --check "$component/patches/$additional" 2>/dev/null; then
     :
   elif git -C "$recovery_source" apply --check "$component/patches/$additional"; then
@@ -242,7 +242,7 @@ verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
 unlink "$verification_index"
 trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
 GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch; do
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch; do
   GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \
@@ -250,6 +250,32 @@ cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cach
 while IFS= read -r file; do
   cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" show ":$file") "$recovery_source/$file"
 done < <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD)
+unlink "$verification_index"
+trap - EXIT
+copy_changed "$device_source/ure-write-gate.hpp" "$recovery_source/ure-write-gate.hpp"
+# The native fastbootd policy must come from the same pinned source and exact
+# patch bytes as recovery. An OEM command or a new handler is denied before
+# dispatch; alternate direct calls also encounter the guarded handlers/open.
+fastboot_source="$tree/system/core"
+[[ $(git -C "$fastboot_source" rev-parse HEAD) == 1efa79514b2f520c20a837c9216ff6b6e7e0dda3 ]]
+fastboot_patch="$component/patches/0021-fastbootd-write-gate.patch"
+if git -C "$fastboot_source" apply --reverse --check "$fastboot_patch" 2>/dev/null; then
+  :
+elif git -C "$fastboot_source" apply --check "$fastboot_patch"; then
+  git -C "$fastboot_source" apply "$fastboot_patch"
+else
+  echo 'Unexpected fastbootd source; refusing an unverified write policy' >&2; exit 1
+fi
+verification_index=$(mktemp "$component/build/fastboot-patch-index-XXXXXX")
+unlink "$verification_index"
+trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
+GIT_INDEX_FILE="$verification_index" git -C "$fastboot_source" read-tree HEAD
+GIT_INDEX_FILE="$verification_index" git -C "$fastboot_source" apply --cached "$fastboot_patch"
+cmp <(GIT_INDEX_FILE="$verification_index" git -C "$fastboot_source" diff --cached --name-only HEAD) \
+    <(git -C "$fastboot_source" diff --name-only HEAD)
+while IFS= read -r file; do
+  cmp <(GIT_INDEX_FILE="$verification_index" git -C "$fastboot_source" show ":$file") "$fastboot_source/$file"
+done < <(GIT_INDEX_FILE="$verification_index" git -C "$fastboot_source" diff --cached --name-only HEAD)
 unlink "$verification_index"
 trap - EXIT
 ntfs_source="$tree/external/ntfs-3g"

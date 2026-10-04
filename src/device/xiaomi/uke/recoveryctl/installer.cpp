@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Uke Global stock303 installer. All checks precede the sole block write.
 #include "install_policy.h"
+#include "libuke/recovery_write_policy.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -171,6 +172,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: uke-recovery-install check|install IMAGE SHA256\n"; return 2;
     }
     try {
+        if (std::string_view(argv[1]) == "install" && !ure::live_storage_backend_accepted()) {
+            const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Flash);
+            throw std::runtime_error(std::string(decision.code) + ": " + decision.message);
+        }
         if (!uke::valid_hash(argv[3])) throw std::runtime_error("Invalid image SHA-256");
         Fd image(open(argv[2], O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
         struct stat s{};

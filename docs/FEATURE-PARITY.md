@@ -54,7 +54,13 @@ second-Android tools require working platform support and proven isolation.
 | REC-33 | Property and repack tools | overrideprops/build patch | Accurate platform metadata; no fake security claims |
 | REC-34 | Reproducible CI | Workflows and patches | Pinned inputs, reviewed artifacts and full build logs |
 
-Standard OrangeFox features remain part of the target. The management UI shares preflight validation and diagnostics across them. Root or kernel-modification add-ons are not installed automatically.
+Standard OrangeFox features remain part of the target. Its legacy mutation
+entry points now share a native refusal policy: the live storage backend has
+not been accepted, so Format Data, flash/restore, package installation,
+writable mounts and fastbootd mutations cannot bypass that unavailable state.
+This does not claim that legacy paths implement the complete URE transaction
+contract. Read [the policy and its boundary](RECOVERY-WRITE-POLICY.md).
+Root or kernel-modification add-ons are not installed automatically.
 
 The stock Global kernel has Btrfs disabled, so Btrfs mounting is not supported
 by the current recovery build. Native snapshot, send and maintenance operations

@@ -1,0 +1,714 @@
+diff --git a/Android.bp b/Android.bp
+index 83cae59e..31ae98bc 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -60,4 +60,5 @@ license {
+ cc_defaults {
+     name: "recovery_defaults",
++    header_libs: ["libuke-recovery-write-policy-headers"],
+ 
+     cflags: [
+diff --git a/Android.mk b/Android.mk
+index 7aafdb44..a4825673 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -29,4 +29,5 @@ TARGET_RECOVERY_GUI := true
+ LOCAL_STATIC_LIBRARIES :=
+ LOCAL_SHARED_LIBRARIES :=
++LOCAL_HEADER_LIBRARIES += libuke-recovery-write-policy-headers
+ 
+ ifneq ($(TW_DEVICE_VERSION),)
+diff --git a/gui/action.cpp b/gui/action.cpp
+index 91caa0d8..844891a2 100644
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -20,4 +20,6 @@
+ */
+ 
++#include "../ure-write-gate.hpp"
++
+ #include <stdarg.h>
+ #include <stdio.h>
+@@ -486,4 +488,5 @@ void GUIAction::simulate_progress_bar(void)
+ int GUIAction::flash_zip(std::string filename, int *wipe_cache)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::InstallPackage)) return INSTALL_ERROR;
+ 
+  if (TWFunc::Block_Operations_Until_Reboot())
+@@ -1457,4 +1460,5 @@ int GUIAction::fileexists(std::string arg)
+ void GUIAction::reinject_after_flash()
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return;
+   if (DataManager::GetIntValue(TW_HAS_INJECTTWRP) == 1
+       && DataManager::GetIntValue(TW_INJECT_AFTER_ZIP) == 1)
+@@ -1486,4 +1490,5 @@ void GUIAction::reinject_after_flash()
+ int GUIAction::ozip_decrypt(string zip_path)
+ {
++   if (!ure_legacy_write_guard(ure::LegacyWrite::InstallPackage)) return INSTALL_ERROR;
+    if (!TWFunc::Path_Exists(Fox_Bin_Dir + "/ozip_decrypt"))
+       {
+@@ -2047,4 +2052,5 @@ int GUIAction::killterminal(std::string arg __unused)
+ int GUIAction::reinjecttwrp(std::string arg __unused)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return 1;
+   int op_status = 0;
+   operation_start("ReinjectTWRP");
+@@ -2590,4 +2596,5 @@ int GUIAction::togglebacklight(std::string arg __unused)
+ int GUIAction::setbootslot(std::string arg)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::SlotSwitch)) return 1;
+ 	operation_start("Set Boot Slot");
+ 	if (!simulate) {
+@@ -2893,4 +2900,5 @@ exit:
+ int GUIAction::cmdf(std::string arg, std::string file)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return 1;
+   char buff[1024];
+   sprintf(buff, gui_parse_text(arg).c_str(), file.c_str());
+@@ -3080,4 +3088,5 @@ int GUIAction::changeterminal(std::string arg) {
+ 
+ int GUIAction::mergesnapshots(string arg __unused) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::PartitionMetadata)) return 1;
+ 	int op_status = 1;
+ 	if (PartitionManager.Check_Pending_Merges()) {
+diff --git a/install/adb_install.cpp b/install/adb_install.cpp
+index 1f6e3b7e..2457b930 100755
+--- a/install/adb_install.cpp
++++ b/install/adb_install.cpp
+@@ -45,4 +45,5 @@
+ #include "install/install.h"
+ #include "install/wipe_data.h"
++#include "recovery_write_policy.hpp"
+ #include "minadbd/types.h"
+ #include "otautil/sysutil.h"
+@@ -340,4 +341,6 @@ static void CreateMinadbdServiceAndExecuteCommands(
+   int ApplyFromAdb(const char* install_file, Device::BuiltinAction* reboot_action) {
+ 
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::InstallPackage);
++  if (!decision.allowed) { LOG(ERROR) << decision.code << ": " << decision.message; return INSTALL_ERROR; }
+   // Save the usb state to restore after the sideload operation.
+   std::string usb_state = android::base::GetProperty("sys.usb.state", "none");
+diff --git a/install/install.cpp b/install/install.cpp
+index 9afb68e1..7e8c581a 100755
+--- a/install/install.cpp
++++ b/install/install.cpp
+@@ -15,4 +15,6 @@
+  */
+ 
++#include "recovery_write_policy.hpp"
++
+ #include "install/install.h"
+ 
+@@ -632,4 +634,6 @@ static InstallResult VerifyAndInstallPackage(Package* package, bool* wipe_cache,
+ InstallResult InstallPackage(Package* package, const std::string_view package_id,
+                              bool should_wipe_cache, int retry_count) {
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::InstallPackage);
++  if (!decision.allowed) { LOG(ERROR) << decision.code << ": " << decision.message; return INSTALL_ERROR; }
+   auto start = std::chrono::system_clock::now();
+ 
+diff --git a/install/wipe_data.cpp b/install/wipe_data.cpp
+index 647f2df5..7763aab9 100644
+--- a/install/wipe_data.cpp
++++ b/install/wipe_data.cpp
+@@ -15,4 +15,6 @@
+  */
+ 
++#include "recovery_write_policy.hpp"
++
+ #include "install/wipe_data.h"
+ 
+@@ -64,4 +66,6 @@ static bool EraseVolume(const char* volume, std::string_view new_fstype) {
+ 
+ bool WipeCache(const std::function<bool()>& confirm_func, std::string_view new_fstype) {
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Wipe);
++  if (!decision.allowed) { LOG(ERROR) << decision.code << ": " << decision.message; return false; }
+   bool has_cache = volume_for_mount_point("/cache") != nullptr;
+   if (!has_cache) {
+@@ -84,4 +88,6 @@ bool WipeCache(const std::function<bool()>& confirm_func, std::string_view new_f
+ 
+ bool WipeData(Device* device, bool keep_memtag_mode, std::string_view data_fstype) {
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Format);
++  if (!decision.allowed) { LOG(ERROR) << decision.code << ": " << decision.message; return false; }
+   // RecoveryUI* ui = device->GetUI();
+   // ui->Print("\n-- Wiping data %.*s...\n", static_cast<int>(data_fstype.size()), data_fstype.data());
+diff --git a/openrecoveryscript.cpp b/openrecoveryscript.cpp
+index 3b8d3e49..260c22cb 100755
+--- a/openrecoveryscript.cpp
++++ b/openrecoveryscript.cpp
+@@ -21,4 +21,6 @@
+ 
+ #define __STDC_FORMAT_MACROS 1
++#include "ure-write-gate.hpp"
++
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -398,4 +400,5 @@ int OpenRecoveryScript::run_script_file(void) {
+ 					TWFunc::tw_reboot(rb_system);
+ 			} else if (strcmp(command, "cmd") == 0) {
++                if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) { ret_val = 1; break; }
+ 				DataManager::SetValue("tw_action_text2", gui_parse_text("{@running_command}"));
+ 				if (cindex != 0) {
+@@ -496,5 +499,6 @@ int OpenRecoveryScript::run_script_file(void) {
+ 	}
+ 
+-	if (install_cmd && DataManager::GetIntValue(TW_HAS_INJECTTWRP) == 1 &&
++	if (install_cmd && tmp_tmp == 0 && ure_legacy_write_guard(ure::LegacyWrite::BootPatch) &&
++	DataManager::GetIntValue(TW_HAS_INJECTTWRP) == 1 &&
+ 	DataManager::GetIntValue(TW_INJECT_AFTER_ZIP) == 1) {
+ 		gui_msg("injecttwrp=Injecting TWRP into boot image...");
+@@ -839,4 +843,5 @@ int OpenRecoveryScript::Run_ORS_File(const std::string& filename) {
+ int OpenRecoveryScript::remountrw(void)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return 1;
+ 	bool remount_system = PartitionManager.Is_Mounted_By_Path(PartitionManager.Get_Android_Root_Path());
+ 	int op_status;
+diff --git a/partition.cpp b/partition.cpp
+index 1914cf41..0bcc0226 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -20,8 +20,11 @@
+ */
+ 
++#include "ure-write-gate.hpp"
++
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/mount.h>
++#include <sys/statvfs.h>
+ #include <sys/param.h>
+ #include <sys/stat.h>
+@@ -1636,9 +1639,17 @@ bool TWPartition::Is_File_System_Writable(void) {
+ 
+ bool TWPartition::Mount(bool Display_Error) {
++    if (!Mount_Read_Only && !ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return false;
+ 	int exfat_mounted = 0;
+ 	unsigned int flags = Mount_Flags;
+ 	string mount_fs = "";
++	string recovery_option;
++	string safe_mount_options;
+ 
+ 	if (Is_Mounted()) {
++		struct statvfs mounted_info;
++		if (statvfs(Mount_Point.c_str(), &mounted_info) != 0 || !(mounted_info.f_flag & ST_RDONLY)) {
++			ure_legacy_write_guard(ure::LegacyWrite::WritableMount);
++			return false;
++		}
+ 		return true;
+ 	} else if (!Can_Be_Mounted) {
+@@ -1652,5 +1663,5 @@ bool TWPartition::Mount(bool Display_Error) {
+ 	Check_FS_Type();
+ 	if (Current_File_System == "exfat" && TWFunc::Path_Exists("/system/bin/exfat-fuse")) {
+-		string cmd = "/system/bin/exfat-fuse -o big_writes,max_read=131072,max_write=131072 " + Actual_Block_Device + " " + Mount_Point;
++		string cmd = "/system/bin/exfat-fuse -o ro,big_writes,max_read=131072,max_write=131072 " + Actual_Block_Device + " " + Mount_Point;
+ 		LOGINFO("cmd: %s\n", cmd.c_str());
+ 		string result;
+@@ -1744,11 +1755,18 @@ bool TWPartition::Mount(bool Display_Error) {
+ 		mount_fs = "texfat";
+ 
++	recovery_option = ure::legacy_read_only_recovery_option(Current_File_System);
++	safe_mount_options = Mount_Options;
++	if (!recovery_option.empty()) {
++		if (!safe_mount_options.empty()) safe_mount_options += ",";
++		safe_mount_options += recovery_option;
++	}
+ 	if (!exfat_mounted &&
+-		mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), mount_fs.c_str(), flags, Mount_Options.c_str()) != 0 &&
+-		mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), mount_fs.c_str(), flags, NULL) != 0) {
++		mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), mount_fs.c_str(), flags, safe_mount_options.c_str()) != 0 &&
++		mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), mount_fs.c_str(), flags,
++			 recovery_option.empty() ? NULL : recovery_option.c_str()) != 0) {
+ #ifdef TW_NO_EXFAT_FUSE
+ 		if (Current_File_System == "exfat") {
+ 			LOGINFO("Mounting exfat failed, trying vfat...\n");
+-			if (mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), "vfat", 0, NULL) != 0) {
++			if (mount(Actual_Block_Device.c_str(), Mount_Point.c_str(), "vfat", flags, NULL) != 0) {
+ 				if (Display_Error)
+ 					gui_msg(Msg(msg::kError, "fail_mount=Failed to mount '{1}' ({2})")(Mount_Point)(strerror(errno)));
+@@ -1847,4 +1865,5 @@ bool TWPartition::ReMount(bool Display_Error) {
+ 
+ bool TWPartition::ReMount_RW(bool Display_Error) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return false;
+ 	// No need to remount if already mounted rw
+ 	if (Is_File_System_Writable())
+@@ -1862,4 +1881,5 @@ bool TWPartition::ReMount_RW(bool Display_Error) {
+ 
+ bool TWPartition::BlkDiscard() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	string cmd;
+ 	LOGINFO("Perform BLKDISCARD on block device %s\n", Actual_Block_Device.c_str());
+@@ -1869,4 +1889,5 @@ bool TWPartition::BlkDiscard() {
+ 
+ bool TWPartition::Wipe(string New_File_System) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	bool wiped = false, update_crypt = false, recreate_media = true;
+ 	int check;
+@@ -1964,4 +1985,5 @@ bool TWPartition::Wipe() {
+ 
+ bool TWPartition::Wipe_AndSec(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	if (!Has_Android_Secure)
+ 		return false;
+@@ -1976,4 +1998,5 @@ bool TWPartition::Wipe_AndSec(void) {
+ 
+ bool TWPartition::Wipe_Data_Cache(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	if (!Mount(true))
+ 		return false;
+@@ -2000,4 +2023,5 @@ bool TWPartition::Can_Repair() {
+ 
+ bool TWPartition::Repair() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Repair)) return false;
+ 	string command;
+ 
+@@ -2124,4 +2148,5 @@ bool TWPartition::Can_Resize() {
+ 
+ bool TWPartition::Resize() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Resize)) return false;
+ 	string command;
+ 
+@@ -2189,4 +2214,5 @@ bool TWPartition::Backup(PartitionSettings *part_settings, pid_t *tar_fork_pid)
+ 
+ bool TWPartition::Restore(PartitionSettings *part_settings) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
+   	if (DataManager::GetIntValue(FOX_RUN_SURVIVAL_BACKUP) != 1) {
+ 	    TWFunc::GUI_Operation_Text(TW_RESTORE_TEXT, Display_Name, gui_parse_text("{@restoring_hdr}"));
+@@ -2240,4 +2266,5 @@ string TWPartition::Backup_Method_By_Name() {
+ 
+ bool TWPartition::Decrypt(string Password) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return false;
+ 	LOGINFO("STUB TWPartition::Decrypt, password: '%s'\n", Password.c_str());
+ 	// Is this needed?
+@@ -2246,4 +2273,5 @@ bool TWPartition::Decrypt(string Password) {
+ 
+ bool TWPartition::Wipe_Encryption() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	bool Save_Data_Media = Has_Data_Media;
+ 	bool ret = false;
+@@ -2374,4 +2402,5 @@ void TWPartition::Check_FS_Type() {
+ 
+ bool TWPartition::Wipe_EXTFS(string File_System) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	if (!UnMount(true))
+ 		return false;
+@@ -2475,4 +2504,5 @@ bool TWPartition::Wipe_EXTFS(string File_System) {
+ 
+ bool TWPartition::Wipe_EXT4() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ #ifdef USE_EXT4
+ 	int ret;
+@@ -2533,4 +2563,5 @@ bool TWPartition::Wipe_EXT4() {
+ 
+ bool TWPartition::Wipe_FAT() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	string command;
+ 	if (!UnMount(true))
+@@ -2559,4 +2590,5 @@ bool TWPartition::Wipe_FAT() {
+ 
+ bool TWPartition::Wipe_EXFAT() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	string command;
+ 
+@@ -2582,4 +2614,5 @@ bool TWPartition::Wipe_EXFAT() {
+ 
+ bool TWPartition::Wipe_MTD() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	if (!UnMount(true))
+ 		return false;
+@@ -2615,4 +2648,5 @@ bool TWPartition::Wipe_MTD() {
+ 
+ bool TWPartition::Wipe_RMRF() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	if (!Mount(true))
+ 		return false;
+@@ -2630,4 +2664,5 @@ bool TWPartition::Wipe_RMRF() {
+ 
+ bool TWPartition::Wipe_F2FS() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	std::string f2fs_command;
+ 
+@@ -2743,4 +2778,5 @@ bool TWPartition::Wipe_F2FS() {
+ 
+ bool TWPartition::Wipe_NTFS() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	string command;
+ 	string Ntfsmake_Binary;
+@@ -2771,4 +2807,5 @@ bool TWPartition::Wipe_NTFS() {
+ 
+ bool TWPartition::Wipe_Data_Without_Wiping_Media() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ #ifdef TW_OEM_BUILD
+ 	// In an OEM Build we want to do a full format
+@@ -2789,4 +2826,5 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media() {
+ 
+ bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unused) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	string dir;
+ 
+@@ -2830,4 +2868,5 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unu
+ 
+ void TWPartition::Wipe_Crypto_Key() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return;
+ 	Find_Actual_Block_Device();
+ 	if (Crypto_Key_Location.empty())
+@@ -2975,4 +3014,5 @@ bool TWPartition::Backup_Image(PartitionSettings *part_settings) {
+ 
+ bool TWPartition::Raw_Read_Write(PartitionSettings *part_settings) {
++    if (part_settings->PM_Method != PM_BACKUP && !ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
+ 	unsigned long long RW_Block_Size, Remain = Backup_Size;
+ 	int src_fd = -1, dest_fd = -1;
+@@ -3145,4 +3185,5 @@ unsigned long long TWPartition::Get_Restore_Size(PartitionSettings *part_setting
+ 
+ bool TWPartition::Restore_Tar(PartitionSettings *part_settings) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
+ 	string Full_FileName;
+ 	bool ret = false;
+@@ -3228,4 +3269,5 @@ bool TWPartition::Restore_Tar(PartitionSettings *part_settings) {
+ 
+ bool TWPartition::Restore_Image(PartitionSettings *part_settings) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
+ 	string Full_FileName;
+ 	string Restore_File_System = Get_Restore_File_System(part_settings);
+@@ -3511,4 +3553,5 @@ uint64_t TWPartition::Get_Max_FileSize() {
+ 
+ bool TWPartition::Flash_Image(PartitionSettings *part_settings) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
+ 	string Restore_File_System, full_filename;
+ 
+@@ -3571,4 +3614,5 @@ bool TWPartition::Is_Sparse_Image(const string& Filename) {
+ 
+ bool TWPartition::Flash_Sparse_Image(const string& Filename) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
+ 	string Command;
+ 
+@@ -3586,4 +3630,5 @@ bool TWPartition::Flash_Sparse_Image(const string& Filename) {
+ 
+ bool TWPartition::Flash_Image_FI(const string& Filename, ProgressTracking *progress) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
+ 	string Command;
+ 	unsigned long long file_size;
+@@ -3608,4 +3653,5 @@ bool TWPartition::Flash_Image_FI(const string& Filename, ProgressTracking *progr
+ 
+ void TWPartition::Change_Mount_Read_Only(bool new_value) {
++    if (!new_value && !ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return;
+ 	Mount_Read_Only = new_value;
+ }
+@@ -3648,4 +3694,5 @@ int TWPartition::Check_Lifetime_Writes() {
+ 
+ int TWPartition::Decrypt_Adopted() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return 1;
+ #ifdef TW_INCLUDE_CRYPTO
+ 	int ret = 1;
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 2fe66948..7c021261 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -20,4 +20,6 @@
+ */
+ 
++#include "ure-write-gate.hpp"
++
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -288,4 +290,5 @@ void inline Process_Keymaster_Version(TWPartition *ven, bool Display_Error) {
+ // disable AVB2.0 in vbmeta/vbmeta_system
+ bool Do_Disable_AVB2(string File_Name, char Disable_Flags, bool Display_Info) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+ 	char AVB_MAGIC_BUF[AVB_MAGIC_LEN + 1] = {0}, flags_buf[1] = {0};
+ 	int _ret;
+@@ -322,4 +325,5 @@ exit:
+ 
+ bool TWPartitionManager::Disable_AVB2(bool Display_Info) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+ 	char disable_flags = AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED;
+ #ifdef AB_OTA_UPDATER
+@@ -670,4 +674,5 @@ int TWPartitionManager::Write_Fstab(void) {
+ 
+ void TWPartitionManager::Decrypt_Data() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return;
+ 	#ifdef TW_INCLUDE_CRYPTO
+ 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
+@@ -1469,4 +1474,5 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
+ 
+ bool TWPartitionManager::Restore_Partition(PartitionSettings *part_settings) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
+ 	time_t Start, Stop;
+ 
+@@ -1509,4 +1515,5 @@ bool TWPartitionManager::Restore_Partition(PartitionSettings *part_settings) {
+ 
+ int TWPartitionManager::Run_Restore(const string& Restore_Name) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Restore)) return false;
+ 	PartitionSettings part_settings;
+ 	int check_digest;
+@@ -1752,4 +1759,5 @@ void TWPartitionManager::Set_Restore_Files(string Restore_Name) {
+ 
+ int TWPartitionManager::Wipe_By_Path(string Path) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	std::vector < TWPartition * >::iterator iter1;
+@@ -1798,4 +1806,5 @@ int TWPartitionManager::Wipe_By_Path(string Path) {
+ 
+ int TWPartitionManager::Wipe_By_Path(string Path, string New_File_System) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int ret = false;
+@@ -1823,4 +1832,5 @@ int TWPartitionManager::Wipe_By_Path(string Path, string New_File_System) {
+ 
+ int TWPartitionManager::Factory_Reset(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int ret = true;
+@@ -1849,4 +1859,5 @@ int TWPartitionManager::Factory_Reset(void) {
+ 
+ int TWPartitionManager::Wipe_Dalvik_Cache(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	struct stat st;
+ 	vector <string> dir;
+@@ -1897,4 +1908,5 @@ int TWPartitionManager::Wipe_Dalvik_Cache(void) {
+ 
+ int TWPartitionManager::Wipe_Rotate_Data(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	if (!Mount_By_Path("/data", true))
+ 		return false;
+@@ -1907,4 +1919,5 @@ int TWPartitionManager::Wipe_Rotate_Data(void) {
+ 
+ int TWPartitionManager::Wipe_Battery_Stats(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	struct stat st;
+ 
+@@ -1922,4 +1935,5 @@ int TWPartitionManager::Wipe_Battery_Stats(void) {
+ 
+ int TWPartitionManager::Wipe_Android_Secure(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int ret = false;
+@@ -1958,4 +1972,5 @@ static void Update_Encryption_Props_Before_Format() {
+ 
+ int TWPartitionManager::Format_Data(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Format)) return false;
+ 	if (TWFunc::Block_Operations_Until_Reboot())
+ 		return false;
+@@ -1998,4 +2013,5 @@ int TWPartitionManager::Format_Data(void) {
+ 
+ int TWPartitionManager::Wipe_Media_From_Data(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Wipe)) return false;
+ 	TWPartition* dat = Find_Partition_By_Path("/data");
+ 
+@@ -2022,4 +2038,5 @@ int TWPartitionManager::Wipe_Media_From_Data(void) {
+ 
+ int TWPartitionManager::Repair_By_Path(string Path, bool Display_Error) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Repair)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int ret = false;
+@@ -2050,4 +2067,5 @@ int TWPartitionManager::Repair_By_Path(string Path, bool Display_Error) {
+ 
+ int TWPartitionManager::Resize_By_Path(string Path, bool Display_Error) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Resize)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int ret = false;
+@@ -2341,4 +2359,5 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
+ 
+ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return -1;
+ #ifdef TW_INCLUDE_CRYPTO
+   char crypto_blkdev[PROPERTY_VALUE_MAX];
+@@ -2476,4 +2495,5 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+ 
+ int TWPartitionManager::Fix_Contexts(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return -1;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+@@ -2534,4 +2554,5 @@ int TWPartitionManager::Open_Lun_File(string Partition_Path, string Lun_File) {
+ 
+ int TWPartitionManager::usb_storage_enable(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::WritableMount)) return false;
+ 	char lun_file[255];
+ 	bool has_multiple_lun = false;
+@@ -2654,4 +2675,5 @@ void TWPartitionManager::UnMount_Main_Partitions(void) {
+ int TWPartitionManager::Partition_SDCard(void)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::PartitionMetadata)) return false;
+   char temp[255];
+   string Storage_Path, Command, Device, fat_str, ext_str, start_loc, end_loc,
+@@ -3108,4 +3130,5 @@ TWPartition *TWPartitionManager::Get_Default_Storage_Partition()
+ 
+ bool TWPartitionManager::Enable_MTP(void) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return false;
+ #ifdef TW_HAS_MTP
+ 	if (mtppid) {
+@@ -3337,4 +3360,5 @@ bool TWPartitionManager::Remove_MTP_Storage(unsigned int Storage_ID) {
+ 
+ bool TWPartitionManager::Flash_Image(string& path, string& filename) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
+ 	twrpRepacker repacker;
+ 	int partition_count = 0;
+@@ -3696,4 +3720,5 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+ 	if (Active_Slot_Display == Slot)
+ 		return;
++    if (!Active_Slot_Display.empty() && !ure_legacy_write_guard(ure::LegacyWrite::SlotSwitch)) return;
+ 	LOGINFO("Setting active slot %s\n", Slot.c_str());
+ #ifdef AB_OTA_UPDATER
+@@ -4237,4 +4262,5 @@ bool TWPartitionManager::Flash_Repacked_Image(string & path,
+ 					      bool recovery)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::Flash)) return false;
+   int partition_count = 0;
+   TWPartition *flash_part = NULL;
+@@ -4627,4 +4653,5 @@ bool TWPartitionManager::Storage_Is_Encrypted(void)
+ 
+ bool TWPartitionManager::Prepare_Empty_Folder(const std::string& Folder) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::FileMutation)) return false;
+ 	if (TWFunc::Path_Exists(Folder))
+ 		TWFunc::removeDir(Folder, false);
+@@ -4888,4 +4915,5 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+ 
+ bool TWPartitionManager::Check_Pending_Merges() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::PartitionMetadata)) return false;
+ 	auto sm = android::snapshot::SnapshotManager::NewForFirstStageMount();
+ 	if (!sm) {
+diff --git a/recovery_utils/roots.cpp b/recovery_utils/roots.cpp
+index 107dad15..7afb1eff 100644
+--- a/recovery_utils/roots.cpp
++++ b/recovery_utils/roots.cpp
+@@ -15,4 +15,6 @@
+  */
+ 
++#include "recovery_write_policy.hpp"
++
+ #include "recovery_utils/roots.h"
+ 
+@@ -231,4 +233,6 @@ static FstabEntry* LocateFormattableEntry(const std::vector<FstabEntry*>& entrie
+ 
+ bool WipeBlockDevice(const char* path) {
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Wipe);
++  if (!decision.allowed) { LOG(ERROR) << decision.code << ": " << decision.message; return false; }
+   android::base::unique_fd fd(open(path, O_RDWR));
+   if (fd == -1) {
+@@ -254,4 +258,6 @@ bool WipeBlockDevice(const char* path) {
+ int format_volume(const std::string& volume, const std::string& directory,
+                   std::string_view new_fstype) {
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Format);
++  if (!decision.allowed) { LOG(ERROR) << decision.code << ": " << decision.message; return -1; }
+   const auto entries = android::fs_mgr::GetEntriesForPath(&fstab, volume);
+   if (entries.empty()) {
+diff --git a/twrp-functions.cpp b/twrp-functions.cpp
+index ef35ae73..87a6693e 100755
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -21,4 +21,6 @@
+ */
+ 
++#include "ure-write-gate.hpp"
++
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -270,4 +272,5 @@ bool TWFunc::Has_Vendor_Partition(void)
+ bool TWFunc::RunStartupScript(void)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return false;
+ string tprop = Get_Property("orangefox.postinit.status");
+ bool i = Path_Exists(orangefox_cfg);
+@@ -318,4 +321,5 @@ bool ret = false;
+ bool TWFunc::RunFoxScript(const std::string script, const std::string args)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return false;
+     if (!Path_Exists(script))
+        return false;
+@@ -1186,4 +1190,5 @@ void TWFunc::check_and_run_script(const char *script_file,
+ 				  const char *display_name)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return;
+   // Check for and run startup script if script exists
+   struct stat st;
+@@ -2142,4 +2147,5 @@ std::string TWFunc::to_string(unsigned long value)
+ void TWFunc::Disable_Stock_Recovery_Replace_Func(void)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return;
+      if (DataManager::GetIntValue(FOX_DONT_REPLACE_STOCK) == 1)
+       	return;
+@@ -3193,4 +3199,5 @@ bool TWFunc::Verify_Loaded_OTA_Signature(std::string loadedfp,
+ bool TWFunc::PackRepackImage_MagiskBoot(bool do_unpack, bool is_boot)
+ {
++  if (!do_unpack && !ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+   string result, tmpstr, output;
+   std::string k = "/";
+@@ -3493,4 +3500,5 @@ std::string GetFileHeaderMagic (string fname)
+ bool TWFunc::Repack_Image(string mount_point)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+   bool is_boot = (mount_point == "/boot");
+   return (PackRepackImage_MagiskBoot(false, is_boot));
+@@ -4400,4 +4408,5 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+ void TWFunc::Deactivation_Process(void)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return;
+   if (TWFunc::To_Skip_OrangeFox_Process())
+      {
+@@ -4469,4 +4478,5 @@ void TWFunc::Deactivation_Process(void)
+ void TWFunc::Patch_AVB20(bool silent)
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return;
+ #if defined(OF_PATCH_AVB20) && !defined(OF_SKIP_ORANGEFOX_PROCESS) && !defined(FOX_VANILLA_BUILD) && !defined(FOX_AB_DEVICE) && !defined(AB_OTA_UPDATER)
+ std::string zipname = FFiles_dir + "/OF_avb20/OF_avb20.zip";
+@@ -4507,4 +4517,5 @@ std::string magiskboot = TWFunc::Get_MagiskBoot();
+ int TWFunc::Patch_DMVerity_ForcedEncryption_Magisk(void)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return -1;
+ std::string keepdmverity, keepforcedencryption;
+ std::string zipname = FFiles_dir + "/OF_verity_crypt/OF_verity_crypt.zip";
+@@ -5095,4 +5106,5 @@ std::string res = path;
+ bool TWFunc::Magiskboot_Repack_Patch_VBMeta()
+ {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::BootPatch)) return false;
+    #if defined(FOX_PATCH_VBMETA_FLAG)
+    return true;
+diff --git a/twrpinstall/adb_install.cpp b/twrpinstall/adb_install.cpp
+index d9a517f0..6791aa16 100755
+--- a/twrpinstall/adb_install.cpp
++++ b/twrpinstall/adb_install.cpp
+@@ -48,4 +48,5 @@
+ #include "twinstall.h"
+ #include "twinstall/wipe_data.h"
++#include "../ure-write-gate.hpp"
+ #include "minadbd/types.h"
+ #include "otautil/sysutil.h"
+@@ -342,4 +343,5 @@ static void CreateMinadbdServiceAndExecuteCommands(
+   int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action) {
+ 
++  if (!ure_legacy_write_guard(ure::LegacyWrite::InstallPackage)) return INSTALL_ERROR;
+   // Save the usb state to restore after the sideload operation.
+   std::string usb_state = android::base::GetProperty("sys.usb.state", "none");
+diff --git a/twrpinstall/install.cpp b/twrpinstall/install.cpp
+index d270d26d..4f6183f6 100755
+--- a/twrpinstall/install.cpp
++++ b/twrpinstall/install.cpp
+@@ -15,4 +15,6 @@
+  */
+ 
++#include "../ure-write-gate.hpp"
++
+ #include "twinstall/install.h"
+ 
+@@ -645,4 +647,5 @@ static int really_install_package(const std::string& path, bool* wipe_cache __un
+ int install_package(const std::string& path, bool should_wipe_cache, bool needs_mount,
+                     int retry_count) {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::InstallPackage)) return INSTALL_ERROR;
+   CHECK(!path.empty());
+ 
+diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
+index 3691a2f1..a5d66269 100755
+--- a/twrpinstall/twinstall.cpp
++++ b/twrpinstall/twinstall.cpp
+@@ -25,4 +25,6 @@
+ #endif
+ 
++#include "../ure-write-gate.hpp"
++
+ #include <ctype.h>
+ #include <errno.h>
+@@ -285,4 +287,5 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+ {
++  if (!ure_legacy_write_guard(ure::LegacyWrite::InstallPackage)) return INSTALL_ERROR;
+   int ret_val, zip_verify = 1, unmount_system = 1, reflashtwrp = 0, unmount_vendor = 1;
+   bool run_rom_scripts = false;

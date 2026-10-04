@@ -1,0 +1,188 @@
+diff --git a/fastboot/Android.bp b/fastboot/Android.bp
+index d0938eefa..ae1d5808a 100644
+--- a/fastboot/Android.bp
++++ b/fastboot/Android.bp
+@@ -207,6 +207,7 @@ cc_binary {
+         "libgtest_prod_headers",
+         "libsnapshot_headers",
+         "libstorage_literals_headers",
++        "libuke-recovery-write-policy-headers",
+     ],
+ }
+ 
+diff --git a/fastboot/device/commands.cpp b/fastboot/device/commands.cpp
+index ea232bb31..4d14bc782 100644
+--- a/fastboot/device/commands.cpp
++++ b/fastboot/device/commands.cpp
+@@ -14,6 +14,8 @@
+  * limitations under the License.
+  */
+ 
++#include "recovery_write_policy.hpp"
++
+ #include "commands.h"
+ 
+ #include <inttypes.h>
+@@ -224,6 +226,8 @@ bool OemPostWipeData(FastbootDevice* device) {
+ }
+ 
+ bool EraseHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Wipe);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 2) {
+         return device->WriteStatus(FastbootResult::FAIL, "Invalid arguments");
+     }
+@@ -261,6 +265,8 @@ bool EraseHandler(FastbootDevice* device, const std::vector<std::string>& args)
+ }
+ 
+ bool OemCmdHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Script);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     auto fastboot_hal = device->fastboot_hal();
+     if (!fastboot_hal) {
+         return device->WriteStatus(FastbootResult::FAIL, "Unable to open fastboot HAL");
+@@ -319,6 +325,8 @@ bool DownloadHandler(FastbootDevice* device, const std::vector<std::string>& arg
+ }
+ 
+ bool SetActiveHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::SlotSwitch);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 2) {
+         return device->WriteStatus(FastbootResult::FAIL, "Missing slot argument");
+     }
+@@ -458,6 +466,8 @@ bool PartitionBuilder::Write() {
+ }
+ 
+ bool CreatePartitionHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 3) {
+         return device->WriteFail("Invalid partition name and size");
+     }
+@@ -496,6 +506,8 @@ bool CreatePartitionHandler(FastbootDevice* device, const std::vector<std::strin
+ }
+ 
+ bool DeletePartitionHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 2) {
+         return device->WriteFail("Invalid partition name and size");
+     }
+@@ -518,6 +530,8 @@ bool DeletePartitionHandler(FastbootDevice* device, const std::vector<std::strin
+ }
+ 
+ bool ResizePartitionHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 3) {
+         return device->WriteFail("Invalid partition name and size");
+     }
+@@ -570,6 +584,8 @@ void CancelPartitionSnapshot(FastbootDevice* device, const std::string& partitio
+ }
+ 
+ bool FlashHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Flash);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 2) {
+         return device->WriteStatus(FastbootResult::FAIL, "Invalid arguments");
+     }
+@@ -601,6 +617,8 @@ bool FlashHandler(FastbootDevice* device, const std::vector<std::string>& args)
+ }
+ 
+ bool UpdateSuperHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() < 2) {
+         return device->WriteFail("Invalid arguments");
+     }
+@@ -620,6 +638,8 @@ static bool IsLockedDsu() {
+ }
+ 
+ bool GsiHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     if (args.size() != 2) {
+         return device->WriteFail("Invalid arguments");
+     }
+@@ -662,6 +682,8 @@ bool GsiHandler(FastbootDevice* device, const std::vector<std::string>& args) {
+ }
+ 
+ bool SnapshotUpdateHandler(FastbootDevice* device, const std::vector<std::string>& args) {
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) return device->WriteFail(std::string(decision.code) + ": " + decision.message);
+     // Note that we use the HAL rather than mounting /metadata, since we want
+     // our results to match the bootloader.
+     auto hal = device->boot1_1();
+diff --git a/fastboot/device/fastboot_device.cpp b/fastboot/device/fastboot_device.cpp
+index 0dc4e9764..6e37adc56 100644
+--- a/fastboot/device/fastboot_device.cpp
++++ b/fastboot/device/fastboot_device.cpp
+@@ -14,6 +14,8 @@
+  * limitations under the License.
+  */
+ 
++#include "recovery_write_policy.hpp"
++
+ #include "fastboot_device.h"
+ 
+ #include <algorithm>
+@@ -209,11 +211,12 @@ void FastbootDevice::ExecuteCommands() {
+     char command[FB_RESPONSE_SZ + 1];
+     for (;;) {
+         auto bytes_read = transport_->Read(command, FB_RESPONSE_SZ);
+-        if (bytes_read == -1) {
++        if (bytes_read <= 0 || bytes_read > FB_RESPONSE_SZ) {
+             PLOG(ERROR) << "Couldn't read command";
+             return;
+         }
+-        if (std::count_if(command, command + bytes_read, iscntrl) != 0) {
++        if (std::count_if(command, command + bytes_read,
++                          [](unsigned char value) { return iscntrl(value) != 0; }) != 0) {
+             WriteStatus(FastbootResult::FAIL,
+                         "Command contains control character");
+             continue;
+@@ -232,6 +235,11 @@ void FastbootDevice::ExecuteCommands() {
+             cmd_name = args[0];
+         }
+ 
++        if (!ure::legacy_fastboot_command_permitted(cmd_name)) {
++            const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++            if (!WriteFail(std::string(decision.code) + ": " + decision.message)) return;
++            continue;
++        }
+         auto found_command = kCommandMap.find(cmd_name);
+         if (found_command == kCommandMap.end()) {
+             WriteStatus(FastbootResult::FAIL, "Unrecognized command " + args[0]);
+diff --git a/fastboot/device/utility.cpp b/fastboot/device/utility.cpp
+index 0652d9399..f5fa6709c 100644
+--- a/fastboot/device/utility.cpp
++++ b/fastboot/device/utility.cpp
+@@ -14,6 +14,8 @@
+  * limitations under the License.
+  */
+ 
++#include "recovery_write_policy.hpp"
++
+ #include "utility.h"
+ 
+ #include <dirent.h>
+@@ -61,7 +63,7 @@ bool OpenLogicalPartition(FastbootDevice* device, const std::string& partition_n
+             .block_device = *path,
+             .metadata_slot = slot_number,
+             .partition_name = partition_name,
+-            .force_writable = true,
++            .force_writable = false,
+             .timeout_ms = 5s,
+     };
+     std::string dm_path;
+@@ -78,6 +80,10 @@ bool OpenLogicalPartition(FastbootDevice* device, const std::string& partition_n
+ 
+ bool OpenPartition(FastbootDevice* device, const std::string& name, PartitionHandle* handle,
+                    int flags) {
++    if ((flags & O_ACCMODE) != O_RDONLY || (flags & (O_CREAT | O_TRUNC | O_APPEND))) {
++        const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Flash);
++        if (!decision.allowed) return false;
++    }
+     // We prioritize logical partitions over physical ones, and do this
+     // consistently for other partition operations (like getvar:partition-size).
+     if (LogicalPartitionExists(device, name)) {

@@ -10,7 +10,7 @@ system_dlkm     /system_dlkm     erofs   ro   wait,slotselect,avb=vbmeta,logical
 odm             /odm             erofs   ro   wait,slotselect,avb=vbmeta,logical
 mi_ext          /mi_ext          erofs   ro   wait,slotselect,avb=vbmeta,logical,nofail
 
-/dev/block/bootdevice/by-name/metadata  /metadata  f2fs  ro,nosuid,nodev  wait
-/dev/block/bootdevice/by-name/userdata  /data      f2fs  ro,nosuid,nodev  wait
+/dev/block/bootdevice/by-name/metadata  /metadata  f2fs  ro,norecovery,nosuid,nodev  wait
+/dev/block/bootdevice/by-name/userdata  /data      f2fs  ro,norecovery,nosuid,nodev  wait
 /dev/block/bootdevice/by-name/misc      /misc      emmc  defaults         defaults
-/dev/block/bootdevice/by-name/persist   /persist   ext4  ro,nosuid,nodev  wait
+/dev/block/bootdevice/by-name/persist   /persist   ext4  ro,noload,nosuid,nodev  wait
