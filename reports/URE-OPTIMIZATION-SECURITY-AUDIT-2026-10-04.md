@@ -410,6 +410,18 @@ immediately after build; require the extracted shipping payload to match it.
 **Acceptance:** change a header without rebuilding, reuse a stale ELF, change a
 toolchain or source pin, and ensure publication refuses all mismatches.
 
+**Superseding source/host checkpoint, 5 October 2026:** New output directories,
+all-file content and 399-project pin checks, before/after source/tool snapshots,
+readonly receipts and a post-systemd-success controller acknowledgment now bind
+completion to actual products. Atomic publication retains the previous output;
+image/package/manifest entry points refuse unreceipted old output. Actual ARM64
+compiler, changed-input, interruption, substitution and corruption controls
+passed. Two 811,108-file source inventories matched. A full Android image,
+extracted-payload acceptance and combined VM remain pending. These local
+receipts are not authenticated update manifests or a hermetic host closure.
+Details and exact measurement limits are in
+[the ordered remediation record](URE-P1-REMEDIATION-2026-10-04.md#aud-024-bind-completion-to-the-actual-build-and-service).
+
 ### AUD-025 — P1: stronger release gates depend on candidate names
 
 **Confirmed policy gap.** `describe-prerelease.sh:10–11` enables the special VM

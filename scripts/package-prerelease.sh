@@ -8,10 +8,12 @@ product="$out/target/product/uke"
 candidate=${1:-prerelease}
 [[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
 destination="$component/artifacts/$candidate"
+[[ ! -e $destination/ARTIFACT-MANIFEST.json ]] || { echo 'A sealed candidate is immutable; choose a new candidate directory.' >&2; exit 1; }
 instructions="$component/docs/PRE-RELEASE.md"
 if [[ $candidate != prerelease ]]; then instructions="$component/docs/URE-NATIVE-CANDIDATE.md"; fi
 kernel="$component/build/stock-global/boot/kernel"
 installer="$product/recovery/root/system/bin/uke-recovery-install"
+bash "$component/scripts/build-evidence.sh" verify
 mkboot="$out/host/linux-x86/bin/mkbootimg"
 avb="$out/host/linux-x86/bin/avbtool"
 for command in jq dd od zip sha256sum readelf strings; do command -v "$command" >/dev/null; done

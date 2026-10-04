@@ -17,7 +17,7 @@ and host-only; the target checks use native C++ and whole-partition hashes.
 The Bash catalog recipe and independent C++ fixtures reconstruct the reviewed
 AOSP capacity-adjusted layout without executing fastboot or OEM scripts.
 
-`scripts/build-public.sh` builds at `/mnt` inside an unprivileged Bubblewrap namespace with neutral build-user/host names. `FOX_BUILD_BASH=1` is exported before lunch because OrangeFox's vendor script reads a captured shell environment; a make-only flag does not prevent it from copying its prebuilt Bash. The source-built Bash avoids the vendor binary's unrelated home-directory locale/debugger prefixes. `out-public` must start empty for the first build; incremental rebuilds afterward use the same namespace.
+`scripts/build-public.sh` builds at `/mnt` inside an unprivileged Bubblewrap namespace with neutral build-user/host names. `FOX_BUILD_BASH=1` is exported before lunch because OrangeFox's vendor script reads a captured shell environment; a make-only flag does not prevent it from copying its prebuilt Bash. The source-built Bash avoids the vendor binary's unrelated home-directory locale/debugger prefixes. Each new build uses a fresh output, readonly sources, cleared environment and separate compiler cache. The [build-completion contract](BUILD-COMPLETION.md) binds before/after input content to actual image/payload/tool outputs and requires owned-service acceptance before atomically replacing `out-public`. Failed jobs and previous outputs remain preserved; older unrecorded outputs cannot acquire a retrospective completion receipt.
 
 `scripts/package-prerelease.sh` constructs the separate temporary-boot candidate and a project-owned slot-safe ZIP. `scripts/archive-release-sources.sh` supplies the stock GKI commit snapshot and recovery/GPL utility sources, including recursive Magisk utility dependencies. These are source archives, not tablet payloads. They do not constitute offline archives of all 399 Android repositories or prove binary reproducibility.
 
@@ -53,8 +53,10 @@ libraries and the Bionic bootstrap-loader alias. The vendor `ps` command path
 uses source-built Toybox; an unused generic KeyMint helper is omitted from this
 FBE-disabled profile. Final compressed-ramdisk audits verify these changes.
 
-Packaging accepts a separate candidate directory name. The existing public
-alpha is preserved. Manifest schema 2 records the base Git commit separately
-from changed working-tree sources and includes exact input-file checksums.
+Packaging accepts a separate candidate directory name. Sealed candidate
+directories refuse changes and the existing public alpha is preserved.
+New manifest schema 3 records the base Git commit separately from changed
+working-tree sources, includes exact input-file checksums and derives compile
+evidence from the matching accepted build completion and extracted payload.
 Source snapshots contain pristine upstream files plus the reviewed patches,
 project adapters, tests and original licenses needed to reconstruct this build.

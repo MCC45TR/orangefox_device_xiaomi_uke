@@ -3,7 +3,7 @@
 set -euo pipefail
 umask 077
 [[ ${UKE_HOST_BUDGET_ACTIVE:-0} == 1 && $# -gt 0 && $TMPDIR == /tmp && $TMP == /tmp && $TEMP == /tmp ]]
-bash /mnt/uke-host-temp-policy.sh arm64 /tmp /tmp/host-temp-policy.json > /tmp/android-temp-inner.json
+bash /tmp/uke-build-launchers/host-temp-policy.sh arm64 /tmp /tmp/host-temp-policy.json > /tmp/android-temp-inner.json
 {
     stat -fc 'resolved-filesystem=%T magic=%t block-size=%S available-blocks=%a' /tmp
     stat -c 'resolved-directory-device=%d inode=%i mode=%a' /tmp

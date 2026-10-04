@@ -29,7 +29,7 @@ snapshot() {
     done
     cat /proc/pressure/memory > "/tmp/host-memory.pressure.$phase"
     ccache --print-stats > "/tmp/native-ccache.$phase"
-    local android_cache="$component/src/upstream/orangefox-android16/out-public/ccache"
+    local android_cache="$component/build/ccache/android"
     if [[ -d $android_cache ]]; then CCACHE_DIR="$android_cache" ccache --print-stats > "/tmp/android-ccache.$phase"; fi
 }
 snapshot before
@@ -44,4 +44,9 @@ snapshot after
 awk 'NR==FNR {b[$1]=$2; next} ($1=="oom" || $1=="oom_kill" || $1=="oom_group_kill") && $2!=b[$1] {exit 1}' \
     /tmp/memory.events.before /tmp/memory.events.after || { echo 'Owned host job encountered a cgroup OOM event.' >&2; status=1; }
 printf '%s\n' "$status" > /tmp/command-status
+if [[ $status == 0 && -f /tmp/android-build-pending.json ]]; then
+    job_id=$(jq -er '.job_id' /tmp/android-build-pending.json)
+    bash "$component/scripts/build-evidence.sh" publish "$job_id" || status=$?
+    printf '%s\n' "$status" > /tmp/command-status
+fi
 exit "$status"

@@ -21,7 +21,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-015 | Iterative frontier, global pre-copy entry/memory admission and anonymous deterministic sorted runs; four native/four sanitizer controls plus actual tree CLI interruption/resume passed | Fresh target/combined guest and physical acceptance remain separate; accounted listing budget excludes bounded metadata/index/runtime overhead and RAM-backed scratch remains volatile |
 | AUD-022 | RAM/ancestor headroom reserve, post-lock unit readback, separate compiler/Soong scheduling, reviewed host stacks and measured cold/warm cache/Go controls passed | Full clean/warm Android RSS/PSI/OOM and desktop response remain pending after AUD-023/024; small fixtures do not diagnose the earlier task shutdowns |
 | AUD-023 | Kernel-resolved private disk identity/space/inode admission across both namespaces; actual 64 MiB write/cache accounting and RAM/substitution/readonly refusals passed | Full clean/warm recovery build and output capacity/immutable closure remain pending; free-space snapshots are not allocation guarantees |
-| AUD-024 | Immutable build-completion evidence | Pending |
+| AUD-024 | Fresh isolated output, complete source-content/pin/tool snapshots, readonly completion receipts, successful-service acknowledgment and atomic output publication; actual compiler/interruption/substitution controls and production stale-output refusal passed | Fresh complete Android build, extracted-payload audit and combined guest pending; local evidence is not authenticated updates or a hermetic OS closure |
 | AUD-025 | Explicit release classes and capability-driven receipts | Pending |
 | AUD-026 | Complete localization input closure | Pending |
 | AUD-029 | Bounded all-language fallback, shaping and RTL | Pending |
@@ -30,6 +30,51 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-033 | Btrfs receive/restore and shipping-kernel admission | Pending; physical kernel acceptance separate |
 | AUD-034 | Android, boot and hardware capability reasons; pinned donor USB/touch readiness and module/service closure compared | Implementation pending; source comparison is not hardware acceptance |
 | AUD-035 | Authenticated manifest/payload and rollback policy | Pending; production trust remains unconfigured |
+
+## AUD-024: bind completion to the actual build and service
+
+New builds use fresh private output, readonly source mounts and a cleared,
+recorded environment. All 399 locked Android project revisions are checked;
+content inventories include staged, ignored and untracked files, modes,
+symlink targets and source timestamps. Selected installed host tools and their
+direct ELF libraries are hashed separately. Before/after differences, incomplete
+jobs and reused output refuse sealing. Readonly receipts bind the actual image,
+staged payload, installed products and generated configuration/build graph.
+
+An atomic host directory exchange retains the complete previous output. The
+worker records publication only after successful command status and unchanged
+OOM counters. The outer controller acknowledges completion only after
+systemd-run itself returns success. Package and manifest drivers recompute
+evidence; image audits additionally compare the complete extracted payload.
+Manifest schema 3 derives compile success from the accepted receipt. Historical
+sealed candidates and the public alpha remain unchanged.
+
+Final frozen source-input manifest SHA-256:
+`5cb2b95a823a9886b5d3a649be13275e80d1c1b7e968ac0a42de71162d9fe637`.
+Actual pinned-Clang ARM64 fixture compilation, a changed-header rebuild with a
+different ELF hash, retained previous output, 40 atomic exchanges, child SIGKILL
+and compiler failure passed. Negative controls reject changed content/time,
+actual ignored headers, modes, revisions, toolchains, ELFs, escaping links,
+corrupted receipts, missing acknowledgment, OOM/class mismatches and false or
+nonzero service-controller results. Fixture evidence cannot establish an
+Android recovery build. Production verification, image audit and packaging
+refused the existing unreceipted output before destination publication, with
+unchanged recovery-image bytes.
+
+Two actual source inventories produced identical indexes across 811,108 files.
+The final bounded-sort run used 66,816 KiB maximum command RSS in 2:43.84; its
+service peak was 12,248,391,680 charged bytes, including 12,066,119,680 bytes of
+file cache at the final snapshot. Memory-high throttling occurred 100,665 times;
+max/OOM/kill counters were zero. Final host memory PSI avg10 was zero, while
+avg60/avg300 were 0.22/0.16. The preceding run had different cache/sort conditions,
+so timing differences are not attributed solely to the sort limit. Inventories
+cost disk I/O and charged cache even when process RSS is bounded.
+
+Failed resealing and corruption-oracle trials remain private and are explained
+in dated parent lessons. These controls are source/reference-host evidence:
+they do not compile a new complete image, authenticate updates, establish binary
+reproducibility, diagnose earlier application shutdowns, or accept a tablet.
+See [the completion contract](../docs/BUILD-COMPLETION.md).
 
 These are engineering results, not claims that every capability is implemented
 or accepted on a tablet. Unaccepted device workflows must stay explicitly

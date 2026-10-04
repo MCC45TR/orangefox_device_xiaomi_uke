@@ -26,7 +26,10 @@ done < <(find "$component/src/device/xiaomi/uke" -type f -print0)
 cmp -- "$component/src/device/xiaomi/uke/ure-gui.cpp" "$tree/bootable/recovery/gui/ure.cpp"
 # OrangeFox captures shell exports during lunch for its vendor packaging script.
 # A make-only FOX_BUILD_BASH value would still let that script copy its prebuilt.
-bash "$component/scripts/with-android-build-environment.sh" "$tree" \
+job_id=$(bash "$component/scripts/build-evidence.sh" begin "$jobs" "$vm_fixture")
+job="$component/build/android-builds/$job_id"
+bash "$component/scripts/with-android-build-environment.sh" "$tree" "$job/output" \
     bash -c 'source build/envsetup.sh >/dev/null && lunch twrp_uke-bp2a-eng >/dev/null && targets=(recoveryimage) && if [[ $2 == 1 ]]; then targets+=(uke-btrfs-vm-fixture-soong); fi && m "${targets[@]}" -j"$1"' bash "$jobs" "$vm_fixture" \
-    >> "$component/reports/private/recoveryimage-neutral-build.log" 2>&1
-echo 'Recovery build completed; run the complete payload and package audits next.'
+    > "$job/build.log" 2>&1
+bash "$component/scripts/build-evidence.sh" seal "$job_id"
+echo 'Fresh recovery compilation sealed; the owned service must still accept completion and publish the output.'

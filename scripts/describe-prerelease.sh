@@ -10,6 +10,8 @@ candidate=${1:-prerelease}
 vm_review_candidate=false
 if [[ $candidate == ure-vm-review-alpha || $candidate == ure-function-vm-alpha ]]; then vm_review_candidate=true; fi
 destination="$component/artifacts/$candidate"
+[[ ! -e $destination/ARTIFACT-MANIFEST.json ]] || { echo 'A sealed candidate is immutable; choose a new candidate directory.' >&2; exit 1; }
+bash "$component/scripts/build-evidence.sh" export "$destination/BUILD-COMPLETION.json"
 recovery="$destination/OrangeFox-uke-recovery.img"
 temporary="$destination/OrangeFox-uke-fastboot-boot.img"
 repeat_record="$component/reports/private/$candidate-first-package.sha256"
@@ -25,6 +27,12 @@ jq -e '.validation.shared_legacy_write_gate and .validation.actual_format_data_r
     .validation.actual_fastbootd_dispatch_and_block_open_refusals and .validation.production_installer_refuses_before_open and
     .validation.read_only_mounts_preserve_no_replay_options' "$component/reports/private/native-verification.json" >/dev/null
 jq -e '.validation.source_built_shared_legacy_write_policy' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
+jq -e --slurpfile completion "$destination/BUILD-COMPLETION.json" \
+    '.validation.build_completion_payload_match and .build_completion.extracted_payload_matches and
+     .build_completion.receipt_index_sha256==$completion[0].receipt_index_sha256 and
+     .build_completion.recovery_image_sha256==$completion[0].recovery_image_sha256 and
+     $completion[0].validation.service_completed and $completion[0].validation.current_source_and_output_match' \
+    "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e '.validation.cpp_storage_ownership_policy_fixtures and .validation.storage_image_backup_cli_fixtures and .validation.cpp_raw_restore_interruption_fixtures and .validation.raw_restore_cli_fixtures and .validation.cpp_host_stream_restore_fixtures and .validation.host_stream_restore_cli_and_duplex_transport_fixtures and .validation.cpp_stock_gpt_reconstruction_and_oem_xml_oracle and .validation.stock_gpt_cli_fixtures and .validation.cpp_partition_map_and_bounded_signatures and .validation.partition_map_cli_fixtures and (.validation.physical_device==false)' \
     "$component/reports/private/native-verification.json" >/dev/null
 jq -e '.validation.cpp_tablet_display_density_and_actual_renderer_hooks and .validation.display_cli_settings_fixtures' \
@@ -268,6 +276,7 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     --slurpfile audit "$destination/EXTRACTED-RAMDISK-AUDIT.json" \
     --slurpfile fixtures "$destination/NATIVE-HOST-VERIFICATION.json" \
     --slurpfile tools "$destination/URE-TOOLS.json" \
+    --slurpfile completion "$destination/BUILD-COMPLETION.json" \
     --argjson btrfs_vm "$vm_record" \
     --argjson partition_vm "$partition_vm_record" \
     --argjson sanitizers "$sanitizer_record" \
@@ -279,7 +288,7 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     --arg mkbootimg_commit "$(git -C "$component/src/upstream/orangefox-android16/system/tools/mkbootimg" rev-parse HEAD)" \
     --arg avbtool_commit "$(git -C "$component/src/upstream/orangefox-android16/external/avb" rev-parse HEAD)" \
     --arg kernel "$kernel_hash" --arg ramdisk "$ramdisk_hash" --argjson ramdisk_bytes "$ramdisk_bytes" \
-    '{schema_version:2,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,functional_vm_records:$functional_vm,validation:{compile:true,header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
+    '{schema_version:3,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},build_completion:$completion[0],stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,functional_vm_records:$functional_vm,validation:{compile:($completion[0].validation.service_completed and $completion[0].validation.current_source_and_output_match),header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
     | jq --argjson write_gate_vm "$write_gate_vm_record" '.write_gate_vm_record=$write_gate_vm' \
     > "$destination/ARTIFACT-MANIFEST.json"
 # Hash every generated public release file once, including source snapshots.

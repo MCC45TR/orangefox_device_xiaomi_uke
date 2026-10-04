@@ -35,7 +35,7 @@ done < <(git -C "$magisk" submodule foreach --quiet --recursive 'printf "%s\n" "
 
 # GPL/LGPL utilities plus their dependency sources. Per-file original licenses
 # remain in these archives. The complete Android project lock is also included.
-sources=(build/soong bootable/recovery vendor/recovery vendor/twrp external/bash external/nano
+sources=(build/soong build/blueprint bootable/recovery vendor/recovery vendor/twrp external/bash external/nano
     external/e2fsprogs external/f2fs-tools external/gptfdisk external/exfatprogs
     external/lzma external/magisk-prebuilt external/libncurses
     external/lz4 external/zlib external/zstd external/boringssl
@@ -61,15 +61,16 @@ for path in "${sources[@]}"; do
     [[ -d "$tree/$path/.git" || -f "$tree/$path/.git" ]] || { echo "Missing source: $path" >&2; exit 1; }
     if [[ -n $(git -C "$tree/$path" status --porcelain --untracked-files=no) ]]; then
         case "$path" in
-            build/soong) verify_reviewed_patch "$tree/$path" 0013-soong-host-memory-policy.patch;;
-            bootable/recovery) verify_reviewed_patch "$tree/$path" 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch 0022-bounded-utf8-text.patch 0023-bounded-text-raster-and-cache.patch 0024-shared-operation-lifecycle.patch
+            build/soong) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check soong;;
+            build/blueprint) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check blueprint;;
+            bootable/recovery) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check recovery
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 cmp "$tree/$path/ure-write-gate.hpp" "$component/src/device/xiaomi/uke/ure-write-gate.hpp"
                 cmp "$tree/$path/ure-lifecycle.hpp" "$component/src/device/xiaomi/uke/ure-lifecycle.hpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
                 done;;
-            system/core) verify_reviewed_patch "$tree/$path" 0021-fastbootd-write-gate.patch 0025-fastbootd-operation-lifecycle.patch;;
+            system/core) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check fastboot;;
             external/ntfs-3g) verify_reviewed_patch "$tree/$path" 0003-build-ntfsresize.patch;;
             external/zstd) verify_reviewed_patch "$tree/$path" 0009-native-boot-audit-codecs.patch;;
             vendor/recovery) verify_reviewed_patch "$tree/$path" 0005-propagate-callback-failure.patch;;
@@ -100,9 +101,10 @@ while read -r name expected; do
     cp -- "$svg" "$source_work/project/icon-sources/"
 done < <(jq -r '.icons[]|"\(.name) \(.svg_sha256)"' "$origins")
 cp -- "$component/referances/lucide-0.563.0/LICENSE" "$source_work/project/icon-sources/"
-for path in device installer inventory; do
+for path in device installer inventory host; do
     cp -a -- "$component/src/$path" "$source_work/project/src/"
 done
+[[ ! -d $component/src/localization ]] || cp -a -- "$component/src/localization" "$source_work/project/src/"
 cp -a -- "$component/patches" "$component/manifests" "$component/scripts" "$component/tests" "$source_work/project/"
 cp -a -- "$component/configs" "$source_work/project/"
 cp -- "$component/.gitattributes" "$source_work/project/"

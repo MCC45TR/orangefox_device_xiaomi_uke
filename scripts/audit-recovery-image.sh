@@ -7,6 +7,7 @@ report=${2:?Missing output report}
 mode=${3:-}
 [[ -z $mode || $mode == --qemu ]]
 tree="$component/src/upstream/orangefox-android16"
+bash "$component/scripts/build-evidence.sh" verify
 lz4="$tree/out-public/host/linux-x86/bin/lz4"
 [[ -f $image && ! -L $image && -x $lz4 ]]
 [[ $(dd if="$image" bs=1 count=8 status=none) == 'ANDROID!' ]]
@@ -29,6 +30,7 @@ mkdir "$work/root"
 # attempted extraction through a symlink outside /mnt fail safely.
 bwrap --ro-bind / / --bind "$work/root" /mnt --chdir /mnt \
     cpio -idm --quiet --no-absolute-filenames < "$work/ramdisk.cpio"
+bash "$component/scripts/build-evidence.sh" payload "$image" "$work/root" "$work/compile-evidence.json"
 bash "$component/tests/check-payload.sh" "$work/root"
 bash "$component/tests/check-nested-payloads.sh" "$work/root"
 bash "$component/tests/check-elf-closure.sh" "$work/root"
@@ -89,7 +91,8 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" \
     --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" \
     --argjson bytes "$bytes" --argjson qemu "$qemu" \
-    '{schema_version:1,recovery_image_sha256:$image,compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
+    --slurpfile completion "$work/compile-evidence.json" \
+    '{schema_version:1,recovery_image_sha256:$image,build_completion:$completion[0],compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{build_completion_payload_match:true,extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
 jq --argjson qemu "$qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
     .validation.source_built_one_shot_boot_and_gui=true | .validation.qemu_user_one_shot_boot_fixtures=$qemu |
     .validation.source_built_shared_legacy_write_policy=true |

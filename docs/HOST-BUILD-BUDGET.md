@@ -47,14 +47,15 @@ The actual production inner mount recipe wrote a 64 MiB incompressible regular f
 
 ## Compiler cache and validation
 
-Android and native C++ caches are separate and capped at 10 GB each. `host-ccache.sh` checks compiler content and clears permissive time/path sloppiness. Ccache does not cache Go graph generation, linking, packaging, tests or VM execution. Record counters rather than assume a warm build has eliminated memory pressure.
+Android and native C++ caches are separate below the ignored build tree and capped at 10 GB each. `host-ccache.sh` checks compiler content and clears permissive time/path sloppiness. Ccache does not cache Go graph generation, linking, packaging, tests or VM execution. Record counters rather than assume a warm build has eliminated memory pressure. Each Android job has a fresh output; its cache is a separate bind and the existing accepted output stays available until the [build-completion gate](BUILD-COMPLETION.md) publishes a new one.
 
 ```sh
-CCACHE_MAXSIZE=10G ccache --dir src/upstream/orangefox-android16/out-public/ccache --show-stats
+CCACHE_MAXSIZE=10G ccache --dir build/ccache/android --show-stats
 CCACHE_MAXSIZE=10G ccache --dir build/ccache/native --show-stats
 bash tests/check-host-budget.sh
 bash tests/check-host-builder-patches.sh
 bash tests/check-host-temp.sh
+bash tests/check-build-evidence.sh
 ```
 
 Run these standalone host checks outside an already active heavy-job service. They cover 16 GiB and constrained-ancestor policy snapshots, CPU/input/pressure refusal, actual service readback, failure propagation, a real cold/warm C++ object/cache oracle, pinned Blueprint package tests, runtime-policy retention and actual nested disk scratch. Scratch controls substitute tmpfs, a different disk directory and readonly mounts; each refuses before the command. They use small synthetic work only. Fresh clean/warm Android builds, full-load RSS/PSI/OOM and interactive response receipts remain separate acceptance gates after immutable output closure (AUD-024). Source, package, guest and tablet acceptance remain independent.

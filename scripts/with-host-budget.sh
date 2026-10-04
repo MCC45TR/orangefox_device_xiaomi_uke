@@ -36,6 +36,9 @@ systemd-run --user --quiet --wait --pipe --collect --unit="$unit" \
 [[ -f $scratch/command-status && $(cat "$scratch/command-status") == 0 ]] || {
     echo 'Host job was interrupted before recording command completion.' >&2; exit 1;
 }
+if [[ -f $scratch/android-build-pending.json ]]; then
+    bash "$component/scripts/build-evidence.sh" acknowledge "$scratch"
+fi
 # The scratch directory intentionally survives interruption for diagnostics.
 # It contains only fixtures made by this job; review before removing it.
 echo 'Resource-isolated host job completed; temporary fixtures remain in the private build directory.'

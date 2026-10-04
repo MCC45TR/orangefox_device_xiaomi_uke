@@ -66,10 +66,11 @@ free_after=$(awk 'NR==2 {print $1}' /tmp/probe-disk.after)
 jq -cn --argjson allocated "$allocated" --argjson anonymous "$((anon_after-anon_before))" \
     --argjson shmem "$((shmem_after-shmem_before))" --argjson file "$((file_after-file_before))" --argjson disk "$((free_before-free_after))" \
     '{file_bytes:67108864,allocated_bytes:$allocated,anonymous_growth_bytes:$anonymous,shmem_growth_bytes:$shmem,file_cache_growth_bytes:$file,observed_filesystem_available_drop_bytes:$disk}' \
-    > /mnt/probe-result.json
-cp /tmp/android-temp-inner.json /mnt/inner-temp-receipt.json
-cp /tmp/android-temp-mount.txt /mnt/inner-temp-mount.txt
-printf 'Actual inner disk scratch: %s\n' "$(cat /mnt/probe-result.json)"
+    > /mnt/out-public/probe-result.json
+cp /tmp/android-temp-inner.json /mnt/out-public/inner-temp-receipt.json
+cp /tmp/android-temp-mount.txt /mnt/out-public/inner-temp-mount.txt
+[[ -z ${CFLAGS:-} && $HOME == /tmp/uke-build-home && $PATH == /usr/bin:/bin ]]
+printf 'Actual inner disk scratch: %s\n' "$(cat /mnt/out-public/probe-result.json)"
 INNER_JOB_EOF
 cat > "$scratch/outer-job.sh" <<'OUTER_JOB_EOF'
 set -euo pipefail
@@ -96,9 +97,11 @@ refuse bwrap --ro-bind / / --dev-bind /dev /dev --proc /proc --ro-bind /tmp /tmp
     bash -c 'set -euo pipefail; bash "$1" arm64 /tmp /tmp/host-temp-policy.json; touch /mnt/unexpected-readonly-admission' bash "$component/scripts/host-temp-policy.sh"
 rg -q 'Read-only file system' /tmp/namespace-refused.log
 [[ ! -e $fixture/unexpected-readonly-admission ]]
-bash "$component/scripts/with-android-build-environment.sh" "$fixture" bash /mnt/inner-job.sh
+mkdir -m 0700 "$fixture/output" "$fixture/out-public"
+export CFLAGS=unreviewed-inherited-flags
+bash "$component/scripts/with-android-build-environment.sh" "$fixture" "$fixture/output" bash /mnt/inner-job.sh
 OUTER_JOB_EOF
 bash "$component/scripts/with-host-budget.sh" arm64 bash "$scratch/outer-job.sh" "$component" "$scratch" > "$scratch/service.log" 2>&1
 cat "$scratch/service.log"
-jq -e '.file_bytes==67108864 and .allocated_bytes>=.file_bytes and .anonymous_growth_bytes<=33554432 and .shmem_growth_bytes==0' "$scratch/probe-result.json" >/dev/null
+jq -e '.file_bytes==67108864 and .allocated_bytes>=.file_bytes and .anonymous_growth_bytes<=33554432 and .shmem_growth_bytes==0' "$scratch/output/probe-result.json" >/dev/null
 printf 'Actual nested Android mount, bounded disk write and anonymous/shared-memory accounting passed; tmpfs, substituted disk and readonly scratch refused before the command.\n'
