@@ -347,15 +347,17 @@ Value filesystem_probe_range(int fd,std::uint64_t offset,std::uint64_t bytes) {
         output["type"]="encrypted"; output["encryption"]="LUKS";
         output["version"]=(static_cast<unsigned>(head[6])<<8)|head[7];
     } else if(std::memcmp(head.data()+3,"-FVE-FS-",8)==0) { output["type"]="encrypted"; output["encryption"]="BITLK"; }
-    else if(std::memcmp(head.data()+3,"NTFS    ",8)==0)output["type"]="ntfs";
+    else if(std::memcmp(head.data()+3,"NTFS    ",8)==0) { output["type"]="ntfs"; output["volume_serial"]=Json::UInt64(le64(head.data()+72)); }
     else if(std::memcmp(head.data()+3,"EXFAT   ",8)==0)output["type"]="exfat";
-    else if(std::memcmp(head.data()+82,"FAT32   ",8)==0 || std::memcmp(head.data()+54,"FAT16   ",8)==0)output["type"]="vfat";
+    else if(std::memcmp(head.data()+82,"FAT32   ",8)==0) { output["type"]="vfat"; output["volume_serial"]=Json::UInt64(le32(head.data()+67)); }
+    else if(std::memcmp(head.data()+54,"FAT16   ",8)==0) { output["type"]="vfat"; output["volume_serial"]=Json::UInt64(le32(head.data()+39)); }
     else if(head.size()>=1144 && head[1080]==0x53 && head[1081]==0xef) {
         output["type"]="ext4"; output["uuid"]=guid(head.data()+1128,false);
         output["filesystem_encryption_feature"]=(le32(head.data()+1024+96)&0x10000U)!=0;
     }
     else if(head.size()>=3208 && le32(head.data()+1024)==0xf2f52010U) {
         output["type"]="f2fs";
+        output["uuid"]=guid(head.data()+1024+108,false);
         // Pinned f2fs-tools f2fs_super_block: feature at byte 2180.
         output["filesystem_encryption_feature"]=(le32(head.data()+1024+2180)&1U)!=0;
     }

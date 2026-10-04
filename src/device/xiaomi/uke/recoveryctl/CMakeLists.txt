@@ -177,6 +177,16 @@ if(BUILD_TESTING)
     target_link_options(uke-recovery-tests PRIVATE -Wl,--wrap=linkat)
     target_compile_options(uke-recovery-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
     ure_test(ure-interruption-and-streaming uke-recovery-tests)
+    add_executable(uke-filesystem-failure-tests ../../../../../tests/ure/filesystem_failures.cpp)
+    target_include_directories(uke-filesystem-failure-tests PRIVATE libuke)
+    target_link_libraries(uke-filesystem-failure-tests PRIVATE uke-recovery)
+    target_link_options(uke-filesystem-failure-tests PRIVATE -Wl,--wrap=fstatvfs -Wl,--wrap=pwrite -Wl,--wrap=execve -Wl,--wrap=ioctl)
+    target_compile_options(uke-filesystem-failure-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    ure_test(ure-filesystem-failed-preparation uke-filesystem-failure-tests ${CMAKE_CURRENT_BINARY_DIR})
+    add_test(NAME ure-populated-fragmented-damaged-filesystems COMMAND bash
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/with-operation-coordinator.sh" "${CMAKE_CURRENT_BINARY_DIR}"
+        "${CMAKE_COMMAND}" -E env "UKE_RECOVERYCTL_BINARY=$<TARGET_FILE:uke-recoveryctl>"
+        bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/check-populated-filesystems.sh")
     add_executable(uke-gpt-tests ../../../../../tests/ure/gpt.cpp)
     target_include_directories(uke-gpt-tests PRIVATE libuke)
     target_link_libraries(uke-gpt-tests PRIVATE uke-recovery)

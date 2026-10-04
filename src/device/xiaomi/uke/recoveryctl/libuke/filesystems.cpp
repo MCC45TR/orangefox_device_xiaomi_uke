@@ -212,6 +212,36 @@ void prepare_image(const Root& system,StorageTarget& target,const Root& store,co
     require(::fsync(write.get())==0,"io-error","Cannot sync transformed filesystem");
     const auto signature=filesystem_probe(write.get()); require(signature["type"]==type,"filesystem-mismatch","Transformed filesystem signature differs from the reviewed request");
     if(action=="resize" && plan["signature"]["uuid"].isString())require(signature["uuid"]==plan["signature"]["uuid"],"filesystem-uuid-changed","Resize cannot change the original filesystem identity");
+    if(action=="resize" && plan["signature"]["volume_serial"].isUInt64())require(signature["volume_serial"].isUInt64() &&
+        signature["volume_serial"].asUInt64()==plan["signature"]["volume_serial"].asUInt64(),
+        "filesystem-serial-changed","Resize cannot change the original filesystem volume serial");
+    if(action=="resize" && (type=="ext4" || type=="f2fs")) {
+        // A resizer can return zero after declining an impossible request.
+        // Check the persisted superblock before publishing any replacement.
+        const auto header=storage_read(write.get(),0,8192);
+        auto number=[&](std::size_t at,unsigned count) { std::uint64_t value=0;
+            for(unsigned i=0;i<count;++i)value|=static_cast<std::uint64_t>(static_cast<unsigned char>(header[at+i]))<<(8*i);
+            return value; };
+        std::uint64_t block_bytes=4096,blocks=0;
+        if(type=="ext4") {
+            const auto shift=number(1024+24,4);
+            require(shift<=6,"filesystem-resize-geometry-mismatch","Ext4 block size is outside its reviewed range");
+            block_bytes=1024ULL<<shift; blocks=number(1024+4,4);
+            if(number(1024+96,4)&0x80U)blocks|=number(1024+336,4)<<32;
+        } else {
+            require(number(1024+16,4)==12 && number(5120,4)==0xf2f52010U && number(5120+16,4)==12,
+                "filesystem-resize-geometry-mismatch","F2FS superblocks must describe the reviewed 4 KiB geometry");
+            blocks=number(1024+36,8);
+            require(blocks==number(5120+36,8) && header.substr(1024+108,16)==header.substr(5120+108,16),
+                "filesystem-resize-geometry-mismatch","F2FS primary and backup size or UUID disagree");
+        }
+        const auto wanted=request["target_bytes"].asUInt64();
+        require(blocks>0 && wanted%block_bytes==0 && blocks==wanted/block_bytes,
+            "filesystem-resize-geometry-mismatch","Resizer did not persist the exact reviewed filesystem size; original target was not written");
+        Value geometry; geometry["filesystem"]=type; geometry["block_bytes"]=Json::UInt64(block_bytes);
+        geometry["block_count"]=Json::UInt64(blocks); geometry["filesystem_bytes"]=Json::UInt64(wanted);
+        geometry["requested_size_verified"]=true; progress["resized_filesystem_geometry"]=geometry;
+    }
     // Pass a genuinely read-only descriptor to the independent post-checker.
     auto read=store.open("working.img",O_RDONLY); const auto checked=filesystem_check(read.get());
     progress["post_check"]=checked; store.save_record("state.json",progress,true);
@@ -302,9 +332,15 @@ Value filesystem_operation_execute(const Root& system,StorageTarget& target,cons
     filesystem_target(target); storage_revalidate(target,&system); storage_write_gate(target);
     require(sha256(target.descriptor.get())==plan["source_sha256"].asString(),"stale-source","Filesystem content changed since review");
     auto store=private_directory(path,true); auto writer=lock(store); store.save_record("plan.json",plan);
-    struct statvfs space{}; require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize && space.f_bavail>=plan["estimated_max_journal_bytes"].asUInt64()/space.f_frsize+1,"insufficient-space","Keep space for the staged image and both complete recovery mirrors");
     Value progress; progress["schema"]=1; progress["plan_sha256"]=plan["plan_sha256"]; progress["state"]="VALIDATED"; store.save_record("state.json",progress);
-    try { const auto application=transformed(system,target,store,path,plan,progress,operation.token());
+    try {
+        // Admission can fail while the persistent owner already exists. Keep a
+        // complete inspect/cancel record even when no working image was made.
+        struct statvfs space{};
+        require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize &&
+            space.f_bavail>=plan["estimated_max_journal_bytes"].asUInt64()/space.f_frsize+1,
+            "insufficient-space","Keep space for the staged image and both complete recovery mirrors");
+        const auto application=transformed(system,target,store,path,plan,progress,operation.token());
         const auto result=restore_execute(system,target,application,path/"application",application["plan_sha256"].asString(),&store,&operation.token());
         progress["state"]="COMPLETE"; progress["application"]=result; progress["successful"]=true; progress["physical_test_record"]=false;
         store.save_record("state.json",progress,true); return operation.finish(progress,result["verified"]==true,true);

@@ -14,7 +14,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-006 | Bounded exact model/SKU/firmware and six-LUN declaration comparator; unit-bound original GUID backups, complete A/B boot declarations, stable profile blockers and early live preflight refusal; three native and three sanitizer controls plus JSON CLI checks passed | Fresh target/combined guest; no live profile accepted because the OS2 stock inventory lacks full physical GPT/geometry and boot/fallback evidence |
 | AUD-007 | Explicit exact-profile whole boot programming; default preserved tails, separate full-layout results, complete DTBO-tail mirrors, legacy/offline recovery and actual host SIGKILL; focused native/sanitizer, CLI and independent catalog controls passed | Fresh target/combined guest; installed Android boot trust, unit geometry and physical durability remain unaccepted |
 | AUD-009 | Dedicated image/live capability contract, stable trust/geometry/ownership/fallback blockers, earlier refusal before request/target access, actual GUI review and explicit front recreation/original rollback; five native/five sanitizer controls and both CLI sets passed | Native physical writer and encrypted userdata migration remain unimplemented/unaccepted; fresh target and combined guest pending |
-| AUD-010 | Populated, fragmented and damaged filesystem oracles | Pending |
+| AUD-010 | Populated/fragmented/damaged ext4 and populated F2FS/NTFS/FAT oracles; inspectable space refusal, exact persisted size and volume identity guards; four native/four sanitizer controls and six-format CLI sets passed | Fresh target/combined guest, arbitrary damage and encrypted-data acceptance separate |
 | AUD-012 | Aggregate rescue resource envelope | Pending |
 | AUD-013 | Owned GUI executor and immutable inputs | Pending |
 | AUD-014 | Joinable maintenance and global lifetime | Pending |
@@ -91,3 +91,16 @@ compound routes refuse with stable reasons before request/root/target access.
 This closes the ambiguous scope reporting and late admission behavior, not the
 native device-writer or Android encryption implementation gap. Those capabilities
 remain unavailable pending exact unit, trust, ownership and durability evidence.
+
+AUD-010's new two-control sets passed native in 132.06 seconds and under
+pinned Clang ASan/UBSan/leak checks in 152.11 seconds. The unchanged compound
+partition and transaction regression sets then passed 2/2 native in 131.05
+seconds and 2/2 instrumented in 295.37 seconds. All six original format/check/
+resize-where-supported/rollback CLI workflows passed on both binaries. The
+frozen input manifest remained byte-identical after both regression runs:
+`4618981a374dd15cd723ea91f850b25faffc5434f23cfd82fffe43258273c18f`.
+These are separate focused source/host receipts, not a fresh complete release
+or combined guest. The tests exposed and corrected missing state after space
+refusal and successful F2FS no-op resize; independent original bytes, persisted
+geometry, contents and metadata now bound the acceptance claim. Preserved
+fixture failures and numeric/readback corrections are recorded in dated lessons.

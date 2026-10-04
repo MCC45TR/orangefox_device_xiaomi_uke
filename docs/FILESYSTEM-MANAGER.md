@@ -28,6 +28,10 @@ then creates verified desired data and original/target recovery mirrors before
 the raw journal writes the original object. Failure during staging leaves that
 original unchanged. Failure after application begins requires journal inspection.
 Rollback verifies actual bytes and restores the complete original image.
+Space admission also has a durable state record: refusal before staging can be
+inspected and cancelled through its exact plan, without stranding its persistent
+owner. An actual staging write failure or a tool failure keeps the same recovery
+contract and never applies an incomplete replacement.
 
 Image operations retain the original inode and capacity. A filesystem resize
 does not move a partition or change GPT boundaries. Some tools truncate their
@@ -40,6 +44,11 @@ adapts the tool's partition interface and inclusive end calculation; see the
 [upstream adapter source](https://github.com/ya-mouse/fatresize/blob/ab78c48/fatresize.c).
 NTFS resize refreshes its alternate boot sector at the retained container end
 before the independent read-only ntfsfix check; filesystem identity is preserved.
+Ext4 and F2FS resize must persist the exact requested filesystem byte size.
+F2FS primary and backup superblocks must agree on size and UUID. A successful
+tool exit that leaves the old size is refused before application. Resizes also
+preserve ext4/F2FS UUID and FAT/NTFS volume serial; persisted serials are compared
+as validated numeric values rather than JsonCpp internal numeric tags.
 
 The GUI accepts GB, GiB, MiB and percentages of the selected container for the
 size. The CLI request uses exact bytes. Containers are bounded to 32 MiB–512 GiB
@@ -48,6 +57,51 @@ because of its own filesystem minimum or occupied data. Such failure does not
 authorize writes to the source. Plans reserve five complete container sizes
 plus 64 MiB for normal jobs, and six plus 64 MiB for a FAT resize envelope.
 The native copying buffer is 1 MiB; external tools have separate memory needs.
+
+## Independent populated host acceptance
+
+`ure-populated-fragmented-damaged-filesystems` runs the unmodified native CLI
+against private regular images. Its independent oracles use host tools to dump
+and compare complete 80 MiB nonzero payloads and metadata; they are not tablet
+programs or proofs of shipping-tool/kernel compatibility.
+
+| Fixture | Independent controls |
+| --- | --- |
+| Populated ext4, 160 MiB | Quota, hardlink inode sharing, symlink, UID/GID/mode, user xattr, UUID/label, measured minimum minus one/minimum/plus one, genuine inode damage and repair |
+| Fragmented ext4, 192 MiB | More than eight extents, actual payload allocations above the shrink boundary, the same minimum/data/metadata/damage controls |
+| Populated F2FS, 512 MiB | Feasible 256 MiB shrink, impossible 64 MiB request, actual superblock size, NAT-selected data dump, inode metadata, UUID and UTF-16 label |
+| Populated NTFS, 192 MiB | Feasible 128 MiB shrink, impossible 64 MiB request, complete data readback, raw volume serial and volume label |
+| Populated FAT32, 512 MiB | Payload initially above 384 MiB boundary, feasible shrink, data readback, raw volume serial/label and retained variant |
+
+Every successful operation retains the original container capacity/inode and
+rolls back to its complete original SHA-256. Ext4 repair rollback restores the
+genuinely damaged original, not a substitute clean image. Wrong adapter and
+out-of-container requests are refused. Fixtures use 512- and 4096-byte image
+selector geometries; these do not establish actual UFS sector geometry.
+`ure-filesystem-failed-preparation` additionally injects zero available journal
+space, `ENOSPC` after a verified 1 MiB staged copy, and a tool that really changes
+private staging before failing. It proves unchanged original bytes, retained
+inspectable ownership, refused resume and exact-plan cancellation. Only the
+host executable links these fault boundaries.
+
+The focused two-control sets passed native in 132.06 seconds and under pinned
+Clang ASan/UBSan/leak checks in 152.11 seconds. Frozen input manifest SHA-256:
+`4618981a374dd15cd723ea91f850b25faffc5434f23cfd82fffe43258273c18f`.
+These are source/host receipts; fresh target and combined guest acceptance
+remain separate. The host uses e2fsprogs 1.47.4, f2fs-tools 1.16.0,
+ntfs-3g 2026.9.28, fatresize 1.1.0 and mtools 4.0.49. In particular, the host
+FAT resizer is not the shipping recovery payload.
+The existing compound partition/transaction set also passed 2/2 native in
+131.05 seconds and 2/2 instrumented in 295.37 seconds. Both six-format CLI
+regression sets passed and left the frozen inputs unchanged. These runs remain
+separate focused receipts rather than a newly inferred full release result.
+
+NTFS's scheduled Windows check remains set. Only the independent read-only
+host readers acknowledge that flag; neither successful data readback nor
+`ntfsfix -n` replaces Windows chkdsk or Windows boot acceptance. Arbitrary
+corruption repair, encrypted userdata, exFAT copy/recreate and mounted Btrfs
+workflows require their own acceptance; this matrix does not broaden those
+capabilities.
 
 For a disposable regular image:
 
