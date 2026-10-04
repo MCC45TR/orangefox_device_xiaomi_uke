@@ -35,6 +35,13 @@ cd "$component"
     printf '%s\0' tests/generate-text-decoder.sh patches/0022-bounded-utf8-text.patch \
         src/upstream/orangefox-android16/bootable/recovery/minuitwrp/truetype.cpp \
         src/upstream/orangefox-android16/bootable/recovery/minuitwrp/include/minuitwrp/truetype.hpp
+    printf '%s\0' tests/generate-text-hooks.sh tests/check-text-patches.sh patches/0023-bounded-text-raster-and-cache.patch \
+        scripts/prepare-recovery-patches.sh configs/recovery-patches.list \
+        src/upstream/orangefox-android16/bootable/recovery/minuitwrp/graphics_utils.cpp \
+        src/upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf \
+        src/upstream/orangefox-android16/external/freetype/{Android.bp,CMakeLists.txt,LICENSE.TXT,builds/cmake/FindHarfBuzz.cmake}
+    find src/upstream/orangefox-android16/external/freetype/{src,include,builds/unix} -type f -print0
+    find src/upstream/orangefox-android16/bootable/recovery/libpixelflinger/include -type f -print0
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/theme/common/languages/en.xml
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/{Android.bp,partition.cpp,partitionmanager.cpp,twrp-functions.cpp,openrecoveryscript.cpp,ure-write-gate.hpp} \
         src/upstream/orangefox-android16/bootable/recovery/{install/{install.cpp,wipe_data.cpp,adb_install.cpp},twrpinstall/{install.cpp,twinstall.cpp,adb_install.cpp},recovery_utils/roots.cpp,gui/action.cpp,twrpRepacker.cpp} \

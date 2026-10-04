@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(uke_recoveryctl LANGUAGES CXX)
+project(uke_recoveryctl LANGUAGES C CXX)
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(LibLZMA REQUIRED)
@@ -42,6 +42,40 @@ if(BUILD_TESTING)
     target_include_directories(uke-text-decoder-tests PRIVATE ../../../../../tests/ure)
     target_compile_options(uke-text-decoder-tests PRIVATE -Wall -Wextra -Werror)
     add_test(NAME ure-production-bounded-utf8 COMMAND uke-text-decoder-tests)
+    # Build the pinned renderer dependency locally; no host package or Python.
+    set(UKE_FREETYPE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/external/freetype")
+    set(FT_DISABLE_ZLIB OFF CACHE BOOL "Exercise production compressed-font parser" FORCE)
+    set(FT_DISABLE_BZIP2 ON CACHE BOOL "Host text fixture" FORCE)
+    set(FT_DISABLE_PNG ON CACHE BOOL "Host text fixture" FORCE)
+    set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "Host text fixture" FORCE)
+    set(FT_DISABLE_BROTLI ON CACHE BOOL "Host text fixture" FORCE)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+    add_subdirectory("${UKE_FREETYPE_SOURCE}" "pinned-freetype" EXCLUDE_FROM_ALL)
+    # AOSP enables this in Android.bp; its ftoption.h intentionally leaves it
+    # commented, so CMake's dependency discovery alone does not enable WOFF.
+    target_compile_definitions(freetype PRIVATE FT_CONFIG_OPTION_USE_ZLIB)
+    if(CMAKE_CXX_FLAGS MATCHES "fsanitize")
+        target_compile_options(freetype PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+    endif()
+    find_package(Threads REQUIRED)
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp"
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-text-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp"
+        DEPENDS "${UKE_RECOVERY_SOURCE}/minuitwrp/graphics.cpp" "${UKE_RECOVERY_SOURCE}/minuitwrp/graphics_utils.cpp"
+            "${UKE_RECOVERY_SOURCE}/gui/scrolllist.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-text-hooks.sh")
+    add_executable(uke-text-renderer-tests ../../../../../tests/ure/text_renderer.cpp "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp"
+        "${UKE_RECOVERY_SOURCE}/minuitwrp/truetype.cpp")
+    target_compile_features(uke-text-renderer-tests PRIVATE cxx_std_20)
+    target_include_directories(uke-text-renderer-tests PRIVATE ../../../../../tests/ure)
+    target_include_directories(uke-text-renderer-tests SYSTEM PRIVATE "${UKE_RECOVERY_SOURCE}/minuitwrp/include"
+        "${UKE_RECOVERY_SOURCE}/gui/include" "${UKE_RECOVERY_SOURCE}/libpixelflinger/include")
+    target_compile_options(uke-text-renderer-tests PRIVATE -Wall -Wextra -Werror -Wno-missing-field-initializers -include linux/types.h)
+    target_link_libraries(uke-text-renderer-tests PRIVATE freetype Threads::Threads)
+    target_link_options(uke-text-renderer-tests PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc
+        -Wl,--wrap=_Znwm -Wl,--wrap=_Znam -Wl,--wrap=_ZnwmRKSt9nothrow_t -Wl,--wrap=_ZnamRKSt9nothrow_t
+        -Wl,--wrap=FT_Load_Glyph -Wl,--wrap=FT_Render_Glyph)
+    add_test(NAME ure-production-text-allocation-and-clipping COMMAND uke-text-renderer-tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf")
+    set_tests_properties(ure-production-bounded-utf8 ure-production-text-allocation-and-clipping PROPERTIES TIMEOUT 45)
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-write-gate-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         DEPENDS "${UKE_RECOVERY_SOURCE}/partitionmanager.cpp" "${UKE_RECOVERY_SOURCE}/partition.cpp"

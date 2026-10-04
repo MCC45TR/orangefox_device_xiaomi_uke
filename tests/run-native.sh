@@ -42,6 +42,7 @@ bash tests/check-boot-router.sh
 UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/check-recoveryctl.sh
 bash tests/check-installer.sh
 bash tests/check-write-gate.sh
+bash tests/check-text-patches.sh
 bash tests/check-stock-boot-programming.sh
 bash tests/check-payload-fixtures.sh
 cmp <(bash scripts/native-inputs.sh) "$initial_inputs"
@@ -70,5 +71,7 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
     | jq '.validation.shared_legacy_write_gate=true | .validation.actual_format_data_refuses_before_side_effects=true |
         .validation.actual_fastbootd_dispatch_and_block_open_refusals=true | .validation.production_installer_refuses_before_open=true |
         .validation.read_only_mounts_preserve_no_replay_options=true' \
+    | jq '.validation.production_bounded_unicode_scalars=true | .validation.production_text_raster_parser_and_cache_budgets=true |
+        .validation.production_text_allocation_failure_and_rotated_clipping=true | .validation.reviewed_source_stack_unknown_changes_refused=true' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

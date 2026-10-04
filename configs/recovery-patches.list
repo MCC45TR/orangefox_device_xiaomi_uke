@@ -1,0 +1,17 @@
+0002-native-ure-ui.patch
+0004-link-native-ure.patch
+0006-tablet-interface-density.patch
+0007-usb-monitor-and-input.patch
+0008-partition-layout-graph.patch
+0010-drm-framebuffer-initialization.patch
+0011-literal-ure-theme-defaults.patch
+0012-responsive-stock-theme.patch
+0014-preserve-hid-report-boundaries.patch
+0015-menu-list-default-scroll.patch
+0016-described-recovery-menus.patch
+0017-early-extra-navigation-resources.patch
+0018-scale-preview-widget.patch
+0019-scaled-monitor-output.patch
+0020-shared-recovery-write-gate.patch
+0022-bounded-utf8-text.patch
+0023-bounded-text-raster-and-cache.patch
