@@ -52,10 +52,12 @@ Root::Root(Fd directory) : fd_(std::move(directory)) {
     require(fd() >= 0 && ::fstat(fd(), &st) == 0 && S_ISDIR(st.st_mode), "invalid-root", "Expected a retained directory descriptor");
 }
 Root private_directory(const fs::path& path, bool create) {
-    const auto name = path.filename().string();
+    Root parent(path.parent_path().empty() ? fs::path(".") : path.parent_path());
+    return private_subdirectory(parent,path.filename().string(),create);
+}
+Root private_subdirectory(const Root& parent, const std::string& name, bool create) {
     require(!name.empty() && name != "." && name != ".." && components(name).size() == 1,
         "invalid-path", "A named private directory is required");
-    Root parent(path.parent_path().empty() ? fs::path(".") : path.parent_path());
     if (create) {
         const int result = ::mkdirat(parent.fd(), name.c_str(), 0700);
         require(result == 0, errno == EEXIST ? "existing-journal" : "io-error", "Cannot exclusively create private directory");
@@ -285,9 +287,17 @@ void Root::save_record(const std::string& relative, const Value& value, bool rep
         atomic_save(relative, content, sha256(read(relative, 4 * 1024 * 1024)), true, 4 * 1024 * 1024);
         return;
     }
-    auto output = open(relative, O_WRONLY | O_CREAT | O_EXCL, 0600);
-    write_all(output.get(), content);
-    require(::fsync(output.get()) == 0 && ::fsync(fd()) == 0, "io-error", "Cannot sync JSON record");
+    // A killed creator must leave either no record or one complete record.
+    // O_EXCL directly at the final name would leave truncated journal JSON.
+    const auto temporary = ".ure-record-" + operation_id();
+    auto output = open(temporary, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    try {
+        write_all(output.get(), content);
+        require(::fsync(output.get()) == 0, "io-error", "Cannot sync initial JSON record");
+        require(::syscall(SYS_renameat2, fd(), temporary.c_str(), fd(), relative.c_str(), RENAME_NOREPLACE) == 0,
+            "io-error", "Cannot publish initial JSON record without replacing an existing record");
+        require(::fsync(fd()) == 0, "uncertain-save", "Directory sync failed after initial record publication");
+    } catch (...) { ::unlinkat(fd(), temporary.c_str(), 0); throw; }
 }
 void save_json(const fs::path& path, const Value& value, bool replace) {
     Root root(path.parent_path().empty() ? fs::path(".") : path.parent_path());

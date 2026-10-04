@@ -40,6 +40,7 @@ void positional(const Options& options,std::size_t count) { require(options.word
 bool management_command(const std::vector<std::string>& args) {
     if(args.size()<2)return false;
     const auto& command=args[0]; const auto& op=args[1];
+    if(command=="installer")return op.starts_with("image-");
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
     if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
@@ -53,6 +54,29 @@ bool management_command(const std::vector<std::string>& args) {
 Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
+    if(command=="installer") {
+        positional(options,3);
+        const auto sector=options.get("--sector-size","4096");
+        require(sector=="512" || sector=="4096","invalid-sector","Select 512 or 4096-byte sectors");
+        const auto width=sector=="512" ? 512U : 4096U;
+        Root system(options.get("--system-root","/"));
+        if(operation=="image-prepare") {
+            options.allow({"--system-root","--image","--fallback-image","--sector-size","--root","--content-file","--backup","--output"});
+            auto selected=storage_image(options.need("--image"),width),fallback=storage_image(options.need("--fallback-image"),width);
+            Root staged(options.need("--root"));
+            auto plan=recovery_install_prepare(system,selected,fallback,staged,options.need("--content-file"),json_file(words[2]),options.need("--backup"));
+            save_json(options.need("--output"),plan); return plan;
+        }
+        require(operation=="image-execute" || operation=="image-inspect" || operation=="image-resume" ||
+            operation=="image-rollback" || operation=="image-cancel","invalid-action","Unknown installer image command");
+        if(operation=="image-execute")options.allow({"--system-root","--image","--fallback-image","--sector-size","--journal","--confirm"});
+        else options.allow({"--system-root","--image","--fallback-image","--sector-size","--confirm"});
+        auto selected=storage_image(options.need("--image"),width,operation=="image-execute" || operation=="image-resume" || operation=="image-rollback");
+        auto fallback=storage_image(options.need("--fallback-image"),width);
+        if(operation=="image-execute")return recovery_install_execute(system,selected,fallback,json_file(words[2]),options.need("--journal"),options.need("--confirm"));
+        require(operation!="image-inspect" || !options.has("--confirm"),"invalid-options","Installer inspection does not accept confirmation");
+        return recovery_install_recover(system,selected,fallback,words[2],operation.substr(6),operation=="image-inspect" ? "" : options.need("--confirm"));
+    }
     if(command=="boot") {
         if(operation=="route-history") { positional(options,3); options.allow({}); return boot_route_history(words[2]); }
         require(operation=="route-inventory" || operation=="route-plan" || operation=="route-execute" || operation=="route-inspect" ||

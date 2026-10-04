@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// Uke Global stock303 installer. All checks precede the sole block write.
+// Read-only Global stock303 inspection. Live installation has no accepted
+// durable transaction backend; a policy toggle must not revive a raw writer.
 #include "install_policy.h"
 #include "libuke/recovery_write_policy.hpp"
 #include <algorithm>
@@ -20,7 +21,6 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -148,23 +148,6 @@ void require_stock(const Block& b, const char* expected) {
     if (digest(fd.value, b.bytes) != expected)
         throw std::runtime_error("Firmware hash mismatch: " + b.label);
 }
-void copy(int source, int destination, std::uint64_t bytes) {
-    std::array<unsigned char, 65536> buf{};
-    for (std::uint64_t offset = 0; offset < bytes;) {
-        const auto wanted = static_cast<std::size_t>(std::min<std::uint64_t>(buf.size(), bytes - offset));
-        const ssize_t n = pread(source, buf.data(), wanted, static_cast<off_t>(offset));
-        if (n < 0 && errno == EINTR) continue;
-        if (n <= 0) throw std::runtime_error("Copy source read failed");
-        for (ssize_t done = 0; done < n;) {
-            const ssize_t written = pwrite(destination, buf.data() + done, static_cast<std::size_t>(n - done), static_cast<off_t>(offset + done));
-            if (written < 0 && errno == EINTR) continue;
-            if (written <= 0) throw std::runtime_error("Copy destination write failed");
-            done += written;
-        }
-        offset += static_cast<std::uint64_t>(n);
-    }
-    if (fsync(destination) != 0) throw std::runtime_error("Destination sync failed");
-}
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -172,9 +155,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: uke-recovery-install check|install IMAGE SHA256\n"; return 2;
     }
     try {
-        if (std::string_view(argv[1]) == "install" && !ure::live_storage_backend_accepted()) {
+        if (std::string_view(argv[1]) == "install") {
             const auto decision = ure::legacy_write_decision(ure::LegacyWrite::Flash);
-            throw std::runtime_error(std::string(decision.code) + ": " + decision.message);
+            throw std::runtime_error(std::string("installer-durability-unavailable: ") + decision.message +
+                " A verified persistent transaction and rehearsed device fallback are required.");
         }
         if (!uke::valid_hash(argv[3])) throw std::runtime_error("Invalid image SHA-256");
         Fd image(open(argv[2], O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
@@ -198,25 +182,7 @@ int main(int argc, char* argv[]) {
         const auto target = block("recovery" + suffix, uke::recovery_bytes);
         std::cout << "Verified Global stock303 boot stack; plan: " << target.label
                   << " only. Inactive stock recovery and all boot partitions are preserved.\n";
-        if (std::string_view(argv[1]) == "check") return 0;
-        struct statvfs space{};
-        if (statvfs("/tmp", &space) != 0 || space.f_frsize == 0 || space.f_bavail < (uke::recovery_bytes + space.f_frsize - 1) / space.f_frsize)
-            throw std::runtime_error("Insufficient RAM-disk space for recovery backup");
-        char backup_path[] = "/tmp/uke-recovery-backup-XXXXXX";
-        Fd backup(mkstemp(backup_path));
-        Fd old(open(target.path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
-        copy(old.value, backup.value, target.bytes);
-        if (digest(old.value, target.bytes) != digest(backup.value, target.bytes)) throw std::runtime_error("Backup verification failed");
-        std::cout << "Current recovery backup: " << backup_path << " (volatile; copy to host before reboot).\n";
-        if (uke::validate(evidence()) != active) throw std::runtime_error("Slot changed during preflight");
-        if (digest(image.value, target.bytes) != argv[3]) throw std::runtime_error("Image changed during preflight");
-        Fd output(open(target.path.c_str(), O_RDWR | O_CLOEXEC | O_NOFOLLOW));
-        struct stat out{};
-        if (fstat(output.value, &out) != 0 || out.st_rdev != target.identity || !S_ISBLK(out.st_mode))
-            throw std::runtime_error("Target changed during preflight");
-        copy(image.value, output.value, target.bytes);
-        if (digest(output.value, target.bytes) != argv[3]) throw std::runtime_error("Recovery read-back mismatch; use preserved stock fallback");
-        std::cout << "Active recovery written and SHA-256 read-back verified. Reboot manually.\n";
+        return 0;
     } catch (const std::exception& e) { std::cerr << "uke-recovery-install: " << e.what() << '\n'; return 1; }
     return 0;
 }

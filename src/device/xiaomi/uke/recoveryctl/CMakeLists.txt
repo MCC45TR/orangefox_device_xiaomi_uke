@@ -15,7 +15,7 @@ add_library(uke-jsoncpp STATIC
 target_include_directories(uke-jsoncpp SYSTEM PUBLIC ${UKE_JSONCPP_SOURCE}/include)
 target_compile_definitions(uke-jsoncpp PRIVATE JSON_USE_EXCEPTION=0 JSONCPP_NO_LOCALE_SUPPORT)
 add_library(uke-recovery STATIC libuke/core.cpp libuke/storage.cpp libuke/systems.cpp libuke/boot_audit.cpp libuke/boot_router.cpp libuke/editor.cpp
-    libuke/transaction.cpp libuke/backup.cpp libuke/tree.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
+    libuke/transaction.cpp libuke/backup.cpp libuke/installer_job.cpp libuke/tree.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
     libuke/preflight.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/image_ranges.cpp libuke/stock_job.cpp libuke/rescue.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp)
 target_compile_features(uke-recovery PUBLIC cxx_std_20)
 target_compile_options(uke-recovery PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
@@ -102,6 +102,13 @@ if(BUILD_TESTING)
     target_link_libraries(uke-installer-write-gate-tests PRIVATE OpenSSL::Crypto)
     target_link_options(uke-installer-write-gate-tests PRIVATE -Wl,--wrap=open -Wl,--wrap=fork -Wl,--wrap=ioctl)
     add_test(NAME ure-production-installer-write-gate COMMAND uke-installer-write-gate-tests)
+    add_executable(uke-installer-job-tests ../../../../../tests/ure/installer_job.cpp)
+    target_include_directories(uke-installer-job-tests PRIVATE libuke)
+    target_link_libraries(uke-installer-job-tests PRIVATE uke-recovery)
+    target_link_options(uke-installer-job-tests PRIVATE -Wl,--wrap=pwrite -Wl,--wrap=fsync -Wl,--wrap=write)
+    target_compile_options(uke-installer-job-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    add_test(NAME ure-durable-recovery-image-install COMMAND uke-installer-job-tests ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(ure-durable-recovery-image-install PROPERTIES TIMEOUT 300)
     add_executable(uke-ure-tests ../../../../../tests/ure/test.cpp)
     target_include_directories(uke-ure-tests PRIVATE libuke)
     target_link_libraries(uke-ure-tests PRIVATE uke-recovery)

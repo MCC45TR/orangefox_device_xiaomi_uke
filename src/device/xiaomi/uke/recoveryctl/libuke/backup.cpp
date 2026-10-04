@@ -47,6 +47,7 @@ Value source_state(int fd) {
 }
 std::string plan_seal(Value plan) { plan.removeMember("plan_sha256"); return sha256(json(plan)); }
 void check_plan(const Value& plan) {
+    require(plan.isObject(),"invalid-backup","Backup manifest must be an object");
     const bool file=plan["source_kind"]=="regular-file",storage=plan["source_kind"]=="storage-image" || plan["source_kind"]=="live-block";
     require(((plan["schema"]==1 && file) || (plan["schema"]==2 && storage)) && plan["format"]=="ure-chunked-backup" &&
         plan["firmware_profile"].isString() && identifier(plan["firmware_profile"].asString()) &&
@@ -74,7 +75,7 @@ void check_plan(const Value& plan) {
     std::uint64_t offset=0,index=0;
     for(const auto& chunk:plan["chunks"]) {
         const auto size=std::min(chunk_bytes,bytes-offset);
-        require(chunk["index"].isUInt64() && chunk["index"].asUInt64()==index && chunk["offset"].isUInt64() &&
+        require(chunk.isObject() && chunk["index"].isUInt64() && chunk["index"].asUInt64()==index && chunk["offset"].isUInt64() &&
             chunk["offset"].asUInt64()==offset && chunk["bytes"].isUInt64() && chunk["bytes"].asUInt64()==size &&
             chunk["sha256"].isString() && hash_valid(chunk["sha256"].asString()),"invalid-backup","Non-contiguous or malformed chunk manifest");
         offset+=size; ++index;
@@ -299,9 +300,9 @@ Value backup_capture(const Root& root, const Value& plan, const fs::path& direct
 Value backup_verify(const fs::path& directory) {
     auto store=private_directory(directory,false); return verify_store(store,store_plan(store));
 }
-Value filesystem_replacement_backup(const Root& system,const StorageTarget& target,const Root& staged,const std::string& file,
-                                    const fs::path& destination,const std::string& profile) {
-    // A filesystem transformation is deliberately bound to the ORIGINAL inode
+Value prepared_replacement_backup(const Root& system,const StorageTarget& target,const Root& staged,const std::string& file,
+                                  const fs::path& destination,const std::string& profile,ReplacementOrigin origin) {
+    // A reviewed replacement is deliberately bound to the ORIGINAL inode
     // or unit. This adapter cannot restore an unrelated file or alter geometry.
     require(identifier(profile),"invalid-profile","A transformation profile is required"); storage_revalidate(target,&system);
     auto input=staged.open(file,O_RDONLY|O_NONBLOCK); const auto original=source_state(input.get());
@@ -313,8 +314,9 @@ Value filesystem_replacement_backup(const Root& system,const StorageTarget& targ
     Value plan; plan["schema"]=2; plan["source_kind"]=target.identity["kind"]=="live-block" ? "live-block" : "storage-image";
     plan["source_identity"]=target.identity; plan["root_identity"]["context"]="storage-target"; plan["firmware_profile"]=profile;
     plan["atomic_snapshot"]=false; plan["restore_authorized"]=false; plan["filesystem"]=filesystem_probe(input.get());
-    plan["coherence"]="private staged filesystem transformation, revalidated and bound to the original target";
-    plan["prepared_file_identity"]=original; plan["content_origin"]="reviewed-filesystem-transformation";
+    plan["coherence"]="private staged replacement, revalidated and bound to the original target";
+    plan["prepared_file_identity"]=original;
+    plan["content_origin"]=origin==ReplacementOrigin::RecoveryImage ? "reviewed-recovery-image" : "reviewed-filesystem-transformation";
     plan=scan_plan(input.get(),plan,16*1024*1024); auto store=private_directory(destination,true); auto lock=lock_store(store);
     store.save_record("plan.json",plan);
     for(const auto& chunk:plan["chunks"]) {
@@ -326,6 +328,10 @@ Value filesystem_replacement_backup(const Root& system,const StorageTarget& targ
     require(json(source_state(input.get()))==json(original) && ::fsync(store.fd())==0,"stale-source","Staged filesystem changed after capture");
     auto progress=verify_store(store,plan); require(progress["verified"]==true,"backup-corrupt","Transformed filesystem backup is incomplete");
     store.save_record("progress.json",progress); return progress;
+}
+Value filesystem_replacement_backup(const Root& system,const StorageTarget& target,const Root& staged,const std::string& file,
+                                    const fs::path& destination,const std::string& profile) {
+    return prepared_replacement_backup(system,target,staged,file,destination,profile,ReplacementOrigin::FilesystemTransformation);
 }
 void backup_export(const Root& root, const Value& plan, std::uint64_t index, int output_fd) {
     StreamSource source(root,plan);
@@ -362,7 +368,7 @@ bool storage_binding(const Value& current,const Value& expected) {
     return true;
 }
 void check_restore_plan(const Value& plan) {
-    require(plan["schema"]==1 && plan["operation"]=="storage.restore" &&
+    require(plan.isObject() && plan["schema"]==1 && plan["operation"]=="storage.restore" &&
         plan["operation_id"].isString() && identifier(plan["operation_id"].asString()) &&
         plan["backup_directory"].isString() && fs::path(plan["backup_directory"].asString()).is_absolute() &&
         plan["backup_root_identity"].isObject() && plan["backup_root_identity"]["device"].isUInt64() &&
@@ -456,7 +462,13 @@ bool complete_mirror(const Root& journal,const std::string& name,Value* manifest
     if(!journal.exists(name))return false;
     const auto store=mirror_root(journal,name);
     if(!store.exists("plan.json")) {
-        for(const auto& file:store.list("."))require(file==".lock","invalid-journal","Unidentified files in a restore mirror");
+        for(const auto& file:store.list(".")) {
+            const auto st=store.stat(file);
+            const bool unpublished=file.starts_with(".ure-record-") && file.size()==44 &&
+                std::all_of(file.begin()+12,file.end(),[](char c){return (c>='0' && c<='9') || (c>='a' && c<='f');}) &&
+                S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_uid==::geteuid() && (st.st_mode & 07777)==0600;
+            require(file==".lock" || unpublished,"invalid-journal","Unidentified files in a restore mirror");
+        }
         return false;
     }
     const auto plan=store_plan(store); if(manifest)*manifest=plan;
@@ -470,7 +482,9 @@ void mirror_chunks(const Root& journal,const std::string& name,const Value& mani
     auto store=mirror_root(journal,name); auto lock=lock_store(store);
     if(store.exists("plan.json"))require(json(store_plan(store))==json(manifest),"wrong-backup","Restore mirror manifest differs");
     else {
-        for(const auto& file:store.list("."))require(file==".lock","invalid-journal","Unidentified files in a restore mirror");
+        // complete_mirror validates private unpublished record artifacts before
+        // this path; an interrupted first publication is safe to retry.
+        require(!complete_mirror(journal,name),"invalid-journal","Unexpected complete mirror without a manifest");
         store.save_record("plan.json",manifest);
     }
     auto progress=verify_store(store,manifest);
@@ -560,10 +574,13 @@ RestoreReview review_restore(const Root& system,const StorageTarget& target,cons
                 const auto size=static_cast<std::size_t>(std::min<std::uint64_t>(65536,amount-position));
                 const auto was=storage_read(old.get(),position,size),will=storage_read(next.get(),position,size),now=storage_read(target.descriptor.get(),offset+position,size);
                 current.add(now); whole.add(now);
-                for(std::size_t j=0;j<size;++j) {
-                    chunk_original=chunk_original && now[j]==was[j]; chunk_wanted=chunk_wanted && now[j]==will[j];
-                    chunk_expected=chunk_expected && (now[j]==was[j] || now[j]==will[j]);
-                }
+                const bool segment_original=now==was,segment_wanted=now==will;
+                chunk_original=chunk_original && segment_original; chunk_wanted=chunk_wanted && segment_wanted;
+                // Whole matching buffers are already proven expected bytes.
+                // Inspect individual bytes only in a genuinely mixed segment;
+                // still read and hash every byte of every chunk independently.
+                if(chunk_expected && !segment_original && !segment_wanted)
+                    for(std::size_t j=0;j<size && chunk_expected;++j)chunk_expected=now[j]==was[j] || now[j]==will[j];
                 position+=size;
             }
             review.current_hashes.push_back(current.finish()); original=original && chunk_original; wanted=wanted && chunk_wanted; expected=expected && chunk_expected;
@@ -579,7 +596,8 @@ RestoreReview review_restore(const Root& system,const StorageTarget& target,cons
     restore_target(system,target,plan["target_identity"]);
     const bool image=plan["target_identity"]["kind"]=="regular-image";
     if(preparing && original) { result["recovery_actions"].append("cancel"); if(image && review.state["direction"]=="restore")result["recovery_actions"].append("resume"); }
-    if(original && (phase=="READY" || phase=="BACKUP_VERIFIED"))result["recovery_actions"].append("cancel");
+    if(original && (phase=="READY" || phase=="BACKUP_VERIFIED" || phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN"))
+        result["recovery_actions"].append("cancel");
     if(review.complete && image && expected && phase!="CANCELLED_SAFE" && phase!="ROLLED_BACK")result["recovery_actions"].append("rollback");
     if(review.complete && image && expected && review.state["direction"]=="restore" &&
         (phase=="READY" || phase=="BACKUP_VERIFIED" || phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN"))result["recovery_actions"].append("resume");
@@ -627,6 +645,10 @@ Value run_restore(const Root& system,StorageTarget& target,const Root& journal,c
         }
         restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "VERIFYING");
         journal_binding(path,journal); restore_target(system,target,review.plan["target_identity"]);
+        // Readback can observe dirty page-cache bytes after an earlier failed
+        // flush. Retrying an already matching target must still flush it before
+        // declaring a durable terminal boundary.
+        require(::fsync(target.descriptor.get())==0,"io-error","Cannot sync restored target before final readback");
         verified_target(target.descriptor.get(),manifest,"verification-error");
         state["verified"]=true; state["recovered_by_readback"]=state["written_chunks"].asUInt64()==0;
         state["sha256"]=manifest["sha256"]; restore_boundary(journal,state,rollback ? "ROLLED_BACK" : "COMMITTED");
@@ -656,12 +678,17 @@ Value restore_plan(const Root& system,const StorageTarget& target,const fs::path
     plan["host_streamed_restore"]=false; plan["plan_sha256"]=plan_seal(plan);
     require(json(plan).size()<=4*1024*1024,"size-limit","Restore plan exceeds the JSON budget"); check_restore_plan(plan); return plan;
 }
-Value restore_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation) {
+Value restore_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Root* retained_parent) {
     check_restore_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact reviewed restore plan SHA-256");
     storage_write_gate(target); RestoreTargetLock target_lock(target.descriptor.get());
     require(json(target.identity)==json(plan["target_identity"]),"stale-device","Target metadata changed since restore planning");
     storage_revalidate(target,&system); verified_target(target.descriptor.get(),plan["before"],"stale-source");
-    auto journal=private_directory(directory,true); auto lock=lock_store(journal); journal.save_record("plan.json",plan);
+    if(retained_parent) {
+        Root current(directory.parent_path());
+        require(json(root_state(current))==json(root_state(*retained_parent)),"changed-journal","Restore parent pathname was replaced");
+    }
+    auto journal=retained_parent ? private_subdirectory(*retained_parent,directory.filename().string(),true) : private_directory(directory,true);
+    journal_binding(directory,journal); auto lock=lock_store(journal); journal.save_record("plan.json",plan);
     Value state; state["schema"]=1; state["operation"]="storage.restore"; state["operation_id"]=plan["operation_id"];
     state["plan_sha256"]=plan["plan_sha256"]; state["direction"]="restore"; state["private_record"]=true; state["physical_test_record"]=false;
     restore_boundary(journal,state,"VALIDATED");
@@ -699,7 +726,7 @@ Value restore_cancel(const Root& system,const StorageTarget& target,const fs::pa
     auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_restore(system,target,journal);
     require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the reviewed restore cancellation SHA-256");
-    require(restore_action(review.result,"cancel"),"unsafe-cancel","Only an original, verified pre-execution target permits safe cancellation");
+    require(restore_action(review.result,"cancel"),"unsafe-cancel","Safe cancellation requires complete original-byte verification and an eligible nonterminal phase");
     review.state["verified"]=true; restore_boundary(journal,review.state,"CANCELLED_SAFE"); return review.state;
 }
 namespace {

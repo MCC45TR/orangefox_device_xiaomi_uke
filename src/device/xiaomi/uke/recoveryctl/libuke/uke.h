@@ -53,6 +53,7 @@ public:
     void save_record(const std::string& relative, const Value& value, bool replace = false) const;
 };
 Root private_directory(const fs::path& path, bool create);
+Root private_subdirectory(const Root& parent, const std::string& name, bool create);
 std::vector<std::string> components(std::string_view relative);
 bool identifier(std::string_view input);
 bool uuid(std::string_view input);
@@ -153,6 +154,17 @@ Value filesystem_operation_execute(const Root& system, StorageTarget& target, co
 Value filesystem_operation_recover(const Root& system, StorageTarget& target, const fs::path& journal, const std::string& operation, const std::string& confirmation = {});
 Value filesystem_replacement_backup(const Root& system, const StorageTarget& target, const Root& staged, const std::string& file,
                                     const fs::path& destination, const std::string& profile);
+enum class ReplacementOrigin { FilesystemTransformation, RecoveryImage };
+Value prepared_replacement_backup(const Root& system, const StorageTarget& target, const Root& staged, const std::string& file,
+                                  const fs::path& destination, const std::string& profile, ReplacementOrigin origin);
+// Executable transaction model for private regular images only. Neither a
+// declared firmware name nor a fixture slot establishes device admission.
+Value recovery_install_prepare(const Root& system, const StorageTarget& target, const StorageTarget& fallback,
+                              const Root& staged, const std::string& file, const Value& request, const fs::path& backup);
+Value recovery_install_execute(const Root& system, StorageTarget& target, const StorageTarget& fallback,
+                              const Value& plan, const fs::path& journal, const std::string& confirmation);
+Value recovery_install_recover(const Root& system, StorageTarget& target, const StorageTarget& fallback,
+                              const fs::path& journal, const std::string& action, const std::string& confirmation = {});
 Value partition_job_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
 Value partition_job_execute(const Root& system, StorageTarget& target, const Value& plan,
                             const fs::path& journal, const std::string& confirmation);
@@ -242,7 +254,7 @@ Value restore_stream_cancel(const Root& system, const StorageTarget& target, con
 Value restore_plan(const Root& system, const StorageTarget& target, const fs::path& backup,
                    const std::string& profile);
 Value restore_execute(const Root& system, StorageTarget& target, const Value& plan,
-                      const fs::path& journal, const std::string& confirmation);
+                      const fs::path& journal, const std::string& confirmation, const Root* retained_parent = nullptr);
 Value restore_inspect(const Root& system, const StorageTarget& target, const fs::path& journal);
 Value restore_resume(const Root& system, StorageTarget& target, const fs::path& journal,
                      const std::string& confirmation);

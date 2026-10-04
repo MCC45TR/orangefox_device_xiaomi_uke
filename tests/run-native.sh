@@ -73,5 +73,8 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.read_only_mounts_preserve_no_replay_options=true' \
     | jq '.validation.production_bounded_unicode_scalars=true | .validation.production_text_raster_parser_and_cache_budgets=true |
         .validation.production_text_allocation_failure_and_rotated_clipping=true | .validation.reviewed_source_stack_unknown_changes_refused=true' \
+    | jq '.validation.durable_recovery_image_installer_and_initial_publication_sigkill=true |
+        .validation.installer_source_independent_resume_and_rollback=true | .validation.readback_only_restore_retries_target_fsync=true |
+        .validation.volatile_legacy_installer_removed=true | .validation.physical_installer_durability=false' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

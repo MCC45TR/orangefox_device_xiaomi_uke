@@ -33,6 +33,9 @@ static Value usage() {
     result["commands"]=Value(Json::arrayValue);
     for(const auto* command : {
         "capabilities", "device info|firmware", "storage inventory|graph|mounts|health",
+        "installer image-prepare REQUEST --image ACTIVE_IMAGE --fallback-image INACTIVE_IMAGE --root STAGED --content-file NAME --backup NEW_STORE --output PLAN (regular-image fixtures only)",
+        "installer image-execute PLAN --image ACTIVE_IMAGE --fallback-image INACTIVE_IMAGE --journal NEW_DIR --confirm SHA256",
+        "installer image-inspect|image-resume|image-rollback|image-cancel JOURNAL --image ACTIVE_IMAGE --fallback-image INACTIVE_IMAGE [--confirm SHA256]",
         "display preview FRAMEBUFFER_WIDTH FRAMEBUFFER_HEIGHT THEME_WIDTH THEME_HEIGHT PERCENT",
         "display settings-load DIRECTORY", "display settings-save DIRECTORY PERCENT (dedicated private storage; no mounts)",
         "gpt inspect --image IMAGE --sector-size 4096", "filesystem inspect|check --image IMAGE",

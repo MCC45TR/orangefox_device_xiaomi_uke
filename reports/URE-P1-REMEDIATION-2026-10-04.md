@@ -9,7 +9,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 |---|---|---|
 | AUD-002 | Bounded UTF-8 scalar decoding; exhaustive exact-source native and sanitizer controls passed | Fresh target and combined guest |
 | AUD-003 | Checked raster/parser budgets, bounded global caches, font ownership and clipping; production native and sanitizer controls passed | Fresh target and combined visual guest |
-| AUD-004 | Next: durable installer boundary | Source and fixture remediation pending |
+| AUD-004 | Volatile writer removed; persistent regular-image installer, atomic first records, interrupted preparation recovery, exact fallback/plan/path binding and checked terminal fsync; five native and five sanitizer controls passed | Fresh target/combined guest; live installation explicitly unavailable pending physical fallback and durability admission |
 | AUD-005 | Common transaction ownership | Pending |
 | AUD-006 | Exact installed model/profile/geometry admission | Pending; physical evidence unavailable |
 | AUD-007 | Prefix versus complete boot-layout restoration | Pending |
@@ -28,7 +28,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-030 | Localization generator owner lifetime | Pending |
 | AUD-031 | Translation context and provenance | Pending; competent semantic review separate |
 | AUD-033 | Btrfs receive/restore and shipping-kernel admission | Pending; physical kernel acceptance separate |
-| AUD-034 | Android, boot and hardware capability reasons | Pending; donor comparison in progress |
+| AUD-034 | Android, boot and hardware capability reasons; pinned donor USB/touch readiness and module/service closure compared | Implementation pending; source comparison is not hardware acceptance |
 | AUD-035 | Authenticated manifest/payload and rollback policy | Pending; production trust remains unconfigured |
 
 These are engineering results, not claims that every capability is implemented
@@ -46,3 +46,14 @@ pre-raster admission, font generation and rotated texture-origin corrections;
 each was reconciled with a focused regression. Historical failures remain in
 private build logs and dated project lessons. Full VM and release results are
 not inferred from these focused checks.
+
+AUD-004's final focused native set passed 5/5 in 70.39 seconds, and pinned
+Clang ASan/UBSan/leak checks passed 5/5 in 99.97 seconds. The full 100 MiB
+installer model passed in 58.54 and 62.92 seconds respectively. Its controls
+include both fixture slots, actual creator/writer SIGKILL, persistent mirrors,
+source-independent resume/rollback, short writes/EINTR, failed and repeatedly
+failed target fsync, foreign raw journals, replaced wrapper paths and unchanged
+inactive-image byte oracles. The initial sanitizer trial exceeded 300 seconds;
+buffer comparison removed a per-byte classification bottleneck while preserving
+complete hashing and mixed-byte inspection. Existing raw/stream/file-transaction
+regressions passed again. These receipts cover source/host fixtures only.
