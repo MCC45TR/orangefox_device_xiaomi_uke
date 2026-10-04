@@ -6,6 +6,13 @@ A device-specific OrangeFox recovery for POCO Pad X1 and Xiaomi Pad 7 (`uke`, SM
 
 Release candidates use [separate fastboot-boot, recovery-flash and ZIP assets](docs/PRE-RELEASE.md); none is interchangeable with another. [A/B, OTA, boot-selection and encryption support](docs/RECOVERY-VERSION-GATES.md) is tracked by device and firmware, not by configuration flags alone.
 
+Current-source builds [refuse legacy device mutations](docs/RECOVERY-WRITE-POLICY.md)
+at their native entry points, including stock Format Data, package installation,
+writable mounts, fastbootd writes and the installer. Confirmation or advanced
+mode cannot accept the unfinished live backend. Earlier sealed images are
+unchanged; the [write-refusal tests](docs/WRITE-GATE-VM-TESTS.md) describe the
+separate host and generic-guest validation.
+
 ## Planned capabilities
 
 - OrangeFox installation, backup/restore, ADB, sideload, MTP and fastbootd with verified target selection.

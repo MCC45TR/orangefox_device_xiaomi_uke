@@ -51,6 +51,28 @@ sanitizer_record=null
 gui_vm_record=null
 stock_namespace_record=null
 functional_vm_records=null
+write_gate_vm_record=null
+if [[ $candidate == ure-write-gate-alpha ]]; then
+    cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
+    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
+        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==27 and .validation.address_sanitizer and
+         .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
+        "$component/reports/private/partition-sanitizer-verification.json" >/dev/null
+    jq -e --arg runner "$(sha256sum "$component/tests/check-write-gate-vm.sh" | cut -d' ' -f1)" \
+        --arg binary "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
+        --arg adapted "$(sha256sum "$component/build/gui-vm/recovery-vm" | cut -d' ' -f1)" \
+        '.passed and .validation_kind=="qemu-system-adapted-orangefox-native-write-gate" and
+         .runner_sha256==$runner and .shipping_recovery_sha256==$binary and .adapted_recovery_sha256==$adapted and
+         .rpc_result_count==21 and (.checks|length)==21 and .writable_qemu_attachments and .guest_filesystem_mounts_read_only and
+         (.host_block_attachment==false) and (.physical_device==false) and (.shipping_kernel_test==false) and
+         (.unmodified_shipping_gui_test==false) and (.complete_feature_acceptance==false)' \
+        "$component/reports/private/write-gate-vm-verification.json" >/dev/null
+    cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
+    cp -- "$component/reports/private/write-gate-vm-verification.json" "$destination/WRITE-GATE-VM-VERIFICATION.json"
+    cp -- "$component/docs/RECOVERY-WRITE-POLICY.md" "$destination/"
+    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
+    write_gate_vm_record=$(cat "$destination/WRITE-GATE-VM-VERIFICATION.json")
+fi
 if [[ $candidate == ure-rescue-filesystems-alpha ]]; then
     fixture="$out/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture/android_recovery_arm64_armv8-a/uke-btrfs-vm-fixture"
     jq -e --arg runner "$(sha256sum "$component/tests/check-btrfs-vm.sh" | cut -d' ' -f1)" \
@@ -258,6 +280,7 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     --arg avbtool_commit "$(git -C "$component/src/upstream/orangefox-android16/external/avb" rev-parse HEAD)" \
     --arg kernel "$kernel_hash" --arg ramdisk "$ramdisk_hash" --argjson ramdisk_bytes "$ramdisk_bytes" \
     '{schema_version:2,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,functional_vm_records:$functional_vm,validation:{compile:true,header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
+    | jq --argjson write_gate_vm "$write_gate_vm_record" '.write_gate_vm_record=$write_gate_vm' \
     > "$destination/ARTIFACT-MANIFEST.json"
 # Hash every generated public release file once, including source snapshots.
 (cd -- "$destination" && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)

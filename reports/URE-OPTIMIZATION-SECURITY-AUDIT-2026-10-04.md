@@ -6,6 +6,15 @@ is that stock OrangeFox formatting can reach a live partition without the URE
 write policy. Read-only fstab entries and disabled decryption do not close that
 path. A malformed-text decoder defect was also reproduced with AddressSanitizer.
 
+**Superseding AUD-001 remediation:** the new [shared native policy](../docs/RECOVERY-WRITE-POLICY.md)
+refuses managed legacy writers before their side effects. Its 111-entry census,
+27 native tests, 27 sanitizer tests and 21 focused generic-guest requests passed;
+both complete disposable media hashes were unchanged. The review also corrected
+fastbootd's readonly partition-size caller. This update applies to the new source
+and payload, not previously sealed candidates. Broad package acceptance and
+physical device writes remain unavailable. The original findings below retain
+their historical evidence; the P1/P2 follow-up is separate.
+
 This report lists 37 findings and follow-up requirements. They are not 37
 reproduced failures: each entry identifies its evidence class. Performance gains
 are proposals until a controlled benchmark establishes them. No safety check,

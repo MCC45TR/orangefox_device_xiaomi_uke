@@ -50,6 +50,8 @@ for marker in ure-linux-boot-audit filesystem.manage btrfs.manage linux.rescue p
 done
 strings "$work/root/system/bin/recovery" | rg -F 'boot-route-stage-fixture' >/dev/null
 bash "$component/tests/check-write-gate.sh"
+cmp "$tree/bootable/recovery/gui/theme/common/languages/en.xml" "$work/root/twres/languages/en.xml"
+[[ $(xmllint --xpath 'count(/language/resources/string[@name="ure_device_write_blocked"])' "$work/root/twres/languages/en.xml") == 1 ]]
 for binary in recovery fastbootd uke-recovery-install; do
     strings "$work/root/system/bin/$binary" | rg -F 'ure-legacy-write-unavailable' >/dev/null
     cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/$binary" "$work/root/system/bin/$binary"
