@@ -48,6 +48,7 @@ cd "$component"
     printf '%s\0' tests/check-device-profile.sh
     printf '%s\0' tests/check-partition-capabilities.sh
     printf '%s\0' tests/check-populated-filesystems.sh
+    printf '%s\0' tests/with-rescue-cgroup.sh
     # Optional owner work can be consumed by the GUI fixture scaffolding. Its
     # exact inputs belong in a local receipt even before a separate review.
     for path in src/device/xiaomi/uke/ure-localization.hpp src/device/xiaomi/uke/ure-locale-keys.hpp; do

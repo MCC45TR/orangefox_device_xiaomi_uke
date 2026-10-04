@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
-# Native execution in disposable roots and user namespaces; no installed OS is changed.
+# Native execution in disposable roots, namespaces and a fresh delegated host
+# cgroup; no installed OS or existing desktop/service cgroup is changed.
 set -euo pipefail
+umask 077
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ${1:-} != --isolated-cgroup ]]; then
+    exec bash "$component/tests/with-rescue-cgroup.sh" bash "$component/tests/check-rescue.sh" --isolated-cgroup "$@"
+fi
+shift
+[[ $# == 0 ]]
 binary=${UKE_RECOVERYCTL_BINARY:-$component/build/ure-host/uke-recoveryctl}
 fixture=$(mktemp -d /tmp/ure-rescue-XXXXXX)
 # The privileged test namespace has a distinct UID mapping. Its one domain is
@@ -27,12 +34,16 @@ call() {
     if ! "$binary" "$@" > "$fixture/result.json" || ! jq -e '.result=="ok"' "$fixture/result.json" >/dev/null; then cat "$fixture/result.json" >&2; return 1; fi
 }
 plan() {
+    jq '.resources={memory_mib:128,jobs:1,pids:32}' "$fixture/request.json" > "$fixture/request-bounded.json"
+    mv -- "$fixture/request-bounded.json" "$fixture/request.json"
     call linux rescue-plan "$fixture/request.json" --root "$fixture/root" --esp "$fixture/esp" --output "$fixture/plan-$1.json"
     hash=$(jq -r .plan_sha256 "$fixture/plan-$1.json")
 }
 execute() { call linux rescue-execute "$fixture/plan-$1.json" --root "$fixture/root" --esp "$fixture/esp" --journal "$fixture/job-$1" --confirm "$hash"; }
 mounts=$(cat /proc/self/mountinfo)
 jq -n --arg input 'test -d /proc/1 && test -d /sys/devices && test -c /dev/null && test -f /boot/efi/marker || exit 7
+if test -e /proc/1/root/etc/passwd || test -r /proc/1/fd/3; then exit 12; fi
+if printf "1000" > /proc/self/oom_score_adj; then exit 13; fi
 if printf bad > /etc/forbidden; then exit 8; fi
 if printf bad > /boot/efi/marker; then exit 9; fi
 printf runtime > /run/session-marker
@@ -43,7 +54,7 @@ exit 0
 plan readonly
 jq -e '.distribution_family=="arch" and .connections[0].method=="selected-esp" and .raw_block_devices_exposed==false' "$fixture/plan-readonly.json" >/dev/null
 execute readonly
-jq -e '.data.state=="COMPLETE" and .data.namespace_worker_reaped and .data.session_mounts_released and .data.descendants_bound_to_pid_namespace and (.data.cleanup_pending|not)' "$fixture/result.json" >/dev/null
+jq -e '.data.state=="COMPLETE" and .data.namespace_worker_reaped and .data.session_mounts_released and .data.descendants_bound_to_pid_namespace and (.data.cleanup_pending|not) and .data.resource_enforcement.aggregate_limits_enforced and .data.resource_group_lifetime_verified and .data.resource_enforcement.group_removed_verified' "$fixture/result.json" >/dev/null
 rg -q URE_ARCH_SESSION "$fixture/job-readonly/console.log"
 [[ ! -e $fixture/root/etc/forbidden && ! -e $fixture/root/run/session-marker && $(cat "$fixture/esp/marker") == 'selected ESP' ]]
 [[ $(cat /proc/self/mountinfo) == "$mounts" && ! -e $fixture/job-readonly/mount-root ]]
@@ -57,6 +68,19 @@ plan timeout
 if "$binary" linux rescue-execute "$fixture/plan-timeout.json" --root "$fixture/root" --esp "$fixture/esp" --journal "$fixture/job-timeout" --confirm "$hash" > "$fixture/result.json"; then exit 1; fi
 jq -e '.data.state=="TIMED_OUT" and (.data.successful|not) and .data.session_mounts_released and .data.descendants_bound_to_pid_namespace and (.data.cleanup_pending|not)' "$fixture/result.json" >/dev/null
 [[ $(cat /proc/self/mountinfo) == "$mounts" && ! -e $fixture/job-timeout/mount-root ]]
+jq -n '{schema:1,action:"shell",write:false,network:false,timeout_seconds:10,shell_input:"/usr/bin/sleep 30 &\n/usr/bin/sleep 30\n"}' > "$fixture/request.json"
+plan cancel
+"$binary" linux rescue-execute "$fixture/plan-cancel.json" --root "$fixture/root" --esp "$fixture/esp" --journal "$fixture/job-cancel" --confirm "$hash" > "$fixture/cancelled.json" &
+session=$!
+for ((attempt=0;attempt<200;attempt++)); do
+    if [[ -f $fixture/job-cancel/state.json ]] && jq -e '.state=="RUNNING"' "$fixture/job-cancel/state.json" >/dev/null; then break; fi
+    sleep 0.01
+done
+call linux rescue-cancel "$fixture/job-cancel" --confirm "$hash"
+jq -e '.data.state=="CANCEL_REQUESTED" and (.data.cleanup_complete|not) and (.data.operation_owner_released|not)' "$fixture/result.json" >/dev/null
+if wait "$session"; then exit 1; fi
+jq -e '.data.state=="CANCELLED" and .data.session_mounts_released and .data.resource_group_lifetime_verified and (.data.cleanup_pending|not) and .data.operation_owner_released' "$fixture/cancelled.json" >/dev/null
+[[ $(cat /proc/self/mountinfo) == "$mounts" && ! -e $fixture/job-cancel/mount-root ]]
 plan stale
 printf 'ID=fedora\nNAME=Fedora fixture\n' > "$fixture/root/etc/os-release"
 if "$binary" linux rescue-execute "$fixture/plan-stale.json" --root "$fixture/root" --esp "$fixture/esp" --journal "$fixture/job-stale" --confirm "$hash" > "$fixture/rejected.json"; then exit 1; fi
@@ -67,12 +91,12 @@ plan fedora
 jq -e '.distribution_family=="fedora" and .arguments==["--rebuilddb"]' "$fixture/plan-fedora.json" >/dev/null
 execute fedora
 jq -e '.data.state=="COMPLETE" and .data.session_mounts_released' "$fixture/result.json" >/dev/null
-printf '%s\n' 'Arch/Fedora dispatch, automatic selected ESP, isolated native chroot, read-only policy, writable choice, stale-plan rejection, descendant cleanup and timeout fixtures passed.'
+printf '%s\n' 'Host-only real cgroup + namespace fixtures: Arch/Fedora dispatch, selected ESP, read-only/writable choice, supervisor descriptor protection, stale plan, descendant cleanup, timeout and exact-owner cancellation passed. Real package repair, GUI rendering, target kernel and physical acceptance remain separate.'
 SH
 bwrap --unshare-user --unshare-pid --uid 0 --gid 0 --new-session --die-with-parent \
     --cap-add CAP_SYS_ADMIN --cap-add CAP_CHOWN --cap-add CAP_DAC_OVERRIDE --cap-add CAP_FOWNER \
     --cap-add CAP_SETUID --cap-add CAP_SETGID --cap-add CAP_SETFCAP --cap-add CAP_SYS_CHROOT \
-    --ro-bind / / --bind "$fixture" "$fixture" --bind "$operation_scope" "$operation_scope" --dev /dev --proc /proc \
+    --ro-bind / / --bind /sys/fs/cgroup /sys/fs/cgroup --bind "$fixture" "$fixture" --bind "$operation_scope" "$operation_scope" --dev /dev --proc /proc \
     --setenv URE_OPERATION_COORDINATOR "$operation_scope/coordinator" \
     -- bash "$fixture/inside.sh" "$binary" "$fixture"
 [[ ! -f $operation_scope/coordinator/owner.json ]]

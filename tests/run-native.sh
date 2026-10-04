@@ -44,6 +44,7 @@ bash scripts/check-ui-icons.sh
 bash tests/check-drm-surface.sh
 bash tests/check-filesystems.sh
 bash tests/check-rescue.sh
+bash tests/with-rescue-cgroup.sh "$component/build/ure-host/uke-rescue-resource-stress"
 bash tests/check-boot-audit.sh
 bash tests/check-boot-router.sh
 UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/check-recoveryctl.sh
@@ -87,5 +88,9 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
     | jq '.validation.cooperative_common_operation_ownership=true | .validation.production_lifecycle_and_mount_refusals=true |
         .validation.tree_restore_retained_owner_recovery=true | .validation.android_operation_coordinator_accepted=false |
         .validation.physical_ownership_durability=false' \
+    | jq '.validation.rescue_aggregate_cgroup_controls=true | .validation.rescue_bounded_allocation_fork_cpu_and_termination=true |
+        .validation.rescue_owner_bound_cancel=true | .validation.rescue_admission_refusal_and_retained_cleanup=true |
+        .validation.rescue_gui_latency=false | .validation.shipping_rescue_resource_backend_accepted=false |
+        .validation.rescue_external_restart_recovery=false' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

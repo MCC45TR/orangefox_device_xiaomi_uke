@@ -49,7 +49,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="storage")return op=="preflight" || op=="profile-status" || op=="profile-compare-fixture";
     if(command=="boot")return op.starts_with("route-");
-    if(command=="linux")return op=="audit" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect";
+    if(command=="linux")return op=="audit" || op=="rescue-capabilities" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect" || op=="rescue-cancel";
     if(command=="btrfs")return op=="control" || op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
         op=="subvolume-info" || op=="snapshot-plan" || op=="snapshot-execute" || op=="send-plan" || op=="send-capture" || op=="send-verify" || op=="backup-inspect" || op=="stream-check";
     return false;
@@ -165,6 +165,8 @@ Value management_dispatch(std::vector<std::string> args) {
         return filesystem_operation_recover(system,selected,words[2],operation=="inspect-journal" ? "inspect" : operation,operation=="inspect-journal" ? "" : options.need("--confirm"));
     }
     if(command=="linux") {
+        if(operation=="rescue-capabilities") { positional(options,2); options.allow({}); return rescue_resource_capabilities(); }
+        if(operation=="rescue-cancel") { positional(options,3); options.allow({"--confirm"}); return linux_rescue_cancel(words[2],options.need("--confirm")); }
         if(operation=="rescue-inspect") { positional(options,3); options.allow({}); auto store=private_directory(words[2],false); Value out;
             out["plan"]=parse_json(store.read("plan.json")); out["state"]=parse_json(store.read("state.json")); return out; }
         require(options.has("--root"),"root-required","Select an already mounted Linux root");

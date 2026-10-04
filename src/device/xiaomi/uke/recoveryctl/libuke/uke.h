@@ -144,6 +144,8 @@ Value linux_boot_audit(const Root& root, const Root* esp = nullptr);
 Value linux_rescue_plan(const Root& root, const Value& request, const Root* esp = nullptr);
 Value linux_rescue_execute(const Root& root, const Value& plan, const fs::path& journal,
                            const std::string& confirmation, const Root* esp = nullptr);
+Value rescue_resource_capabilities();
+Value linux_rescue_cancel(const fs::path& journal, const std::string& confirmation);
 void filesystem_tree_gate(int fd);
 void filesystem_tree_outside(int source, int destination);
 Value descriptor_identity(int fd);

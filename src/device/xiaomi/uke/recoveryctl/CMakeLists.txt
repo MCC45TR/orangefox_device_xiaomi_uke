@@ -16,7 +16,7 @@ target_include_directories(uke-jsoncpp SYSTEM PUBLIC ${UKE_JSONCPP_SOURCE}/inclu
 target_compile_definitions(uke-jsoncpp PRIVATE JSON_USE_EXCEPTION=0 JSONCPP_NO_LOCALE_SUPPORT)
 add_library(uke-recovery STATIC libuke/core.cpp libuke/storage.cpp libuke/systems.cpp libuke/boot_audit.cpp libuke/boot_router.cpp libuke/editor.cpp
     libuke/transaction.cpp libuke/backup.cpp libuke/installer_job.cpp libuke/tree.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
-    libuke/preflight.cpp libuke/device_profile.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/image_ranges.cpp libuke/stock_job.cpp libuke/rescue.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp libuke/operation_lease.cpp libuke/operation_guard.cpp libuke/lifecycle_bridge.cpp)
+    libuke/preflight.cpp libuke/device_profile.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/image_ranges.cpp libuke/stock_job.cpp libuke/rescue.cpp libuke/rescue_resources.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp libuke/operation_lease.cpp libuke/operation_guard.cpp libuke/lifecycle_bridge.cpp)
 target_compile_features(uke-recovery PUBLIC cxx_std_20)
 target_compile_options(uke-recovery PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
 target_link_libraries(uke-recovery PUBLIC uke-jsoncpp OpenSSL::Crypto ZLIB::ZLIB LibLZMA::LibLZMA ${UKE_ZSTD_LIBRARY})
@@ -318,10 +318,16 @@ if(BUILD_TESTING)
     add_executable(uke-rescue-lease-tests ../../../../../tests/ure/rescue_lease.cpp)
     target_include_directories(uke-rescue-lease-tests PRIVATE libuke)
     target_link_libraries(uke-rescue-lease-tests PRIVATE uke-recovery)
-    target_link_options(uke-rescue-lease-tests PRIVATE -Wl,--wrap=fork -Wl,--wrap=unshare -Wl,--wrap=mount)
+    target_link_options(uke-rescue-lease-tests PRIVATE -Wl,--wrap=fork -Wl,--wrap=unshare -Wl,--wrap=mount -Wl,--wrap=ure_create_rescue_resources)
     target_compile_options(uke-rescue-lease-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
     ure_test(ure-rescue-pre-init-ownership uke-rescue-lease-tests ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(ure-rescue-pre-init-ownership PROPERTIES TIMEOUT 30)
+    # Requires an explicitly isolated delegated host scope. Do not run this
+    # allocation/fork laboratory directly in CTest's desktop cgroup.
+    add_executable(uke-rescue-resource-stress ../../../../../tests/ure/rescue_stress.cpp)
+    target_include_directories(uke-rescue-resource-stress PRIVATE libuke)
+    target_link_libraries(uke-rescue-resource-stress PRIVATE uke-recovery)
+    target_compile_options(uke-rescue-resource-stress PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
     target_compile_features(uke-management-tests PRIVATE cxx_std_20)
     target_include_directories(uke-management-tests PRIVATE libuke)
     target_link_libraries(uke-management-tests PRIVATE uke-recovery)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
 #include "operation_guard.hpp"
+#include "rescue_resources.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -145,6 +146,21 @@ void drop_mount_capabilities() {
 void report_error(int fd,const std::string& code) {
     const auto message=code+"\n"; static_cast<void>(::write(fd,message.data(),message.size()));
 }
+Value private_record(const Root& store,const char* name,std::size_t limit) {
+    auto file=store.open(name,O_RDONLY|O_NONBLOCK); struct stat st{};
+    require(::fstat(file.get(),&st)==0 && S_ISREG(st.st_mode) && st.st_uid==::geteuid() && st.st_nlink==1 &&
+        (st.st_mode&07777)==0600 && st.st_size>=0 && static_cast<std::uint64_t>(st.st_size)<=limit,
+        "unsafe-rescue-journal","Rescue control records must be private owned single-link files");
+    return parse_json(storage_read(file.get(),0,static_cast<std::size_t>(st.st_size)));
+}
+bool cancellation_requested(const Root& store,const Value& plan) {
+    if(!store.exists("cancel.json"))return false;
+    const auto request=private_record(store,"cancel.json",4096);
+    require(request["schema"]==1 && request["operation_id"]==plan["operation_id"] &&
+        request["plan_sha256"]==plan["plan_sha256"] && request["cancel_requested"]==true,
+        "invalid-rescue-control","Cancellation does not match the retained rescue operation");
+    return true;
+}
 bool send_process_descriptor(int socket,int fd) {
     char marker='I'; iovec vector{&marker,1}; std::array<char,CMSG_SPACE(sizeof(int))> control{};
     msghdr message{}; message.msg_iov=&vector; message.msg_iovlen=1;
@@ -232,9 +248,12 @@ void child_setup(const Root& root,const Root* esp,const Value& plan,const std::s
     }
     const auto proc=anchor+"/proc",sys=anchor+"/sys",dev=anchor+"/dev",run=anchor+"/run",temp=anchor+"/tmp";
     for(const auto* directory:{"proc","sys","dev","run","tmp"}) { auto fd=mounted.open(directory,O_RDONLY|O_DIRECTORY); (void)fd; }
-    require(::mount("proc",proc.c_str(),"proc",MS_NOSUID|MS_NODEV|MS_NOEXEC,nullptr)==0,"mount-failed","Cannot mount the rescue process namespace");
+    require(::mount("proc",proc.c_str(),"proc",MS_RDONLY|MS_NOSUID|MS_NODEV|MS_NOEXEC,nullptr)==0,"mount-failed","Cannot mount the read-only rescue process namespace");
     Root host_sys("/sys"); attach(host_sys.fd(),sys,true);
-    tmpfs(dev,"size=4m,mode=0755"); tmpfs(run,"size=16m,mode=0755"); tmpfs(temp,"size=512m,mode=1777");
+    const auto temp_bytes=plan["resource_policy"]["tmpfs_bytes"].asUInt64();
+    const auto temp_options="size="+std::to_string(temp_bytes)+",nr_inodes="+
+        std::to_string(temp_bytes/4096)+",mode=1777";
+    tmpfs(dev,"size=4m,nr_inodes=1024,mode=0755"); tmpfs(run,"size=16m,nr_inodes=4096,mode=0755"); tmpfs(temp,temp_options.c_str());
     for(const auto* name:{"null","zero","random","urandom","tty"}) {
         const auto source=std::string("/dev/")+name,destination=dev+"/"+name; Fd output(::open(destination.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600));
         require(output.get()>=0 && ::mount(source.c_str(),destination.c_str(),nullptr,MS_BIND,nullptr)==0,"mount-failed","Cannot bind a minimal rescue character device");
@@ -248,7 +267,9 @@ void child_setup(const Root& root,const Root* esp,const Value& plan,const std::s
     std::vector<std::string> words{plan["executable"]["path"].asString()}; for(const auto& item:plan["arguments"])words.push_back(item.asString());
     std::vector<char*> argv; for(auto& word:words)argv.push_back(word.data()); argv.push_back(nullptr);
     char path[]="PATH=/usr/sbin:/usr/bin:/sbin:/bin",term[]="TERM=xterm-256color",locale[]="LC_ALL=C",home[]="HOME=/root",shell[]="SHELL=/bin/bash";
-    char* environment[]{path,term,locale,home,shell,nullptr};
+    const auto jobs=std::to_string(plan["resource_policy"]["job_limit"].asUInt());
+    auto makeflags="MAKEFLAGS=-j"+jobs,cmake_jobs="CMAKE_BUILD_PARALLEL_LEVEL="+jobs;
+    char* environment[]{path,term,locale,home,shell,makeflags.data(),cmake_jobs.data(),nullptr};
     ::fexecve(program.get(),argv.data(),environment); throw Error("exec-failed","Installed command or its ELF interpreter cannot run");
 }
 } // namespace
@@ -258,13 +279,17 @@ Value linux_rescue_plan(const Root& root,const Value& request,const Root* esp) {
     require(request.isObject() && request["schema"]==1 && request["action"].isString() && request["write"].isBool() && request["network"].isBool() &&
         request["timeout_seconds"].isUInt() && request["timeout_seconds"].asUInt()>=1 && request["timeout_seconds"].asUInt()<=7200,
         "invalid-rescue-request","Rescue requests require action, write/network choices and a bounded timeout");
-    for(const auto& key:request.getMemberNames())require(key=="schema" || key=="action" || key=="write" || key=="network" || key=="timeout_seconds" || key=="kernel_release" || key=="shell_input",
+    for(const auto& key:request.getMemberNames())require(key=="schema" || key=="action" || key=="write" || key=="network" || key=="timeout_seconds" || key=="kernel_release" || key=="shell_input" || key=="resources",
         "invalid-rescue-request","Unknown rescue request field");
     require(!request["network"].asBool(),"network-rescue-unavailable","Rescue currently uses an isolated network namespace");
     const auto action=request["action"].asString(),distribution=family(linux_detect(root)); const bool writable=request["write"].asBool();
     Value plan; plan["schema"]=1; plan["operation"]="linux.rescue"; plan["operation_id"]=operation_id(); plan["request"]=request;
     plan["root_identity"]=descriptor_identity(root.fd()); if(esp)plan["esp_identity"]=descriptor_identity(esp->fd());
     plan["distribution_family"]=distribution; plan["connections"]=mounted_connections(root,esp); plan["arguments"]=Value(Json::arrayValue);
+    plan["resource_policy"]=rescue_resource_policy(request);
+    plan["ownership_targets"]=operation_targets(operation_target(root.fd(),"rescue-root"));
+    if(esp)plan["ownership_targets"].append(operation_target(esp->fd(),"rescue-esp"));
+    for(const auto& connection:plan["connections"])plan["ownership_targets"].append(connection["identity"]);
     if(root.exists_resolved("etc/fstab"))plan["fstab_sha256"]=sha256(root.read_resolved("etc/fstab"));
     std::string executable_path;
     if(action=="shell") { executable_path=choose(root,{"usr/bin/bash","bin/bash"}); plan["arguments"].append("--noprofile"); plan["arguments"].append("--norc"); }
@@ -307,9 +332,11 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact rescue plan hash");
     auto refreshed=linux_rescue_plan(root,plan["request"],esp); refreshed["operation_id"]=plan["operation_id"]; refreshed["plan_sha256"]=seal(refreshed);
     require(json(refreshed)==json(plan),"stale-rescue-plan","Installed root, tools, script, fstab or connections changed since review");
-    Value targets=operation_targets(operation_target(root.fd(),"rescue-root"));
-    if(esp)targets.append(operation_target(esp->fd(),"rescue-esp"));
-    for(const auto& connection:plan["connections"])targets.append(connection["identity"]);
+    // Configure an empty kernel group before ownership or session effects. A
+    // missing backend cannot strand a journal or start an unbounded command.
+    std::unique_ptr<RescueResources> resources(ure_create_rescue_resources(&plan["resource_policy"],plan["operation_id"].asCString()));
+    require(resources!=nullptr,"rescue-resource-unavailable","Aggregate resource backend is unavailable");
+    const auto targets=plan["ownership_targets"];
     ManagedOperation operation(operation_binding("linux.rescue",plan,path,targets));
     refreshed=linux_rescue_plan(root,plan["request"],esp); refreshed["operation_id"]=plan["operation_id"]; refreshed["plan_sha256"]=seal(refreshed);
     require(json(refreshed)==json(plan),"stale-rescue-plan","Rescue plan changed during operation admission");
@@ -331,28 +358,45 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         require(::pipe2(capture,O_CLOEXEC)==0,"process-error","Cannot create private rescue console pipe"); console_read=Fd(capture[0]); console_write=Fd(capture[1]);
         require(::fcntl(console_read.get(),F_SETFL,O_NONBLOCK)==0,"io-error","Cannot make rescue console collection nonblocking");
     }
+    int barrier[2]{};
+    require(::socketpair(AF_UNIX,SOCK_SEQPACKET|SOCK_CLOEXEC,0,barrier)==0,"process-error","Cannot create the resource admission barrier");
+    Fd release_worker(barrier[0]),start_worker(barrier[1]);
     Fd init_process; RescueLifetime child_lifetime(init_process);
     // One retained parent intent covers every namespace, fork and mount below.
     // Children use this published ownership; they never borrow or retire its token.
     operation.begin("RESCUE_CHILD_AND_MOUNTS_STARTING");
+    auto failed_before_start=[&](const std::string& code,bool reaped) {
+        const auto cleaned=resources->finish();
+        require(::unlinkat(store.fd(),"mount-root",AT_REMOVEDIR)==0 && ::fsync(store.fd())==0,"cleanup-failed","Cannot remove unused rescue mount anchor");
+        state["state"]="FAILED_SAFE"; state["successful"]=false; state["error_code"]=code;
+        state["session_init_started"]=false; state["namespace_worker_reaped"]=reaped; state["session_mounts_released"]=true;
+        state["resource_group_released"]=cleaned; state["cleanup_pending"]=!cleaned;
+        state["operation_owner_retained"]=!cleaned;
+        state["target_contents_verified"]=false; state["ownership_lifetime_verified"]=cleaned; state["physical_test_record"]=false;
+        if(cleaned)state["resource_enforcement"]=resources->observation();
+        store.save_record("state.json",state,true); child_lifetime.released(); writer=Fd();
+        return cleaned ? operation.finish(state,true,true,"FAILED_SAFE") : state;
+    };
     const pid_t owner=::getpid(),worker=::fork();
     if(worker<0) {
-        require(::unlinkat(store.fd(),"mount-root",AT_REMOVEDIR)==0 && ::fsync(store.fd())==0,"cleanup-failed","Cannot remove unused rescue mount anchor after fork failure");
-        state["state"]="FAILED_SAFE"; state["successful"]=false; state["error_code"]="process-error";
-        state["error_message"]="Cannot create rescue namespace worker"; state["session_init_started"]=false;
-        state["namespace_worker_reaped"]=false; state["session_mounts_released"]=true; state["cleanup_pending"]=false;
-        state["target_contents_verified"]=false; state["ownership_lifetime_verified"]=true; state["physical_test_record"]=false;
-        store.save_record("state.json",state,true); child_lifetime.released(); writer=Fd();
-        return operation.finish(state,true,true,"FAILED_SAFE");
+        return failed_before_start("process-error",false);
     }
     if(worker==0) {
+        release_worker=Fd(); resources->close_in_child();
         output=Fd(); monitor=Fd(); console_read=Fd(); console=Fd(); ::prctl(PR_SET_PDEATHSIG,SIGKILL);
+        char go=0; ssize_t received;
+        do { received=::recv(start_worker.get(),&go,1,0); } while(received<0 && errno==EINTR);
+        if(received!=1 || go!='R' || ::getppid()!=owner)::_exit(125);
+        start_worker=Fd();
+        try { rescue_process_limits(plan["resource_policy"]); }
+        catch(const Error& error) { report_no_init(sender.get()); report_error(input.get(),error.code+"\t"+error.what()); ::_exit(125); }
         Fd lifetime(static_cast<int>(::syscall(SYS_pidfd_open,::getpid(),0)));
         if(lifetime.get()<0 || ::getppid()!=owner || ::unshare(CLONE_NEWNS|CLONE_NEWPID|CLONE_NEWIPC|CLONE_NEWUTS|CLONE_NEWNET)!=0) { report_no_init(sender.get()); report_error(input.get(),"namespace-unavailable"); ::_exit(125); }
         const pid_t init=::fork(); if(init<0) { report_no_init(sender.get()); report_error(input.get(),"process-error"); ::_exit(125); }
         if(init==0) {
             sender=Fd();
             ::prctl(PR_SET_PDEATHSIG,SIGKILL); pollfd lifetime_check{lifetime.get(),POLLIN,0};
+            if(::prctl(PR_SET_DUMPABLE,0)!=0)::_exit(125);
             if(::poll(&lifetime_check,1,0)>0)::_exit(125);
             try {
                 if(plan["request"].isMember("shell_input")) { int shell_pipe[2]{}; require(::pipe2(shell_pipe,O_CLOEXEC)==0,"process-error","Cannot create explicit shell input");
@@ -386,6 +430,18 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         ::_exit(waited==init ? (WIFEXITED(status) ? WEXITSTATUS(status) : 128+WTERMSIG(status)) : 125);
     }
     child_lifetime.started(worker);
+    start_worker=Fd();
+    try {
+        resources->attach_worker(worker); state["resource_enforcement"]=resources->observation();
+        store.save_record("state.json",state,true);
+        require(::send(release_worker.get(),"R",1,MSG_NOSIGNAL)==1,"rescue-resource-unavailable","Cannot release the bounded worker");
+    } catch(const Error& error) {
+        release_worker=Fd(); resources->kill_all(); static_cast<void>(::kill(worker,SIGKILL));
+        pid_t reaped; do { reaped=::waitpid(worker,nullptr,0); } while(reaped<0 && errno==EINTR);
+        require(reaped==worker,"process-error","Cannot collect a refused resource worker"); child_lifetime.reaped();
+        return failed_before_start(error.code,true);
+    }
+    release_worker=Fd();
     input=Fd(); sender=Fd(); console_write=Fd(); std::uint64_t logged=0; bool truncated=false,console_failed=false;
     auto collect_console=[&] {
         if(console_read.get()<0)return;
@@ -402,23 +458,34 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
     };
     state["state"]="RUNNING"; state["worker_pid"]=worker; store.save_record("state.json",state,true);
     const auto deadline=monotonic_ms()+static_cast<std::uint64_t>(plan["request"]["timeout_seconds"].asUInt())*1000;
-    int status=0; bool timeout=false,no_init=false; pid_t waited=0;
+    int status=0; bool timeout=false,cancelled=false,no_init=false; pid_t waited=0;
     for(;;) {
         waited=::waitpid(worker,&status,WNOHANG); if(waited<0 && errno==EINTR)continue; if(waited!=0)break;
         receive_process_descriptor(monitor.get(),init_process,no_init);
         collect_console();
-        if(monotonic_ms()>=deadline) {
-            timeout=true; if(init_process.get()>=0)static_cast<void>(::syscall(SYS_pidfd_send_signal,init_process.get(),SIGKILL,nullptr,0));
+        cancelled=cancellation_requested(store,plan);
+        if(cancelled || monotonic_ms()>=deadline) {
+            resources->kill_all();
+            timeout=!cancelled; if(init_process.get()>=0)static_cast<void>(::syscall(SYS_pidfd_send_signal,init_process.get(),SIGKILL,nullptr,0));
             ::kill(worker,SIGKILL); do { waited=::waitpid(worker,&status,0); } while(waited<0 && errno==EINTR); break;
         }
         pollfd item{init_process.get()>=0 ? init_process.get() : monitor.get(),POLLIN,0}; ::poll(&item,1,20);
     }
     require(waited==worker,"process-error","Cannot collect rescue namespace worker"); child_lifetime.reaped(); receive_process_descriptor(monitor.get(),init_process,no_init);
+    const bool resources_released=resources->finish();
+    state["resource_group_released"]=resources_released;
+    if(resources_released)state["resource_enforcement"]=resources->observation();
     const bool init_never_started=no_init && init_process.get()<0 && WIFEXITED(status) && WEXITSTATUS(status)==125;
-    bool namespace_released=init_never_started;
+    // Even an OOM or cancellation before the pidfd handoff can be closed by
+    // independently verified emptiness/removal of the group which contained
+    // the blocked worker before it could create any namespace or descendant.
+    const auto& enforcement=state["resource_enforcement"];
+    const bool group_lifetime_released=resources_released && enforcement["worker_attachment_verified"]==true &&
+        enforcement["group_empty_verified"]==true && enforcement["group_removed_verified"]==true;
+    bool namespace_released=init_never_started || group_lifetime_released;
     if(init_process.get()>=0) {
         pollfd completed{init_process.get(),POLLIN,0};
-        namespace_released=::poll(&completed,1,timeout ? 5000 : 0)>0 && (completed.revents&POLLIN);
+        namespace_released=namespace_released || (::poll(&completed,1,(timeout || cancelled) ? 5000 : 0)>0 && (completed.revents&POLLIN));
     }
     collect_console();
     std::array<char,1024> error{}; const auto count=::read(output.get(),error.data(),error.size());
@@ -426,10 +493,13 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         require(::unlinkat(store.fd(),"mount-root",AT_REMOVEDIR)==0 && ::fsync(store.fd())==0,"cleanup-failed","Private rescue mount anchor could not be removed");
         child_lifetime.released();
     }
-    state["state"]=timeout ? "TIMED_OUT" : WIFEXITED(status) && WEXITSTATUS(status)==0 ? "COMPLETE" : "FAILED";
+    state["state"]=cancelled ? "CANCELLED" : timeout ? "TIMED_OUT" : WIFEXITED(status) && WEXITSTATUS(status)==0 ? "COMPLETE" : "FAILED";
     state["exit_status"]=WIFEXITED(status) ? WEXITSTATUS(status) : 128+WTERMSIG(status); state["successful"]=state["state"]=="COMPLETE";
-    state["namespace_worker_reaped"]=true; state["session_mounts_released"]=namespace_released; state["cleanup_pending"]=!namespace_released;
+    state["namespace_worker_reaped"]=true; state["session_mounts_released"]=namespace_released; state["cleanup_pending"]=!namespace_released || !resources_released;
     state["descendants_bound_to_pid_namespace"]=init_process.get()>=0;
+    state["descendants_bound_to_resource_group"]=enforcement["worker_attachment_verified"]==true;
+    state["resource_group_lifetime_verified"]=group_lifetime_released;
+    state["cancel_requested"]=cancelled;
     state["session_init_started"]=init_process.get()>=0 ? Value(true) : init_never_started ? Value(false) : Value();
     state["pre_init_failure_verified"]=init_never_started;
     state["target_contents_verified"]=false; state["ownership_lifetime_verified"]=false;
@@ -478,12 +548,32 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         }
     }
     state["written_filesystems_synced"]=filesystems_synced;
-    state["ownership_lifetime_verified"]=namespace_released && filesystems_synced;
+    state["ownership_lifetime_verified"]=namespace_released && filesystems_synced && resources_released;
     state["operation_owner_retained"]=!state["ownership_lifetime_verified"].asBool();
     store.save_record("state.json",state,true);
     if(state["ownership_lifetime_verified"]==true) {
         writer=Fd(); return operation.finish(state,true,true,"COMPLETE");
     }
     return state;
+}
+Value linux_rescue_cancel(const fs::path& path,const std::string& confirmation) {
+    auto store=private_directory(path,false); const auto plan=private_record(store,"plan.json",4*1024*1024);
+    require(plan["schema"]==1 && plan["operation"]=="linux.rescue" && plan["plan_sha256"].isString() &&
+        hash_valid(plan["plan_sha256"].asString()) && seal(plan)==plan["plan_sha256"].asString() &&
+        plan["ownership_targets"].isArray() && !plan["ownership_targets"].empty(),
+        "invalid-rescue-plan","Cancellation requires the exact sealed owner-bound rescue plan");
+    require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact rescue plan hash");
+    auto control=OwnerControlLease::acquire(operation_binding("linux.rescue",plan,path,plan["ownership_targets"]));
+    const auto state=private_record(store,"state.json",64*1024);
+    require(state["plan_sha256"]==plan["plan_sha256"] && (state["state"]=="RUNNING" || state["state"]=="PREPARING"),
+        "rescue-not-running","Only the exact active rescue session accepts cancellation");
+    control.require_active(); Value request;
+    request["schema"]=1; request["operation_id"]=plan["operation_id"]; request["plan_sha256"]=plan["plan_sha256"];
+    request["cancel_requested"]=true; store.save_record("cancel.json",request,true);
+    // This acknowledges a durable request. The supervisor alone proves child,
+    // mount, resource and filesystem closure and retires its operation owner.
+    Value result; result["state"]="CANCEL_REQUESTED"; result["plan_sha256"]=plan["plan_sha256"];
+    result["cleanup_complete"]=false; result["operation_owner_released"]=false; result["physical_test_record"]=false;
+    return result;
 }
 } // namespace ure

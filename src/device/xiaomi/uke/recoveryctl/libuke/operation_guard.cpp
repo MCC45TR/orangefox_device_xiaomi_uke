@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "operation_guard.hpp"
 #include <fcntl.h>
+#include <poll.h>
 #include <unistd.h>
 
 namespace ure {
@@ -62,7 +63,18 @@ Value ManagedOperation::finish(Value result,bool verified,bool cleanup_complete,
     if(owned_) {
         Value oracle; oracle["state"]=terminal.empty() ? result["state"] : Value(terminal);
         oracle["verified"]=verified; oracle["cleanup_complete"]=cleanup_complete;
-        owned_->release_verified(oracle); result["operation_owner_released"]=true;
+        // A short owner-bound cancel/status control can overlap terminal
+        // retirement. Retry only admission/control exclusion before any
+        // retirement effect; durability or owner mismatch errors are final.
+        const auto deadline=monotonic_ms()+1000;
+        for(;;) {
+            try { owned_->release_verified(oracle); break; }
+            catch(const Error& error) {
+                if((error.code!="operation-control-busy" && error.code!="operation-coordinator-busy") || monotonic_ms()>=deadline)throw;
+                ::poll(nullptr,0,10);
+            }
+        }
+        result["operation_owner_released"]=true;
     }
     return result;
 }
