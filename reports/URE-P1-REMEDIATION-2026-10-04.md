@@ -19,7 +19,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-013 | Owned worker, frozen session inputs, short GUI locks, bounded single completion, stale-view refusal and truthful advisory stop; nine native/nine sanitizer controls and exact reviewed source-stack controls passed | Fresh target, rendered-frame/combined visual guest and physical acceptance remain separate; global lifetime and exact backend GUI control follow in AUD-014 |
 | AUD-014 | Retained runtime lifecycle leases, exact rescue/Btrfs controllers, pause/error cleanup and joined application teardown; eighteen native/eighteen sanitizer controls passed | Fresh target, combined guest, rendered/locale and physical acceptance remain separate; registry is volatile cooperating ownership |
 | AUD-015 | Iterative frontier, global pre-copy entry/memory admission and anonymous deterministic sorted runs; four native/four sanitizer controls plus actual tree CLI interruption/resume passed | Fresh target/combined guest and physical acceptance remain separate; accounted listing budget excludes bounded metadata/index/runtime overhead and RAM-backed scratch remains volatile |
-| AUD-022 | Host reserve and separate parallelism | Pending |
+| AUD-022 | RAM/ancestor headroom reserve, post-lock unit readback, separate compiler/Soong scheduling, reviewed host stacks and measured cold/warm cache/Go controls passed | Full clean/warm Android RSS/PSI/OOM and desktop response remain pending after AUD-023/024; small fixtures do not diagnose the earlier task shutdowns |
 | AUD-023 | Nested disk temporary storage | Pending |
 | AUD-024 | Immutable build-completion evidence | Pending |
 | AUD-025 | Explicit release classes and capability-driven receipts | Pending |
@@ -157,3 +157,43 @@ creation/unlink forced-restart gap that may leave an unreferenced private
 Metadata pages, hardlink indexes, allocator/runtime overhead and page cache are
 separate from the 2 MiB budget. No fresh Android package, combined guest, live
 storage writer, physical backup or whole-process low-memory acceptance is claimed.
+
+AUD-022 now calculates admission from MemAvailable and ancestor high/max/current
+accounting, retaining at least 4 GiB or 25% of effective shared capacity. A
+16 GiB fully available policy snapshot leaves 12 GiB for the job, admits at most
+13 normal or eight sanitizer compile workers, and separates six Soong runtime
+processors / 6 GiB soft heap from that compile ceiling. j16 remains available
+when a larger envelope permits it. The owned service recomputes after its lock,
+verifies its exact cgroup, tightens and reads back memory limits, and refuses
+nested admission. Checked OOM grouping and Nice 5 isolate failure/scheduling of
+that new job; no existing desktop unit is changed.
+
+The reviewed host stacks preserve GOMEMLIMIT/GOGC/GOMAXPROCS, remove Blueprint's
+runtime concurrency reset, bound bootstrap/compiler scheduling, and propagate
+limits into microfactory compiler children. Exact upstream pins are
+Soong `6dc77879464584ef3f178cae622134ed0bf19e1e` and
+Blueprint `dcb14f2e146f40cf1f212efb220e9aa1f3cfc280`;
+Go 1.23.4 executable SHA-256 is
+`c4859c0d97fe48a45d348c8ceba892a5c2ca1d7f3e429cf3ea4f2c0dae5cc406`.
+These are existing upstream host dependencies, not tablet runtimes.
+
+Final source-input manifest SHA-256 is
+`5a86c844d48e4aed6e602bac77fbbb9eafed8ad9874f40ce54150fb4b80a9088`.
+Snapshot/refusal controls, actual service readback and nonzero-command refusal,
+real cold/warm C++ object identity/cache-hit checks, pinned Blueprint package
+compilation/tests, actual RunBlueprint policy retention and unknown-edit
+preservation passed. Existing recovery reviewed-stack controls also passed.
+The small cache job reports 45,113,344 cgroup peak bytes / 61,156 KiB command RSS
+in 0.37 seconds; the isolated Go package job reports 332,845,056 cgroup peak
+bytes / 188,044 KiB command RSS in 18.04 seconds. Both report zero OOM events and
+zero avg10/avg60/avg300 host memory PSI at the final snapshot. RSS and cgroup
+charging are distinct measurements, not interchangeable whole-build estimates.
+
+Failed trials preserved an awk printf parse error, an incorrect nested high-limit
+oracle and incorrect ccache counter names; assertions were corrected against
+actual inputs/statistics without relaxing reserve or cache identity. Scheduling
+allowances are heuristics, external allocations may change pressure, and small
+jobs do not establish full clean recovery build safety or desktop response.
+AUD-023 still leaves inner Android temporary storage on tmpfs, and AUD-024 still
+requires immutable build-completion closure. No full Android build or VM/tablet
+acceptance was performed for this host policy checkpoint.

@@ -8,6 +8,9 @@ fi
 tree="$component/src/upstream/orangefox-android16"
 jobs=${1:-16}
 [[ $jobs =~ ^([1-9]|1[0-6])$ ]] || exit 2
+ceiling=${UKE_HOST_JOBS:?The host budget runner must supply compile admission}
+[[ $ceiling =~ ^([1-9]|1[0-6])$ ]] || exit 2
+jobs=$(bash "$component/scripts/host-budget-policy.sh" --compile-jobs "$jobs" "$ceiling")
 vm_fixture=${UKE_BUILD_VM_FIXTURE:-0}
 [[ $vm_fixture == 0 || $vm_fixture == 1 ]] || exit 2
 command -v bwrap >/dev/null

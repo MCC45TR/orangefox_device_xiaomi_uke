@@ -685,3 +685,14 @@ capture/restore and the actual tree CLI SIGKILL/resume checks passed. See
 for exact limits, final inputs, failed trials and residual scratch/runtime
 boundaries. This resolves the reviewed source allocation structure; target,
 combined VM and physical acceptance remain open.
+
+## AUD-022 superseding source/host remediation — 4 October 2026
+
+The original fixed-budget finding and unproven OOM diagnosis remain preserved.
+Admission now reserves shared RAM/headroom, recalculates after serialization,
+reads back owned-unit limits and separates compiler from Soong concurrency.
+Exact pinned host stacks and actual runtime/cache/service controls passed with
+frozen source inputs. See [the resource policy](../docs/HOST-BUILD-BUDGET.md) and
+[ordered remediation receipts](URE-P1-REMEDIATION-2026-10-04.md) for measured
+small-job results and the still-open full clean/warm Android, PSI/OOM and desktop
+response gates after AUD-023/024.

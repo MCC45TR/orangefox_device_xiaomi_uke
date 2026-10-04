@@ -19,14 +19,8 @@ entry=$(jq -ce --arg id "$profile" '.profiles[] | select(.id==$id and .download_
 [[ -d $tree/.repo && -f $tree/build/envsetup.sh ]] || { echo 'OrangeFox source sync is incomplete' >&2; exit 1; }
 [[ -d $device_source && ! -L $device_source ]] || { echo 'Project device source is unavailable' >&2; exit 1; }
 soong_source="$tree/build/soong"
-soong_patch="$component/patches/0013-soong-host-memory-policy.patch"
-if git -C "$soong_source" apply --reverse --check "$soong_patch" 2>/dev/null; then
-  :
-elif git -C "$soong_source" apply --check "$soong_patch"; then
-  git -C "$soong_source" apply "$soong_patch"
-else
-  echo 'Unexpected host builder environment; refusing an unverified patch' >&2; exit 1
-fi
+bash "$component/scripts/prepare-reviewed-patches.sh" "$soong_source" apply soong
+bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/build/blueprint" apply blueprint
 [[ -f $vendor_directory_patch ]] || { echo 'Recovery vendor directory patch is missing' >&2; exit 1; }
 if git -C "$build_make" apply --unidiff-zero --reverse --check "$vendor_directory_patch" 2>/dev/null; then
   : # Already applied.

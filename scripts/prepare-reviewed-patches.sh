@@ -10,6 +10,8 @@ kind=${3:?Reviewed component kind is required}
 case $kind in
     recovery) pin=3d733672081bca3af42475a286145f4a8cdce4e7; patch_list=recovery-patches.list;;
     fastboot) pin=1efa79514b2f520c20a837c9216ff6b6e7e0dda3; patch_list=fastboot-patches.list;;
+    soong) pin=6dc77879464584ef3f178cae622134ed0bf19e1e; patch_list=soong-patches.list;;
+    blueprint) pin=dcb14f2e146f40cf1f212efb220e9aa1f3cfc280; patch_list=blueprint-patches.list;;
     *) echo 'Unknown reviewed component' >&2; exit 1;;
 esac
 [[ $(git -C "$source_path" rev-parse HEAD) == "$pin" ]]

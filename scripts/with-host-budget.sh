@@ -2,28 +2,36 @@
 # Host-only resource isolation. Serialize heavy jobs and keep temporary image
 # fixtures on disk, outside the desktop app's memory cgroup and RAM-backed /tmp.
 set -euo pipefail
+umask 077
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 label=${1:?Pass a short job label and a command}
 shift
 [[ $label =~ ^[a-z][a-z0-9-]{0,40}$ && $# -gt 0 ]]
-for command in systemd-run bwrap flock taskset ccache; do command -v "$command" >/dev/null; done
+[[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]] || {
+    echo 'Nested heavy-job admission refused; the existing service already owns the job lock.' >&2; exit 1;
+}
+for command in systemd-run systemctl bwrap flock taskset ccache jq; do command -v "$command" >/dev/null; done
 [[ $(stat -fc %T /sys/fs/cgroup) == cgroup2fs ]]
 mkdir -p "$component/build/host-budget" "$component/reports/private"
+chmod 0700 "$component/build/host-budget"
 scratch=$(mktemp -d "$component/build/host-budget/$label-XXXXXX")
 unit="uke-recovery-$label-${scratch##*-}"
 unit=${unit,,}
-affinity=$(awk '$1=="Cpus_allowed_list:" {n=split($2,g,","); count=0; for(i=1;i<=n && count<16;i++) {m=split(g[i],r,"-"); last=m==2?r[2]:r[1]; for(cpu=r[1];cpu<=last && count<16;cpu++) {printf "%s%d",count?",":"",cpu;count++}}}' /proc/self/status)
+bash "$component/scripts/host-budget-policy.sh" "$label" > "$scratch/initial-policy.json"
+affinity=$(jq -r .affinity "$scratch/initial-policy.json")
 [[ $affinity =~ ^[0-9]+(,[0-9]+)*$ ]]
+maximum=$(jq -r .memory_max_mib "$scratch/initial-policy.json")
+high=$(jq -r .memory_high_mib "$scratch/initial-policy.json")
 mkdir -p "$component/build/ccache/native"
 cd "$component"
 systemd-run --user --quiet --wait --pipe --collect --unit="$unit" \
-    -p "WorkingDirectory=$component" -p MemoryHigh=14G -p MemoryMax=16G \
-    -p MemorySwapMax=512M -p CPUQuota=1600% -p TasksMax=2048 \
+    -p "WorkingDirectory=$component" -p "MemoryHigh=$((high*1048576))" -p "MemoryMax=$((maximum*1048576))" \
+    -p MemorySwapMax=512M -p CPUQuota=1600% -p TasksMax=2048 -p OOMPolicy=kill -p Nice=5 \
     /usr/bin/flock "$component/build/host-budget/heavy.lock" \
-    /usr/bin/env "PATH=$PATH" LC_ALL=C LANG=C GOMEMLIMIT=12GiB GOGC=40 GOMAXPROCS=16 UKE_HOST_JOBS=16 UKE_HOST_BUDGET_ACTIVE=1 \
+    /usr/bin/env "PATH=$PATH" LC_ALL=C LANG=C \
     "CCACHE_DIR=$component/build/ccache/native" CCACHE_MAXSIZE=10G \
     taskset -c "$affinity" bwrap --bind / / --dev-bind /dev /dev --bind "$scratch" /tmp --proc /proc --chdir "$component" \
-    bash -c 'set -euo pipefail; status=0; "$@" || status=$?; cg=/sys/fs/cgroup$(awk -F: '\''$1==0 {print $3}'\'' /proc/self/cgroup); for field in memory.peak memory.events pids.peak; do cat "$cg/$field" > "/tmp/$field"; done; printf "%s\n" "$status" > /tmp/command-status; exit "$status"' bash "$@"
+    bash "$component/scripts/run-host-budget-job.sh" "$label" "$unit" "$@"
 [[ -f $scratch/command-status && $(cat "$scratch/command-status") == 0 ]] || {
     echo 'Host job was interrupted before recording command completion.' >&2; exit 1;
 }

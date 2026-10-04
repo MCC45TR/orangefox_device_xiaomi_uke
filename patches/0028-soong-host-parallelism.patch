@@ -1,0 +1,13 @@
+diff --git a/ui/build/soong.go b/ui/build/soong.go
+index dcb3d0e3d..38cbf49af 100644
+--- a/ui/build/soong.go
++++ b/ui/build/soong.go
+@@ -216,7 +216,7 @@ func (pb PrimaryBuilderFactory) primaryBuilderInvocation(config Config) bootstra
+ 	invocationEnv := make(map[string]string)
+ 	// Host-only runtime limits survive the clean builder environment.
+ 	// These do not change target compiler flags or tablet payloads.
+-	for _, key := range []string{"GOMEMLIMIT", "GOGC"} {
++	for _, key := range []string{"GOMEMLIMIT", "GOGC", "GOMAXPROCS"} {
+ 		if value := os.Getenv(key); value != "" {
+ 			invocationEnv[key] = value
+ 		}
