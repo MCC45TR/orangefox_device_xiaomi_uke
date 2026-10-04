@@ -1,78 +1,69 @@
-# OrangeFox Recovery for POCO Pad X1 and Xiaomi Pad 7
+# OrangeFox Recovery for Xiaomi Pad 7 and POCO Pad X1
 
-A device-specific OrangeFox recovery for POCO Pad X1 and Xiaomi Pad 7 (`uke`, SM7675). The project builds on the official OrangeFox Android 16 source branch and develops recovery controls for diagnosis, backup, installation and future Fedora boot management. Model, SKU and firmware compatibility remain explicit release dimensions.
+An independent OrangeFox recovery project for the `uke` device family (SM7675), with a tablet interface and native tools for storage planning, backups, Linux recovery and boot diagnostics.
 
-[Uke Linux](https://github.com/MCC45TR/uke-linux) · [Recovery architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Source audit](docs/UKE-SOURCE-AUDIT.md) · [Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases)
+[Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) · [Installation guide](docs/PRE-RELEASE.md) · [Architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Uke Linux workspace](https://github.com/MCC45TR/uke-linux)
 
-Release candidates use [separate fastboot-boot, recovery-flash and ZIP assets](docs/PRE-RELEASE.md); none is interchangeable with another. [A/B, OTA, boot-selection and encryption support](docs/RECOVERY-VERSION-GATES.md) is tracked by device and firmware, not by configuration flags alone.
+## Project status
 
-Current-source builds [refuse legacy device mutations](docs/RECOVERY-WRITE-POLICY.md)
-at their native entry points, including stock Format Data, package installation,
-writable mounts, fastbootd writes and the installer. Confirmation or advanced
-mode cannot accept the unfinished live backend. Earlier sealed images are
-unchanged; the [write-refusal tests](docs/WRITE-GATE-VM-TESTS.md) describe the
-separate host and generic-guest validation.
+**Experimental; neither commercial model has completed physical recovery acceptance.** The default branch, `R12.0`, follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 are tracked separately by model, SKU and installed firmware.
 
-## Planned capabilities
+The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. The published alpha is an earlier checkpoint and does not contain all subsequent changes.
 
-- OrangeFox installation, backup/restore, ADB, sideload, MTP and fastbootd with verified target selection.
-- A device status and diagnostics interface with redacted log export.
-- Storage and boot-profile planning for Android with Fedora or Fedora as the single user OS.
-- Screen rotation, touch, brightness, language and battery integration adapted to Uke.
-- Conditional advanced tools for Linux partitions, ESP, OTA payloads and additional operating systems, enabled only when their dependencies are proven.
-- Linux distribution/kernel discovery, metadata-aware file management and a native GUI text editor, controlled chroot and offline boot diagnosis.
-- LUKS/BitLocker access, Btrfs subvolumes/snapshots/rescue, NTFS/WIM and Windows ESP/BCD recovery behind kernel and transaction gates.
-- Consumed one-shot Android/Linux/Windows boot requests, USB networking and opt-in key-authenticated SSH/SFTP, followed by Wi-Fi rescue.
+Current source [blocks live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass this gate; older release images retain their original behavior.
 
-The [feature matrix](docs/FEATURE-PARITY.md) retains the 34-group Nabu minimum
-and adds 24 URE capability contracts. The [comprehensive roadmap](docs/COMPREHENSIVE-ROADMAP.md)
-preserves all supplied topics 0–102, with sixteen phases, proposed API/UI designs,
-transactions, negative tests and acceptance rules. The [native implementation
-checkpoint](docs/URE-NATIVE.md) records the new library, JSON CLI, file transaction
-engine, diagnostics and OrangeFox editor adapter. The published first alpha
-predates this work. The [native build report](reports/URE-NATIVE-BUILD.md)
-separates source, host, extracted-payload, QEMU and hardware evidence. Most roadmap
-contracts remain incomplete. The [streaming and journal checkpoint](reports/URE-STREAMING-BUILD.md)
-adds verified chunk transfer, host reception and explicit interrupted-file recovery.
-The [GPT checkpoint](reports/URE-GPT-BUILD.md) adds metadata backup/verification,
-image repair/restore, inspected journals and read-only live selection. Real UFS
-writes and full phase acceptance remain open.
-The [six-LUN stock checkpoint](reports/URE-STOCK-JOB-BUILD.md) coordinates stock
-GPTs and selected hash-pinned Global OS images under one inspected image journal.
-Its [CLI and GUI contract](docs/STOCK-IMAGE-RESTORE.md) covers sparse decoding,
-capacity-derived layouts, protected firmware/tails and complete changed-range
-rollback. Model/SKU declarations do not establish either tablet's acceptance.
-The [stock preflight correction](reports/URE-STOCK-PREFLIGHT-BUILD.md) separates
-source-file checksums from complete programming-layout checksums. DTBO's
-reviewed larger layout includes its zero gap and duplicated AVB end footer;
-[verification](docs/STOCK-BOOT-PREFLIGHT.md) does not rewrite installed firmware.
-The [boot-routing contract](docs/BOOT-ROUTING.md) adds registered EFI inventory,
-target/default review and one-shot private-fixture journals with consumed
-attempts, retired-plan replay refusal and inspected fallback/history. Real
-firmware writes, EFI execution and Uke/Aloha routing remain unaccepted.
-The [storage checkpoint](reports/URE-STORAGE-BUILD.md) adds bounded ownership
-observations and identity-bound storage backup software with shared CLI/GUI/host
-reception. The raw-image restore engine adds verified original/target mirrors,
-durable journals, full readback and inspected interruption recovery. Positive
-live-source acceptance, atomic snapshots and real block restores remain open.
-Nabu partition offsets,
-GPT backups, security binaries and kernel images are not Uke inputs.
+## Feature overview
 
-The local [filesystem and Linux rescue checkpoint](reports/URE-RESCUE-FILESYSTEMS-BUILD.md)
-adds staged filesystem-image jobs, distribution-aware isolated chroot, installed
-kernel/initramfs/DT/UKI/BLS audit and native Btrfs snapshot/send/maintenance pages.
-Btrfs has separate generic ARM64 VM evidence; the preserved stock kernel still
-has no Btrfs filesystem support. Live writes and both tablets' physical acceptance
-remain open. This candidate has not been published to GitHub.
+The **Extra** menu groups the added tools by task, with matching icons and short descriptions. GUI actions and the `uke-recoveryctl` JSON CLI use the same native management library.
+
+| Area | Current source capabilities | Details |
+|---|---|---|
+| Tablet interface | Preview and apply interface sizes from 50–100%; preset and custom selections; portrait/landscape layout; independently configured monitor scale, resolution and refresh rate; USB mouse and keyboard integration | [Display settings](docs/DISPLAY-SCALING.md) |
+| Partition planning | Graphical ESP/Linux/Windows/userdata layouts; GB, GiB, MiB or percentage input; before/after review; standard and advanced policies; combined filesystem and GPT image transactions with readback and rollback | [Partition manager](docs/PARTITION-MANAGER.md) |
+| Stock-layout recovery | Coordinated GPT and selected stock-image restoration across six UFS LUN images, with pinned firmware inputs, protected ranges and interruption recovery | [Stock restoration](docs/STOCK-IMAGE-RESTORE.md) |
+| Backups | Verified raw-image and chunked backups; host-assisted transfer over ADB; Linux and home directory backups preserving sparse files, hardlinks, extended attributes and ACLs; resumable capture and verified restore | [Linux/home backups](docs/TREE-BACKUP.md), [native API](docs/URE-NATIVE.md) |
+| Filesystems and Btrfs | Staged format, check, repair and supported resize operations on filesystem images; native Btrfs subvolume, snapshot, full/incremental send, scrub, balance and rollback tools | [Filesystems](docs/FILESYSTEM-MANAGER.md), [Btrfs](docs/BTRFS-MANAGER.md) |
+| Linux rescue and boot audit | Distribution detection; isolated Arch/Fedora-aware chroot; supported fstab and ESP mounting; resource-limited commands; kernel, initramfs, module, device-tree, UKI and BLS inspection | [Linux recovery](docs/LINUX-RESCUE-AND-BOOT.md) |
+| Android and Windows inspection | Read-only Android slot and super-partition observations; Windows installation and EFI/BCD discovery; conditional WIM/ESD and NTFS inspection | [Native commands](docs/URE-NATIVE.md), [version gates](docs/RECOVERY-VERSION-GATES.md) |
+| Files and diagnostics | Metadata-aware browsing; a native text editor with fstab/crypttab/BLS validation; reviewed file replacement and rollback; bounded diagnostics and redacted report export | [Native tools](docs/URE-NATIVE.md) |
+
+Availability depends on the selected filesystem, kernel, packaged tools and operation policy. A capability entry is not device acceptance. In particular:
+
+- Partition shrink/recreation and six-LUN restoration currently execute on
+  **regular images**, not live tablet storage. New OS allocations use the
+  original userdata range; encrypted userdata migration remains unavailable.
+- Btrfs has separate generic ARM64 VM evidence. The preserved stock kernel
+  lacks Btrfs support, and receive/restore remains unfinished.
+- One-shot boot routing has a [fixture implementation](docs/BOOT-ROUTING.md);
+  actual Uke/Aloha EFI execution, Android OTA workflows and encrypted-volume
+  recovery still require further implementation or acceptance.
+- Dock output modes, physical input and touch behavior need device tests.
+  Automatic rotation and brightness currently report
+  [sensor readiness](docs/SENSOR-READINESS.md), not working automatic controls.
 
 ## Downloads
 
-See [GitHub pre-releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) for experimental build candidates and [installation/rollback instructions](docs/PRE-RELEASE.md). The first alpha supplies separate temporary-boot IMG, dedicated recovery IMG and active-slot installer ZIP, plus hashes and source snapshots. **Neither commercial model has been boot-tested. Global OS3.0.303.0.WOZMIXM is the only packaged profile.** These unsigned development artifacts are not a supported recovery; do not use them on another firmware or treat a source/host check as a hardware result.
+[Experimental Alpha 1](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases/tag/r12.0-uke.20260930-alpha1) is the published R12.0 development checkpoint. Its only packaged firmware profile is **Global OS3.0.303.0.WOZMIXM**. The unsigned artifacts have not been boot-tested on either model; other firmware versions are not installation targets for this release.
 
-The current source baseline is official OrangeFox `fox_16.0`, which identifies its release series as R12.0. The branch revision is pinned in the workspace archive catalog and is updated through reviewed source changes. The Uke-specific device configuration is under development; existing community trees are reference material.
+| Asset | Purpose |
+|---|---|
+| `OrangeFox-uke-fastboot-boot.img` | Temporary boot candidate; never flash this image |
+| `OrangeFox-uke-recovery.img` | Dedicated recovery image; not a temporary-boot image |
+| `OrangeFox-uke-flashable.zip` | Recovery installer package from the published checkpoint |
+| `SHA256SUMS` and source/manifest assets | Artifact verification, dependency provenance and reproducibility records |
 
-## For developers
+Read the [installation and rollback guide](docs/PRE-RELEASE.md), verify the checksums and retain firmware-matched stock recovery files before evaluating an artifact. The current source disables device installation; historical alpha instructions do not authorize installation of a newer build.
 
-The workspace [PLAN.md](https://github.com/MCC45TR/uke-linux/blob/main/PLAN.md) sets the implementation order and evidence gates. This repository owns `src/`, `configs/`, `patches/`, `tests/`, documentation and local `referances/`. New device management code targets C++; tablet payloads contain no Python. See [AGENTS.md](AGENTS.md) before contributing. Imported OrangeFox and donor code retains its original license and attribution.
+## Development and validation
 
-This is an independent, unofficial device project and is not an official OrangeFox release.
+Device integration lives in `src/device/xiaomi/uke/`; native management code is under `recoveryctl/`. Reviewed upstream changes are maintained in `patches/`. Source archives under `referances/` are evidence inputs, not development trees. New device management code uses C++; tablet payloads contain no Python runtime.
+
+Start with the [contribution rules](AGENTS.md), [source audit](docs/UKE-SOURCE-AUDIT.md) and [host build policy](docs/HOST-BUILD-BUDGET.md). The [native build report](reports/URE-NATIVE-BUILD.md), [write-gate tests](docs/WRITE-GATE-VM-TESTS.md) and [optimization audit](reports/URE-OPTIMIZATION-SECURITY-AUDIT-2026-10-04.md) record validation scope and remaining work. Source checks, host tests, ARM64 builds, extracted-payload tests, VM results and physical tablet results remain distinct evidence classes.
+
+For a useful [issue report](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/issues), include the source revision or artifact checksum, model, firmware, reproduction steps and observed result. Share a redacted report; keep unit identifiers, calibration data and private logs out of public issues.
+
+## License and attribution
+
+Repository-level material uses the [MIT license](LICENSE). The native recovery library includes an [Apache 2.0 license](src/device/xiaomi/uke/recoveryctl/LICENSE-APACHE); upstream OrangeFox, Android and other imported components retain their own licenses and attribution. Icon licensing is recorded with the [interface assets](src/device/xiaomi/uke/ui-icons/LICENSE).
+
+This project is unofficial and is not an endorsed OrangeFox release.
