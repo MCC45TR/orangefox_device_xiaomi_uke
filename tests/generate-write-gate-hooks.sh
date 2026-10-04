@@ -23,6 +23,7 @@ extract() {
     extract "$recovery/partitionmanager.cpp" 'void TWPartitionManager::Set_Active_Slot(const string& Slot) {'
     extract "$recovery/partition.cpp" 'void TWPartition::Change_Mount_Read_Only(bool new_value) {'
     extract "$recovery/partition.cpp" 'bool TWPartition::Mount(bool Display_Error) {'
+    extract "$recovery/partition.cpp" 'bool TWPartition::Bind_Mount(bool Display_Error, const ure::LegacyLifecycleGuard* parent) {'
     extract "$recovery/openrecoveryscript.cpp" 'int OpenRecoveryScript::copy_script_file(string filename) {'
     extract "$recovery/openrecoveryscript.cpp" 'int OpenRecoveryScript::Run_ORS_File(const std::string& filename) {'
     extract "$recovery/gui/action.cpp" 'int GUIAction::dd(std::string arg)'

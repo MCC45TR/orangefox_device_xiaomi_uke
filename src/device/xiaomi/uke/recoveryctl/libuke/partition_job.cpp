@@ -2,6 +2,7 @@
 // Prepare every filesystem before any original write. Journal disjoint userdata
 // and GPT ranges; never rewrite an OEM payload even when its bytes are unchanged.
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -67,6 +68,10 @@ Fd journal_lock(const Root& store) {
     auto fd=store.open("operation.lock",O_RDWR|O_CREAT,0600); struct stat st{};
     require(::fstat(fd.get(),&st)==0 && S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_uid==::geteuid() && (st.st_mode&07777)==0600 &&
         ::flock(fd.get(),LOCK_EX|LOCK_NB)==0,"operation-busy","Partition journal is unsafe or in use"); return fd;
+}
+Fd inspection_lock(const Root& store) {
+    auto fd=private_file(store,"operation.lock",0);
+    require(::flock(fd.get(),LOCK_SH|LOCK_NB)==0,"operation-busy","A partition writer owns this journal"); return fd;
 }
 struct TargetLock {
     int fd;
@@ -188,7 +193,7 @@ bool encryption_feature(int fd,std::uint64_t offset,std::uint64_t bytes,const Va
     }
     return false;
 }
-void prepare(const Root& system,StorageTarget& target,const Root& store,const fs::path& path,const Value& plan,Value& state) {
+void prepare(const Root& system,StorageTarget& target,const Root& store,const fs::path& path,const Value& plan,Value& state,OperationLease& parent) {
     const auto& pool=plan["gpt"]["layout"]["pool"]; const auto original_bytes=pool["original_bytes"].asUInt64();
     auto before=store.open("userdata-before.img",O_RDWR|O_CREAT|O_EXCL,0600);
     copy(target.descriptor.get(),before.get(),pool["offset"].asUInt64(),original_bytes);
@@ -211,7 +216,7 @@ void prepare(const Root& system,StorageTarget& target,const Root& store,const fs
         if(shrinking)request["target_bytes"]=Json::UInt64(bytes);
         else { request["erase_confirmed"]=true; request["label"]=role=="userdata" ? "USERDATA" : "URE_"+role; }
         const auto fs_plan=filesystem_operation_plan(system,seed,request,plan["firmware_profile"].asString());
-        filesystem_prepare(system,seed,fs_plan,path/("stage-"+role),fs_plan["plan_sha256"].asString());
+        filesystem_prepare(system,seed,fs_plan,path/("stage-"+role),fs_plan["plan_sha256"].asString(),&parent);
         auto prepared=store.open("stage-"+role+"/working.img",O_RDWR); require(::ftruncate(prepared.get(),static_cast<off_t>(bytes))==0,"io-error","Cannot set final filesystem capacity"); sync(prepared.get());
         auto readonly=private_file(store,"stage-"+role+"/working.img",bytes); const auto signature=filesystem_probe(readonly.get()); const auto check=filesystem_check(readonly.get());
         require(signature["type"]==type && check["successful"]==true,"filesystem-post-check-failed","Filesystem does not pass its checker inside the final partition size");
@@ -239,15 +244,16 @@ void prepare(const Root& system,StorageTarget& target,const Root& store,const fs
 }
 struct Review { Value plan,state,manifest,result; std::vector<std::string> current_hashes; };
 bool action(const Value& review,const std::string& name) { for(const auto& item:review["recovery_actions"])if(item==name)return true; return false; }
-Review inspect(const StorageTarget& target,const Root& store) {
+Review inspect(const StorageTarget& target,const Root& store,bool terminal_replay=false) {
     Review review; review.plan=record(store,"plan.json"); check_plan(review.plan); const auto& plan=review.plan;
     binding(target,plan["target_identity"]); protected_verify(target,plan); review.state=record(store,"state.json");
     require(review.state["plan_sha256"]==plan["plan_sha256"] && review.state["state"].isString(),"invalid-partition-journal","Partition state has a different plan binding");
     auto& result=review.result; result["operation"]=plan["operation"]; result["plan_sha256"]=plan["plan_sha256"]; result["state"]=review.state["state"];
     result["recovery_actions"]=Value(Json::arrayValue); result["physical_test_record"]=false; result["private_record"]=true; result["live_write_backend_ready"]=false;
+    result["read_only"]=true;
     result["protected_ranges_verified"]=true; result["cooperating_locks_only"]=true; result["chunks"]=Value(Json::arrayValue);
     if(!store.exists("application.json")) { original_verify(target,plan); result["classification"]="ORIGINAL"; result["before_and_after_verified"]=false;
-        if(review.state["state"]!="CANCELLED_SAFE")result["recovery_actions"].append("cancel");
+        if(review.state["state"]!="CANCELLED_SAFE" || terminal_replay)result["recovery_actions"].append("cancel");
         return review; }
     review.manifest=record(store,"application.json"); const auto& manifest=review.manifest;
     require(manifest["schema"]==1 && manifest["format"]=="ure-partition-application" && manifest["plan_sha256"]==plan["plan_sha256"] &&
@@ -290,16 +296,18 @@ Review inspect(const StorageTarget& target,const Root& store) {
     result["classification"]=all_new ? "TARGET" : all_old ? "ORIGINAL" : expected ? "PARTIAL_EXPECTED_WRITE" : "DIVERGED";
     result["before_and_after_verified"]=true; result["chunk_count"]=index; result["chunks_truncated"]=index>128; result["verified_target_bytes"]=Json::UInt64(desired_bytes);
     const auto state=review.state["state"].asString(); const bool terminal=state=="CANCELLED_SAFE" || state=="ROLLED_BACK";
-    if(all_old && !terminal && state!="COMMITTED")result["recovery_actions"].append("cancel");
-    if(expected && !terminal)result["recovery_actions"].append("rollback");
-    if(expected && !terminal && state!="COMMITTED" && review.state.get("direction","apply")=="apply")result["recovery_actions"].append("resume");
+    if(all_old && (!terminal || (terminal_replay && state=="CANCELLED_SAFE")) && state!="COMMITTED")result["recovery_actions"].append("cancel");
+    if(expected && (!terminal || (terminal_replay && state=="ROLLED_BACK" && all_old)))result["recovery_actions"].append("rollback");
+    if(expected && !terminal && (state!="COMMITTED" || (terminal_replay && all_new)) && review.state.get("direction","apply")=="apply")result["recovery_actions"].append("resume");
     binding(target,plan["target_identity"]); protected_verify(target,plan); return review;
 }
-Value apply(StorageTarget& target,const Root& store,const fs::path& path,Review review,bool rollback) {
+Value apply(StorageTarget& target,const Root& store,const fs::path& path,Review review,bool rollback,ManagedOperation& operation) {
     auto state=review.state; state["direction"]=rollback ? "rollback" : "apply"; state["written_bytes"]=Json::UInt64(0); state["verified"]=false; state.removeMember("error_code");
+    bool intent=false;
     try {
         phase(store,state,rollback ? "ROLLBACK_REQUIRED" : "APPLYING");
         for(Json::ArrayIndex i=0;i<review.manifest["chunks"].size();++i) {
+            operation.token().require_active();
             journal_binding(store,path); binding(target,review.plan["target_identity"]); storage_write_gate(target); const auto& chunk=review.manifest["chunks"][i];
             const auto offset=chunk["offset"].asUInt64(),bytes=chunk["bytes"].asUInt64(); const auto wanted=chunk[rollback ? "before_sha256" : "after_sha256"].asString();
             const auto now=range_hash(target.descriptor.get(),offset,bytes); require(now==review.current_hashes[i],"changed-target","Partition bytes changed after journal inspection");
@@ -309,7 +317,14 @@ Value apply(StorageTarget& target,const Root& store,const fs::path& path,Review 
                 // Persist intent before the first byte. Progress never substitutes
                 // for readback when recovering a forced reboot or partial write.
                 state["active_chunk"]=i; phase(store,state,rollback ? "ROLLBACK_REQUIRED" : "APPLYING");
-                for(std::uint64_t at=0;at<bytes;) { const auto data=storage_read(source.get(),source_offset+at,static_cast<std::size_t>(std::min<std::uint64_t>(65536,bytes-at))); write(target.descriptor.get(),offset+at,data); at+=data.size(); }
+                for(std::uint64_t at=0;at<bytes;) {
+                    const auto data=storage_read(source.get(),source_offset+at,static_cast<std::size_t>(std::min<std::uint64_t>(65536,bytes-at)));
+                    if(!intent) {
+                        operation.token().require_binding(operation_binding(review.plan["operation"].asString(),review.plan,path,operation_targets(review.plan["target_identity"])));
+                        operation.begin(rollback ? "PARTITION_ROLLBACK_INTENT" : "PARTITION_WRITE_INTENT"); intent=true;
+                    }
+                    write(target.descriptor.get(),offset+at,data); at+=data.size();
+                }
                 sync(target.descriptor.get()); require(range_hash(target.descriptor.get(),offset,bytes)==wanted,"verification-error","Partition chunk readback differs");
                 state["written_bytes"]=Json::UInt64(state["written_bytes"].asUInt64()+bytes);
             }
@@ -320,7 +335,9 @@ Value apply(StorageTarget& target,const Root& store,const fs::path& path,Review 
         const auto table=gpt_inspect(target.descriptor.get(),review.plan["target_identity"]["logical_sector_bytes"].asUInt());
         require(table["healthy"]==true && json(table)==json(review.plan["gpt"][rollback ? "current_table" : "desired_table"]),"verification-error","Final GPT copies differ from the reviewed layout");
         state["verified"]=true; state["protected_ranges_verified"]=true; state["complete_partition_job"]=!rollback; state["physical_test_record"]=false;
-        phase(store,state,rollback ? "ROLLED_BACK" : "COMMITTED"); target.identity=storage_image(target.identity["path"].asString(),target.identity["logical_sector_bytes"].asUInt()).identity; return state;
+        operation.token().require_binding(operation_binding(review.plan["operation"].asString(),review.plan,path,operation_targets(review.plan["target_identity"])));
+        phase(store,state,rollback ? "ROLLED_BACK" : "COMMITTED"); target.identity=storage_image(target.identity["path"].asString(),target.identity["logical_sector_bytes"].asUInt()).identity;
+        return operation.finish(state,true,true);
     } catch(const Error& error) { state["error_code"]=error.code; state["verified"]=false; try { phase(store,state,"RECOVERY_REQUIRED"); } catch(...) {} throw; }
 }
 } // namespace
@@ -367,6 +384,7 @@ Value partition_job_plan(const Root& system,const StorageTarget& target,const Va
 Value partition_job_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the complete partition job hash");
     require(json(target.identity)==json(plan["target_identity"]),"stale-device","Partition job selection changed after review"); storage_revalidate(target,&system); storage_write_gate(target);
+    ManagedOperation operation(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
     TargetLock claim(target.descriptor.get()); original_verify(target,plan);
     const auto& pool=plan["gpt"]["layout"]["pool"]; const auto signature=filesystem_probe_range(target.descriptor.get(),pool["offset"].asUInt64(),pool["original_bytes"].asUInt64());
     require(json(signature)==json(plan["userdata_signature"]),"stale-source","Userdata filesystem observation changed after review");
@@ -374,12 +392,18 @@ Value partition_job_execute(const Root& system,StorageTarget& target,const Value
         "userdata-encryption-unverified","Preserving encrypted userdata requires accepted Android trust and resize policy");
     const auto rebuilt=gpt_layout_plan(target,plan["gpt"]["layout"]["request"],plan["firmware_profile"].asString(),&system);
     for(const auto* key:{"before","after","layout","current_table","desired_table"})require(json(rebuilt[key])==json(plan["gpt"][key]),"stale-plan","Partition policy or GPT differs from the reviewed job");
-    auto store=private_directory(directory,true); auto lock=journal_lock(store); store.save_record("plan.json",plan);
+    auto store=private_directory(directory,true); auto lock=journal_lock(store);
+    operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+    store.save_record("plan.json",plan);
     Value state; state["schema"]=1; state["plan_sha256"]=plan["plan_sha256"]; state["direction"]="apply"; state["state"]="STAGING"; state["verified"]=false; store.save_record("state.json",state);
     struct statvfs space{};
     require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize && space.f_bavail>plan["estimated_journal_bytes"].asUInt64()/space.f_frsize,
         "insufficient-space","Keep space for original userdata, prepared filesystems and the largest working copy");
-    try { prepare(system,target,store,directory,plan,state); return apply(target,store,directory,inspect(target,store),false); }
+    try {
+        prepare(system,target,store,directory,plan,state,operation.token()); auto review=inspect(target,store);
+        require(json(review.plan)==json(plan),"changed-journal","Partition application inspection selected another plan");
+        return apply(target,store,directory,std::move(review),false,operation);
+    }
     catch(const Error& error) { state["error_code"]=error.code;
         // Once an application manifest exists, inspect owns the decision about
         // what was written. Do not overwrite its durable active-write intent.
@@ -387,12 +411,21 @@ Value partition_job_execute(const Root& system,StorageTarget& target,const Value
 }
 Value partition_job_recover(const Root& system,StorageTarget& target,const fs::path& path,const std::string& operation,const std::string& confirmation) {
     require(operation=="inspect" || operation=="resume" || operation=="rollback" || operation=="cancel","unsupported-partition-operation","Select inspect, resume, rollback or cancel");
-    static_cast<void>(system); auto store=private_directory(path,false); auto lock=journal_lock(store); TargetLock claim(target.descriptor.get()); auto review=inspect(target,store);
-    if(operation=="inspect")return review.result;
-    require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact partition journal hash");
+    static_cast<void>(system); auto store=private_directory(path,false);
+    if(operation=="inspect") { auto lock=inspection_lock(store); return inspect(target,store).result; }
+    const auto plan=record(store,"plan.json"); check_plan(plan);
+    require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact partition journal hash");
+    ManagedOperation owner(operation_binding(plan["operation"].asString(),plan,path,operation_targets(plan["target_identity"])),true);
+    TargetLock claim(target.descriptor.get()); auto lock=journal_lock(store); journal_binding(store,path);
+    owner.token().require_binding(operation_binding(plan["operation"].asString(),plan,path,operation_targets(plan["target_identity"])));
+    require(json(record(store,"plan.json"))==json(plan),"changed-journal","Partition recovery plan changed during ownership admission");
+    auto review=inspect(target,store,owner.token().has_retained_intent());
+    require(json(review.plan)==json(plan),"changed-journal","Partition recovery inspection selected another plan");
     require(action(review.result,operation),"unsafe-recovery","Readback does not authorize this recovery action; divergent bytes require manual investigation");
     journal_binding(store,path);
-    if(operation=="cancel") { auto state=review.state; state["original_unchanged_verified"]=true; phase(store,state,"CANCELLED_SAFE"); return state; }
-    storage_write_gate(target); return apply(target,store,path,std::move(review),operation=="rollback");
+    if(operation=="cancel") { auto state=review.state; state["original_unchanged_verified"]=true; state["verified"]=true;
+        owner.token().require_binding(operation_binding(plan["operation"].asString(),plan,path,operation_targets(plan["target_identity"])));
+        phase(store,state,"CANCELLED_SAFE"); return owner.finish(state,true,true); }
+    storage_write_gate(target); return apply(target,store,path,std::move(review),operation=="rollback",owner);
 }
 } // namespace ure

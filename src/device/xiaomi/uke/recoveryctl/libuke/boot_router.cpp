@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -311,6 +312,8 @@ Value boot_route_plan(const Root& esp,const Root& variables,const Value& request
 }
 Value boot_route_execute(const Root& esp,const Root& variables,const Value& plan,const fs::path& directory,const std::string& confirmation) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm this exact reviewed boot plan");
+    Value targets=operation_targets(plan["esp_identity"]); targets.append(plan["variables_identity"]);
+    ManagedOperation operation(operation_binding("boot.route",plan,directory,targets));
     write_gate(variables); auto variable_lock=lock(variables); validate_bindings(esp,variables,plan);
     require(next_state(variables,plan)=="absent","boot-next-conflict","Another one-shot request is present");
     require(owner_state(variables,plan)=="absent","boot-request-conflict","An earlier request owns the fixture store");
@@ -319,6 +322,7 @@ Value boot_route_execute(const Root& esp,const Root& variables,const Value& plan
     Value current; current["schema"]=1; current["request_id"]=plan["operation_id"]; current["plan_sha256"]=plan["plan_sha256"];
     current["events"]=Value(Json::arrayValue); current["attempts"]=0; current["evidence_scope"]="regular-file-fixture"; current["physical_boot_success"]=false;
     event(store,current,"ARMING","The full request and original default were synced before creating fixture BootNext");
+    operation.begin("boot-arm");
     Value owner; owner["schema"]=1; owner["request_id"]=plan["operation_id"]; owner["plan_sha256"]=plan["plan_sha256"];
     variables.save_record(".ure-boot-owner.json",owner);
     arm(variables,plan); event(store,current,"ARMED","Fixture BootNext was synced and read back; default order is unchanged"); return decision(plan,current);
@@ -331,9 +335,13 @@ Value boot_route_history(const fs::path& directory) {
 Value boot_route_action(const Root& esp,const Root& variables,const fs::path& directory,const std::string& action,const std::string& confirmation,const Value& receipt) {
     require(action=="inspect" || action=="recover" || action=="consume-fixture" || action=="ack-fixture" || action=="cancel" || action=="fallback-fixture",
         "invalid-boot-action","Unknown boot journal action");
-    auto store=private_directory(directory,false); write_gate(variables);
+    auto store=private_directory(directory,false); const auto plan=read_record(store,"plan.json"); check_plan(plan);
+    std::unique_ptr<ManagedOperation> operation;
+    if(action!="inspect") { Value targets=operation_targets(plan["esp_identity"]); targets.append(plan["variables_identity"]);
+        operation=std::make_unique<ManagedOperation>(operation_binding("boot.route",plan,directory,targets),true); }
+    write_gate(variables);
     auto variable_lock=lock(variables,false); auto journal_lock=lock(store,false);
-    const auto plan=read_record(store,"plan.json"); check_plan(plan); auto current=state(store,plan);
+    require(json(read_record(store,"plan.json"))==json(plan),"changed-journal","Boot plan changed during ownership admission"); auto current=state(store,plan);
     validate_bindings(esp,variables,plan); const auto observed=next_state(variables,plan),phase=current["phase"].asString();
     const auto ownership=owner_state(variables,plan);
     auto out=decision(plan,current); out["boot_next_observation"]=observed; out["recovery_actions"]=Value(Json::arrayValue);
@@ -353,15 +361,18 @@ Value boot_route_action(const Root& esp,const Root& variables,const fs::path& di
     if(action=="cancel")require(phase=="ARMED","invalid-boot-transition","Only an armed request can be cancelled");
     require(observed!="foreign","boot-next-conflict","Another BootNext is present; it must not be removed or replaced");
     require(ownership!="foreign","boot-request-conflict","Another request owns this variable store, even if its BootNext bytes match");
-    require(ownership=="owned" || (action=="recover" && phase=="ARMING" && observed=="absent"),"boot-owner-missing","No matching durable ownership record exists for this operation");
-    if(ownership=="absent") {
+    const bool terminal=phase=="ACKNOWLEDGED" || phase=="CANCELLED" || phase=="FALLBACK_SELECTED";
+    require(ownership=="owned" || (action=="recover" && observed=="absent" &&
+        (phase=="ARMING" || (terminal && operation->token().has_retained_intent()))),"boot-owner-missing","No matching durable ownership record exists for this operation");
+    operation->begin("boot-transition");
+    if(ownership=="absent" && !terminal) {
         Value owner; owner["schema"]=1; owner["request_id"]=plan["operation_id"]; owner["plan_sha256"]=plan["plan_sha256"];
         variables.save_record(".ure-boot-owner.json",owner);
     }
     if(action=="recover") {
         if(phase=="ARMING" && observed=="owned")event(store,current,"ARMED","Recovered a complete matching BootNext after interruption; no loader was started");
         else if(phase=="CANCELLING" && observed=="absent") { event(store,current,"CANCELLED","Confirmed that the interrupted cancellation removed only the owned BootNext"); release_owner(variables,plan); }
-        else if((phase=="ACKNOWLEDGED" || phase=="CANCELLED" || phase=="FALLBACK_SELECTED") && observed=="absent")release_owner(variables,plan);
+        else if(terminal && observed=="absent") { if(ownership=="owned")release_owner(variables,plan); }
         else {
             require(phase=="ARMING" || phase=="CONSUMING" || phase=="CONSUMED" || phase=="CANCELLING" || (phase=="ARMED" && observed=="absent"),"invalid-boot-transition","This stable phase does not require recovery");
             if(observed=="owned")remove_owned(variables,plan);
@@ -396,7 +407,14 @@ Value boot_route_action(const Root& esp,const Root& variables,const fs::path& di
         require((phase=="FALLBACK_PENDING" || phase=="UNKNOWN") && observed=="absent","invalid-boot-transition","Fallback requires a failed fixture acknowledgement or an explicitly unknown interrupted attempt");
         event(store,current,"FALLBACK_SELECTED","The unchanged first BootOrder option is the fixture fallback decision; no new BootNext, boot-set restoration or reboot is performed");
         release_owner(variables,plan);
-        return decision(plan,current,true);
+        validate_bindings(esp,variables,plan);
+        require(next_state(variables,plan)=="absent" && owner_state(variables,plan)=="absent","boot-owner-release-unverified","Boot fixture retirement did not verify");
+        return operation->finish(decision(plan,current,true),true,true,"COMPLETE");
+    }
+    if(current["phase"]=="ACKNOWLEDGED" || current["phase"]=="CANCELLED" || current["phase"]=="FALLBACK_SELECTED") {
+        validate_bindings(esp,variables,plan);
+        require(next_state(variables,plan)=="absent" && owner_state(variables,plan)=="absent","boot-owner-release-unverified","Boot fixture retirement did not verify");
+        return operation->finish(decision(plan,current),true,true,"COMPLETE");
     }
     return decision(plan,current);
 }

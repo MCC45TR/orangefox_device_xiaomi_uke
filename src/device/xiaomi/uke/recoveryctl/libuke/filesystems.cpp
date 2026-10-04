@@ -2,6 +2,7 @@
 // Mutating tools operate on a private staged image. The existing chunk journal
 // owns the only original-target writes, readback, interruption recovery and rollback.
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -218,9 +219,9 @@ void prepare_image(const Root& system,StorageTarget& target,const Root& store,co
     progress["post_check"]=checked; progress["prepared_sha256"]=sha256(read.get()); progress["state"]="PREPARED"; store.save_record("state.json",progress,true);
     storage_revalidate(target,&system); require(sha256(target.descriptor.get())==plan["source_sha256"].asString(),"stale-source","Original target changed while its replacement was prepared");
 }
-Value transformed(const Root& system,StorageTarget& target,const Root& store,const fs::path& path,const Value& plan,Value& progress) {
+Value transformed(const Root& system,StorageTarget& target,const Root& store,const fs::path& path,const Value& plan,Value& progress,OperationLease& lease) {
     prepare_image(system,target,store,plan,progress);
-    filesystem_replacement_backup(system,target,store,"working.img",path/"prepared-backup",plan["firmware_profile"].asString());
+    filesystem_replacement_backup(system,target,store,"working.img",path/"prepared-backup",plan["firmware_profile"].asString(),&lease);
     auto application=restore_plan(system,target,path/"prepared-backup",plan["firmware_profile"].asString()); store.save_record("application-plan.json",application);
     progress["state"]="READY_TO_APPLY"; progress["application_plan_sha256"]=application["plan_sha256"]; store.save_record("state.json",progress,true);
     return application;
@@ -276,8 +277,14 @@ Value filesystem_operation_plan(const Root& system,const StorageTarget& target,c
     plan["risk"]=action=="format" ? "Erase all files in the selected filesystem; preserve a verified complete original image in the application journal before writes" : "Modify only the selected filesystem; keep verified before/after bytes for interruption recovery and rollback";
     plan["plan_sha256"]=seal(plan); return plan;
 }
-Value filesystem_prepare(const Root& system,StorageTarget& source,const Value& plan,const fs::path& directory,const std::string& confirmation) {
+Value filesystem_prepare(const Root& system,StorageTarget& source,const Value& plan,const fs::path& directory,const std::string& confirmation,OperationLease* parent) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact preparation plan hash");
+    // Compound callers own their original target and construct private seeds
+    // inside the retained journal. This helper only writes its private working
+    // copy; passing the parent's token avoids recursively acquiring the domain.
+    std::unique_ptr<ManagedOperation> operation;
+    if(parent)parent->require_active();
+    else operation=std::make_unique<ManagedOperation>(operation_binding("filesystem.prepare",plan,directory,operation_targets(plan["target_identity"])));
     require(source.identity["kind"]=="regular-image" && json(source.identity)==json(plan["target_identity"]),"invalid-stage-source","Preparation selects an unchanged private regular image");
     const auto checked=filesystem_operation_plan(system,source,plan["request"],plan["firmware_profile"].asString());
     require(checked["source_sha256"]==plan["source_sha256"] && checked["tool"]==plan["tool"],"stale-source","Filesystem preparation input or tool differs from review");
@@ -290,30 +297,43 @@ Value filesystem_prepare(const Root& system,StorageTarget& source,const Value& p
 }
 Value filesystem_operation_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& path,const std::string& confirmation) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact filesystem plan hash");
+    ManagedOperation operation(operation_binding("filesystem.execute",plan,path,operation_targets(plan["target_identity"])));
     require(json(target.identity)==json(plan["target_identity"]),"stale-device","Filesystem selection changed since review");
     filesystem_target(target); storage_revalidate(target,&system); storage_write_gate(target);
     require(sha256(target.descriptor.get())==plan["source_sha256"].asString(),"stale-source","Filesystem content changed since review");
     auto store=private_directory(path,true); auto writer=lock(store); store.save_record("plan.json",plan);
     struct statvfs space{}; require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize && space.f_bavail>=plan["estimated_max_journal_bytes"].asUInt64()/space.f_frsize+1,"insufficient-space","Keep space for the staged image and both complete recovery mirrors");
     Value progress; progress["schema"]=1; progress["plan_sha256"]=plan["plan_sha256"]; progress["state"]="VALIDATED"; store.save_record("state.json",progress);
-    try { const auto application=transformed(system,target,store,path,plan,progress);
-        const auto result=restore_execute(system,target,application,path/"application",application["plan_sha256"].asString());
+    try { const auto application=transformed(system,target,store,path,plan,progress,operation.token());
+        const auto result=restore_execute(system,target,application,path/"application",application["plan_sha256"].asString(),&store,&operation.token());
         progress["state"]="COMPLETE"; progress["application"]=result; progress["successful"]=true; progress["physical_test_record"]=false;
-        store.save_record("state.json",progress,true); return progress;
+        store.save_record("state.json",progress,true); return operation.finish(progress,result["verified"]==true,true);
     } catch(const Error& error) { progress["state"]=store.exists("application") ? "RECOVERY_REQUIRED" : "FAILED_SAFE"; progress["error_code"]=error.code;
         try { store.save_record("state.json",progress,true); } catch(...) {} throw; }
 }
 Value filesystem_operation_recover(const Root& system,StorageTarget& target,const fs::path& path,const std::string& operation,const std::string& confirmation) {
-    auto store=private_directory(path,false); auto writer=lock(store); const auto plan=record(store,"plan.json"); check_plan(plan);
+    auto store=private_directory(path,false); const auto plan=record(store,"plan.json"); check_plan(plan);
+    std::unique_ptr<ManagedOperation> owner;
+    if(operation!="inspect")owner=std::make_unique<ManagedOperation>(operation_binding("filesystem.execute",plan,path,operation_targets(plan["target_identity"])),true);
+    auto writer=lock(store); require(json(record(store,"plan.json"))==json(plan),"changed-journal","Filesystem plan changed during ownership admission");
     Value out=record(store,"state.json"); out["plan_sha256"]=plan["plan_sha256"];
     require(operation=="inspect" || operation=="resume" || operation=="rollback" || operation=="cancel","unsupported-filesystem-operation","Unknown filesystem recovery action");
     if(operation!="inspect")require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact filesystem journal hash");
     if(store.exists("application")) {
         const auto application=record(store,"application-plan.json");
+        require(application.isObject() && application["plan_sha256"].isString() &&
+            application["plan_sha256"]==out["application_plan_sha256"] &&
+            application["firmware_profile"]==plan["firmware_profile"] &&
+            json(application["target_identity"])==json(plan["target_identity"]) &&
+            application["before"]["sha256"]==plan["source_sha256"] &&
+            application["target_sha256"]==out["prepared_sha256"],
+            "wrong-filesystem-application","Derived restore differs from the filesystem job's persisted target, original and prepared content commitment");
+        auto nested=private_directory(path/"application",false);
+        require(json(record(nested,"plan.json"))==json(application),"wrong-filesystem-application","Raw journal belongs to a different filesystem replacement");
         if(operation=="inspect")out["application"]=restore_inspect(system,target,path/"application");
-        else if(operation=="resume")out["application"]=restore_resume(system,target,path/"application",application["plan_sha256"].asString());
-        else if(operation=="rollback")out["application"]=restore_rollback(system,target,path/"application",application["plan_sha256"].asString());
-        else out["application"]=restore_cancel(system,target,path/"application",application["plan_sha256"].asString());
+        else if(operation=="resume")out["application"]=restore_resume(system,target,path/"application",application["plan_sha256"].asString(),&owner->token());
+        else if(operation=="rollback")out["application"]=restore_rollback(system,target,path/"application",application["plan_sha256"].asString(),&owner->token());
+        else out["application"]=restore_cancel(system,target,path/"application",application["plan_sha256"].asString(),&owner->token());
         if(operation!="inspect") { out["state"]=operation=="rollback" ? "ROLLED_BACK" : operation=="cancel" ? "CANCELLED_SAFE" : "COMPLETE"; store.save_record("state.json",out,true); }
     } else {
         require(operation=="inspect" || operation=="cancel","prepare-restart-required","Interrupted staging never writes the original target; cancel this store and create a new reviewed plan");
@@ -321,6 +341,7 @@ Value filesystem_operation_recover(const Root& system,StorageTarget& target,cons
         out["original_unchanged_verified"]=true;
         if(operation=="cancel") { out["state"]="CANCELLED_SAFE"; store.save_record("state.json",out,true); }
     }
+    if(owner)return owner->finish(out,out["original_unchanged_verified"]==true || out["application"]["verified"]==true,true);
     return out;
 }
 } // namespace ure

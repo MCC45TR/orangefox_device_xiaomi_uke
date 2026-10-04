@@ -1,15 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_lease.hpp"
 #include <array>
 #include <csignal>
 #include <fcntl.h>
 #include <fstream>
 #include <iostream>
+#include <poll.h>
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+namespace initial_stream_fault {
+bool armed=false;
+dev_t device=0;
+ino_t inode=0;
+int signal=-1;
+}
+extern "C" int __real_fsync(int);
+extern "C" int __wrap_fsync(int fd) {
+    const auto result=__real_fsync(fd);
+    if(result==0 && initial_stream_fault::armed) {
+        struct stat observed{};
+        if(::fstat(fd,&observed)==0 && S_ISDIR(observed.st_mode) && observed.st_dev==initial_stream_fault::device && observed.st_ino==initial_stream_fault::inode) {
+            const auto* domain=::getenv("URE_OPERATION_COORDINATOR");
+            if(domain && ure::fs::exists(ure::fs::path(domain)/"owner.json") && ure::json_file(ure::fs::path(domain)/"owner.json")["phase"]=="stream-ready") {
+                initial_stream_fault::armed=false;
+                if(::write(initial_stream_fault::signal,"S",1)!=1)::_exit(3);
+                for(;;)::pause();
+            }
+        }
+    }
+    return result;
+}
 namespace {
 void check(bool condition,const std::string& message) { if(!condition)throw std::runtime_error(message); }
 template<class F> void reject(F function,const std::string& code) {
@@ -32,6 +56,23 @@ void stream_all(const ure::Root& system,ure::StorageTarget& target,const ure::fs
         if(next==state["chunk_count"].asUInt64())break;
         auto input=packet(temporary,before,after,next); ure::restore_stream_chunk(system,target,journal,next,input.get(),plan["plan_sha256"].asString());
     }
+}
+void interrupted_begin(const ure::Root& system,const ure::StorageTarget& target,const ure::Value& plan,const ure::Value& receipt,const ure::fs::path& journal) {
+    int pipe[2]{}; check(::pipe2(pipe,O_CLOEXEC)==0,"Cannot create stream admission barrier"); ure::Fd input(pipe[0]),output(pipe[1]);
+    const auto child=::fork(); check(child>=0,"Cannot fork initial stream interruption");
+    if(child==0) {
+        try {
+            input=ure::Fd(); const auto* domain=::getenv("URE_OPERATION_COORDINATOR"); struct stat identity{};
+            check(domain && ::stat(domain,&identity)==0,"Cannot select shared stream ownership domain");
+            initial_stream_fault::device=identity.st_dev; initial_stream_fault::inode=identity.st_ino;
+            initial_stream_fault::signal=output.get(); initial_stream_fault::armed=true;
+            ure::restore_stream_begin(system,target,plan,receipt,journal,plan["plan_sha256"].asString()); ::_exit(2);
+        } catch(...) { ::_exit(4); }
+    }
+    output=ure::Fd(); pollfd barrier{input.get(),POLLIN,0}; char signal=0;
+    const bool observed=::poll(&barrier,1,5000)>0 && (barrier.revents&POLLIN) && ::read(input.get(),&signal,1)==1 && signal=='S';
+    const auto killed=::kill(child,SIGKILL); int status=0; const auto waited=::waitpid(child,&status,0);
+    check(observed && killed==0 && waited==child && WIFSIGNALED(status) && WTERMSIG(status)==SIGKILL,"Initial stream fixture did not stop after durable intent and before READY");
 }
 }
 int main() {
@@ -60,6 +101,18 @@ int main() {
             auto readonly=ure::storage_image(image,sector);
             reject([&]{ure::restore_stream_begin(system,readonly,plan,receipt,journal,confirm);},"read-only-target");
             check(!ure::fs::exists(journal),"Rejected stream start created journal");
+            const auto early=prefix/"early-admission";
+            interrupted_begin(system,target,plan,receipt,early);
+            check(ure::json_file(early/"journal.json")["state"]=="VALIDATED" && hash(image)==ure::sha256(original),
+                "Initial stream interruption lost its durable recovery state or changed target bytes");
+            check(ure::operation_lease_status()["retained_owner"]==true,"Initial stream SIGKILL lost retained ownership");
+            reject([&]{ure::LifecycleLease::acquire("reboot");},"operation-recovery-required");
+            reject([&]{ure::backup_capture(system,plan["before"],prefix/"blocked-before",false);},"operation-recovery-required");
+            check(!ure::fs::exists(prefix/"blocked-before"),"Competing backup created a store through retained stream ownership");
+            check(ure::restore_stream_status(system,target,early)["classification"]=="ORIGINAL","VALIDATED stream readback was not recoverable");
+            const auto early_cancel=ure::restore_stream_cancel(system,target,early,confirm);
+            check(early_cancel["state"]=="CANCELLED_SAFE" && early_cancel["operation_owner_released"]==true && hash(image)==ure::sha256(original),
+                "Exact initial stream cancellation did not verify and release ownership");
             ure::restore_stream_begin(system,target,plan,receipt,journal,confirm);
             auto status=ure::restore_stream_status(system,target,journal); check(status["classification"]=="ORIGINAL" && status["next_chunk"].asUInt64()==0,"Fresh stream classification differs");
             auto valid=packet(input,before,after,0);

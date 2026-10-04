@@ -76,7 +76,8 @@ int main() {
         const auto listed=ure::transaction_list(root,work); check(listed.size()>=4,"Journal discovery failed");
         ure::Root locked(work/"ready"); auto lock=locked.open(".lock",O_RDWR);
         check(::flock(lock.get(),LOCK_EX|LOCK_NB)==0,"Cannot lock fixture journal");
-        reject([&]{ure::transaction_resume(root,work/"ready",plan["plan_sha256"].asString());},"busy-journal");
+        const auto locked_plan=ure::parse_json(locked.read("plan.json"));
+        reject([&]{ure::transaction_resume(root,work/"ready",locked_plan["plan_sha256"].asString());},"busy-journal");
         ::flock(lock.get(),LOCK_UN);
 
         const std::string data=std::string(65536,'A')+std::string(65536,'B')+std::string(27001,'C');

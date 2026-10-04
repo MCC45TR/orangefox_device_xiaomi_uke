@@ -1,0 +1,222 @@
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -27,6 +27,7 @@
+ #include <string>
+ #include <sys/poll.h>
+ #include "exclude.hpp"
++#include "lifecycle_policy.hpp"
+ #include "tw_atomic.hpp"
+ #include "progresstracking.hpp"
+ #ifdef TW_INCLUDE_CRYPTO
+@@ -143,10 +144,10 @@
+ 	bool Is_Mounted();                                                        // Checks mount to see if the partition is currently mounted
+ 	bool Is_File_System_Writable();                                           // Checks if the root directory of the file system can be written to
+ 	bool Mount(bool Display_Error);                                           // Mounts the partition if it is not mounted
+-	bool UnMount(bool Display_Error, int flags = 0);                          // Unmounts the partition if it is mounted
++	bool UnMount(bool Display_Error, int flags = 0, const ure::LegacyLifecycleGuard* parent = nullptr); // Retains lifecycle exclusion through unmount
+ 	bool ReMount(bool Display_Error);                                         // Remounts the partition
+ 	bool ReMount_RW(bool Display_Error);                                      // Remounts the partition with read/write access
+-	bool Bind_Mount(bool Display_Error);                                      // Bind mount partition if symlink mountpoint is populated
++	bool Bind_Mount(bool Display_Error, const ure::LegacyLifecycleGuard* parent = nullptr); // Retains explicit lifecycle ownership for readonly bind mounts
+ 	bool BlkDiscard();                                                        // Clear the partition using BLKDISCARD ioctl
+ 	bool Wipe(string New_File_System);                                        // Wipes the partition
+ 	bool Wipe();                                                              // Wipes the partition
+@@ -351,7 +352,7 @@
+ 	void Output_Partition_Logging();                                          // Outputs partition information to the log
+ 	void Output_Partition(TWPartition* Part);                                 // Outputs partition details to the log
+ 	int Mount_By_Path(string Path, bool Display_Error);                       // Mounts partition based on path (e.g. /system)
+-	int UnMount_By_Path(string Path, bool Display_Error, int flags = 0);      // Unmounts partition based on path
++	int UnMount_By_Path(string Path, bool Display_Error, int flags = 0, const ure::LegacyLifecycleGuard* parent = nullptr); // Retains one explicit lifecycle token
+ 	int Is_Mounted_By_Path(string Path);                                      // Checks if partition is mounted based on path
+ 	int Mount_Current_Storage(bool Display_Error);                            // Mounts the current storage location
+ 	int Mount_Settings_Storage(bool Display_Error);                           // Mounts the settings file storage location (usually internal)
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -20,6 +20,7 @@
+ */
+ 
+ #include "ure-write-gate.hpp"
++#include "ure-lifecycle.hpp"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -1656,6 +1657,8 @@
+ 		return false;
+ 	}
+ 
++	ure::LegacyLifecycleGuard lifecycle("mount");
++	if (!ure_legacy_lifecycle_guard(lifecycle)) return false;
+ 
+ 	Find_Actual_Block_Device();
+ 
+@@ -1674,7 +1677,7 @@
+ 			Current_File_System = "vfat";
+ 		} else {
+ #ifdef TW_NO_EXFAT_FUSE
+-			UnMount(false);
++			UnMount(false, 0, &lifecycle);
+ 			// We'll let the kernel handle it but using exfat-fuse to detect if the file system is actually exfat
+ 			// Some kernels let us mount vfat as exfat which doesn't work out too well
+ #else
+@@ -1814,14 +1817,21 @@
+ 		Update_Size(Display_Error);
+ 
+ 	if (!Symlink_Mount_Point.empty()/* && Symlink_Mount_Point != "/sdcard"*/) {
+-		if (!Bind_Mount(false))
++		if (!Bind_Mount(false, &lifecycle))
+ 			return false;
+ 	}
+ 	return true;
+ }
+ 
+-bool TWPartition::Bind_Mount(bool Display_Error) {
++bool TWPartition::Bind_Mount(bool Display_Error, const ure::LegacyLifecycleGuard* parent) {
++	ure::LegacyLifecycleGuard lifecycle("mount", parent);
++	if (!ure_legacy_lifecycle_guard(lifecycle)) return false;
+ 	if (TWFunc::Path_Exists(Symlink_Path)) {
++		struct statvfs source_info;
++		if (statvfs(Symlink_Path.c_str(), &source_info) != 0 || !(source_info.f_flag & ST_RDONLY)) {
++			ure_legacy_write_guard(ure::LegacyWrite::WritableMount);
++			return false;
++		}
+ 		if (mount(Symlink_Path.c_str(), Symlink_Mount_Point.c_str(), "", MS_BIND, NULL) < 0) {
+ 			return false;
+ 		}
+@@ -1829,8 +1839,10 @@
+ 	return true;
+ }
+ 
+-bool TWPartition::UnMount(bool Display_Error, int flags) {
++bool TWPartition::UnMount(bool Display_Error, int flags, const ure::LegacyLifecycleGuard* parent) {
+ 	if (Is_Mounted()) {
++		ure::LegacyLifecycleGuard lifecycle("unmount", parent);
++		if (!ure_legacy_lifecycle_guard(lifecycle)) return false;
+ 		int never_unmount_system;
+ 
+ 		DataManager::GetValue(TW_DONT_UNMOUNT_SYSTEM, never_unmount_system);
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -20,6 +20,7 @@
+ */
+ 
+ #include "ure-write-gate.hpp"
++#include "ure-lifecycle.hpp"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -954,7 +955,9 @@
+ 	return false;
+ }
+ 
+-int TWPartitionManager::UnMount_By_Path(string Path, bool Display_Error, int flags) {
++int TWPartitionManager::UnMount_By_Path(string Path, bool Display_Error, int flags, const ure::LegacyLifecycleGuard* parent) {
++	ure::LegacyLifecycleGuard lifecycle("unmount", parent);
++	if (!ure_legacy_lifecycle_guard(lifecycle)) return false;
+ 	std::vector<TWPartition*>::iterator iter;
+ 	int ret = false;
+ 	bool found = false;
+@@ -969,10 +972,10 @@
+ 	// Iterate through all partitions
+ 	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+ 		if ((*iter)->Mount_Point == Local_Path || (!(*iter)->Symlink_Mount_Point.empty() && (*iter)->Symlink_Mount_Point == Local_Path)) {
+-			ret = (*iter)->UnMount(Display_Error, flags);
++			ret = (*iter)->UnMount(Display_Error, flags, &lifecycle);
+ 			found = true;
+ 		} else if ((*iter)->Is_SubPartition && (*iter)->SubPartition_Of == Local_Path) {
+-			(*iter)->UnMount(Display_Error, flags);
++			(*iter)->UnMount(Display_Error, flags, &lifecycle);
+ 		}
+ 	}
+ 	if (found) {
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -21,6 +21,7 @@
+ */
+ 
+ #include "ure-write-gate.hpp"
++#include "ure-lifecycle.hpp"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -1092,6 +1093,8 @@
+ // reboot: Reboot the system. Return -1 on error, no return on success
+ int TWFunc::tw_reboot(RebootCommand command)
+ {
++	ure::LegacyLifecycleGuard lifecycle("reboot", nullptr, true);
++	if (!ure_legacy_lifecycle_guard(lifecycle)) return -1;
+ 	DataManager::Flush();
+ 	Update_Log_File();
+ 
+@@ -1111,9 +1114,9 @@
+ 	#ifdef OF_UNMOUNT_SDCARDS_BEFORE_REBOOT
+ 	// unmount /sdcard1 and /sdcard
+ 	if (PartitionManager.Is_Mounted_By_Path("/sdcard1")) {
+-		if (!PartitionManager.UnMount_By_Path("/sdcard1", false)) {
++		if (!PartitionManager.UnMount_By_Path("/sdcard1", false, 0, &lifecycle)) {
+ 			usleep(16384);
+-			PartitionManager.UnMount_By_Path("/sdcard1", false, MNT_FORCE | MNT_DETACH);
++			PartitionManager.UnMount_By_Path("/sdcard1", false, MNT_FORCE | MNT_DETACH, &lifecycle);
+ 		}
+ 		usleep(262144);
+ 	}
+@@ -1129,9 +1132,9 @@
+ 	TWPartition *dataPart = PartitionManager.Find_Partition_By_Path("/data");
+ 	if (dataPart) {
+ 		if (dataPart->Is_Mounted()) {
+-			if (!dataPart->UnMount(false)) {
++			if (!dataPart->UnMount(false, 0, &lifecycle)) {
+ 				usleep(16384);
+-				dataPart->UnMount(false, MNT_FORCE | MNT_DETACH);
++				dataPart->UnMount(false, MNT_FORCE | MNT_DETACH, &lifecycle);
+ 			}
+ 			usleep(262144);
+ 		}
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -20,6 +20,7 @@
+ */
+ 
+ #include "../ure-write-gate.hpp"
++#include "../ure-lifecycle.hpp"
+ 
+ #include <stdarg.h>
+ #include <stdio.h>
+@@ -708,6 +709,10 @@
+ 
+ int GUIAction::reboot(std::string arg)
+ {
++  if (!ure::stage_legacy_reboot()) {
++    gui_err("ure_lifecycle_blocked=An active or interrupted operation must finish or be recovered before unmounting or restarting.");
++    return 1;
++  }
+   sync();
+   DataManager::SetValue("tw_gui_done", 1);
+   DataManager::SetValue("tw_reboot_arg", arg);
+--- a/recovery_utils/roots.cpp
++++ b/recovery_utils/roots.cpp
+@@ -15,6 +15,7 @@
+  */
+ 
+ #include "recovery_write_policy.hpp"
++#include "lifecycle_policy.hpp"
+ 
+ #include "recovery_utils/roots.h"
+ 
+@@ -141,6 +142,8 @@
+ }
+ 
+ int ensure_path_unmounted(const std::string& path) {
++  ure::LegacyLifecycleGuard lifecycle("unmount");
++  if (!lifecycle.active()) { LOG(ERROR) << "ure-lifecycle-unavailable: recover or finish the active operation first"; return -1; }
+   return android::fs_mgr::EnsurePathUnmounted(&fstab, path) ? 0 : -1;
+ }
+ 
+--- a/gui/theme/common/languages/en.xml
++++ b/gui/theme/common/languages/en.xml
+@@ -1268,5 +1268,6 @@
+ 		<string name="listbox_group_additions">Additions</string>
+ 		<string name="partitions_management">Partitions Management</string>
+ 		
++		<string name="ure_lifecycle_blocked">An active or interrupted operation must finish or be recovered before unmounting or restarting.</string>
+ 	</resources>
+ </language>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Native Linux UAPI operations. No external btrfs command or shell is executed.
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -226,7 +227,11 @@ Value btrfs_snapshot_plan(const Root& root,const std::string& source,const std::
     return save_plan(root,plan,store);
 }
 Value btrfs_snapshot_execute(const Root& root,const fs::path& path,const std::string& confirmation) {
-    auto store=private_directory(path,false); auto writer=lock(store); const auto plan=record(store,"plan.json"); check_plan(plan); confirm(plan,confirmation,"snapshot");
+    auto store=private_directory(path,false); const auto plan=record(store,"plan.json"); check_plan(plan); confirm(plan,confirmation,"snapshot");
+    Value target=plan["context"]; target["fsid"]=plan["source_identity"]["fsid"];
+    ManagedOperation operation(operation_binding("btrfs.snapshot",plan,path,operation_targets(target)),true);
+    auto writer=lock(store);
+    require(json(record(store,"plan.json"))==json(plan),"stale-btrfs-plan","Snapshot plan changed during operation admission");
     require(json(location(root.fd()))==json(plan["context"]),"stale-subvolume","Selected filesystem root changed");
     auto source=root.open(plan["source_path"].asString(),O_RDONLY|O_DIRECTORY); same_subvolume(source.get(),plan["source_identity"],false);
     auto parent=root.open(plan["snapshot_parent"].asString(),O_RDONLY|O_DIRECTORY);
@@ -235,11 +240,13 @@ Value btrfs_snapshot_execute(const Root& root,const fs::path& path,const std::st
     const auto name=plan["snapshot_name"].asString(),staging=plan["staging_name"].asString();
     if(progress["state"]=="COMPLETE") {
         auto created=Root(Fd(::fcntl(parent.get(),F_DUPFD_CLOEXEC,0))).open(name,O_RDONLY|O_DIRECTORY);
-        require(json(subvolume(created.get(),true))==json(progress["snapshot_identity"]),"stale-subvolume","Completed snapshot changed"); return summary(plan,progress);
+        require(json(subvolume(created.get(),true))==json(progress["snapshot_identity"]),"stale-subvolume","Completed snapshot changed");
+        writer=Fd(); return operation.finish(summary(plan,progress),true,true,"COMPLETE");
     }
     if(progress["state"]=="PLANNED") {
         absent(parent.get(),name); absent(parent.get(),staging); struct btrfs_ioctl_vol_args_v2 args{};
         args.fd=source.get(); args.flags=BTRFS_SUBVOL_RDONLY; std::memcpy(args.name,staging.c_str(),staging.size()+1);
+        operation.begin("BTRFS_SNAPSHOT_CREATING");
         require(::ioctl(parent.get(),BTRFS_IOC_SNAP_CREATE_V2,&args)==0,"snapshot-failed","Kernel could not create the read-only snapshot");
         auto created=Root(Fd(::fcntl(parent.get(),F_DUPFD_CLOEXEC,0))).open(staging,O_RDONLY|O_DIRECTORY); const auto identity=subvolume(created.get(),true);
         require(identity["read_only"]==true && identity["parent_uuid"]==plan["source_identity"]["uuid"],"snapshot-unverified","Created staging snapshot requires manual inspection");
@@ -253,11 +260,15 @@ Value btrfs_snapshot_execute(const Root& root,const fs::path& path,const std::st
     auto created=parent_root.open(at_name ? name : staging,O_RDONLY|O_DIRECTORY); auto identity=subvolume(created.get(),true);
     auto expected=progress["snapshot_identity"]; if(at_name)expected["name_hex"]=hex(name);
     require(json(identity)==json(expected),"snapshot-unverified","Recorded snapshot identity changed; inspect before recovery");
-    if(!at_name)require(::syscall(SYS_renameat2,parent.get(),staging.c_str(),parent.get(),name.c_str(),1)==0,
-        "snapshot-unverified","Snapshot could not be published without replacement; staging is retained");
+    if(!at_name) {
+        operation.begin("BTRFS_SNAPSHOT_PUBLISHING");
+        require(::syscall(SYS_renameat2,parent.get(),staging.c_str(),parent.get(),name.c_str(),1)==0,
+            "snapshot-unverified","Snapshot could not be published without replacement; staging is retained");
+    }
     require(::fsync(parent.get())==0,"snapshot-unverified","Published snapshot durability is unverified; inspect before recovery");
     identity=subvolume(created.get(),true); require(identity["name_hex"]==hex(name),"snapshot-unverified","Published snapshot name is unverified");
-    progress["state"]="COMPLETE"; progress["snapshot_identity"]=identity; store.save_record("state.json",progress,true); return summary(plan,progress);
+    progress["state"]="COMPLETE"; progress["snapshot_identity"]=identity; store.save_record("state.json",progress,true);
+    writer=Fd(); return operation.finish(summary(plan,progress),true,true,"COMPLETE");
 }
 Value btrfs_send_plan(const Root& root,const std::string& source,const std::string& parent,const std::string& profile,const fs::path& store) {
     auto plan=new_plan(root,source,profile); plan["operation"]="send"; plan["protocol"]=1; plan["parent_path"]=parent; plan["parent_identity"]=Value();
@@ -329,20 +340,25 @@ Value btrfs_backup_inspect(const fs::path& path) {
     auto store=private_directory(path,false); const auto plan=record(store,"plan.json"); check_plan(plan); return summary(plan,state_record(store,plan));
 }
 Value btrfs_send_verify(const fs::path& path) {
-    auto store=private_directory(path,false); auto writer=lock(store); const auto plan=record(store,"plan.json"); check_plan(plan);
+    auto store=private_directory(path,false); const auto plan=record(store,"plan.json"); check_plan(plan);
     require(plan["operation"]=="send","wrong-btrfs-plan","Offline data verification requires a send plan"); const auto progress=state_record(store,plan);
     require(progress["state"]=="COMPLETE","incomplete-btrfs-backup","Btrfs send is not complete"); auto fd=stream_file(store,"stream.bin");
     const auto stream=btrfs_stream_check(fd.get()); stream_matches(stream,plan); require(json(stream)==json(progress["stream"]),"btrfs-stream-corrupt","Stream hash or metadata differs from the completion record");
     auto out=summary(plan,progress); out["data_verified"]=true; out["receive_executed"]=false; return out;
 }
 Value btrfs_send_capture(const Root& root,const fs::path& path,const std::string& confirmation) {
-    auto store=private_directory(path,false); auto writer=lock(store); const auto plan=record(store,"plan.json"); check_plan(plan); confirm(plan,confirmation,"send");
+    auto store=private_directory(path,false); const auto plan=record(store,"plan.json"); check_plan(plan); confirm(plan,confirmation,"send");
+    Value target=plan["context"]; target["fsid"]=plan["source_identity"]["fsid"];
+    ManagedOperation operation(operation_binding("btrfs.send",plan,path,operation_targets(target)));
+    auto writer=lock(store);
+    require(json(record(store,"plan.json"))==json(plan),"stale-btrfs-plan","Send plan changed during capture admission");
     require(json(location(root.fd()))==json(plan["context"]),"stale-subvolume","Selected filesystem root changed");
     auto source=root.open(plan["source_path"].asString(),O_RDONLY|O_DIRECTORY); same_subvolume(source.get(),plan["source_identity"],true);
     Fd previous; if(!plan["parent_path"].asString().empty()) { previous=root.open(plan["parent_path"].asString(),O_RDONLY|O_DIRECTORY); same_subvolume(previous.get(),plan["parent_identity"],true); }
     filesystem_tree_outside(source.get(),store.fd()); if(previous.get()>=0)filesystem_tree_outside(previous.get(),store.fd()); auto progress=state_record(store,plan);
     if(progress["state"]=="COMPLETE") { auto fd=stream_file(store,"stream.bin"); const auto stream=btrfs_stream_check(fd.get()); stream_matches(stream,plan);
-        require(json(stream)==json(progress["stream"]),"btrfs-stream-corrupt","Completed stream changed"); auto out=summary(plan,progress); out["data_verified"]=true; return out; }
+        require(json(stream)==json(progress["stream"]),"btrfs-stream-corrupt","Completed stream changed"); auto out=summary(plan,progress); out["data_verified"]=true;
+        writer=Fd(); return operation.finish(out,true,true,"COMPLETE"); }
     if(progress["state"]!="SEALED") {
         require(progress["state"]=="PLANNED" || progress["state"]=="CAPTURING" || progress["state"]=="FAILED","invalid-btrfs-state","Send state cannot be restarted");
         require(!store.exists("stream.bin"),"unexpected-btrfs-stream","Unrecorded completed stream requires inspection"); capability();
@@ -393,6 +409,7 @@ Value btrfs_send_capture(const Root& root,const fs::path& path,const std::string
     const auto inspected=btrfs_stream_check(stream.get()); stream_matches(inspected,plan);
     require(stat_fd(stream.get()).st_nlink==1 && json(inspected)==json(progress["stream"]),"btrfs-stream-corrupt","Published stream differs from its seal");
     require(::fsync(store.fd())==0,"io-error","Cannot sync send publication"); progress["state"]="COMPLETE"; store.save_record("state.json",progress,true);
-    auto out=summary(plan,progress); out["data_verified"]=true; return out;
+    auto out=summary(plan,progress); out["data_verified"]=true;
+    writer=Fd(); return operation.finish(out,true,true,"COMPLETE");
 }
 } // namespace ure

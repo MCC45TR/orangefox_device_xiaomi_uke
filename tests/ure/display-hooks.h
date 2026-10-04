@@ -3,6 +3,7 @@
 // and reviewed upstream reload/coordinate functions, not a second algorithm.
 #pragma once
 #include "uke.h"
+#include "localization_fixture.hpp"
 #include <algorithm>
 #include <atomic>
 #include <charconv>

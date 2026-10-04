@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <vector>
 #include "ure-write-gate.hpp"
+#include "ure-lifecycle.hpp"
 
 using std::string;
 struct GateProbe {
@@ -29,6 +30,7 @@ struct GateProbe {
     struct Mount { string filesystem, options; unsigned long flags; };
     static inline std::vector<Mount> mounts;
     static inline std::deque<int> mount_results;
+    static inline std::function<void()> during_mount;
     static void write_effect() {
         ++side_effects;
         if (fixture.empty()) return;
@@ -39,6 +41,7 @@ struct GateProbe {
         errors.clear(); commands.clear(); dispatched.clear(); mounts.clear(); mount_results.clear();
         lookups=side_effects=namespace_effects=hal=data_manager=details=probes=0;
         virtual_ab=mounted=statvfs_failure=false; mounted_read_only=true;
+        during_mount={};
     }
 };
 struct TestLog {
@@ -98,6 +101,7 @@ struct TWFunc {
     static int stream_adb_backup(string&);
     static int Exec_Cmd(const string& command) {
         GateProbe::commands.push_back(command);
+        if(GateProbe::during_mount)GateProbe::during_mount();
         if (command.find(" -o ro")==string::npos) GateProbe::write_effect();
         return 0;
     }
@@ -118,10 +122,14 @@ public:
     bool Is_Mounted() { ++GateProbe::probes; return GateProbe::mounted; }
     void Find_Actual_Block_Device() { ++GateProbe::probes; }
     void Check_FS_Type() { ++GateProbe::probes; }
-    bool UnMount(bool) { ++GateProbe::namespace_effects; return true; }
+    bool UnMount(bool,int=0,const ure::LegacyLifecycleGuard* parent=nullptr) {
+        ure::LegacyLifecycleGuard lifecycle("unmount",parent);
+        if(!lifecycle.active())return false;
+        ++GateProbe::namespace_effects; if(GateProbe::during_mount)GateProbe::during_mount(); return true;
+    }
     bool Wipe_Encryption() { GateProbe::write_effect(); return true; }
     void Update_Size(bool) { ++GateProbe::probes; }
-    bool Bind_Mount(bool) { GateProbe::write_effect(); return true; }
+    bool Bind_Mount(bool,const ure::LegacyLifecycleGuard* parent=nullptr);
 };
 class TWPartitionManager {
 public:
@@ -167,8 +175,9 @@ public:
 inline int ure_test_mount(const char*,const char*,const char* filesystem,unsigned long flags,const void* options) {
     const string data=options ? static_cast<const char*>(options) : "";
     GateProbe::mounts.push_back({filesystem,data,flags});
+    if(GateProbe::during_mount)GateProbe::during_mount();
     const auto required=ure::legacy_read_only_recovery_option(filesystem);
-    if (!(flags & MS_RDONLY) || (required[0] && data.find(required)==string::npos)) GateProbe::write_effect();
+    if (!(flags & (MS_RDONLY|MS_BIND)) || (required[0] && data.find(required)==string::npos)) GateProbe::write_effect();
     if (GateProbe::mount_results.empty()) return 0;
     const int result=GateProbe::mount_results.front(); GateProbe::mount_results.pop_front();
     return result;

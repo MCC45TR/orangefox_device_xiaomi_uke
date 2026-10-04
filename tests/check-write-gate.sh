@@ -26,8 +26,8 @@ done < "$component/configs/ure/legacy-write-entry-points.tsv"
 [[ $count -ge 80 ]]
 cmp "$component/src/device/xiaomi/uke/ure-write-gate.hpp" "$tree/bootable/recovery/ure-write-gate.hpp"
 cmp "$component/src/device/xiaomi/uke/recoveryctl/libuke/recovery_write_policy.hpp" "$tree/device/xiaomi/uke/recoveryctl/libuke/recovery_write_policy.hpp"
-git -C "$tree/bootable/recovery" apply --reverse --check "$component/patches/0020-shared-recovery-write-gate.patch"
-git -C "$tree/system/core" apply --reverse --check "$component/patches/0021-fastbootd-write-gate.patch"
+bash "$component/scripts/prepare-recovery-patches.sh" "$tree/bootable/recovery" check
+bash "$component/scripts/prepare-fastboot-patches.sh" "$tree/system/core" check
 # An early queued error is translated after theme loading. A missing fallback
 # can re-enter GUIConsole::Translate_Now through FindString's error logging.
 language="$tree/bootable/recovery/gui/theme/common/languages/en.xml"
@@ -45,7 +45,7 @@ if first_guard "$temporary/missing-format-guard.cpp" 'int TWPartitionManager::Fo
 fi
 compiler=${CXX:-c++}
 "$compiler" -std=c++20 -Wall -Wextra -Werror -Wno-unused-parameter \
-    -DAB_OTA_UPDATER -DOF_REFRESH_ENCRYPTION_PROPS_BEFORE_FORMAT -DOF_WIPE_METADATA_AFTER_DATAFORMAT \
+    -D__ANDROID__ -DAB_OTA_UPDATER -DOF_REFRESH_ENCRYPTION_PROPS_BEFORE_FORMAT -DOF_WIPE_METADATA_AFTER_DATAFORMAT \
     -I"$component/tests/ure" -I"$component/tests/ure/write-gate-mocks" -I"$component/src/device/xiaomi/uke" \
     -I"$component/src/device/xiaomi/uke/recoveryctl/libuke" \
     "$component/tests/ure/legacy_write_gate.cpp" "$temporary/missing-format-guard.cpp" -o "$temporary/mutant"

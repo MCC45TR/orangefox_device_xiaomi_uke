@@ -40,6 +40,16 @@ cd "$component"
         src/upstream/orangefox-android16/bootable/recovery/minuitwrp/graphics_utils.cpp \
         src/upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf \
         src/upstream/orangefox-android16/external/freetype/{Android.bp,CMakeLists.txt,LICENSE.TXT,builds/cmake/FindHarfBuzz.cmake}
+    printf '%s\0' tests/with-operation-coordinator.sh tests/generate-lifecycle-hooks.sh \
+        src/device/xiaomi/uke/ure-lifecycle.hpp patches/0024-shared-operation-lifecycle.patch \
+        patches/0025-fastbootd-operation-lifecycle.patch configs/fastboot-patches.list \
+        scripts/prepare-reviewed-patches.sh scripts/prepare-fastboot-patches.sh \
+        src/upstream/orangefox-android16/bootable/recovery/partitions.hpp
+    # Optional owner work can be consumed by the GUI fixture scaffolding. Its
+    # exact inputs belong in a local receipt even before a separate review.
+    for path in src/device/xiaomi/uke/ure-localization.hpp src/device/xiaomi/uke/ure-locale-keys.hpp; do
+        [[ ! -f $path ]] || printf '%s\0' "$path"
+    done
     find src/upstream/orangefox-android16/external/freetype/{src,include,builds/unix} -type f -print0
     find src/upstream/orangefox-android16/bootable/recovery/libpixelflinger/include -type f -print0
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/theme/common/languages/en.xml

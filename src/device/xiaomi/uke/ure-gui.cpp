@@ -11,9 +11,11 @@
 #include <atomic>
 #include <charconv>
 #include <fcntl.h>
+#include <fcntl.h>
 #include <mutex>
 #include <set>
 #include <thread>
+#include <unistd.h>
 
 namespace {
 std::mutex session_mutex;
@@ -42,6 +44,9 @@ std::string edited_management_field;
 ure::Value boot_plan,boot_reviewed_selection,boot_journal_selection;
 std::string boot_pending_journal,boot_reviewed_journal;
 std::atomic<bool> maintenance_running{false};
+std::shared_ptr<ure::Root> maintenance_root;
+ure::Value maintenance_plan;
+std::string maintenance_journal;
 std::size_t current_line=0;
 std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
 void publish(const ure::Value& data) { DataManager::SetValue("ure_output",ure::json(data)); }
@@ -613,6 +618,21 @@ int GUIAction::uremanager(std::string command) {
         } else if(command.rfind("btrfs-",0)==0) {
             if(command=="btrfs-send-verify")publish(ure::btrfs_send_verify(value("ure_btrfs_store")));
             else if(command=="btrfs-backup-inspect")publish(ure::btrfs_backup_inspect(value("ure_btrfs_store")));
+            else if((command=="btrfs-plan" || command=="btrfs-execute") &&
+                (value("ure_btrfs_action")=="scrub-cancel" || value("ure_btrfs_action")=="balance-pause" || value("ure_btrfs_action")=="balance-cancel")) {
+                ure::require(maintenance_root && !maintenance_plan.empty(),"owner-control-required","Inspect the captured maintenance job before requesting its control");
+                ure::Value selection; selection["action"]=value("ure_btrfs_action"); selection["journal"]=maintenance_journal;
+                selection["operation_id"]=maintenance_plan["operation_id"];
+                if(command=="btrfs-plan") {
+                    review_management("btrfs-control",maintenance_plan,selection); managed_journal=maintenance_journal;
+                    DataManager::SetValue("ure_manage_journal",maintenance_journal);
+                    DataManager::SetValue("ure_status","Control the captured maintenance filesystem; confirm its running plan hash");
+                } else {
+                    reviewed_management("btrfs-control",selection);
+                    publish(ure::btrfs_manage_control(*maintenance_root,maintenance_plan,maintenance_journal,selection["action"].asString(),value("ure_manage_hash")));
+                    DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                }
+            }
             else {
                 auto root=os_root("ure_btrfs_root");
                 if(command=="btrfs-info" || command=="btrfs-subvolumes" || command=="btrfs-usage" || command=="btrfs-device-stats" || command=="btrfs-scrub-status" || command=="btrfs-balance-status")publish(ure::btrfs_native_info(root,command.substr(6)));
@@ -620,11 +640,15 @@ int GUIAction::uremanager(std::string command) {
                 else if(command=="btrfs-execute") {
                     reviewed_management("btrfs",management_selection("btrfs",btrfs_request(root))); DataManager::SetValue("ure_manage_journal",managed_journal);
                     if(managed_plan["request"]["action"]=="scrub" || managed_plan["request"]["action"]=="balance") {
+                        const auto plan=managed_plan; const auto directory=managed_journal,confirmation=value("ure_manage_hash");
+                        ure::Fd descriptor(::fcntl(root.fd(),F_DUPFD_CLOEXEC,3));
+                        ure::require(descriptor.get()>=0,"root-unavailable","Cannot retain the reviewed maintenance root");
+                        const auto captured=std::make_shared<ure::Root>(std::move(descriptor));
                         ure::require(!maintenance_running.exchange(true),"operation-busy","A native maintenance job is already running");
-                        const auto plan=managed_plan; const auto directory=managed_journal,path=value("ure_btrfs_root"),confirmation=value("ure_manage_hash");
+                        maintenance_root=captured; maintenance_plan=plan; maintenance_journal=directory;
                         DataManager::SetValue("ure_maintenance_state","RUNNING");
-                        try { std::thread([plan,directory,path,confirmation] {
-                            try { ure::Root selected(path); const auto result=ure::btrfs_manage_execute(selected,plan,directory,confirmation); publish(result); DataManager::SetValue("ure_maintenance_state",result["state"].asString()); }
+                        try { std::thread([plan,directory,captured,confirmation] {
+                            try { const auto result=ure::btrfs_manage_execute(*captured,plan,directory,confirmation); publish(result); DataManager::SetValue("ure_maintenance_state",result["state"].asString()); }
                             catch(const ure::Error& error) { ure::Value failure; failure["error"]["code"]=error.code; failure["error"]["message"]=error.what(); publish(failure); DataManager::SetValue("ure_maintenance_state","INTERRUPTED: inspect native status and journal"); }
                             catch(...) { DataManager::SetValue("ure_maintenance_state","FAILED: inspect the private journal"); }
                             maintenance_running=false;

@@ -15,3 +15,4 @@
 0020-shared-recovery-write-gate.patch
 0022-bounded-utf8-text.patch
 0023-bounded-text-raster-and-cache.patch
+0024-shared-operation-lifecycle.patch

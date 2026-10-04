@@ -2,6 +2,7 @@
 // Host-only font ownership/graphics boundary, never a product implementation.
 #pragma once
 #include "layout-hooks.h"
+#include "localization_fixture.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>

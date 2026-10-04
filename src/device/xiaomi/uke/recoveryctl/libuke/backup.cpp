@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -263,6 +264,7 @@ Value backup_storage_plan(const Root& system,const StorageTarget& target,const s
     return plan;
 }
 Value backup_capture(const Root& root, const Value& plan, const fs::path& directory, bool resume) {
+    ManagedOperation operation(operation_binding("backup.capture",plan,directory,operation_targets(plan["source_identity"])));
     StreamSource source(root,plan); source.destination(directory,plan);
     auto store=private_directory(directory,!resume); auto lock=lock_store(store);
     if(resume)require(json(store_plan(store))==json(plan),"invalid-backup","Resume manifest differs from the original backup");
@@ -301,10 +303,13 @@ Value backup_verify(const fs::path& directory) {
     auto store=private_directory(directory,false); return verify_store(store,store_plan(store));
 }
 Value prepared_replacement_backup(const Root& system,const StorageTarget& target,const Root& staged,const std::string& file,
-                                  const fs::path& destination,const std::string& profile,ReplacementOrigin origin) {
+                                  const fs::path& destination,const std::string& profile,ReplacementOrigin origin,OperationLease* parent) {
     // A reviewed replacement is deliberately bound to the ORIGINAL inode
     // or unit. This adapter cannot restore an unrelated file or alter geometry.
     require(identifier(profile),"invalid-profile","A transformation profile is required"); storage_revalidate(target,&system);
+    Value admission; admission["target_identity"]=target.identity; admission["profile"]=profile;
+    admission["staged_root"]=operation_target(staged.fd(),"prepared-root"); admission["file"]=file;
+    ManagedOperation operation(operation_binding("backup.prepared",admission,destination,operation_targets(target.identity)),false,parent);
     auto input=staged.open(file,O_RDONLY|O_NONBLOCK); const auto original=source_state(input.get());
     require(original["bytes"]==target.identity["bytes"] && (original["device"]!=target.identity["file_device"] || original["inode"]!=target.identity["file_inode"]),
         "invalid-staged-filesystem","Transformation must be a separate regular file of the exact target capacity");
@@ -330,10 +335,11 @@ Value prepared_replacement_backup(const Root& system,const StorageTarget& target
     store.save_record("progress.json",progress); return progress;
 }
 Value filesystem_replacement_backup(const Root& system,const StorageTarget& target,const Root& staged,const std::string& file,
-                                    const fs::path& destination,const std::string& profile) {
-    return prepared_replacement_backup(system,target,staged,file,destination,profile,ReplacementOrigin::FilesystemTransformation);
+                                    const fs::path& destination,const std::string& profile,OperationLease* parent) {
+    return prepared_replacement_backup(system,target,staged,file,destination,profile,ReplacementOrigin::FilesystemTransformation,parent);
 }
 void backup_export(const Root& root, const Value& plan, std::uint64_t index, int output_fd) {
+    ManagedOperation operation(operation_binding("backup.export",plan,".",operation_targets(plan["source_identity"])));
     StreamSource source(root,plan);
     require(index<plan["chunks"].size(),"invalid-chunk","Chunk index is outside the manifest");
     const auto& chunk=plan["chunks"][static_cast<Json::ArrayIndex>(index)];
@@ -598,9 +604,11 @@ RestoreReview review_restore(const Root& system,const StorageTarget& target,cons
     if(preparing && original) { result["recovery_actions"].append("cancel"); if(image && review.state["direction"]=="restore")result["recovery_actions"].append("resume"); }
     if(original && (phase=="READY" || phase=="BACKUP_VERIFIED" || phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN"))
         result["recovery_actions"].append("cancel");
-    if(review.complete && image && expected && phase!="CANCELLED_SAFE" && phase!="ROLLED_BACK")result["recovery_actions"].append("rollback");
+    if(review.complete && image && expected && phase!="CANCELLED_SAFE")result["recovery_actions"].append("rollback");
+    if(phase=="CANCELLED_SAFE" && original)result["recovery_actions"].append("cancel");
     if(review.complete && image && expected && review.state["direction"]=="restore" &&
-        (phase=="READY" || phase=="BACKUP_VERIFIED" || phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN"))result["recovery_actions"].append("resume");
+        (phase=="READY" || phase=="BACKUP_VERIFIED" || phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN" ||
+         (phase=="COMMITTED" && wanted)))result["recovery_actions"].append("resume");
     result["cooperating_locks_only"]=true; result["atomic_snapshot"]=false;
     return review;
 }
@@ -621,14 +629,16 @@ void restore_write(int fd,int source,std::uint64_t offset,std::uint64_t bytes) {
     }
     require(::fsync(fd)==0,"io-error","Cannot sync restored target chunk");
 }
-Value run_restore(const Root& system,StorageTarget& target,const Root& journal,const fs::path& path,RestoreReview review,bool rollback) {
+Value run_restore(const Root& system,StorageTarget& target,const Root& journal,const fs::path& path,RestoreReview review,bool rollback,ManagedOperation& operation) {
     auto state=review.state; state["direction"]=rollback ? "rollback" : "restore"; state["completed_bytes"]=Json::UInt64(0); state["written_chunks"]=Json::UInt64(0);
     state.removeMember("error_code"); state["verified"]=false;
     const auto& manifest=rollback ? review.before : review.after; auto store=mirror_root(journal,rollback ? "before" : "after");
     bool attempted=review.result["classification"]!="ORIGINAL" && review.before["sha256"]!=review.after["sha256"];
     try {
+        operation.begin(rollback ? "restore-rollback" : "restore-write");
         restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
         for(Json::ArrayIndex i=0;i<manifest["chunks"].size();++i) {
+            operation.token().require_active();
             journal_binding(path,journal); restore_target(system,target,review.plan["target_identity"]); storage_write_gate(target);
             const auto& chunk=manifest["chunks"][i]; const auto offset=chunk["offset"].asUInt64(),bytes=chunk["bytes"].asUInt64();
             const auto current=transfer(target.descriptor.get(),offset,bytes,-1);
@@ -644,7 +654,7 @@ Value run_restore(const Root& system,StorageTarget& target,const Root& journal,c
             restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
         }
         restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "VERIFYING");
-        journal_binding(path,journal); restore_target(system,target,review.plan["target_identity"]);
+        operation.token().require_active(); journal_binding(path,journal); restore_target(system,target,review.plan["target_identity"]);
         // Readback can observe dirty page-cache bytes after an earlier failed
         // flush. Retrying an already matching target must still flush it before
         // declaring a durable terminal boundary.
@@ -678,9 +688,11 @@ Value restore_plan(const Root& system,const StorageTarget& target,const fs::path
     plan["host_streamed_restore"]=false; plan["plan_sha256"]=plan_seal(plan);
     require(json(plan).size()<=4*1024*1024,"size-limit","Restore plan exceeds the JSON budget"); check_restore_plan(plan); return plan;
 }
-Value restore_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Root* retained_parent) {
+Value restore_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Root* retained_parent,OperationLease* parent) {
     check_restore_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact reviewed restore plan SHA-256");
-    storage_write_gate(target); RestoreTargetLock target_lock(target.descriptor.get());
+    storage_write_gate(target);
+    ManagedOperation operation(operation_binding("storage.restore",plan,directory,operation_targets(plan["target_identity"])),false,parent);
+    RestoreTargetLock target_lock(target.descriptor.get());
     require(json(target.identity)==json(plan["target_identity"]),"stale-device","Target metadata changed since restore planning");
     storage_revalidate(target,&system); verified_target(target.descriptor.get(),plan["before"],"stale-source");
     if(retained_parent) {
@@ -695,15 +707,22 @@ Value restore_execute(const Root& system,StorageTarget& target,const Value& plan
     try { prepare_restore(system,target,plan,journal,directory,state); }
     catch(const Error& error) { failed_restore(journal,state,false,error.code); throw; }
     catch(...) { failed_restore(journal,state,false,"unexpected-error"); throw; }
-    return run_restore(system,target,journal,directory,review_restore(system,target,journal),false);
+    auto review=review_restore(system,target,journal);
+    require(json(review.plan)==json(plan),"changed-journal","Restore plan changed after ownership admission");
+    auto result=run_restore(system,target,journal,directory,std::move(review),false,operation);
+    return operation.finish(result,result["verified"]==true,true);
 }
 Value restore_inspect(const Root& system,const StorageTarget& target,const fs::path& directory) {
     auto journal=private_directory(directory,false); auto lock=lock_store(journal,false); return review_restore(system,target,journal).result;
 }
-Value restore_resume(const Root& system,StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+Value restore_resume(const Root& system,StorageTarget& target,const fs::path& directory,const std::string& confirmation,OperationLease* parent) {
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_restore_plan(plan);
+    ManagedOperation operation(operation_binding("storage.restore",plan,directory,operation_targets(plan["target_identity"])),true,parent);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_restore(system,target,journal);
+    require(json(review.plan)==json(plan),"changed-journal","Restore plan changed after ownership admission");
     require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the reviewed restore journal SHA-256");
+    require(review.state["state"]!="COMMITTED" || operation.token().has_retained_intent(),"unsafe-resume","An already released restore cannot be resumed again");
     require(restore_action(review.result,"resume"),"unsafe-resume","Restore cannot resume with diverged bytes or this recorded direction/phase");
     storage_write_gate(target);
     if(!review.complete || review.state["state"]=="VALIDATED" || review.state["state"]=="BACKUP_STARTED" || review.state["state"]=="FAILED_SAFE") {
@@ -711,23 +730,34 @@ Value restore_resume(const Root& system,StorageTarget& target,const fs::path& di
         catch(const Error& error) { failed_restore(journal,review.state,false,error.code); throw; }
         catch(...) { failed_restore(journal,review.state,false,"unexpected-error"); throw; }
         review=review_restore(system,target,journal);
+        require(json(review.plan)==json(plan),"changed-journal","Restore plan changed during preparation");
     }
-    return run_restore(system,target,journal,directory,std::move(review),false);
+    auto result=run_restore(system,target,journal,directory,std::move(review),false,operation);
+    return operation.finish(result,result["verified"]==true,true);
 }
-Value restore_rollback(const Root& system,StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+Value restore_rollback(const Root& system,StorageTarget& target,const fs::path& directory,const std::string& confirmation,OperationLease* parent) {
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_restore_plan(plan);
+    ManagedOperation operation(operation_binding("storage.restore",plan,directory,operation_targets(plan["target_identity"])),true,parent);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_restore(system,target,journal);
+    require(json(review.plan)==json(plan),"changed-journal","Restore rollback plan changed after ownership admission");
     require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the reviewed restore rollback SHA-256");
+    require(review.state["state"]!="ROLLED_BACK" || operation.token().has_retained_intent(),"unsafe-rollback","An already released rollback cannot be replayed");
     require(review.result["classification"]!="DIVERGED","changed-target","Unrelated target changes prevent rollback");
     require(restore_action(review.result,"rollback"),"unsafe-rollback","Restore lacks complete verified mirrors or an eligible phase");
-    storage_write_gate(target); return run_restore(system,target,journal,directory,std::move(review),true);
+    storage_write_gate(target); auto result=run_restore(system,target,journal,directory,std::move(review),true,operation);
+    return operation.finish(result,result["verified"]==true,true);
 }
-Value restore_cancel(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+Value restore_cancel(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation,OperationLease* parent) {
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_restore_plan(plan);
+    ManagedOperation operation(operation_binding("storage.restore",plan,directory,operation_targets(plan["target_identity"])),true,parent);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_restore(system,target,journal);
+    require(json(review.plan)==json(plan),"changed-journal","Restore cancellation plan changed after ownership admission");
     require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the reviewed restore cancellation SHA-256");
+    require(review.state["state"]!="CANCELLED_SAFE" || operation.token().has_retained_intent(),"unsafe-cancel","An already released cancellation cannot be replayed");
     require(restore_action(review.result,"cancel"),"unsafe-cancel","Safe cancellation requires complete original-byte verification and an eligible nonterminal phase");
-    review.state["verified"]=true; restore_boundary(journal,review.state,"CANCELLED_SAFE"); return review.state;
+    review.state["verified"]=true; restore_boundary(journal,review.state,"CANCELLED_SAFE"); return operation.finish(review.state,true,true);
 }
 namespace {
 constexpr std::uint64_t stream_margin=16*1024*1024;
@@ -838,7 +868,7 @@ StreamReview review_stream(const Root& system,const StorageTarget& target,const 
     StreamReview review; review.plan=restore_record(journal,"plan.json"); check_stream_plan(review.plan);
     const auto receipt=restore_record(journal,"receipt.json"); check_host_receipt(review.plan,receipt);
     review.state=restore_record(journal,"journal.json"); const auto& plan=review.plan; const auto& state=review.state;
-    const std::set<std::string> phases={"READY","EXECUTING","VERIFYING","COMMITTED","FAILED_SAFE","FAILED_UNCERTAIN","ROLLBACK_REQUIRED","ROLLED_BACK","CANCELLED_SAFE"};
+    const std::set<std::string> phases={"VALIDATED","READY","EXECUTING","VERIFYING","COMMITTED","FAILED_SAFE","FAILED_UNCERTAIN","ROLLBACK_REQUIRED","ROLLED_BACK","CANCELLED_SAFE"};
     require(state["schema"]==1 && state["operation"]==plan["operation"] && state["operation_id"]==plan["operation_id"] &&
         state["plan_sha256"]==plan["plan_sha256"] && state["receipt_sha256"]==receipt["receipt_sha256"] &&
         (state["direction"]=="restore" || state["direction"]=="rollback") && state["state"].isString() &&
@@ -905,8 +935,8 @@ StreamReview review_stream(const Root& system,const StorageTarget& target,const 
     const bool terminal=state["state"]=="COMMITTED" || state["state"]=="ROLLED_BACK" || state["state"]=="CANCELLED_SAFE";
     if(expected && !terminal && plan["target_identity"]["kind"]=="regular-image")result["recovery_actions"].append("host-resume");
     if(expected && state["state"]!="ROLLED_BACK" && state["state"]!="CANCELLED_SAFE" && plan["target_identity"]["kind"]=="regular-image")result["recovery_actions"].append("host-rollback");
-    if(original && (state["state"]=="READY" || state["state"]=="FAILED_SAFE"))result["recovery_actions"].append("cancel");
-    if(expected && !terminal && next==plan["before"]["chunks"].size())result["recovery_actions"].append("finish");
+    if(original && (state["state"]=="VALIDATED" || state["state"]=="READY" || state["state"]=="FAILED_SAFE" || state["state"]=="CANCELLED_SAFE"))result["recovery_actions"].append("cancel");
+    if(expected && state["state"]!="CANCELLED_SAFE" && next==plan["before"]["chunks"].size())result["recovery_actions"].append("finish");
     return review;
 }
 void stream_confirm(const StreamReview& review,const std::string& confirmation) {
@@ -954,7 +984,9 @@ Value restore_receipt_input(int input_fd) {
 Value restore_stream_begin(const Root& system,const StorageTarget& target,const Value& plan,const Value& receipt,const fs::path& directory,const std::string& confirmation) {
     check_stream_plan(plan); check_host_receipt(plan,receipt);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact reviewed stream restore plan SHA-256");
-    storage_write_gate(target); RestoreTargetLock target_lock(target.descriptor.get());
+    storage_write_gate(target);
+    ManagedOperation operation(operation_binding("storage.stream-restore",plan,directory,operation_targets(plan["target_identity"])));
+    RestoreTargetLock target_lock(target.descriptor.get());
     require(json(target.identity)==json(plan["target_identity"]),"stale-device","Stream target metadata changed since planning");
     storage_revalidate(target,&system); verified_target(target.descriptor.get(),plan["before"],"stale-source");
     auto journal=private_directory(directory,true); auto lock=lock_store(journal); struct statvfs space{};
@@ -969,14 +1001,20 @@ Value restore_stream_begin(const Root& system,const StorageTarget& target,const 
     std::string classes;
     for(Json::ArrayIndex i=0;i<plan["before"]["chunks"].size();++i)classes+=plan["before"]["chunks"][i]["sha256"]==plan["after"]["chunks"][i]["sha256"] ? 'B' : 'O';
     save_stream_proof(state,plan,stream_image_identity(target),classes);
-    journal_binding(directory,journal); restore_boundary(journal,state,"READY"); return state;
+    // A streamed transaction deliberately retains its reservation between
+    // independently invoked host chunk commands, including before chunk zero.
+    journal_binding(directory,journal); restore_boundary(journal,state,"VALIDATED");
+    operation.begin("stream-ready"); restore_boundary(journal,state,"READY"); return state;
 }
 Value restore_stream_status(const Root& system,const StorageTarget& target,const fs::path& directory) {
     auto journal=private_directory(directory,false); auto lock=lock_store(journal,false); return review_stream(system,target,journal).result;
 }
 Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::path& directory,std::uint64_t index,int input_fd,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_stream_plan(plan);
+    ManagedOperation operation(operation_binding("storage.stream-restore",plan,directory,operation_targets(plan["target_identity"])),true);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_stream(system,target,journal,true); stream_confirm(review,confirmation); storage_write_gate(target);
+    require(json(review.plan)==json(plan),"changed-journal","Stream plan changed after ownership admission");
     require(restore_action(review.result,"host-resume"),"unsafe-resume","Stream target diverged or journal is terminal");
     require(index<review.plan["before"]["chunks"].size() && index==review.result["next_chunk"].asUInt64(),"invalid-chunk","Send the earliest unverified target chunk reported by inspection");
     auto state=review.state; const auto i=static_cast<Json::ArrayIndex>(index); const bool rollback=state["direction"]=="rollback";
@@ -993,7 +1031,7 @@ Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::pa
         const auto current=transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1);
         require(current==review.hashes[i],"changed-target","Stream target chunk changed while receiving its verified pair");
         state["active"]=incoming; restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
-        clean_stream_cache(journal,state["active"]); attempted=true;
+        clean_stream_cache(journal,state["active"]); operation.begin("stream-write"); attempted=true;
         restore_write(target.descriptor.get(),rollback ? old.get() : next.get(),before["offset"].asUInt64(),before["bytes"].asUInt64());
         require(transfer(target.descriptor.get(),before["offset"].asUInt64(),before["bytes"].asUInt64(),-1)==(rollback ? before : after)["sha256"].asString(),
             "verification-error","Streamed target chunk readback differs");
@@ -1002,32 +1040,50 @@ Value restore_stream_chunk(const Root& system,StorageTarget& target,const fs::pa
         state["active"]=Value(); state["last_verified_chunk"]=Json::UInt64(index); restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "EXECUTING");
         clean_stream_cache(journal,state["active"]);
         if(target.identity["kind"]=="regular-image")target.identity=storage_image(target.identity["path"].asString(),target.identity["logical_sector_bytes"].asUInt()).identity;
-        return review_stream(system,target,journal,true).result;
+        const auto finished=review_stream(system,target,journal,true);
+        require(json(finished.plan)==json(plan),"changed-journal","Stream plan changed during its chunk write");
+        return finished.result;
     } catch(const Error& error) { failed_restore(journal,state,attempted,error.code); try { clean_stream_cache(journal,state["active"]); } catch(...) {} throw; }
     catch(...) { failed_restore(journal,state,attempted,"unexpected-error"); throw; }
 }
 Value restore_stream_finish(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_stream_plan(plan);
+    ManagedOperation operation(operation_binding("storage.stream-restore",plan,directory,operation_targets(plan["target_identity"])),true);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_stream(system,target,journal); stream_confirm(review,confirmation);
+    require(json(review.plan)==json(plan),"changed-journal","Stream finish plan changed after ownership admission");
+    require((review.state["state"]!="COMMITTED" && review.state["state"]!="ROLLED_BACK") || operation.token().has_retained_intent(),
+        "unsafe-finish","An already released stream transaction cannot be completed again");
     require(restore_action(review.result,"finish"),"unsafe-finish","All desired chunks must verify in an eligible journal before completion");
     const bool rollback=review.state["direction"]=="rollback"; auto state=review.state;
     restore_boundary(journal,state,rollback ? "ROLLBACK_REQUIRED" : "VERIFYING"); journal_binding(directory,journal);
-    restore_target(system,target,review.plan["target_identity"]); verified_target(target.descriptor.get(),review.plan[rollback ? "before" : "after"],"verification-error");
+    restore_target(system,target,review.plan["target_identity"]); operation.begin("stream-verifying");
+    require(::fsync(target.descriptor.get())==0,"io-error","Cannot sync streamed target before final readback");
+    verified_target(target.descriptor.get(),review.plan[rollback ? "before" : "after"],"verification-error");
     state["verified"]=true; state["sha256"]=review.plan[rollback ? "before" : "after"]["sha256"]; state["active"]=Value(); state.removeMember("error_code");
-    restore_boundary(journal,state,rollback ? "ROLLED_BACK" : "COMMITTED"); clean_stream_cache(journal,state["active"]); return state;
+    restore_boundary(journal,state,rollback ? "ROLLED_BACK" : "COMMITTED"); clean_stream_cache(journal,state["active"]); return operation.finish(state,true,true);
 }
 Value restore_stream_rollback(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_stream_plan(plan);
+    ManagedOperation operation(operation_binding("storage.stream-restore",plan,directory,operation_targets(plan["target_identity"])),true);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_stream(system,target,journal); stream_confirm(review,confirmation); storage_write_gate(target);
+    require(json(review.plan)==json(plan),"changed-journal","Stream rollback plan changed after ownership admission");
     require(restore_action(review.result,"host-rollback"),"unsafe-rollback","Stream rollback requires expected bytes and an eligible journal");
     auto state=review.state; state["direction"]="rollback"; state["verified"]=false; state.removeMember("error_code");
-    journal_binding(directory,journal); restore_boundary(journal,state,"ROLLBACK_REQUIRED"); return review_stream(system,target,journal).result;
+    journal_binding(directory,journal); operation.begin("stream-rollback"); restore_boundary(journal,state,"ROLLBACK_REQUIRED");
+    const auto finished=review_stream(system,target,journal);
+    require(json(finished.plan)==json(plan),"changed-journal","Stream rollback plan changed during its direction checkpoint"); return finished.result;
 }
 Value restore_stream_cancel(const Root& system,const StorageTarget& target,const fs::path& directory,const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
+    auto journal=private_directory(directory,false); const auto plan=parse_json(journal.read("plan.json",4*1024*1024)); check_stream_plan(plan);
+    ManagedOperation operation(operation_binding("storage.stream-restore",plan,directory,operation_targets(plan["target_identity"])),true);
+    auto lock=lock_store(journal); RestoreTargetLock target_lock(target.descriptor.get());
     auto review=review_stream(system,target,journal); stream_confirm(review,confirmation);
+    require(json(review.plan)==json(plan),"changed-journal","Stream cancellation plan changed after ownership admission");
+    require(review.state["state"]!="CANCELLED_SAFE" || operation.token().has_retained_intent(),"unsafe-cancel","An already released stream cancellation cannot be replayed");
     require(restore_action(review.result,"cancel"),"unsafe-cancel","Safe stream cancellation requires original bytes before execution");
     auto state=review.state; state["verified"]=true; state["active"]=Value(); state.removeMember("error_code");
-    journal_binding(directory,journal); restore_boundary(journal,state,"CANCELLED_SAFE"); clean_stream_cache(journal,state["active"]); return state;
+    journal_binding(directory,journal); restore_boundary(journal,state,"CANCELLED_SAFE"); clean_stream_cache(journal,state["active"]); return operation.finish(state,true,true);
 }
 } // namespace ure

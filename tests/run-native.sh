@@ -19,6 +19,11 @@ cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-host -G Ninja \
     -DCMAKE_CXX_COMPILER_LAUNCHER="$component/scripts/host-ccache.sh"
 cmake --build build/ure-host -j"$jobs"
 ctest --test-dir build/ure-host --output-on-failure
+# Shell fixtures must share one persistent coordinator across their separate
+# CLI invocations, just as all GUI/CLI calls do during one recovery session.
+operation_scope=$(mktemp -d "$component/build/native-cli-operations-XXXXXX")
+export URE_OPERATION_COORDINATOR="$operation_scope/coordinator"
+trap 'rm -f -- "$initial_inputs"; if [[ -f $operation_scope/coordinator/owner.json ]]; then printf "Unresolved CLI ownership preserved at %s\n" "$operation_scope" >&2; else rm -rf -- "$operation_scope"; fi' EXIT
 bash tests/check-ure.sh
 bash tests/check-backup.sh
 bash tests/check-tree-backup.sh
@@ -45,6 +50,7 @@ bash tests/check-write-gate.sh
 bash tests/check-text-patches.sh
 bash tests/check-stock-boot-programming.sh
 bash tests/check-payload-fixtures.sh
+[[ ! -f $URE_OPERATION_COORDINATOR/owner.json ]]
 cmp <(bash scripts/native-inputs.sh) "$initial_inputs"
 cp -- "$initial_inputs" reports/private/native-test-inputs.sha256
 jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut -d' ' -f1)" \
@@ -76,5 +82,8 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
     | jq '.validation.durable_recovery_image_installer_and_initial_publication_sigkill=true |
         .validation.installer_source_independent_resume_and_rollback=true | .validation.readback_only_restore_retries_target_fsync=true |
         .validation.volatile_legacy_installer_removed=true | .validation.physical_installer_durability=false' \
+    | jq '.validation.cooperative_common_operation_ownership=true | .validation.production_lifecycle_and_mount_refusals=true |
+        .validation.tree_restore_retained_owner_recovery=true | .validation.android_operation_coordinator_accepted=false |
+        .validation.physical_ownership_durability=false' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

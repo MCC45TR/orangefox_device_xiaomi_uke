@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <fcntl.h>
 #include <algorithm>
 #include <cerrno>
@@ -92,19 +93,25 @@ static void write_bytes(int fd, std::string_view bytes) {
     }
     require(::fsync(fd)==0,"io-error","Cannot sync backup");
 }
-Value backup_file(const Root& root, const std::string& relative, const fs::path& destination) {
+Value backup_file(const Root& root, const std::string& relative, const fs::path& destination, OperationLease* parent_operation) {
     const auto before=file_identity(root,relative);
+    Value plan; plan["operation"]="file.backup"; plan["root_identity"]=root_identity(root);
+    plan["path"]=relative; plan["source_state"]=before;
+    ManagedOperation operation(operation_binding("file.backup",plan,destination,
+        operation_targets(operation_target(root.fd(),"file-root"))),false,parent_operation);
+    require(json(file_identity(root,relative))==json(before),"stale-source","Source changed before backup admission");
     Root parent(destination.parent_path().empty() ? fs::path(".") : destination.parent_path());
     auto out=parent.open(destination.filename().string(),O_RDWR|O_CREAT|O_EXCL,0600);
     const auto contents=root.read(relative);
     require(sha256(contents)==before["sha256"].asString(),"stale-source","Source changed during backup");
     write_bytes(out.get(),contents);
     require(sha256(out.get())==before["sha256"].asString(),"backup-corrupt","Backup readback failed");
+    require(json(file_identity(root,relative))==json(before),"stale-source","Source identity or metadata changed during backup");
     require(::fsync(parent.fd())==0,"io-error","Cannot sync backup directory");
     Value manifest; manifest["schema"]=1; manifest["root_identity"]=root_identity(root);
     manifest["path"]=relative; manifest["identity"]=before; manifest["created_utc"]=utc();
     manifest["verified"]=true; manifest["private_record"]=true;
-    return manifest;
+    return operation.finish(manifest,true,true,"COMPLETE");
 }
 static Fd journal_lock(const Root& journal) {
     auto lock=journal.open(".lock",O_RDWR|O_CREAT,0600);
@@ -154,7 +161,7 @@ static Value journal_state(const Root& root, const Root& journal, Value& plan) {
         "invalid-journal","Unknown transaction state");
     return state;
 }
-static Value execute_file(const Root& root, const Value& plan, const Root& journal, Value state) {
+static Value execute_file(const Root& root, const Value& plan, const Root& journal, Value state, ManagedOperation& operation) {
     const auto path=plan["path"].asString();
     bool execution_started=false;
     try {
@@ -162,6 +169,7 @@ static Value execute_file(const Root& root, const Value& plan, const Root& journ
         validate_plan(root,plan);
         boundary(journal,state,"READY");
         boundary(journal,state,"EXECUTING"); execution_started=true;
+        operation.begin("FILE_REPLACING");
         root.atomic_save(path,plan["payload"].asString(),plan["source_state"]["sha256"].asString());
         boundary(journal,state,"VERIFYING");
         const auto after=file_identity(root,path);
@@ -178,6 +186,9 @@ static Value execute_file(const Root& root, const Value& plan, const Root& journ
 Value transaction_run(const Root& root, const Value& plan, const fs::path& journal_dir, const std::string& confirmation) {
     validate_plan(root,plan);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact plan SHA-256");
+    ManagedOperation operation(operation_binding("file.replace",plan,journal_dir,
+        operation_targets(operation_target(root.fd(),"file-root"))));
+    validate_plan(root,plan);
     auto target_lock=root.open(plan["path"].asString(),O_RDONLY);
     require(::flock(target_lock.get(),LOCK_EX|LOCK_NB)==0,"busy-target","Another transaction owns this file");
     auto journal=private_directory(journal_dir,true); auto lock=journal_lock(journal);
@@ -202,7 +213,8 @@ Value transaction_run(const Root& root, const Value& plan, const fs::path& journ
     } catch(const Error& error) {
         state["error_code"]=error.code; try { boundary(journal,state,"FAILED_SAFE"); } catch(...) {} throw;
     }
-    return execute_file(root,plan,journal,state);
+    state=execute_file(root,plan,journal,state,operation);
+    lock=Fd(); target_lock=Fd(); return operation.finish(state,true,true);
 }
 static Value inspect_journal(const Root& root, const Root& journal) {
     Value plan;
@@ -234,26 +246,45 @@ static void allowed_action(const Value& inspection, const std::string& action) {
     require(allowed,"unsafe-resume","Current identity, backup or recorded phase does not permit this recovery action");
 }
 Value transaction_resume(const Root& root, const fs::path& directory, const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=journal_lock(journal); Value plan;
+    auto journal=private_directory(directory,false); Value plan;
     auto state=journal_state(root,journal,plan);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the persisted plan checksum");
+    ManagedOperation operation(operation_binding("file.replace",plan,directory,
+        operation_targets(operation_target(root.fd(),"file-root"))),true);
+    auto lock=journal_lock(journal); Value retained_plan; state=journal_state(root,journal,retained_plan);
+    require(json(retained_plan)==json(plan),"stale-journal","Persisted file plan changed during recovery admission");
     auto target_lock=root.open(plan["path"].asString(),O_RDONLY);
     require(::flock(target_lock.get(),LOCK_EX|LOCK_NB)==0,"busy-target","Another process owns this file");
-    const auto inspection=inspect_journal(root,journal); allowed_action(inspection,"resume");
+    const auto inspection=inspect_journal(root,journal);
+    if(state["state"]=="COMMITTED") {
+        require(operation.token().has_retained_intent(),"unsafe-resume","An already released committed transaction cannot be replayed");
+        require(inspection["current_state"]=="PAYLOAD_VERIFIED","verification-error","Committed file no longer matches the reviewed payload");
+        state["result_identity"]=inspection["current_identity"]; state["verified"]=true;
+        lock=Fd(); target_lock=Fd(); return operation.finish(state,true,true);
+    }
+    allowed_action(inspection,"resume");
     if(inspection["current_state"]=="PAYLOAD_VERIFIED") {
         state["result_identity"]=inspection["current_identity"]; state["verified"]=true; state["recovered_by_readback"]=true;
-        boundary(journal,state,"COMMITTED"); return state;
+        boundary(journal,state,"COMMITTED");
+        lock=Fd(); target_lock=Fd(); return operation.finish(state,true,true);
     }
-    return execute_file(root,plan,journal,state);
+    state=execute_file(root,plan,journal,state,operation);
+    lock=Fd(); target_lock=Fd(); return operation.finish(state,true,true);
 }
 Value transaction_cancel(const Root& root, const fs::path& directory, const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=journal_lock(journal); Value plan;
+    auto journal=private_directory(directory,false); Value plan;
     auto state=journal_state(root,journal,plan);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the persisted plan checksum");
+    ManagedOperation operation(operation_binding("file.replace",plan,directory,
+        operation_targets(operation_target(root.fd(),"file-root"))),true);
+    auto lock=journal_lock(journal); Value retained_plan; state=journal_state(root,journal,retained_plan);
+    require(json(retained_plan)==json(plan),"stale-journal","Persisted file plan changed during recovery admission");
     auto target_lock=root.open(plan["path"].asString(),O_RDONLY);
     require(::flock(target_lock.get(),LOCK_EX|LOCK_NB)==0,"busy-target","Another process owns this file");
-    allowed_action(inspect_journal(root,journal),"cancel");
-    validate_plan(root,plan); boundary(journal,state,"CANCELLED_SAFE"); return state;
+    if(state["state"]=="CANCELLED_SAFE")require(operation.token().has_retained_intent(),"unsafe-resume","An already released cancelled transaction cannot be replayed");
+    else allowed_action(inspect_journal(root,journal),"cancel");
+    validate_plan(root,plan); boundary(journal,state,"CANCELLED_SAFE"); state["verified"]=true;
+    lock=Fd(); target_lock=Fd(); return operation.finish(state,true,true);
 }
 Value transaction_list(const Root& root, const fs::path& directory) {
     Root parent(directory); Value result(Json::arrayValue);
@@ -271,13 +302,16 @@ Value transaction_list(const Root& root, const fs::path& directory) {
     return result;
 }
 Value transaction_rollback(const Root& root, const fs::path& directory, const std::string& confirmation) {
-    auto journal=private_directory(directory,false); auto lock=journal_lock(journal);
-    auto state=record(journal,"journal.json");
-    if(journal.exists("plan.json")) { Value plan; state=journal_state(root,journal,plan); }
+    auto journal=private_directory(directory,false); Value plan;
+    auto state=journal_state(root,journal,plan);
     require(state["schema"].isInt() && state["schema"].asInt()==1 && state["path"].isString() &&
         state["plan_sha256"].isString() && state["expected_sha256"].isString(),"invalid-journal","Journal schema is incomplete");
     require(confirmation==state["plan_sha256"].asString(),"confirmation-required","Confirm the original plan checksum");
     require(json(root_identity(root))==json(state["root_identity"]),"wrong-root","Rollback root identity differs");
+    ManagedOperation operation(operation_binding("file.replace",plan,directory,
+        operation_targets(operation_target(root.fd(),"file-root"))),true);
+    auto lock=journal_lock(journal); Value retained_plan; state=journal_state(root,journal,retained_plan);
+    require(json(retained_plan)==json(plan),"stale-journal","Persisted file plan changed during recovery admission");
     const auto path=state["path"].asString(); auto target_lock=root.open(path,O_RDONLY);
     require(::flock(target_lock.get(),LOCK_EX|LOCK_NB)==0,"busy-target","Another transaction owns the rollback target");
     const auto backup=checked_backup(journal,state); const auto bytes=journal.read("backup.bin");
@@ -289,9 +323,14 @@ Value transaction_rollback(const Root& root, const fs::path& directory, const st
     for(const auto* key:{"mode","uid","gid","attributes_sha256"})require(json(current[key])==json(backup["identity"][key]),"changed-target","File metadata changed after the original transaction");
     require(current["sha256"]==state["expected_sha256"] || current["sha256"]==backup["identity"]["sha256"],
         "changed-target","Current file has unrelated changes; rollback refused");
-    boundary(journal,state,"ROLLBACK_REQUIRED");
-    root.atomic_save(path,bytes,current["sha256"].asString());
-    require(file_identity(root,path)["sha256"]==backup["identity"]["sha256"],"verification-error","Rollback readback failed");
-    state["verified"]=true; boundary(journal,state,"ROLLED_BACK"); return state;
+    if(state["state"]=="ROLLED_BACK")require(operation.token().has_retained_intent(),"unsafe-resume","An already released rolled-back transaction cannot be replayed");
+    if(state["state"]!="ROLLED_BACK") {
+        boundary(journal,state,"ROLLBACK_REQUIRED"); operation.begin("FILE_ROLLING_BACK");
+        root.atomic_save(path,bytes,current["sha256"].asString());
+    }
+    const auto restored=file_identity(root,path);
+    require(restored["sha256"]==backup["identity"]["sha256"] && same_metadata(restored,backup["identity"]),"verification-error","Rollback content or metadata readback failed");
+    state["verified"]=true; boundary(journal,state,"ROLLED_BACK");
+    lock=Fd(); target_lock=Fd(); return operation.finish(state,true,true);
 }
 } // namespace ure

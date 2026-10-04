@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -151,7 +152,12 @@ bool send_process_descriptor(int socket,int fd) {
     auto* item=CMSG_FIRSTHDR(&message); item->cmsg_level=SOL_SOCKET; item->cmsg_type=SCM_RIGHTS; item->cmsg_len=CMSG_LEN(sizeof(int));
     std::memcpy(CMSG_DATA(item),&fd,sizeof(fd)); return ::sendmsg(socket,&message,MSG_NOSIGNAL)==1;
 }
-void receive_process_descriptor(int socket,Fd& process) {
+void report_no_init(int socket) {
+    // This message is emitted only before a successful init fork. No payload
+    // can inherit or write this endpoint, and no session mount exists yet.
+    const char marker='N'; static_cast<void>(::send(socket,&marker,1,MSG_NOSIGNAL));
+}
+void receive_process_descriptor(int socket,Fd& process,bool& no_init) {
     if(process.get()>=0)return;
     char marker=0; iovec vector{&marker,1}; std::array<char,CMSG_SPACE(sizeof(int))> control{};
     msghdr message{}; message.msg_iov=&vector; message.msg_iovlen=1;
@@ -159,9 +165,54 @@ void receive_process_descriptor(int socket,Fd& process) {
     const auto count=::recvmsg(socket,&message,MSG_DONTWAIT|MSG_CMSG_CLOEXEC);
     if(count<=0)return;
     auto* item=CMSG_FIRSTHDR(&message);
-    if(count==1 && marker=='I' && item && item->cmsg_level==SOL_SOCKET && item->cmsg_type==SCM_RIGHTS && item->cmsg_len==CMSG_LEN(sizeof(int))) {
+    if(count==1 && !(message.msg_flags&(MSG_TRUNC|MSG_CTRUNC)) && marker=='N' && !item)no_init=true;
+    else if(count==1 && !(message.msg_flags&(MSG_TRUNC|MSG_CTRUNC)) && marker=='I' && item && item->cmsg_level==SOL_SOCKET && item->cmsg_type==SCM_RIGHTS && item->cmsg_len==CMSG_LEN(sizeof(int))) {
         int fd=-1; std::memcpy(&fd,CMSG_DATA(item),sizeof(fd)); process=Fd(fd);
+    } else {
+        for(auto* received=item;received;received=CMSG_NXTHDR(&message,received)) {
+            if(received->cmsg_level!=SOL_SOCKET || received->cmsg_type!=SCM_RIGHTS || received->cmsg_len<CMSG_LEN(0))continue;
+            const auto bytes=received->cmsg_len-CMSG_LEN(0);
+            for(std::size_t offset=0;offset+sizeof(int)<=bytes;offset+=sizeof(int)) {
+                int fd=-1; std::memcpy(&fd,CMSG_DATA(received)+offset,sizeof(fd)); if(fd>=0)::close(fd);
+            }
+        }
     }
+}
+class RescueLifetime {
+    pid_t worker_=-1;
+    Fd& init_;
+    bool released_=false;
+public:
+    explicit RescueLifetime(Fd& init):init_(init) {}
+    void started(pid_t worker) { worker_=worker; }
+    void reaped() { worker_=-1; }
+    void released() { released_=true; }
+    ~RescueLifetime() {
+        if(released_)return;
+        if(init_.get()>=0)static_cast<void>(::syscall(SYS_pidfd_send_signal,init_.get(),SIGKILL,nullptr,0));
+        if(worker_>0) {
+            static_cast<void>(::kill(worker_,SIGKILL));
+            while(::waitpid(worker_,nullptr,0)<0 && errno==EINTR) {}
+        }
+    }
+};
+void sync_session_filesystems(const Root& store,const Value& plan,const std::string& anchor) {
+    Root mounted(anchor); const auto selected=descriptor_identity(mounted.fd());
+    require(json(selected["device"])==json(plan["root_identity"]["device"]) && json(selected["inode"])==json(plan["root_identity"]["inode"]),
+        "session-sync-unverified","Private rescue root no longer matches the selected filesystem");
+    require(::syncfs(mounted.fd())==0,"session-sync-failed","Cannot sync the written rescue root");
+    Value proof; proof["schema"]=1; proof["plan_sha256"]=plan["plan_sha256"]; proof["filesystems"]=Value(Json::arrayValue);
+    for(const auto& connection:plan["connections"]) {
+        Root connected(anchor+"/"+connection["mount_point"].asString()); const auto identity=descriptor_identity(connected.fd());
+        if(connection["method"]!="automatic-block")
+            require(json(identity["device"])==json(connection["identity"]["device"]) && json(identity["inode"])==json(connection["identity"]["inode"]),
+                "session-sync-unverified","Private rescue connection no longer matches its reviewed filesystem");
+        else require(identity["mount_id"]!=selected["mount_id"],"session-sync-unverified","Automatic rescue connection was not mounted in the private namespace");
+        require(::syncfs(connected.fd())==0,"session-sync-failed","Cannot sync a written rescue filesystem connection");
+        Value item; item["mount_point"]=connection["mount_point"]; item["identity"]=identity;
+        item["source_identity"]=connection["identity"]; item["method"]=connection["method"]; proof["filesystems"].append(item);
+    }
+    proof["complete"]=true; proof["private_record"]=true; store.save_record("session-sync.json",proof);
 }
 void child_setup(const Root& root,const Root* esp,const Value& plan,const std::string& anchor) {
     const bool writable=plan["request"]["write"].asBool();
@@ -256,10 +307,19 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact rescue plan hash");
     auto refreshed=linux_rescue_plan(root,plan["request"],esp); refreshed["operation_id"]=plan["operation_id"]; refreshed["plan_sha256"]=seal(refreshed);
     require(json(refreshed)==json(plan),"stale-rescue-plan","Installed root, tools, script, fstab or connections changed since review");
+    Value targets=operation_targets(operation_target(root.fd(),"rescue-root"));
+    if(esp)targets.append(operation_target(esp->fd(),"rescue-esp"));
+    for(const auto& connection:plan["connections"])targets.append(connection["identity"]);
+    ManagedOperation operation(operation_binding("linux.rescue",plan,path,targets));
+    refreshed=linux_rescue_plan(root,plan["request"],esp); refreshed["operation_id"]=plan["operation_id"]; refreshed["plan_sha256"]=seal(refreshed);
+    require(json(refreshed)==json(plan),"stale-rescue-plan","Rescue plan changed during operation admission");
     auto store=private_directory(path,true); store.save_record("plan.json",plan); Value state;
+    auto writer=store.open("writer.lock",O_RDWR|O_CREAT,0600); struct stat lock{};
+    require(::fstat(writer.get(),&lock)==0 && S_ISREG(lock.st_mode) && lock.st_nlink==1 && lock.st_uid==::geteuid() &&
+        (lock.st_mode&07777)==0600 && ::flock(writer.get(),LOCK_EX|LOCK_NB)==0,"operation-busy","Rescue journal is unsafe or busy");
     state["schema"]=1; state["plan_sha256"]=plan["plan_sha256"]; state["state"]="PREPARING"; store.save_record("state.json",state);
     if(plan["request"]["write"].asBool() && plan.isMember("repair_output") && root.exists_resolved(plan["repair_output"].asString())) {
-        const auto backup=backup_file(root,plan["repair_output"].asString(),path/"original-initramfs.bin"); store.save_record("original-initramfs.json",backup);
+        const auto backup=backup_file(root,plan["repair_output"].asString(),path/"original-initramfs.bin",&operation.token()); store.save_record("original-initramfs.json",backup);
     }
     const auto anchor=fs::absolute(path/"mount-root").lexically_normal().string(); require(::mkdirat(store.fd(),"mount-root",0700)==0,"io-error","Cannot create private rescue mount anchor");
     int pipe[2]{},channel[2]{};
@@ -271,12 +331,25 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         require(::pipe2(capture,O_CLOEXEC)==0,"process-error","Cannot create private rescue console pipe"); console_read=Fd(capture[0]); console_write=Fd(capture[1]);
         require(::fcntl(console_read.get(),F_SETFL,O_NONBLOCK)==0,"io-error","Cannot make rescue console collection nonblocking");
     }
-    const pid_t owner=::getpid(),worker=::fork(); require(worker>=0,"process-error","Cannot create rescue namespace worker");
+    Fd init_process; RescueLifetime child_lifetime(init_process);
+    // One retained parent intent covers every namespace, fork and mount below.
+    // Children use this published ownership; they never borrow or retire its token.
+    operation.begin("RESCUE_CHILD_AND_MOUNTS_STARTING");
+    const pid_t owner=::getpid(),worker=::fork();
+    if(worker<0) {
+        require(::unlinkat(store.fd(),"mount-root",AT_REMOVEDIR)==0 && ::fsync(store.fd())==0,"cleanup-failed","Cannot remove unused rescue mount anchor after fork failure");
+        state["state"]="FAILED_SAFE"; state["successful"]=false; state["error_code"]="process-error";
+        state["error_message"]="Cannot create rescue namespace worker"; state["session_init_started"]=false;
+        state["namespace_worker_reaped"]=false; state["session_mounts_released"]=true; state["cleanup_pending"]=false;
+        state["target_contents_verified"]=false; state["ownership_lifetime_verified"]=true; state["physical_test_record"]=false;
+        store.save_record("state.json",state,true); child_lifetime.released(); writer=Fd();
+        return operation.finish(state,true,true,"FAILED_SAFE");
+    }
     if(worker==0) {
         output=Fd(); monitor=Fd(); console_read=Fd(); console=Fd(); ::prctl(PR_SET_PDEATHSIG,SIGKILL);
         Fd lifetime(static_cast<int>(::syscall(SYS_pidfd_open,::getpid(),0)));
-        if(lifetime.get()<0 || ::getppid()!=owner || ::unshare(CLONE_NEWNS|CLONE_NEWPID|CLONE_NEWIPC|CLONE_NEWUTS|CLONE_NEWNET)!=0) { report_error(input.get(),"namespace-unavailable"); ::_exit(125); }
-        const pid_t init=::fork(); if(init<0) { report_error(input.get(),"process-error"); ::_exit(125); }
+        if(lifetime.get()<0 || ::getppid()!=owner || ::unshare(CLONE_NEWNS|CLONE_NEWPID|CLONE_NEWIPC|CLONE_NEWUTS|CLONE_NEWNET)!=0) { report_no_init(sender.get()); report_error(input.get(),"namespace-unavailable"); ::_exit(125); }
+        const pid_t init=::fork(); if(init<0) { report_no_init(sender.get()); report_error(input.get(),"process-error"); ::_exit(125); }
         if(init==0) {
             sender=Fd();
             ::prctl(PR_SET_PDEATHSIG,SIGKILL); pollfd lifetime_check{lifetime.get(),POLLIN,0};
@@ -300,6 +373,7 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
                     pollfd alive{lifetime.get(),POLLIN,0}; if(::poll(&alive,1,20)>0) { static_cast<void>(::kill(-1,SIGKILL)); ::_exit(125); }
                 }
                 static_cast<void>(::kill(-1,SIGKILL)); while(::waitpid(-1,nullptr,0)>0 || errno==EINTR) {}
+                if(plan["request"]["write"].asBool())sync_session_filesystems(store,plan,anchor);
                 ::_exit(waited==payload ? (WIFEXITED(status) ? WEXITSTATUS(status) : 128+WTERMSIG(status)) : 125);
             } catch(const Error& error) { report_error(input.get(),error.code+"\t"+error.what()+" ("+std::strerror(errno)+")"); ::_exit(125); }
         }
@@ -311,7 +385,8 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         input=Fd(); int status=0; pid_t waited; do { waited=::waitpid(init,&status,0); } while(waited<0 && errno==EINTR);
         ::_exit(waited==init ? (WIFEXITED(status) ? WEXITSTATUS(status) : 128+WTERMSIG(status)) : 125);
     }
-    input=Fd(); sender=Fd(); console_write=Fd(); Fd init_process; std::uint64_t logged=0; bool truncated=false,console_failed=false;
+    child_lifetime.started(worker);
+    input=Fd(); sender=Fd(); console_write=Fd(); std::uint64_t logged=0; bool truncated=false,console_failed=false;
     auto collect_console=[&] {
         if(console_read.get()<0)return;
         std::array<char,8192> buffer{};
@@ -327,10 +402,10 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
     };
     state["state"]="RUNNING"; state["worker_pid"]=worker; store.save_record("state.json",state,true);
     const auto deadline=monotonic_ms()+static_cast<std::uint64_t>(plan["request"]["timeout_seconds"].asUInt())*1000;
-    int status=0; bool timeout=false; pid_t waited=0;
+    int status=0; bool timeout=false,no_init=false; pid_t waited=0;
     for(;;) {
         waited=::waitpid(worker,&status,WNOHANG); if(waited<0 && errno==EINTR)continue; if(waited!=0)break;
-        receive_process_descriptor(monitor.get(),init_process);
+        receive_process_descriptor(monitor.get(),init_process,no_init);
         collect_console();
         if(monotonic_ms()>=deadline) {
             timeout=true; if(init_process.get()>=0)static_cast<void>(::syscall(SYS_pidfd_send_signal,init_process.get(),SIGKILL,nullptr,0));
@@ -338,19 +413,26 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         }
         pollfd item{init_process.get()>=0 ? init_process.get() : monitor.get(),POLLIN,0}; ::poll(&item,1,20);
     }
-    require(waited==worker,"process-error","Cannot collect rescue namespace worker"); receive_process_descriptor(monitor.get(),init_process);
-    bool namespace_released=!timeout && WIFEXITED(status);
+    require(waited==worker,"process-error","Cannot collect rescue namespace worker"); child_lifetime.reaped(); receive_process_descriptor(monitor.get(),init_process,no_init);
+    const bool init_never_started=no_init && init_process.get()<0 && WIFEXITED(status) && WEXITSTATUS(status)==125;
+    bool namespace_released=init_never_started;
     if(init_process.get()>=0) {
         pollfd completed{init_process.get(),POLLIN,0};
         namespace_released=::poll(&completed,1,timeout ? 5000 : 0)>0 && (completed.revents&POLLIN);
-    } else if(timeout)namespace_released=false;
+    }
     collect_console();
     std::array<char,1024> error{}; const auto count=::read(output.get(),error.data(),error.size());
-    if(namespace_released)require(::unlinkat(store.fd(),"mount-root",AT_REMOVEDIR)==0 && ::fsync(store.fd())==0,"cleanup-failed","Private rescue mount anchor could not be removed");
+    if(namespace_released) {
+        require(::unlinkat(store.fd(),"mount-root",AT_REMOVEDIR)==0 && ::fsync(store.fd())==0,"cleanup-failed","Private rescue mount anchor could not be removed");
+        child_lifetime.released();
+    }
     state["state"]=timeout ? "TIMED_OUT" : WIFEXITED(status) && WEXITSTATUS(status)==0 ? "COMPLETE" : "FAILED";
     state["exit_status"]=WIFEXITED(status) ? WEXITSTATUS(status) : 128+WTERMSIG(status); state["successful"]=state["state"]=="COMPLETE";
     state["namespace_worker_reaped"]=true; state["session_mounts_released"]=namespace_released; state["cleanup_pending"]=!namespace_released;
     state["descendants_bound_to_pid_namespace"]=init_process.get()>=0;
+    state["session_init_started"]=init_process.get()>=0 ? Value(true) : init_never_started ? Value(false) : Value();
+    state["pre_init_failure_verified"]=init_never_started;
+    state["target_contents_verified"]=false; state["ownership_lifetime_verified"]=false;
     state["host_mounts_unmounted"]=false; state["physical_test_record"]=false;
     if(count>0) {
         const auto message=trim(std::string(error.data(),static_cast<std::size_t>(count))); const auto tab=message.find('\t');
@@ -362,6 +444,46 @@ Value linux_rescue_execute(const Root& root,const Value& plan,const fs::path& pa
         state["console_truncated"]=truncated; state["console_write_failed"]=console_failed;
     }
     if(plan.isMember("repair_output") && root.exists_resolved(plan["repair_output"].asString())) { auto file=root.open_resolved(plan["repair_output"].asString(),O_RDONLY); state["output_sha256"]=sha256(file.get()); }
-    store.save_record("state.json",state,true); return state;
+    bool filesystems_synced=init_never_started || !plan["request"]["write"].asBool();
+    if(namespace_released) {
+        require(json(descriptor_identity(root.fd()))==json(plan["root_identity"]) &&
+            (!esp || json(descriptor_identity(esp->fd()))==json(plan["esp_identity"])),"stale-rescue-root","Selected root or ESP identity changed before session closure verification");
+        if(plan["request"]["write"].asBool() && !init_never_started) {
+            require(::syncfs(root.fd())==0 && (!esp || ::syncfs(esp->fd())==0),"session-sync-failed","Cannot sync retained written root and ESP filesystems");
+            Value proof; bool proof_valid=false;
+            if(store.exists("session-sync.json")) {
+                const auto record_stat=store.stat("session-sync.json");
+                require(S_ISREG(record_stat.st_mode) && record_stat.st_nlink==1 && record_stat.st_uid==::geteuid() && (record_stat.st_mode&07777)==0600,
+                    "unsafe-rescue-journal","Session sync proof must be a private regular file");
+                proof=parse_json(store.read("session-sync.json"));
+                proof_valid=proof["schema"]==1 && proof["plan_sha256"]==plan["plan_sha256"] && proof["complete"]==true &&
+                    proof["filesystems"].isArray() && proof["filesystems"].size()==plan["connections"].size();
+            }
+            filesystems_synced=true;
+            for(Json::ArrayIndex i=0;i<plan["connections"].size();++i) {
+                const auto& connection=plan["connections"][i];
+                if(connection["method"]=="existing-mount") {
+                    auto retained=root.open(connection["mount_point"].asString(),O_RDONLY|O_DIRECTORY);
+                    require(json(descriptor_identity(retained.get()))==json(connection["identity"]) && ::syncfs(retained.get())==0,
+                        "session-sync-failed","Cannot independently revalidate and sync a retained rescue connection");
+                } else if(connection["method"]=="selected-esp") {
+                    require(esp && json(descriptor_identity(esp->fd()))==json(connection["identity"]),
+                        "session-sync-unverified","Retained rescue ESP differs from the reviewed connection");
+                } else {
+                    const auto& synced=proof["filesystems"][i];
+                    filesystems_synced=filesystems_synced && proof_valid && synced["mount_point"]==connection["mount_point"] &&
+                        synced["method"]==connection["method"] && json(synced["source_identity"])==json(connection["identity"]);
+                }
+            }
+        }
+    }
+    state["written_filesystems_synced"]=filesystems_synced;
+    state["ownership_lifetime_verified"]=namespace_released && filesystems_synced;
+    state["operation_owner_retained"]=!state["ownership_lifetime_verified"].asBool();
+    store.save_record("state.json",state,true);
+    if(state["ownership_lifetime_verified"]==true) {
+        writer=Fd(); return operation.finish(state,true,true,"COMPLETE");
+    }
+    return state;
 }
 } // namespace ure

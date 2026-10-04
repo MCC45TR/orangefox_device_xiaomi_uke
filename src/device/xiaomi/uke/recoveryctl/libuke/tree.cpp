@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -339,8 +340,14 @@ Value backup_tree_plan(const Root& context,const std::string& relative,const std
     require(identifier(profile),"invalid-profile","A firmware profile is required");
     auto source=context.open(relative,O_RDONLY|O_DIRECTORY); root_gate(source.get());
     Root parent(destination.parent_path().empty() ? fs::path(".") : destination.parent_path()); root_gate(parent.fd()); outside(source.get(),parent.fd());
-    const auto initial=stamp(info(source.get())); auto store=private_directory(destination,true); auto held=lock(store);
-    Value plan; plan["schema"]=1; plan["format"]="ure-tree-backup"; plan["operation_id"]=operation_id(); plan["created_utc"]=utc();
+    const auto initial=stamp(info(source.get()));
+    Value admission; admission["operation_id"]=operation_id(); admission["operation"]="tree.backup.plan";
+    admission["source_identity"]=initial; admission["selected_path"]=relative; admission["firmware_profile"]=profile;
+    ManagedOperation operation(operation_binding("tree.backup.plan",admission,destination,
+        operation_targets(operation_target(source.get(),"tree-source"))));
+    require(json(stamp(info(source.get())))==json(initial),"stale-source","Source changed before tree planning admission");
+    auto store=private_directory(destination,true); auto held=lock(store);
+    Value plan; plan["schema"]=1; plan["format"]="ure-tree-backup"; plan["operation_id"]=admission["operation_id"]; plan["created_utc"]=utc();
     plan["firmware_profile"]=profile; plan["firmware_identity_validated"]=false; plan["selected_path"]=relative; plan["source_identity"]=initial;
     plan["source_mount_id"]=Json::UInt64(mount_id(source.get())); struct statfs filesystem{};
     require(::fstatfs(source.get(),&filesystem)==0,"io-error","Cannot inspect source filesystem"); plan["filesystem_magic"]=Json::Int64(filesystem.f_type);
@@ -373,12 +380,17 @@ Value backup_tree_plan(const Root& context,const std::string& relative,const std
     walk("."); flush(); require(json(stamp(info(source.get())))==json(initial),"stale-source","Source root changed during planning");
     plan["entries"]=count; plan["logical_bytes"]=Json::UInt64(bytes); plan["stored_data_bytes"]=Json::UInt64(stored); plan["runtime_sockets"]=sockets;
     plan["restore_requirements"]="new destination; Unix metadata support; required ownership/ACL/xattr privileges; runtime sockets recreated by services";
-    plan["plan_sha256"]=seal(plan); store.save_record("plan.json",plan); return summary(plan,"PLANNED");
+    plan["plan_sha256"]=seal(plan); store.save_record("plan.json",plan);
+    held=Fd(); return operation.finish(summary(plan,"PLANNED"),true,true,"COMPLETE");
 }
 Value backup_tree_capture(const Root& context,const fs::path& directory,const std::string& confirmation) {
-    auto store=private_directory(directory,false); root_gate(store.fd()); auto held=lock(store); const auto plan=read_record(store,"plan.json"); check_plan(plan);
+    auto store=private_directory(directory,false); root_gate(store.fd()); const auto plan=read_record(store,"plan.json"); check_plan(plan);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the reviewed tree plan SHA-256");
     auto source=selected(context,plan); outside(source.fd(),store.fd());
+    ManagedOperation operation(operation_binding("tree.backup",plan,directory,
+        operation_targets(operation_target(source.fd(),"tree-source"))));
+    auto held=lock(store);
+    require(json(read_record(store,"plan.json"))==json(plan),"stale-tree-plan","Tree plan changed during capture admission"); selected(context,plan);
     all_entries(store,plan,[&](const Value& e) { source_match(source.fd(),e); });
     Value state; state["plan_sha256"]=plan["plan_sha256"]; state["state"]="CAPTURING"; state["completed_files"]=0; store.save_record("state.json",state,true);
     unsigned completed=0,processed_entries=0; std::set<std::string> verified;
@@ -409,11 +421,12 @@ Value backup_tree_capture(const Root& context,const fs::path& directory,const st
             cache_insert(verified,blob); state["completed_files"]=++completed; state["completed_entries"]=processed_entries; store.save_record("state.json",state,true);
         });
         all_entries(store,plan,[&](const Value& e) { source_match(source.fd(),e); }); selected(context,plan);
-        state["state"]="COMPLETE"; state["verified"]=true; state["completed_entries"]=plan["entries"]; store.save_record("state.json",state,true); return summary(plan,"COMPLETE");
+        state["state"]="COMPLETE"; state["verified"]=true; state["completed_entries"]=plan["entries"]; store.save_record("state.json",state,true);
+        held=Fd(); return operation.finish(summary(plan,"COMPLETE"),true,true);
     } catch(...) { state["state"]="INCOMPLETE"; state["verified"]=false; try { store.save_record("state.json",state,true); } catch(...) {} throw; }
 }
 Value backup_tree_verify(const fs::path& directory) {
-    auto store=private_directory(directory,false); auto held=lock(store); const auto plan=read_record(store,"plan.json"); check_plan(plan);
+    auto store=private_directory(directory,false); const auto plan=read_record(store,"plan.json"); check_plan(plan);
     const auto state=read_record(store,"state.json"); require(state["state"]=="COMPLETE" && state["verified"]==true && state["plan_sha256"]==plan["plan_sha256"],"incomplete-tree","Tree capture has not completed");
     std::set<std::string> verified;
     all_entries(store,plan,[&](const Value& e) { if(e["kind"]=="file" && cache_insert(verified,blob_name(e)))verified_blob(store,e); }); return summary(plan,"COMPLETE");
@@ -463,10 +476,171 @@ void apply_metadata(int root,const Value& e) {
     if(kind=="file" || kind=="directory")require(::fsync(fd.get())==0,"io-error","Cannot sync restored tree metadata");
     else require(::fsync(parent.get())==0,"io-error","Cannot sync restored special entry");
 }
+void verify_restored(const Root& store,const Value& plan,int root) {
+    struct Namespace { std::string path; Hash expected; };
+    std::vector<Namespace> directories;
+    const auto finish_directory=[&] {
+        auto directory=open_tree(root,directories.back().path,O_RDONLY|O_DIRECTORY); Hash observed;
+        for(const auto& name:names(directory.get()))observed.add(hex(name)+"\n");
+        require(observed.finish()==directories.back().expected.finish(),"restore-verification-error",
+            "Restored directory contains missing or unarchived entries"); directories.pop_back();
+    };
+    all_entries(store,plan,[&](const Value& e) {
+        const auto path=path_of(e),kind=e["kind"].asString();
+        if(path!=".") {
+            const auto containing=fs::path(path).parent_path().string(),parent=containing.empty() ? std::string(".") : containing;
+            while(!directories.empty() && directories.back().path!=parent)finish_directory();
+            require(!directories.empty(),"invalid-tree","Archived restore entry has no retained parent namespace");
+            if(kind!="socket")directories.back().expected.add(hex(fs::path(path).filename().string())+"\n");
+        }
+        if(kind=="socket") {
+            auto parent=parent_of(root,path); struct stat omitted{};
+            require(::fstatat(parent.get(),fs::path(path).filename().c_str(),&omitted,AT_SYMLINK_NOFOLLOW)<0 && errno==ENOENT,
+                "restore-verification-error","Runtime socket unexpectedly exists in the restored tree"); return;
+        }
+        const auto current=entry(root,path,true);
+        if(kind=="directory")directories.push_back({path,Hash{}});
+        for(const auto* key:{"kind","uid","gid","mode","bytes","rdev","mtime_seconds","mtime_nanoseconds","xattrs"})
+            require(json(current[key])==json(e[key]),"restore-verification-error",std::string("Restored entry readback differs: ")+key);
+        if(kind=="file") {
+            require(current["sha256"]==e["sha256"],"restore-verification-error","Restored file content differs from its archived hash");
+            if(e.isMember("hardlink_hex")) {
+                auto first=open_tree(root,unhex(e["hardlink_hex"],4096),O_PATH|O_NONBLOCK),linked=open_tree(root,path,O_PATH|O_NONBLOCK);
+                require(same(info(first.get()),info(linked.get())),"restore-verification-error","Restored hardlink identity differs");
+            }
+        } else if(kind=="symlink")require(current["target_hex"]==e["target_hex"],"restore-verification-error","Restored symlink target differs");
+    });
+    while(!directories.empty())finish_directory();
+}
+std::string restore_plan_name(const Value& plan) { return "restore-plan-"+plan["operation_id"].asString()+".json"; }
+std::string restore_state_name(const Value& plan) { return "restore-state-"+plan["operation_id"].asString()+".json"; }
+bool retained_location(const Value& identity) {
+    return identity.isObject() && identity.size()==3 && identity["device"].isUInt64() &&
+        identity["inode"].isUInt64() && identity["mount_id"].isUInt64();
+}
+void checked_restore_paths(const Root& store,const Root& parent,const fs::path& directory,const fs::path& destination) {
+    auto named_store=private_directory(directory,false);
+    require(json(descriptor_identity(named_store.fd()))==json(descriptor_identity(store.fd())),
+        "wrong-tree-restore-journal","Restore journal pathname no longer names its retained directory");
+    Root named_parent(destination.parent_path().empty() ? fs::path(".") : destination.parent_path());
+    require(json(descriptor_identity(named_parent.fd()))==json(descriptor_identity(parent.fd())),
+        "wrong-tree-restore-target","Restore destination parent pathname no longer names its retained directory");
+}
+void save_restore_state(const Root& store,Value& state,const std::string& phase,bool replace=true) {
+    state["state"]=phase; state["updated_at"]=utc(); state["state_sha256"]=seal(state,"state_sha256");
+    store.save_record(restore_state_name(state),state,replace);
+}
+Value checked_restore_state(const Root& store,const Value& plan) {
+    const auto state=read_record(store,restore_state_name(plan));
+    require(state["schema"]==1 && state["operation_id"]==plan["operation_id"] &&
+        state["restore_plan_sha256"]==plan["plan_sha256"] && state["backup_plan_sha256"]==plan["backup_plan_sha256"] &&
+        state["state_sha256"].isString() && hash_valid(state["state_sha256"].asString()) &&
+        state["state_sha256"].asString()==seal(state,"state_sha256") && state["tree_descendants_created"]==false &&
+        state["tree_mounts_created"]==false && state["state"].isString() && state["private_record"]==true &&
+        (state["stage_identity"].isNull() || retained_location(state["stage_identity"])),
+        "invalid-tree-restore-state","Restore state is not bound to its sealed plan and native operation lifetime");
+    const auto phase=state["state"].asString();
+    require(phase=="PREPARED" || phase=="STAGED" || phase=="PUBLISHING" || phase=="COMPLETE" || phase=="CANCELLED_SAFE",
+        "invalid-tree-restore-state","Unknown tree restore recovery phase");
+    require((phase!="STAGED" && phase!="PUBLISHING" && phase!="COMPLETE") || retained_location(state["stage_identity"]),
+        "invalid-tree-restore-state","A staged or published restore lacks its captured directory identity"); return state;
+}
+Value checked_restore_plan(const Root& store,const Root& parent,const fs::path& directory,const fs::path& destination,
+                           const std::string& name,const Value& backup) {
+    checked_restore_paths(store,parent,directory,destination);
+    require(components(name).size()==1 && name!="." && name!="..","invalid-tree-restore-plan","Select one private restore plan record");
+    const auto plan=read_record(store,name);
+    require(plan["schema"]==1 && plan["operation"]=="tree.restore" && plan["operation_id"].isString() &&
+        identifier(plan["operation_id"].asString()) && name==restore_plan_name(plan) &&
+        plan["plan_sha256"].isString() && hash_valid(plan["plan_sha256"].asString()) && plan["plan_sha256"].asString()==seal(plan) &&
+        plan["backup_plan_sha256"]==backup["plan_sha256"] && plan["backup_operation_id"]==backup["operation_id"] &&
+        plan["restore_state_record"]==restore_state_name(plan) && plan["staging_name"]==".ure-tree-restore-"+plan["operation_id"].asString() &&
+        plan["private_record"]==true && plan["recovery_available"]==true,
+        "invalid-tree-restore-plan","Invalid sealed recoverable tree restore plan or original backup binding");
+    const auto final_name=destination.filename().string();
+    require(components(final_name).size()==1 && final_name!="." && final_name!=".." && plan["destination_name"]==final_name &&
+        plan["destination"]==fs::absolute(destination).lexically_normal().string() &&
+        retained_location(plan["destination_parent"]) && json(plan["destination_parent"])==json(descriptor_identity(parent.fd())),
+        "wrong-tree-restore-target","Restore recovery destination or its retained parent differs from the sealed plan");
+    require(plan["operation_journal"]==fs::absolute(directory).lexically_normal().string() &&
+        json(plan["journal_identity"])==json(descriptor_identity(store.fd())) &&
+        json(plan["operation_targets"])==json(operation_targets(operation_target(parent.fd(),"tree-restore-parent"))),
+        "wrong-tree-restore-journal","Restore journal or target descriptor identity changed");
+    const auto binding=operation_binding("tree.restore",plan,directory,plan["operation_targets"]);
+    require(json(plan["operation_journal_binding"])==json(binding.journal),"wrong-tree-restore-journal","Restore journal parent binding changed");
+    const auto backup_state=read_record(store,"state.json");
+    require(backup_state["state"]=="COMPLETE" && backup_state["verified"]==true && backup_state["plan_sha256"]==backup["plan_sha256"],
+        "incomplete-tree","Restore recovery requires the original completed backup"); return plan;
+}
+bool tree_entry_exists(int parent,const std::string& name,struct stat& stat) {
+    if(::fstatat(parent,name.c_str(),&stat,AT_SYMLINK_NOFOLLOW)==0)return true;
+    require(errno==ENOENT,"tree-restore-observation-unavailable","Cannot inspect a restore destination or staging entry"); return false;
+}
+Value restore_observation(const Root& parent,const Value& plan,const Value& state) {
+    struct stat destination_entry{},stage{}; const auto final_name=plan["destination_name"].asString(),staging=plan["staging_name"].asString();
+    const bool published=tree_entry_exists(parent.fd(),final_name,destination_entry),staged=tree_entry_exists(parent.fd(),staging,stage);
+    Value out; out["destination_exists"]=published; out["staging_exists"]=staged; out["captured_stage_identity"]=state["stage_identity"];
+    out["destination_identity_verified"]=false; out["staging_identity_verified"]=false; out["published_bytes_verified"]=false;
+    if(published && S_ISDIR(destination_entry.st_mode)) {
+        auto current=parent.open(final_name,O_RDONLY|O_DIRECTORY); out["destination_identity"]=descriptor_identity(current.get());
+        out["destination_identity_verified"]=retained_location(state["stage_identity"]) && json(out["destination_identity"])==json(state["stage_identity"]);
+    }
+    if(staged && S_ISDIR(stage.st_mode)) {
+        auto current=parent.open(staging,O_RDONLY|O_DIRECTORY); out["staging_identity"]=descriptor_identity(current.get());
+        out["staging_identity_verified"]=retained_location(state["stage_identity"]) && json(out["staging_identity"])==json(state["stage_identity"]);
+    }
+    out["current_state"]=published ? (out["destination_identity_verified"]!=true ? "DESTINATION_UNRECOGNIZED" :
+        staged ? "PUBLISHED_WITH_UNEXPECTED_STAGE" : "PUBLISHED_CAPTURED_STAGE") :
+        staged ? (retained_location(state["stage_identity"]) ? (out["staging_identity_verified"]==true ? "UNPUBLISHED_CAPTURED_STAGE" : "STAGE_DIVERGED") :
+            "UNPUBLISHED_UNVERIFIED_STAGE") : "UNPUBLISHED_NO_STAGE";
+    return out;
+}
+Value restore_binding_value(const OperationBinding& binding) {
+    Value out; out["operation"]=binding.operation; out["operation_id"]=binding.operation_id; out["plan_sha256"]=binding.plan_sha256;
+    out["targets"]=binding.targets; out["journal"]=binding.journal; return out;
+}
+Value restore_inspection(const Root& parent,const Value& plan,const Value& state,const OperationBinding& binding) {
+    auto out=restore_observation(parent,plan,state); out["schema"]=1; out["operation_id"]=plan["operation_id"];
+    out["restore_plan_record"]=restore_plan_name(plan); out["restore_state_record"]=restore_state_name(plan);
+    out["restore_plan_sha256"]=plan["plan_sha256"]; out["backup_plan_sha256"]=plan["backup_plan_sha256"];
+    out["last_confirmed_state"]=state["state"]; out["read_only"]=true; out["private_record"]=true; out["physical_test_record"]=false;
+    const auto status=operation_lease_status(); out["coordinator_available"]=status["available"]==true;
+    out["active_operation"]=status["active_exclusion"]==true; out["operation_owner_retained"]=status["retained_owner"]==true;
+    out["owner_plan_sha256"]=status["owner"]["binding"]["plan_sha256"];
+    out["owner_matches_restore_plan"]=status["retained_owner"]==true && json(status["owner"]["binding"])==json(restore_binding_value(binding));
+    out["recovery_actions"]=Value(Json::arrayValue); out["recovery_available"]=true;
+    if(status["available"]!=true)out["coordinator_error_code"]=status["code"];
+    if(out["owner_matches_restore_plan"]==true && out["active_operation"]==false) {
+        const auto observed=out["current_state"].asString();
+        if(observed=="PUBLISHED_CAPTURED_STAGE")out["recovery_actions"].append("verify-published");
+        else if(observed=="UNPUBLISHED_NO_STAGE" || observed=="UNPUBLISHED_CAPTURED_STAGE" || observed=="UNPUBLISHED_UNVERIFIED_STAGE")
+            out["recovery_actions"].append("cancel-unpublished");
+    }
+    out["unverified_staging_policy"]="Preserve any unpublished staging entry without changing its contents or metadata. An uncaptured entry is not proof of ownership; absent destination plus exclusive native lifetime proves only that this restore published no installed target.";
+    return out;
+}
 }
 Value backup_tree_restore(const fs::path& directory,const fs::path& destination,const std::string& confirmation) {
-    auto store=private_directory(directory,false); auto held=lock(store); const auto plan=read_record(store,"plan.json"); check_plan(plan);
+    auto store=private_directory(directory,false); const auto plan=read_record(store,"plan.json"); check_plan(plan);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact tree backup plan SHA-256");
+    const auto final_name=destination.filename().string(); require(components(final_name).size()==1 && final_name!="." && final_name!="..","invalid-path","Choose a new named restore directory");
+    Root parent(destination.parent_path().empty() ? fs::path(".") : destination.parent_path()); root_gate(parent.fd()); outside(store.fd(),parent.fd());
+    Value restore_plan; restore_plan["schema"]=1; restore_plan["operation"]="tree.restore"; restore_plan["operation_id"]=operation_id();
+    restore_plan["backup_plan_sha256"]=plan["plan_sha256"]; restore_plan["backup_operation_id"]=plan["operation_id"];
+    restore_plan["destination_parent"]=descriptor_identity(parent.fd()); restore_plan["destination_name"]=final_name;
+    restore_plan["destination"]=fs::absolute(destination).lexically_normal().string();
+    restore_plan["staging_name"]=".ure-tree-restore-"+restore_plan["operation_id"].asString();
+    restore_plan["operation_targets"]=operation_targets(operation_target(parent.fd(),"tree-restore-parent"));
+    restore_plan["operation_journal"]=fs::absolute(directory).lexically_normal().string();
+    restore_plan["journal_identity"]=descriptor_identity(store.fd()); restore_plan["restore_state_record"]=restore_state_name(restore_plan);
+    restore_plan["operation_journal_binding"]=operation_binding("tree.restore",restore_plan,directory,restore_plan["operation_targets"]).journal;
+    restore_plan["recovery_available"]=true; restore_plan["private_record"]=true; restore_plan["plan_sha256"]=seal(restore_plan);
+    ManagedOperation operation(operation_binding("tree.restore",restore_plan,directory,
+        restore_plan["operation_targets"]));
+    checked_restore_paths(store,parent,directory,destination);
+    auto held=lock(store);
+    checked_restore_paths(store,parent,directory,destination);
+    require(json(read_record(store,"plan.json"))==json(plan),"stale-tree-plan","Tree plan changed during restore admission");
     const auto state=read_record(store,"state.json"); require(state["state"]=="COMPLETE" && state["verified"]==true && state["plan_sha256"]==plan["plan_sha256"],"incomplete-tree","Restore requires a completed tree backup");
     std::set<std::string> verified;
     all_entries(store,plan,[&](const Value& e) {
@@ -474,14 +648,22 @@ Value backup_tree_restore(const fs::path& directory,const fs::path& destination,
         require(::geteuid()==0 || (e["uid"].asUInt()==::geteuid() && e["gid"].asUInt()==::getegid() && e["kind"]!="char" && e["kind"]!="block"),
             "ownership-required","Restoring recorded owners or device nodes requires root privileges");
     });
-    const auto final_name=destination.filename().string(); require(components(final_name).size()==1 && final_name!="." && final_name!="..","invalid-path","Choose a new named restore directory");
-    Root parent(destination.parent_path().empty() ? fs::path(".") : destination.parent_path()); root_gate(parent.fd()); outside(store.fd(),parent.fd());
     struct stat existing{}; require(::fstatat(parent.fd(),final_name.c_str(),&existing,AT_SYMLINK_NOFOLLOW)<0 && errno==ENOENT,"existing-target","Tree restore never overwrites an existing destination");
     struct statvfs space{}; require(::fstatvfs(parent.fd(),&space)==0 && space.f_frsize>0,"io-error","Cannot inspect restore space");
     const auto needed=plan["stored_data_bytes"].asUInt64(); require(needed<=UINT64_MAX-32*1024*1024 && space.f_bavail>=(needed+32*1024*1024)/space.f_frsize+1,"no-space","Insufficient tree restore space");
-    const auto staging_name=".ure-tree-restore-"+operation_id();
+    const auto staging_name=restore_plan["staging_name"].asString(),restore_record=restore_plan_name(restore_plan);
+    store.save_record(restore_record,restore_plan);
+    Value restore_state; restore_state["schema"]=1; restore_state["operation_id"]=restore_plan["operation_id"];
+    restore_state["restore_plan_sha256"]=restore_plan["plan_sha256"]; restore_state["backup_plan_sha256"]=plan["plan_sha256"];
+    restore_state["stage_identity"]=Value(); restore_state["tree_descendants_created"]=false; restore_state["tree_mounts_created"]=false;
+    restore_state["private_record"]=true; restore_state["target_contents_verified"]=false; restore_state["cleanup_complete"]=false;
+    // PREPARED is durable before intent, so a kill after mkdir but before the
+    // inode record still has an exact-plan, absent-destination cancellation.
+    save_restore_state(store,restore_state,"PREPARED",false);
+    operation.begin("TREE_RESTORE_STAGING");
     require(::mkdirat(parent.fd(),staging_name.c_str(),0700)==0 && ::fsync(parent.fd())==0,"io-error","Cannot create private restore staging");
     Root staging(parent.open(staging_name,O_RDONLY|O_DIRECTORY));
+    restore_state["stage_identity"]=descriptor_identity(staging.fd()); save_restore_state(store,restore_state,"STAGED");
     // Preserve restrictive directory metadata only after all children exist.
     bool published=false;
     try {
@@ -514,15 +696,91 @@ Value backup_tree_restore(const fs::path& directory,const fs::path& destination,
             for(auto i=records.end();i!=records.begin();) { --i; if((*i)["kind"]=="directory")apply_metadata(staging.fd(),*i); }
         }
         require(::fsync(staging.fd())==0,"io-error","Cannot sync completed restore tree");
+        Root at_stage(parent.open(staging_name,O_RDONLY|O_DIRECTORY));
+        require(json(descriptor_identity(at_stage.fd()))==json(restore_state["stage_identity"]) &&
+            json(descriptor_identity(staging.fd()))==json(restore_state["stage_identity"]),"changed-tree-restore-stage","Restore staging entry changed before publication");
+        checked_restore_paths(store,parent,directory,destination);
+        save_restore_state(store,restore_state,"PUBLISHING");
+        operation.begin("TREE_RESTORE_PUBLISHING");
         require(::syscall(SYS_renameat2,parent.fd(),staging_name.c_str(),parent.fd(),final_name.c_str(),1U)==0,"restore-publish-error","Cannot publish restore without replacing an existing destination");
         published=true;
         require(::fsync(parent.fd())==0,"io-error","Cannot sync restored tree publication");
+        Root installed(parent.open(final_name,O_RDONLY|O_DIRECTORY));
+        require(same(info(installed.fd()),info(staging.fd())),"restore-verification-error","Published restore directory identity differs");
+        verify_restored(store,plan,installed.fd());
+        require(::fsync(installed.fd())==0 && ::fsync(parent.fd())==0,"io-error","Cannot sync independently verified restore publication");
+        restore_state["target_contents_verified"]=true; restore_state["cleanup_complete"]=true;
+        restore_state["published_identity"]=descriptor_identity(installed.fd()); save_restore_state(store,restore_state,"COMPLETE");
+        require(restore_observation(parent,restore_plan,restore_state)["current_state"]=="PUBLISHED_CAPTURED_STAGE",
+            "unrecognized-tree-restore-target","Published restore changed before ownership release");
+        checked_restore_paths(store,parent,directory,destination);
     } catch(const Error& e) {
-        if(published)throw Error(e.code,std::string(e.what())+"; the new destination was published but directory durability is unverified");
-        const bool private_staging=::fchmod(staging.fd(),0700)==0 && ::fsync(staging.fd())==0;
-        throw Error(e.code,std::string(e.what())+(private_staging ? "; private restore staging remains: " : "; restore staging permissions/durability are unverified: ")+staging_name);
+        if(published)throw Error(e.code,std::string(e.what())+"; published destination requires exact-inode verification; retained restore plan: "+restore_record);
+        throw Error(e.code,std::string(e.what())+"; unpublished staging is preserved without further changes: "+staging_name+"; retained restore plan: "+restore_record);
     }
     Value result=summary(plan,"RESTORED"); result["verified"]=true; result["destination"]=fs::absolute(destination).lexically_normal().string();
-    result["runtime_sockets_omitted"]=plan["runtime_sockets"]; result["existing_files_overwritten"]=false; return result;
+    result["runtime_sockets_omitted"]=plan["runtime_sockets"]; result["existing_files_overwritten"]=false;
+    result["restore_plan_record"]=restore_record; result["restore_state_record"]=restore_state_name(restore_plan);
+    result["restore_plan_sha256"]=restore_plan["plan_sha256"]; result["recovery_available"]=true;
+    held=Fd(); return operation.finish(result,true,true,"COMPLETE");
+}
+Value backup_tree_recover(const fs::path& directory,const fs::path& destination,const std::string& restore_record,
+                          const std::string& action,const std::string& confirmation) {
+    require(action=="inspect" || action=="verify-published" || action=="cancel-unpublished","unknown-tree-recovery-action","Select inspect, verify-published or cancel-unpublished");
+    auto store=private_directory(directory,false); root_gate(store.fd()); const auto backup=read_record(store,"plan.json"); check_plan(backup);
+    Root parent(destination.parent_path().empty() ? fs::path(".") : destination.parent_path()); root_gate(parent.fd()); outside(store.fd(),parent.fd());
+    const auto plan=checked_restore_plan(store,parent,directory,destination,restore_record,backup);
+    const auto binding=operation_binding("tree.restore",plan,directory,plan["operation_targets"]);
+    auto state=checked_restore_state(store,plan);
+    if(action=="inspect")return restore_inspection(parent,plan,state,binding);
+    require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact persisted tree restore plan SHA-256");
+    ManagedOperation operation(binding,true);
+    require(operation.token().has_retained_intent(),"operation-owner-missing","Tree restore recovery requires its exact unresolved retained owner");
+    checked_restore_paths(store,parent,directory,destination);
+    auto held=lock(store);
+    const auto current_backup=read_record(store,"plan.json"); check_plan(current_backup);
+    require(json(current_backup)==json(backup) && json(checked_restore_plan(store,parent,directory,destination,restore_record,current_backup))==json(plan),
+        "changed-tree-restore-plan","Backup or restore plan changed during recovery admission");
+    state=checked_restore_state(store,plan); const auto observed=restore_observation(parent,plan,state);
+    Value result; result["schema"]=1; result["restore_plan_record"]=restore_record; result["restore_state_record"]=restore_state_name(plan);
+    result["restore_plan_sha256"]=plan["plan_sha256"]; result["backup_plan_sha256"]=backup["plan_sha256"];
+    result["destination"]=plan["destination"]; result["private_record"]=true; result["physical_test_record"]=false;
+    result["tree_descendants_created"]=false; result["tree_mounts_created"]=false;
+    if(action=="verify-published") {
+        require(observed["current_state"]=="PUBLISHED_CAPTURED_STAGE","unrecognized-tree-restore-target","Published restore must have the exact captured staging inode, with no surviving staging entry");
+        Root installed(parent.open(plan["destination_name"].asString(),O_RDONLY|O_DIRECTORY));
+        require(json(descriptor_identity(installed.fd()))==json(state["stage_identity"]),"unrecognized-tree-restore-target","Published restore identity changed during verification");
+        std::set<std::string> verified;
+        all_entries(store,backup,[&](const Value& e) { if(e["kind"]=="file" && cache_insert(verified,blob_name(e)))verified_blob(store,e); });
+        verify_restored(store,backup,installed.fd());
+        require(::fsync(installed.fd())==0 && ::fsync(parent.fd())==0,"tree-restore-cleanup-unverified","Cannot sync independently verified restore publication");
+        require(restore_observation(parent,plan,state)["current_state"]=="PUBLISHED_CAPTURED_STAGE","unrecognized-tree-restore-target","Published restore changed before terminal verification");
+        state["target_contents_verified"]=true; state["published_identity"]=descriptor_identity(installed.fd());
+        state["cleanup_complete"]=true; save_restore_state(store,state,"COMPLETE");
+        require(restore_observation(parent,plan,state)["current_state"]=="PUBLISHED_CAPTURED_STAGE","unrecognized-tree-restore-target","Published restore changed after terminal journal publication");
+        result["state"]="COMPLETE"; result["verified"]=true; result["target_contents_verified"]=true;
+    } else {
+        require(observed["destination_exists"]==false,"published-tree-restore","Unpublished cancellation requires the final destination to be absent");
+        require(observed["current_state"]!="STAGE_DIVERGED","changed-tree-restore-stage","Recorded staging inode changed; cancellation preserves the owner for explicit inspection");
+        // Tree restore creates neither children nor mounts. Exclusive admission
+        // proves its writer has ended; forensic staging is deliberately retained.
+        // An inode-less stage cannot authorize publication, but need not be
+        // removed or modified to prove that the installed destination is absent.
+        state["target_contents_verified"]=false; state["destination_absent"]=true; state["cleanup_complete"]=true;
+        state["staging_artifact_preserved"]=observed["staging_exists"];
+        state["staging_artifact_identity_verified"]=observed["staging_identity_verified"];
+        state["staging_artifact_name"]=observed["staging_exists"]==true ? plan["staging_name"] : Value();
+        save_restore_state(store,state,"CANCELLED_SAFE");
+        const auto terminal_observed=restore_observation(parent,plan,state);
+        require(terminal_observed["destination_exists"]==false,"published-tree-restore","Destination appeared before cancellation ownership release");
+        require(terminal_observed["current_state"]!="STAGE_DIVERGED","changed-tree-restore-stage","Captured staging inode changed before cancellation ownership release");
+        result["state"]="CANCELLED_SAFE"; result["verified"]=true; result["target_contents_verified"]=false;
+        result["staging_artifact_preserved"]=state["staging_artifact_preserved"];
+        result["staging_artifact_identity_verified"]=state["staging_artifact_identity_verified"];
+        result["staging_artifact_name"]=state["staging_artifact_name"];
+        result["verification_scope"]="Final destination absent and native tree writer ended; no tree descendants or mounts exist. Preserved staging contents and uncaptured entries are unverified and were not changed.";
+    }
+    checked_restore_paths(store,parent,directory,destination);
+    result["cleanup_complete"]=true; held=Fd(); return operation.finish(result,true,true);
 }
 } // namespace ure

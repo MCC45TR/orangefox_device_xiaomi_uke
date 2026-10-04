@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "uke.h"
+#include "localization_fixture.hpp"
 #include "../../src/device/xiaomi/uke/display-mirror.hpp"
 #include <array>
 #include <algorithm>

@@ -31,6 +31,29 @@ for type in ext4 vfat exfat ntfs f2fs btrfs; do
     jq -e --arg type "$type" '.data.type==$type' "$fixture/result.json" >/dev/null
     call filesystem inspect-journal "$fixture/$type/job" --image "$image"
     jq -e '.data.application.classification=="TARGET" and any(.data.application.recovery_actions[]; .=="rollback")' "$fixture/result.json" >/dev/null
+    if [[ $type == ext4 ]]; then
+        # A newly reviewed raw plan is valid on its own, but is not the
+        # replacement committed by this filesystem job. Swapping both copies
+        # must be refused before any write, even with the outer confirmation.
+        committed=$(sha256sum "$image" | cut -d' ' -f1)
+        cp -- "$fixture/$type/job/application-plan.json" "$fixture/$type/saved-application.json"
+        cp -- "$fixture/$type/job/application/plan.json" "$fixture/$type/saved-raw-plan.json"
+        sector=$(jq -r .target_identity.logical_sector_bytes "$fixture/$type/plan.json")
+        call restore plan "$fixture/$type/job/prepared-backup" --image "$image" --sector-size "$sector" --profile fixture-profile --output "$fixture/$type/foreign-application.json"
+        cp -- "$fixture/$type/foreign-application.json" "$fixture/$type/job/application-plan.json"
+        cp -- "$fixture/$type/foreign-application.json" "$fixture/$type/job/application/plan.json"
+        for operation in inspect-journal resume rollback cancel; do
+            if [[ $operation == inspect-journal ]]; then
+                fail filesystem "$operation" "$fixture/$type/job" --image "$image"
+            else
+                fail filesystem "$operation" "$fixture/$type/job" --image "$image" --confirm "$hash"
+            fi
+            jq -e '.error.code=="wrong-filesystem-application"' "$fixture/rejected.json" >/dev/null
+            [[ $(sha256sum "$image" | cut -d' ' -f1) == "$committed" ]]
+        done
+        cp -- "$fixture/$type/saved-application.json" "$fixture/$type/job/application-plan.json"
+        cp -- "$fixture/$type/saved-raw-plan.json" "$fixture/$type/job/application/plan.json"
+    fi
     if [[ $type == ext4 || $type == ntfs || $type == vfat || $type == f2fs ]]; then
         formatted=$(sha256sum "$image" | cut -d' ' -f1)
         resized_bytes=$((capacity/2))

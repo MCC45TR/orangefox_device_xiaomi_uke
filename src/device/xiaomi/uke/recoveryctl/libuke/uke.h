@@ -13,6 +13,7 @@
 namespace ure {
 namespace fs = std::filesystem;
 using Value = Json::Value;
+class OperationLease;
 struct Error : std::runtime_error {
     std::string code;
     Error(std::string code_value, const std::string& message)
@@ -149,14 +150,14 @@ Value filesystem_capabilities();
 Value filesystem_operation_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
 // Prepare and independently check a private replacement. Never write the source.
 Value filesystem_prepare(const Root& system, StorageTarget& source, const Value& plan,
-                         const fs::path& directory, const std::string& confirmation);
+                         const fs::path& directory, const std::string& confirmation, OperationLease* parent = nullptr);
 Value filesystem_operation_execute(const Root& system, StorageTarget& target, const Value& plan, const fs::path& journal, const std::string& confirmation);
 Value filesystem_operation_recover(const Root& system, StorageTarget& target, const fs::path& journal, const std::string& operation, const std::string& confirmation = {});
 Value filesystem_replacement_backup(const Root& system, const StorageTarget& target, const Root& staged, const std::string& file,
-                                    const fs::path& destination, const std::string& profile);
+                                    const fs::path& destination, const std::string& profile, OperationLease* parent = nullptr);
 enum class ReplacementOrigin { FilesystemTransformation, RecoveryImage };
 Value prepared_replacement_backup(const Root& system, const StorageTarget& target, const Root& staged, const std::string& file,
-                                  const fs::path& destination, const std::string& profile, ReplacementOrigin origin);
+                                  const fs::path& destination, const std::string& profile, ReplacementOrigin origin, OperationLease* parent = nullptr);
 // Executable transaction model for private regular images only. Neither a
 // declared firmware name nor a fixture slot establishes device admission.
 Value recovery_install_prepare(const Root& system, const StorageTarget& target, const StorageTarget& fallback,
@@ -192,6 +193,8 @@ Value btrfs_stream_check(int fd);
 Value btrfs_native_info(const Root& root, const std::string& operation);
 Value btrfs_manage_plan(const Root& root, const Value& request, const std::string& profile);
 Value btrfs_manage_execute(const Root& root, const Value& plan, const fs::path& journal, const std::string& confirmation);
+Value btrfs_manage_control(const Root& captured_root, const Value& running_plan, const fs::path& running_journal,
+                          const std::string& action, const std::string& confirmation);
 Value windows_detect(const Root& root, const Root* esp = nullptr);
 Value config_validate(const Root& root, const std::string& file, const std::string& kind);
 Value files_list(const Root& root, const std::string& directory);
@@ -221,12 +224,14 @@ Value transaction_inspect(const Root& root, const fs::path& journal);
 Value transaction_resume(const Root& root, const fs::path& journal, const std::string& confirmation);
 Value transaction_cancel(const Root& root, const fs::path& journal, const std::string& confirmation);
 Value transaction_list(const Root& root, const fs::path& directory);
-Value backup_file(const Root& root, const std::string& relative, const fs::path& destination);
+Value backup_file(const Root& root, const std::string& relative, const fs::path& destination, OperationLease* parent = nullptr);
 Value backup_tree_plan(const Root& root, const std::string& relative, const std::string& profile, const fs::path& directory);
 Value backup_tree_capture(const Root& root, const fs::path& directory, const std::string& confirmation);
 Value backup_tree_verify(const fs::path& directory);
 Value backup_tree_inspect(const fs::path& directory);
 Value backup_tree_restore(const fs::path& directory, const fs::path& destination, const std::string& confirmation);
+Value backup_tree_recover(const fs::path& directory, const fs::path& destination, const std::string& restore_plan_record,
+                          const std::string& action, const std::string& confirmation = {});
 Value backup_plan(const Root& root, const std::string& relative, const std::string& profile,
                   std::uint64_t chunk_bytes = 16 * 1024 * 1024);
 Value backup_storage_plan(const Root& system, const StorageTarget& source, const std::string& profile,
@@ -254,14 +259,14 @@ Value restore_stream_cancel(const Root& system, const StorageTarget& target, con
 Value restore_plan(const Root& system, const StorageTarget& target, const fs::path& backup,
                    const std::string& profile);
 Value restore_execute(const Root& system, StorageTarget& target, const Value& plan,
-                      const fs::path& journal, const std::string& confirmation, const Root* retained_parent = nullptr);
+                      const fs::path& journal, const std::string& confirmation, const Root* retained_parent = nullptr, OperationLease* parent = nullptr);
 Value restore_inspect(const Root& system, const StorageTarget& target, const fs::path& journal);
 Value restore_resume(const Root& system, StorageTarget& target, const fs::path& journal,
-                     const std::string& confirmation);
+                     const std::string& confirmation, OperationLease* parent = nullptr);
 Value restore_rollback(const Root& system, StorageTarget& target, const fs::path& journal,
-                       const std::string& confirmation);
+                       const std::string& confirmation, OperationLease* parent = nullptr);
 Value restore_cancel(const Root& system, const StorageTarget& target, const fs::path& journal,
-                     const std::string& confirmation);
+                     const std::string& confirmation, OperationLease* parent = nullptr);
 class Editor {
     std::string original_, text_, path_, profile_;
     Value original_identity_;

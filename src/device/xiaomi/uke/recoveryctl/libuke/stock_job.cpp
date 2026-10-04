@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Coordinated regular-image stock restoration. Six LUNs are not an atomic disk.
 #include "uke.h"
+#include "operation_guard.hpp"
 #include "stock_payloads.h"
 #include <algorithm>
 #include <array>
@@ -68,12 +69,19 @@ struct Targets {
             values[i]=storage_image(request["luns"][i]["image"].asString(),4096,writable); const auto& id=values[i].identity;
             require(id["kind"]=="regular-image" && id["bytes"].asUInt64()<=maximum,"firmware-unverified","Stock live writes require verified model, SKU, firmware and UFS ownership");
             require(seen.emplace(id["file_device"].asUInt64(),id["file_inode"].asUInt64()).second,"duplicate-stock-lun","All six LUNs must be different single-link regular images");
-            require(::flock(values[i].descriptor.get(),LOCK_EX|LOCK_NB)==0,"busy-target","A cooperating operation owns a selected LUN image");
         }
+    }
+    void lock() {
+        for(const auto& target:values)require(::flock(target.descriptor.get(),LOCK_EX|LOCK_NB)==0,"busy-target","A cooperating operation owns a selected LUN image");
     }
     ~Targets() { for(auto& target:values)if(target.descriptor.get()>=0)::flock(target.descriptor.get(),LOCK_UN); }
     Targets(const Targets&)=delete; Targets& operator=(const Targets&)=delete;
 };
+Value stock_operation_targets(const Value& plan) {
+    Value identities(Json::arrayValue);
+    for(const auto& lun:plan["luns"])identities.append(lun["identity"]);
+    return identities;
+}
 void binding(const StorageTarget& target,const Value& expected) {
     require(expected["kind"]=="regular-image" && expected["path"].isString() && number(expected["logical_sector_bytes"],4096) && expected["bytes"].isUInt64(),
         "invalid-stock-plan","Stock jobs bind regular 4096-byte-sector images");
@@ -123,6 +131,10 @@ Value record(const Root& store,const std::string& name) {
 Fd journal_lock(const Root& store) {
     auto file=store.open("operation.lock",O_RDWR|O_CREAT,0600); auto checked=private_file(store,"operation.lock",0);
     require(::flock(file.get(),LOCK_EX|LOCK_NB)==0,"operation-busy","Another stock operation owns this journal"); return file;
+}
+Fd inspection_lock(const Root& store) {
+    auto file=private_file(store,"operation.lock",0);
+    require(::flock(file.get(),LOCK_SH|LOCK_NB)==0,"operation-busy","A stock writer owns this journal"); return file;
 }
 void journal_binding(const Root& store,const fs::path& path) {
     auto current=private_directory(path,false); struct stat before{},after{};
@@ -271,17 +283,18 @@ bool mixed_expected(int target,int before,int after,std::uint64_t target_offset,
     }
     return true;
 }
-Review inspect(const Targets& targets,const Root& store,const Value& plan) {
+Review inspect(const Targets& targets,const Root& store,const Value& plan,bool terminal_replay=false) {
     check_plan(plan); protected_verify(targets,plan); Review review; review.plan=plan; review.state=record(store,"state.json");
     require(review.state["schema"]==1 && review.state["plan_sha256"]==plan["plan_sha256"] && review.state["state"].isString(),"invalid-stock-journal","Stock state has another plan binding");
     const std::set<std::string> phases{"STAGING","BEFORE_VERIFIED","READY","APPLYING","ROLLBACK_REQUIRED","VERIFYING","RECOVERY_REQUIRED","COMMITTED","ROLLED_BACK","FAILED_SAFE","CANCELLED_SAFE"};
     require(phases.contains(review.state["state"].asString()),"invalid-stock-journal","Unknown stock journal phase");
     auto& result=review.result; result["operation"]=plan["operation"]; result["plan_sha256"]=plan["plan_sha256"]; result["state"]=review.state["state"];
     result["recovery_actions"]=Value(Json::arrayValue); result["physical_test_record"]=false; result["live_write_backend_ready"]=false;
+    result["read_only"]=true;
     result["private_record"]=true; result["atomic_all_luns"]=false; result["protected_ranges_verified"]=true; result["cooperating_locks_only"]=true;
     if(!store.exists("application.json")) {
         original_verify(targets,plan); result["classification"]="ORIGINAL"; result["all_six_originals_verified"]=true; result["before_and_after_verified"]=false;
-        if(review.state["state"]!="CANCELLED_SAFE")result["recovery_actions"].append("cancel");
+        if(review.state["state"]!="CANCELLED_SAFE" || terminal_replay)result["recovery_actions"].append("cancel");
         return review;
     }
     review.application=record(store,"application.json"); const auto& app=review.application;
@@ -320,14 +333,18 @@ Review inspect(const Targets& targets,const Root& store,const Value& plan) {
         if(state!="ROLLBACK_REQUIRED" && review.state["direction"]!="rollback")result["recovery_actions"].append("resume");
         result["recovery_actions"].append("rollback");
     }
+    if(terminal_replay && all_before && state=="ROLLED_BACK")result["recovery_actions"].append("rollback");
+    if(terminal_replay && all_before && state=="CANCELLED_SAFE")result["recovery_actions"].append("cancel");
     return review;
 }
 bool action(const Value& result,const std::string& name) { for(const auto& value:result["recovery_actions"])if(value==name)return true; return false; }
-Value apply(Targets& targets,const Root& store,const fs::path& path,Review review,bool rollback) {
+Value apply(Targets& targets,const Root& store,const fs::path& path,Review review,bool rollback,ManagedOperation& operation) {
     auto state=review.state; state["direction"]=rollback ? "rollback" : "apply"; state["written_bytes"]=Json::UInt64(0); state["verified"]=false;
+    bool intent=false;
     try {
         protected_verify(targets,review.plan); phase(store,state,rollback ? "ROLLBACK_REQUIRED" : "APPLYING");
         for(Json::ArrayIndex i=0;i<review.application["chunks"].size();++i) {
+            operation.token().require_active();
             journal_binding(store,path); bindings(targets,review.plan); const auto& chunk=review.application["chunks"][i]; const auto& row=review.plan["regions"][chunk["region"].asUInt()];
             auto& target=targets.values[row["lun"].asUInt()]; storage_write_gate(target);
             const auto bytes=chunk["bytes"].asUInt64(),relative=chunk["relative_offset"].asUInt64(),offset=row["offset"].asUInt64()+relative;
@@ -343,6 +360,10 @@ Value apply(Targets& targets,const Root& store,const fs::path& path,Review revie
                     // Skip only independently read equal bytes, including zeros.
                     // Sparse allocation never establishes existing target content.
                     if(data!=storage_read(target.descriptor.get(),offset+at,size)) {
+                        if(!intent) {
+                            operation.token().require_binding(operation_binding(review.plan["operation"].asString(),review.plan,path,stock_operation_targets(review.plan)));
+                            operation.begin(rollback ? "STOCK_ROLLBACK_INTENT" : "STOCK_WRITE_INTENT"); intent=true;
+                        }
                         write_bytes(target.descriptor.get(),data,offset+at); state["written_bytes"]=Json::UInt64(state["written_bytes"].asUInt64()+size);
                     }
                     at+=size;
@@ -358,7 +379,8 @@ Value apply(Targets& targets,const Root& store,const fs::path& path,Review revie
             "verification-error","A final LUN GPT differs from the reviewed complete table");
         state["verified"]=true; state["all_six_luns_verified"]=true; state["protected_ranges_verified"]=true; state["complete_stock_image_job"]=!rollback;
         state["physical_test_record"]=false; state["live_write_backend_ready"]=false; state["atomic_all_luns"]=false;
-        phase(store,state,rollback ? "ROLLED_BACK" : "COMMITTED"); return state;
+        operation.token().require_binding(operation_binding(review.plan["operation"].asString(),review.plan,path,stock_operation_targets(review.plan)));
+        phase(store,state,rollback ? "ROLLED_BACK" : "COMMITTED"); return operation.finish(state,true,true);
     } catch(const Error& error) { state["error_code"]=error.code; state["verified"]=false; try { phase(store,state,"RECOVERY_REQUIRED"); } catch(...) {} throw; }
 }
 } // namespace
@@ -418,7 +440,8 @@ Value stock_job_plan(const Value& request) {
 }
 Value stock_job_execute(const Value& plan,const fs::path& path,const std::string& confirmation) {
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the complete six-LUN stock job hash");
-    Targets targets(plan["request"],true);
+    ManagedOperation operation(operation_binding(plan["operation"].asString(),plan,path,stock_operation_targets(plan)));
+    Targets targets(plan["request"],true); targets.lock();
     for(unsigned lun=0;lun<6;++lun) {
         require(json(targets.values[lun].identity)==json(plan["luns"][lun]["identity"]),"stale-plan","A stock LUN selection changed since review"); storage_write_gate(targets.values[lun]);
         const auto& row=plan["request"]["luns"][lun];
@@ -426,12 +449,14 @@ Value stock_job_execute(const Value& plan,const fs::path& path,const std::string
             row.isMember("identity_backup") ? fs::path(row["identity_backup"].asString()) : fs::path());
         for(const auto* key:{"before","after","current_table","desired_table","stock_source"})require(json(rebuilt[key])==json(plan["luns"][lun]["gpt"][key]),"stale-plan","Stock GPT policy or original identity changed after review");
     }
-    original_verify(targets,plan); auto store=private_directory(path,true); auto lock=journal_lock(store); store.save_record("plan.json",plan);
+    original_verify(targets,plan); auto store=private_directory(path,true); auto lock=journal_lock(store);
+    operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,path,stock_operation_targets(plan)));
+    store.save_record("plan.json",plan);
     Value state; state["schema"]=1; state["plan_sha256"]=plan["plan_sha256"]; state["direction"]="apply"; state["state"]="STAGING"; state["verified"]=false; store.save_record("state.json",state);
     try {
         struct statvfs space{}; require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize && space.f_bavail>plan["estimated_journal_bytes"].asUInt64()/space.f_frsize,
             "insufficient-space","Keep space for complete original and decoded replacement ranges plus the journal margin");
-        prepare(targets,store,path,plan,state); return apply(targets,store,path,inspect(targets,store,plan),false);
+        prepare(targets,store,path,plan,state); return apply(targets,store,path,inspect(targets,store,plan),false,operation);
     } catch(const Error& error) {
         if(!store.exists("application.json")) { state["error_code"]=error.code; try { phase(store,state,"FAILED_SAFE"); } catch(...) {} }
         throw;
@@ -439,13 +464,20 @@ Value stock_job_execute(const Value& plan,const fs::path& path,const std::string
 }
 Value stock_job_recover(const fs::path& path,const std::string& operation,const std::string& confirmation) {
     require(operation=="inspect" || operation=="resume" || operation=="rollback" || operation=="cancel","unsupported-stock-operation","Select stock inspection, resume, rollback or cancel");
-    auto store=private_directory(path,false); auto lock=journal_lock(store); const auto plan=record(store,"plan.json"); check_plan(plan);
-    Targets targets(plan["request"],operation=="resume" || operation=="rollback"); auto review=inspect(targets,store,plan);
-    if(operation=="inspect")return review.result;
+    auto store=private_directory(path,false); const auto plan=record(store,"plan.json"); check_plan(plan);
+    if(operation=="inspect") { auto lock=inspection_lock(store); Targets targets(plan["request"],false); return inspect(targets,store,plan).result; }
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact stock job plan hash");
+    ManagedOperation owner(operation_binding(plan["operation"].asString(),plan,path,stock_operation_targets(plan)),true);
+    Targets targets(plan["request"],operation=="resume" || operation=="rollback"); targets.lock();
+    auto lock=journal_lock(store); journal_binding(store,path);
+    owner.token().require_binding(operation_binding(plan["operation"].asString(),plan,path,stock_operation_targets(plan)));
+    require(json(record(store,"plan.json"))==json(plan),"changed-journal","Stock recovery plan changed during ownership admission");
+    auto review=inspect(targets,store,plan,owner.token().has_retained_intent());
     require(action(review.result,operation),"unsafe-recovery","Actual bytes do not authorize this action; unrelated divergence requires investigation");
     journal_binding(store,path);
-    if(operation=="cancel") { auto state=review.state; state["original_unchanged_verified"]=true; phase(store,state,"CANCELLED_SAFE"); return state; }
-    return apply(targets,store,path,std::move(review),operation=="rollback");
+    if(operation=="cancel") { auto state=review.state; state["original_unchanged_verified"]=true; state["verified"]=true;
+        owner.token().require_binding(operation_binding(plan["operation"].asString(),plan,path,stock_operation_targets(plan)));
+        phase(store,state,"CANCELLED_SAFE"); return owner.finish(state,true,true); }
+    return apply(targets,store,path,std::move(review),operation=="rollback",owner);
 }
 } // namespace ure

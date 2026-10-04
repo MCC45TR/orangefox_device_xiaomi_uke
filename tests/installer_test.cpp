@@ -25,17 +25,13 @@ int main(int argc, char* argv[]) {
         e = good; e.fallback_bootable = false; expect_rejection([&] { uke::validate(e); });
         if (uke::valid_hash("abc") || uke::valid_hash(std::string(64, 'x'))) throw std::runtime_error("Malformed hash accepted");
         char first[] = "/tmp/uke-installer-source-XXXXXX";
-        char second[] = "/tmp/uke-installer-destination-XXXXXX";
-        Fd source(mkstemp(first)), destination(mkstemp(second));
-        unlink(first); unlink(second);
+        Fd source(mkstemp(first));
+        unlink(first);
         if (write(source.value, "abc", 3) != 3) throw std::runtime_error("Fixture write failed");
         const std::string expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
         if (digest(source.value, 3) != expected) throw std::runtime_error("SHA-256 mismatch");
-        copy(source.value, destination.value, 3);
-        if (digest(destination.value, 3) != expected) throw std::runtime_error("Read-back mismatch");
         expect_rejection([&] { digest(source.value, 4); });
-        expect_rejection([&] { copy(source.value, destination.value, 4); });
-        if (pwrite(destination.value, "x", 1, 1) != 1 || digest(destination.value, 3) == expected)
+        if (pwrite(source.value, "x", 1, 1) != 1 || digest(source.value, 3) == expected)
             throw std::runtime_error("Corrupt read-back not detected");
         expect_rejection([&] { property("ro.product.device"); });
         if (argc == 2) {
@@ -43,7 +39,8 @@ int main(int argc, char* argv[]) {
             if (std::string_view(pin.name) != "dtbo" || pin.source_bytes != 20971520 || pin.partition_bytes != 25165824 ||
                 std::string_view(pin.programming_layout) != "aosp-fastboot-copy-avb-footer")
                 throw std::runtime_error("DTBO source/partition programming contract differs");
-            Fd original(open((std::filesystem::path(argv[1]) / "dtbo.img").c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+            const auto original_path = std::filesystem::path(argv[1]) / "dtbo.img";
+            Fd original(open(original_path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
             struct stat original_stat{};
             if (fstat(original.value, &original_stat) != 0 || !S_ISREG(original_stat.st_mode) || original_stat.st_size != static_cast<off_t>(pin.source_bytes) ||
                 digest(original.value, pin.source_bytes) != pin.source_sha256)
@@ -51,8 +48,14 @@ int main(int argc, char* argv[]) {
             char normal_path[] = "/tmp/uke-installer-dtbo-XXXXXX";
             Fd normal(mkstemp(normal_path));
             struct RemoveFixture { const char* path; ~RemoveFixture() { unlink(path); } } remove{normal_path};
+            // Independent regular-file fixture preparation, never the removed
+            // production volatile writer or a recovery programming operation.
+            if (!std::filesystem::copy_file(original_path, normal_path, std::filesystem::copy_options::overwrite_existing))
+                throw std::runtime_error("Cannot prepare independent DTBO prefix fixture");
+            struct stat opened{}, named{};
+            if (fstat(normal.value, &opened) != 0 || stat(normal_path, &named) != 0 || opened.st_dev != named.st_dev || opened.st_ino != named.st_ino)
+                throw std::runtime_error("Fixture copy replaced the retained inode");
             if (ftruncate(normal.value, static_cast<off_t>(pin.partition_bytes)) != 0) throw std::runtime_error("Cannot size normalized fixture");
-            copy(original.value, normal.value, pin.source_bytes);
             std::array<char, 64> footer{};
             if (pread(original.value, footer.data(), footer.size(), static_cast<off_t>(pin.source_bytes - footer.size())) != static_cast<ssize_t>(footer.size()) ||
                 std::string_view(footer.data(), 4) != "AVBf" ||
@@ -74,6 +77,6 @@ int main(int argc, char* argv[]) {
             if (ftruncate(normal.value, static_cast<off_t>(pin.source_bytes)) != 0) throw std::runtime_error("Cannot truncate fixture");
             expect_rejection([&] { require_stock(normalized, pin.partition_sha256); });
         }
-        std::cout << "Installer slot, snapshot, full-partition DTBO/footer corruption, hash, copy and host-refusal tests passed\n";
+        std::cout << "Installer slot, snapshot, full-partition DTBO/footer corruption, hash and host-refusal fixtures passed; no production writer invoked\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

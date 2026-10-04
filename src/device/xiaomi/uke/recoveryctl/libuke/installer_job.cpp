@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include "../install_policy.h"
 #include <algorithm>
 #include <fcntl.h>
@@ -105,6 +106,9 @@ Value result(Value state,const Value& plan) {
 Value recovery_install_prepare(const Root& system,const StorageTarget& target,const StorageTarget& fallback,
                               const Root& staged,const std::string& file,const Value& request,const fs::path& backup) {
     request_check(request); image_pair(target,fallback); storage_revalidate(target,&system); storage_revalidate(fallback,&system);
+    Value admission=request; admission["target_identity"]=target.identity; admission["fallback_identity"]=fallback.identity;
+    Value targets=operation_targets(target.identity); targets.append(fallback.identity);
+    ManagedOperation operation(operation_binding("installer.prepare",admission,backup,targets));
     auto input=staged.open(file,O_RDONLY|O_NONBLOCK); const auto st=staged.stat(file);
     require(S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_size==static_cast<off_t>(uke::recovery_bytes) &&
         (static_cast<std::uint64_t>(st.st_dev)!=fallback.identity["file_device"].asUInt64() ||
@@ -112,7 +116,7 @@ Value recovery_install_prepare(const Root& system,const StorageTarget& target,co
         "invalid-installer-image","Recovery image must be a separate regular file of exact capacity");
     require(sha256(input.get())==request["image_sha256"].asString(),"installer-image-changed","Selected recovery image hash differs");
     persistent_parent(backup); const auto fallback_sha=sha256(fallback.descriptor.get());
-    prepared_replacement_backup(system,target,staged,file,backup,request["profile"].asString(),ReplacementOrigin::RecoveryImage);
+    prepared_replacement_backup(system,target,staged,file,backup,request["profile"].asString(),ReplacementOrigin::RecoveryImage,&operation.token());
     const auto raw=restore_plan(system,target,backup,request["profile"].asString());
     require(raw["target_sha256"]==request["image_sha256"],"installer-image-changed","Prepared image hash differs from the reviewed input");
     Value plan; plan["schema"]=1; plan["operation"]="recovery.image-install"; plan["request"]=request; plan["restore"]=raw;
@@ -126,6 +130,8 @@ Value recovery_install_prepare(const Root& system,const StorageTarget& target,co
 Value recovery_install_execute(const Root& system,StorageTarget& target,const StorageTarget& fallback,
                               const Value& plan,const fs::path& directory,const std::string& confirmation) {
     plan_check(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact installer plan SHA-256");
+    Value targets=operation_targets(plan["restore"]["target_identity"]); targets.append(plan["fallback_identity"]);
+    ManagedOperation operation(operation_binding("installer.execute",plan,directory,targets));
     fallback_check(system,target,fallback,plan); storage_write_gate(target); persistent_parent(directory);
     auto journal=private_directory(directory,!fs::exists(directory)); persistent(journal); auto lock=journal_lock(journal);
     // Repeating execution is permitted only when the initial wrapper record
@@ -136,14 +142,18 @@ Value recovery_install_execute(const Root& system,StorageTarget& target,const St
     Value record; record["schema"]=1; record["plan"]=plan; record["journal_identity"]=directory_identity(journal);
     journal.save_record("installer.json",record);
     wrapper_binding(directory,journal);
-    const auto state=restore_execute(system,target,plan["restore"],directory/"raw",plan["restore"]["plan_sha256"].asString(),&journal);
+    const auto state=restore_execute(system,target,plan["restore"],directory/"raw",plan["restore"]["plan_sha256"].asString(),&journal,&operation.token());
     wrapper_binding(directory,journal);
-    fallback_check(system,target,fallback,plan); auto out=result(state,plan); journal.save_record("outcome.json",out,true); return out;
+    fallback_check(system,target,fallback,plan); auto out=result(state,plan); journal.save_record("outcome.json",out,true); return operation.finish(out,state["verified"]==true,true);
 }
 Value recovery_install_recover(const Root& system,StorageTarget& target,const StorageTarget& fallback,
                               const fs::path& directory,const std::string& action,const std::string& confirmation) {
     require(action=="inspect" || action=="resume" || action=="rollback" || action=="cancel","invalid-action","Unknown installer journal action");
-    auto journal=private_directory(directory,false); persistent(journal); auto lock=journal_lock(journal); const auto plan=recorded_plan(journal);
+    auto journal=private_directory(directory,false); persistent(journal); const auto plan=recorded_plan(journal);
+    std::unique_ptr<ManagedOperation> operation;
+    if(action!="inspect") { Value targets=operation_targets(plan["restore"]["target_identity"]); targets.append(plan["fallback_identity"]);
+        operation=std::make_unique<ManagedOperation>(operation_binding("installer.execute",plan,directory,targets),true); }
+    auto lock=journal_lock(journal); require(json(recorded_plan(journal))==json(plan),"changed-journal","Installer plan changed during ownership admission");
     wrapper_binding(directory,journal);
     fallback_check(system,target,fallback,plan);
     require(action=="inspect" ? confirmation.empty() : confirmation==plan["plan_sha256"].asString(),
@@ -183,13 +193,14 @@ Value recovery_install_recover(const Root& system,StorageTarget& target,const St
                     "io-error","Cannot retain interrupted raw initialization");
                 require(::fsync(journal.fd())==0,"uncertain-save","Cannot sync retained interrupted preparation");
             }
-            wrapper_binding(directory,journal); state=restore_execute(system,target,plan["restore"],raw,hash,&journal); }
+            wrapper_binding(directory,journal); state=restore_execute(system,target,plan["restore"],raw,hash,&journal,&operation->token()); }
     } else if(action=="inspect")state=restore_inspect(system,target,raw);
-    else if(action=="resume")state=restore_resume(system,target,raw,hash);
-    else if(action=="rollback")state=restore_rollback(system,target,raw,hash);
-    else state=restore_cancel(system,target,raw,hash);
+    else if(action=="resume")state=restore_resume(system,target,raw,hash,&operation->token());
+    else if(action=="rollback")state=restore_rollback(system,target,raw,hash,&operation->token());
+    else state=restore_cancel(system,target,raw,hash,&operation->token());
     wrapper_binding(directory,journal); fallback_check(system,target,fallback,plan); auto out=result(state,plan);
     if(action!="inspect")journal.save_record("outcome.json",out,true);
+    if(operation)return operation->finish(out,state["verified"]==true,true);
     return out;
 }
 } // namespace ure

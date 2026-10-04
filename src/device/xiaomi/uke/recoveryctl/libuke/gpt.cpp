@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -217,6 +218,11 @@ Fd lock_journal(const Root& journal) {
     auto lock=journal.open(".lock",O_RDWR|O_CREAT,0600); private_file(journal,".lock");
     require(::flock(lock.get(),LOCK_EX|LOCK_NB)==0,"busy-journal","Another process owns this GPT journal"); return lock;
 }
+void journal_binding(const Root& journal,const fs::path& path) {
+    auto current=private_directory(path,false); struct stat retained{},now{};
+    require(::fstat(journal.fd(),&retained)==0 && ::fstat(current.fd(),&now)==0 && retained.st_dev==now.st_dev && retained.st_ino==now.st_ino,
+        "changed-journal","GPT journal path was replaced");
+}
 void boundary(const Root& journal,Value& state,const std::string& next) {
     state["state"]=next; state["timestamp_utc"]=utc(); journal.save_record("journal.json",state,true);
 }
@@ -261,7 +267,7 @@ struct JournalReview {
     Value plan, state, result;
     std::vector<StorageRange> before;
 };
-JournalReview inspect_journal(const StorageTarget& target,const Root& journal,const Root* system) {
+JournalReview inspect_journal(const StorageTarget& target,const Root& journal,const Root* system,bool terminal_replay=false) {
     JournalReview review; review.plan=record(journal,"plan.json"); check_plan(review.plan);
     review.state=record(journal,"journal.json"); const auto& plan=review.plan;
     require(review.state["schema"]==1 && review.state["operation_id"]==plan["operation_id"] &&
@@ -297,16 +303,19 @@ JournalReview inspect_journal(const StorageTarget& target,const Root& journal,co
     if(expected && target.identity["kind"]=="regular-image")result["recovery_actions"].append("rollback");
     const auto phase=review.state["state"].asString();
     if(payload && tables_equal(result["current_table"],plan["desired_table"]) &&
-        (phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN"))result["recovery_actions"].append("resume");
+        (phase=="EXECUTING" || phase=="VERIFYING" || phase=="FAILED_UNCERTAIN" || (terminal_replay && phase=="COMMITTED")))result["recovery_actions"].append("resume");
     storage_revalidate(target,system); return review;
 }
 }
 Value gpt_backup(const StorageTarget& target,const fs::path& directory,const std::string& profile,const Root* system) {
     require(identifier(profile),"invalid-profile","An explicit firmware profile is required");
     require(target.identity["kind"]=="regular-image" || target.identity["partition"]==false,"invalid-target","GPT backup selects a whole disk/LUN");
+    Value request; request["operation"]="gpt.backup"; request["target_identity"]=target.identity; request["firmware_profile"]=profile;
+    ManagedOperation operation(operation_binding("gpt.backup",request,directory,operation_targets(request["target_identity"])));
     storage_revalidate(target,system); const auto sector=target.identity["logical_sector_bytes"].asUInt();
     const auto inspection=gpt_inspect(target.descriptor.get(),sector); auto ranges=gpt_regions(target.descriptor.get(),sector);
     auto store=private_directory(directory,true); auto lock=lock_journal(store);
+    operation.token().require_binding(operation_binding("gpt.backup",request,directory,operation_targets(request["target_identity"])));
     for(const auto& range:ranges)store_bytes(store,range.name+".bin",range.bytes);
     store.save_record("partition-table.json",inspection);
     storage_revalidate(target,system);
@@ -415,6 +424,7 @@ Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& direct
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the exact GPT plan checksum");
     require(json(target.identity)==json(plan["target_identity"]),"stale-plan","GPT target identity changed since planning");
     write_gate(target);
+    ManagedOperation operation(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
     TargetLock target_lock(target.descriptor.get());
     storage_revalidate(target,system); Value source;
     auto after=plan_desired(target,plan,source);
@@ -424,7 +434,9 @@ Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& direct
     protect_usable(target.descriptor.get(),plan["after"],target.identity["logical_sector_bytes"].asUInt());
     require(tables_equal(proposed_table(target,after),plan["desired_table"]),"invalid-gpt-plan","Proposed GPT differs from the reviewed table");
     verify_descriptions(target.descriptor.get(),plan["untouched"]);
-    auto journal=private_directory(directory,true); auto lock=lock_journal(journal); journal.save_record("plan.json",plan);
+    auto journal=private_directory(directory,true); auto lock=lock_journal(journal);
+    operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+    journal.save_record("plan.json",plan);
     Value state; state["schema"]=1; state["operation_id"]=plan["operation_id"]; state["plan_sha256"]=plan["plan_sha256"];
     state["completed_ranges"]=Value(Json::arrayValue); state["private_record"]=true; boundary(journal,state,"VALIDATED");
     bool execution=false;
@@ -440,8 +452,12 @@ Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& direct
         boundary(journal,state,"BACKUP_VERIFIED"); verify_ranges(target.descriptor.get(),before); verify_descriptions(target.descriptor.get(),plan["untouched"]); storage_revalidate(target,system);
         boundary(journal,state,"READY");
         std::sort(after.begin(),after.end(),[](const auto& a,const auto& b){return order(a.name)<order(b.name);});
-        boundary(journal,state,"EXECUTING"); execution=true;
+        boundary(journal,state,"EXECUTING");
+        journal_binding(journal,directory);
+        operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+        operation.begin("GPT_WRITE_INTENT"); execution=true;
         for(const auto& range:after) {
+            operation.token().require_active();
             write_all(target.descriptor.get(),range.bytes,range.offset); verify_ranges(target.descriptor.get(),{range});
             state["completed_ranges"].append(range.name); boundary(journal,state,"EXECUTING");
         }
@@ -449,7 +465,9 @@ Value gpt_execute(StorageTarget& target,const Value& plan,const fs::path& direct
         require(tables_equal(gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()),plan["desired_table"]),"verification-error","Resulting GPT differs from the reviewed table");
         state["verified"]=true;
         if(plan["operation"]=="gpt.layout") { state["execution_scope"]="GPT_METADATA_ONLY"; state["formats_filesystems"]=false; state["migrates_data"]=false; state["complete_partition_job"]=false; }
-        boundary(journal,state,"COMMITTED"); return state;
+        journal_binding(journal,directory);
+        operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+        boundary(journal,state,"COMMITTED"); return operation.finish(state,true,true);
     } catch(const Error& error) {
         state["error_code"]=error.code; try { boundary(journal,state,execution ? "FAILED_UNCERTAIN" : "FAILED_SAFE"); } catch(...) {} throw;
     }
@@ -460,23 +478,33 @@ Value gpt_journal_inspect(const StorageTarget& target,const fs::path& directory,
     return inspect_journal(target,journal,system).result;
 }
 Value gpt_resume(const StorageTarget& target,const fs::path& directory,const std::string& confirmation,const Root* system) {
-    auto journal=private_directory(directory,false); auto lock=lock_journal(journal);
-    TargetLock target_lock(target.descriptor.get()); auto review=inspect_journal(target,journal,system);
-    require(confirmation==review.plan["plan_sha256"].asString(),"confirmation-required","Confirm the original GPT plan checksum");
+    auto journal=private_directory(directory,false); const auto plan=record(journal,"plan.json"); check_plan(plan);
+    require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the original GPT plan checksum");
+    ManagedOperation operation(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])),true);
+    TargetLock target_lock(target.descriptor.get()); auto lock=lock_journal(journal); journal_binding(journal,directory);
+    operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+    require(json(record(journal,"plan.json"))==json(plan),"changed-journal","GPT recovery plan changed during ownership admission");
+    auto review=inspect_journal(target,journal,system,operation.token().has_retained_intent());
+    require(json(review.plan)==json(plan),"changed-journal","GPT recovery inspection selected another plan");
     bool allowed=false; for(const auto& action:review.result["recovery_actions"])allowed=allowed || action=="resume";
     require(allowed,"unsafe-resume","GPT resume only completes a verified target readback; it never replays interrupted writes");
     review.state["verified"]=true; review.state["resume_readback_only"]=true;
-    boundary(journal,review.state,"COMMITTED"); return review.state;
+    journal_binding(journal,directory);
+    operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+    boundary(journal,review.state,"COMMITTED"); return operation.finish(review.state,true,true);
 }
 Value gpt_rollback(StorageTarget& target,const fs::path& directory,const std::string& confirmation,const Root* system) {
-    auto journal=private_directory(directory,false); auto lock=lock_journal(journal);
-    auto review=inspect_journal(target,journal,system); const auto& plan=review.plan; auto state=review.state;
+    auto journal=private_directory(directory,false); const auto plan=record(journal,"plan.json"); check_plan(plan);
     require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the original GPT plan checksum");
-    require(review.result["classification"]!="DIVERGED","changed-target","Unrelated GPT metadata changes prevent rollback");
     write_gate(target);
+    ManagedOperation operation(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])),true);
     TargetLock target_lock(target.descriptor.get());
-    review=inspect_journal(target,journal,system); // Recheck after acquiring the target lock.
-    require(review.result["classification"]!="DIVERGED","changed-target","GPT changed while acquiring the target lock");
+    auto lock=lock_journal(journal); journal_binding(journal,directory);
+    operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+    require(json(record(journal,"plan.json"))==json(plan),"changed-journal","GPT recovery plan changed during ownership admission");
+    auto review=inspect_journal(target,journal,system); auto state=review.state;
+    require(json(review.plan)==json(plan),"changed-journal","GPT recovery inspection selected another plan");
+    require(review.result["classification"]!="DIVERGED","changed-target","Unrelated GPT metadata changes prevent rollback");
     auto before=std::move(review.before);
     // A failed write can leave a partially updated table. Rollback restores only
     // the sealed metadata ranges on the same inode/device, capacity and GUID.
@@ -484,8 +512,22 @@ Value gpt_rollback(StorageTarget& target,const fs::path& directory,const std::st
     std::sort(before.begin(),before.end(),[](const auto& a,const auto& b){return order(a.name)<order(b.name);});
     boundary(journal,state,"ROLLBACK_REQUIRED");
     try {
-        for(const auto& range:before)write_all(target.descriptor.get(),range.bytes,range.offset);
-        verify_ranges(target.descriptor.get(),before); state["verified"]=true; boundary(journal,state,"ROLLED_BACK"); return state;
+        bool intent=false;
+        for(const auto& range:before) {
+            operation.token().require_active(); journal_binding(journal,directory);
+            if(storage_read(target.descriptor.get(),range.offset,range.bytes.size())==range.bytes)continue;
+            if(!intent) {
+                operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+                operation.begin("GPT_ROLLBACK_INTENT"); intent=true;
+            }
+            write_all(target.descriptor.get(),range.bytes,range.offset);
+        }
+        verify_ranges(target.descriptor.get(),before); verify_descriptions(target.descriptor.get(),plan["untouched"]);
+        require(tables_equal(gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()),plan["current_table"]),
+            "verification-error","Rolled-back GPT differs from the reviewed original table");
+        journal_binding(journal,directory);
+        operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
+        state["verified"]=true; boundary(journal,state,"ROLLED_BACK"); return operation.finish(state,true,true);
     } catch(const Error& error) { state["error_code"]=error.code; try { boundary(journal,state,"FAILED_UNCERTAIN"); } catch(...) {} throw; }
 }
 } // namespace ure

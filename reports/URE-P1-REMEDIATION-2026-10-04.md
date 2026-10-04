@@ -10,7 +10,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-002 | Bounded UTF-8 scalar decoding; exhaustive exact-source native and sanitizer controls passed | Fresh target and combined guest |
 | AUD-003 | Checked raster/parser budgets, bounded global caches, font ownership and clipping; production native and sanitizer controls passed | Fresh target and combined visual guest |
 | AUD-004 | Volatile writer removed; persistent regular-image installer, atomic first records, interrupted preparation recovery, exact fallback/plan/path binding and checked terminal fsync; five native and five sanitizer controls passed | Fresh target/combined guest; live installation explicitly unavailable pending physical fallback and durability admission |
-| AUD-005 | Common transaction ownership | Pending |
+| AUD-005 | Common process-independent host ownership, explicit compound delegation, durable exact retirement, retained tree/stream recovery and shared lifecycle/control callbacks; native/sanitizer and CLI controls passed | Fresh target/combined guest; Android coordinator and physical durability unaccepted; rescue aggregate resources and GUI worker ownership follow in AUD-012–014 |
 | AUD-006 | Exact installed model/profile/geometry admission | Pending; physical evidence unavailable |
 | AUD-007 | Prefix versus complete boot-layout restoration | Pending |
 | AUD-009 | Explicit image/live repartition capabilities | Pending |
@@ -57,3 +57,15 @@ inactive-image byte oracles. The initial sanitizer trial exceeded 300 seconds;
 buffer comparison removed a per-byte classification bottleneck while preserving
 complete hashing and mixed-byte inspection. Existing raw/stream/file-transaction
 regressions passed again. These receipts cover source/host fixtures only.
+
+AUD-005's complete CTest sets passed 36/36 native in 271.98 seconds and
+36/36 under pinned Clang ASan/UBSan/leak checks in 602.57 seconds. Subsequent
+CLI integration exposed a parsed numeric-type mismatch in rescue synchronization,
+a sector-width fixture mismatch and a stale call to the removed installer writer.
+The corrected affected native/sanitizer rescue C++ and namespace controls passed,
+as did all six filesystem CLI workflows, foreign derived-plan rejection, the
+remaining CLI scripts, 111 production entry guards and exact reviewed patch-stack
+checks. Complete regression totals and subsequent affected receipts remain
+separate; a fresh complete release receipt is not inferred from an interrupted
+script followed by targeted checks. Every device effect in lifecycle fixtures
+was mocked; no host block device or connected tablet was accessed.

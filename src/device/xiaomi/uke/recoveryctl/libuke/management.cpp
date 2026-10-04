@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "operation_lease.hpp"
 #include <algorithm>
 #include <charconv>
 #include <fcntl.h>
@@ -40,6 +41,8 @@ void positional(const Options& options,std::size_t count) { require(options.word
 bool management_command(const std::vector<std::string>& args) {
     if(args.size()<2)return false;
     const auto& command=args[0]; const auto& op=args[1];
+    if(command=="operation")return op=="status";
+    if(command=="backup")return op=="tree-recover";
     if(command=="installer")return op.starts_with("image-");
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
     if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
@@ -47,13 +50,21 @@ bool management_command(const std::vector<std::string>& args) {
     if(command=="storage")return op=="preflight";
     if(command=="boot")return op.starts_with("route-");
     if(command=="linux")return op=="audit" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect";
-    if(command=="btrfs")return op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
+    if(command=="btrfs")return op=="control" || op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
         op=="subvolume-info" || op=="snapshot-plan" || op=="snapshot-execute" || op=="send-plan" || op=="send-capture" || op=="send-verify" || op=="backup-inspect" || op=="stream-check";
     return false;
 }
 Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
+    if(command=="operation") { positional(options,2); options.allow({}); return operation_lease_status(); }
+    if(command=="backup") {
+        positional(options,5); options.allow({"--destination","--confirm"});
+        const auto& action=words[4];
+        require(action!="inspect" || !options.has("--confirm"),"invalid-options","Read-only tree recovery inspection does not accept confirmation");
+        return backup_tree_recover(words[2],options.need("--destination"),words[3],action,
+            action=="inspect" ? "" : options.need("--confirm"));
+    }
     if(command=="installer") {
         positional(options,3);
         const auto sector=options.get("--sector-size","4096");
@@ -141,6 +152,8 @@ Value management_dispatch(std::vector<std::string> args) {
     if(operation=="stream-check") { positional(options,3); options.allow({}); const auto directory=fs::path(words[2]).parent_path(); Root parent(directory.empty() ? fs::path(".") : directory); auto file=parent.open(fs::path(words[2]).filename().string(),O_RDONLY|O_NONBLOCK); return btrfs_stream_check(file.get()); }
     if(operation=="send-verify" || operation=="backup-inspect") { positional(options,3); options.allow({}); return operation=="send-verify" ? btrfs_send_verify(words[2]) : btrfs_backup_inspect(words[2]); }
     require(options.has("--root"),"root-required","Select an already mounted Btrfs root"); Root root(options.get("--root"));
+    if(operation=="control") { positional(options,4); options.allow({"--root","--journal","--confirm"});
+        return btrfs_manage_control(root,json_file(words[2]),options.need("--journal"),words[3],options.need("--confirm")); }
     if(operation=="plan") { positional(options,3); options.allow({"--root","--profile","--output"}); const auto plan=btrfs_manage_plan(root,json_file(words[2]),options.need("--profile")); save_json(options.need("--output"),plan); return plan; }
     if(operation=="execute") { positional(options,3); options.allow({"--root","--journal","--confirm"}); return btrfs_manage_execute(root,json_file(words[2]),options.need("--journal"),options.need("--confirm")); }
     if(operation=="snapshot-plan") { positional(options,5); options.allow({"--root","--profile","--output"}); return btrfs_snapshot_plan(root,words[2],words[3],words[4],options.need("--profile"),options.need("--output")); }

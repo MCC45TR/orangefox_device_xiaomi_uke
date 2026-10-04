@@ -4,7 +4,11 @@ set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 binary=${UKE_RECOVERYCTL_BINARY:-$component/build/ure-host/uke-recoveryctl}
 fixture=$(mktemp -d /tmp/ure-rescue-XXXXXX)
-trap 'chmod -R u+w "$fixture"; find "$fixture" -depth -delete' EXIT
+# The privileged test namespace has a distinct UID mapping. Its one domain is
+# created there and shared by every session/CLI call, on persistent host media.
+# Reusing a seal made in the outer UID namespace would correctly be rejected.
+operation_scope=$(mktemp -d "$component/build/rescue-operations-XXXXXX")
+trap 'chmod -R u+w "$fixture"; find "$fixture" -depth -delete; if [[ -f $operation_scope/coordinator/owner.json ]]; then printf "Unresolved rescue ownership preserved at %s\n" "$operation_scope" >&2; else rm -rf -- "$operation_scope"; fi' EXIT
 mkdir -p "$fixture/root"/{etc,usr/bin,proc,sys,dev,run,tmp,boot/efi,root,var} "$fixture/esp"
 printf 'ID=arch\nNAME=Arch fixture\n' > "$fixture/root/etc/os-release"
 printf 'UUID=fixture-root / ext4 defaults 0 1\nUUID=fixture-esp /boot/efi vfat defaults 0 2\n' > "$fixture/root/etc/fstab"
@@ -68,5 +72,7 @@ SH
 bwrap --unshare-user --unshare-pid --uid 0 --gid 0 --new-session --die-with-parent \
     --cap-add CAP_SYS_ADMIN --cap-add CAP_CHOWN --cap-add CAP_DAC_OVERRIDE --cap-add CAP_FOWNER \
     --cap-add CAP_SETUID --cap-add CAP_SETGID --cap-add CAP_SETFCAP --cap-add CAP_SYS_CHROOT \
-    --ro-bind / / --bind "$fixture" "$fixture" --dev /dev --proc /proc \
+    --ro-bind / / --bind "$fixture" "$fixture" --bind "$operation_scope" "$operation_scope" --dev /dev --proc /proc \
+    --setenv URE_OPERATION_COORDINATOR "$operation_scope/coordinator" \
     -- bash "$fixture/inside.sh" "$binary" "$fixture"
+[[ ! -f $operation_scope/coordinator/owner.json ]]

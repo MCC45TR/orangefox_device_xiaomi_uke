@@ -1,0 +1,55 @@
+--- a/fastboot/device/commands.cpp
++++ b/fastboot/device/commands.cpp
+@@ -15,6 +15,7 @@
+  */
+ 
+ #include "recovery_write_policy.hpp"
++#include "lifecycle_policy.hpp"
+ 
+ #include "commands.h"
+ 
+@@ -389,6 +390,8 @@
+ }
+ 
+ bool ShutDownHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
++    ure::LegacyLifecycleGuard lifecycle("shutdown");
++    if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Shutting down");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "shutdown,fastboot");
+     device->CloseDevice();
+@@ -397,6 +400,8 @@
+ }
+ 
+ bool RebootHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
++    ure::LegacyLifecycleGuard lifecycle("reboot");
++    if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,from_fastboot");
+     device->CloseDevice();
+@@ -405,6 +410,8 @@
+ }
+ 
+ bool RebootBootloaderHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
++    ure::LegacyLifecycleGuard lifecycle("reboot");
++    if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting bootloader");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,bootloader");
+     device->CloseDevice();
+@@ -413,6 +420,8 @@
+ }
+ 
+ bool RebootFastbootHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
++    ure::LegacyLifecycleGuard lifecycle("reboot");
++    if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting fastboot");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,fastboot");
+     device->CloseDevice();
+@@ -421,6 +430,8 @@
+ }
+ 
+ bool RebootRecoveryHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
++    ure::LegacyLifecycleGuard lifecycle("reboot");
++    if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting to recovery");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,recovery");
+     device->CloseDevice();
