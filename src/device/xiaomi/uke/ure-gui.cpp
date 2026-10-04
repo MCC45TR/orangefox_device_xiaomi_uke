@@ -13,12 +13,25 @@
 #include <fcntl.h>
 #include <fcntl.h>
 #include <mutex>
+#include <map>
+#include "gui_job.hpp"
 #include <set>
 #include <thread>
 #include <unistd.h>
 
 namespace {
-std::mutex session_mutex;
+std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
+struct ManagementSession {
+    ure::Value variables, updates{Json::objectValue};
+    std::size_t update_bytes=0;
+    int run(const std::string& command);
+    void set(const std::string& name,const std::string& text) {
+        ure::require(name.rfind("ure_",0)==0 && name.size()<=128 && text.size()<=128*1024,"gui-job-output-limit","GUI updates exceed their bounded publication budget; inspect the backend journal");
+        const auto prior=updates.get(name,"").asString().size();
+        ure::require(update_bytes-prior+text.size()<=192*1024 && (updates.isMember(name) || updates.size()<256),"gui-job-output-limit","GUI updates exceed their total publication budget; inspect the backend journal");
+        update_bytes=update_bytes-prior+text.size(); updates[name]=text; variables[name]=text;
+    }
+    void set(const std::string& name,int number) { set(name,std::to_string(number)); }
 std::unique_ptr<ure::Root> selected_root;
 std::unique_ptr<ure::Editor> editor;
 ure::Value pending_plan;
@@ -43,13 +56,36 @@ std::string managed_kind,managed_journal,reviewed_filesystem_journal;
 std::string edited_management_field;
 ure::Value boot_plan,boot_reviewed_selection,boot_journal_selection;
 std::string boot_pending_journal,boot_reviewed_journal;
-std::atomic<bool> maintenance_running{false};
 std::shared_ptr<ure::Root> maintenance_root;
 ure::Value maintenance_plan;
 std::string maintenance_journal;
 std::size_t current_line=0;
-std::string value(const std::string& name) { std::string result; DataManager::GetValue(name,result); return result; }
-void publish(const ure::Value& data) { DataManager::SetValue("ure_output",ure::json(data)); }
+std::string value(const std::string& name) const { return variables.get(name,"").asString(); }
+void publish(const ure::Value& data) {
+    ure::Value view;
+    if(data.isObject() && data["operation"]=="stock.restore-images") {
+        // The sealed plan remains owned by this session. Display complete
+        // programming extents, warnings and layout changes without repeating
+        // each LUN's current, desired and reconstructed GPT tables.
+        for(auto it=data.begin();it!=data.end();++it)if(it.name()!="luns")view[it.name()]=*it;
+        view["gui_view_kind"]="stock-review-projection";
+        view["gui_view_is_executable_plan"]=false;
+        view["luns"]=ure::Value(Json::arrayValue);
+        for(const auto& lun:data["luns"]) {
+            ure::Value item; item["lun"]=lun["lun"]; item["identity"]=lun["identity"]; const auto& gpt=lun["gpt"];
+            for(const auto* key:{"operation","plan_sha256","firmware_profile","risk","stock_lun","layout_changes","warnings"})
+                if(gpt.isMember(key))item["gpt"][key]=gpt[key];
+            item["gpt"]["current_table_sha256"]=ure::sha256(ure::json(gpt["current_table"]));
+            item["gpt"]["desired_table_sha256"]=ure::sha256(ure::json(gpt["desired_table"]));
+            for(const auto* key:{"guid_policy","original_identity_sha256","capacity","template_capacity","profile"})
+                if(gpt["stock_source"].isMember(key))item["gpt"]["stock_source"][key]=gpt["stock_source"][key];
+            view["luns"].append(item);
+        }
+    } else view=data;
+    Json::StreamWriterBuilder writer; writer["indentation"]=""; writer["emitUTF8"]=true;
+    set("ure_output",Json::writeString(writer,view));
+}
+
 bool choice(const std::string& name) {
     const auto selected=value(name); ure::require(selected=="0" || selected=="1","invalid-choice","Choose an explicit on/off value"); return selected=="1";
 }
@@ -80,8 +116,8 @@ ure::Value boot_request_fields() {
 }
 void boot_clear_review() {
     boot_plan={}; boot_reviewed_selection={}; boot_pending_journal.clear(); boot_reviewed_journal.clear(); boot_journal_selection={};
-    DataManager::SetValue("ure_boot_hash",""); DataManager::SetValue("ure_boot_journal_hash",""); DataManager::SetValue("ure_boot_can_stage","0");
-    for(const auto* action:{"recover","cancel","fallback-fixture"})DataManager::SetValue(std::string("ure_boot_can_")+action,"0");
+    set("ure_boot_hash",""); set("ure_boot_journal_hash",""); set("ure_boot_can_stage","0");
+    for(const auto* action:{"recover","cancel","fallback-fixture"})set(std::string("ure_boot_can_")+action,"0");
 }
 ure::Value filesystem_request(std::uint64_t bytes) {
     ure::Value request; request["schema"]=1; request["action"]=value("ure_fs_action"); request["filesystem"]=value("ure_fs_type");
@@ -123,8 +159,8 @@ void review_management(const std::string& kind,ure::Value plan,const ure::Value&
     managed_journal=kind=="btrfs-snapshot" || kind=="btrfs-send" ? value("ure_btrfs_store") :
         (ure::fs::path(value("ure_journal_parent"))/("ure-managed-"+managed_plan["operation_id"].asString())).string();
     auto review=managed_plan; review["journal_directory"]=managed_journal; publish(review);
-    DataManager::SetValue("ure_manage_hash",managed_plan["plan_sha256"].asString());
-    DataManager::SetValue("ure_manage_can_apply",kind!="filesystem" || managed_plan["target_identity"]["kind"]=="regular-image" ? "1" : "0");
+    set("ure_manage_hash",managed_plan["plan_sha256"].asString());
+    set("ure_manage_can_apply",kind!="filesystem" || managed_plan["target_identity"]["kind"]=="regular-image" ? "1" : "0");
     std::string summary;
     if(kind=="filesystem") {
         const auto& request=managed_plan["request"]; summary=request["action"].asString()+" / "+request["filesystem"].asString()+" on "+value("ure_raw_source")+"\n";
@@ -137,8 +173,8 @@ void review_management(const std::string& kind,ure::Value plan,const ure::Value&
         summary+="Timeout: "+std::to_string(managed_plan["request"]["timeout_seconds"].asUInt())+" seconds; automatic connections: "+std::to_string(managed_plan["connections"].size())+"\n";
         summary+=managed_plan["risk"].asString();
     } else summary=managed_plan.get("risk",managed_plan.get("coherence","Review the selected read-only snapshot, incremental parent and backup store")).asString();
-    summary+="\nJournal: "+managed_journal; DataManager::SetValue("ure_manage_summary",summary);
-    DataManager::SetValue("ure_status","Review the selected target, action, required space, warnings and journal before confirming");
+    summary+="\nJournal: "+managed_journal; set("ure_manage_summary",summary);
+    set("ure_status","Review the selected target, action, required space, warnings and journal before confirming");
 }
 void reviewed_management(const std::string& kind,const ure::Value& selection) {
     ure::require(managed_kind==kind && managed_plan.isObject() && managed_plan["plan_sha256"].asString()==value("ure_manage_hash"),"review-required","Review this operation before applying it");
@@ -160,8 +196,8 @@ void review_backup() {
     ure::save_json(manifest,pending_backup);
     auto review=pending_backup; review["chunk_count"]=review["chunks"].size(); review.removeMember("chunks");
     review["manifest_path"]=manifest; review["local_backup_directory"]=pending_backup_directory; publish(review);
-    DataManager::SetValue("ure_backup_hash",pending_backup["plan_sha256"].asString());
-    DataManager::SetValue("ure_status","Review source identity, coherence and destination before capture or host transfer");
+    set("ure_backup_hash",pending_backup["plan_sha256"].asString());
+    set("ure_status","Review source identity, coherence and destination before capture or host transfer");
 }
 void validate_backup_selection(const ure::Value& plan) {
     const bool live=plan["source_kind"]=="live-block";
@@ -185,9 +221,9 @@ void clear_gpt_review() {
     pending_gpt_plan=ure::Value(); pending_gpt_journal.clear(); reviewed_gpt_journal.clear();
     reviewed_partition_journal.clear(); reviewed_partition_selection=ure::Value();
     reviewed_layout_request=ure::Value();
-    DataManager::SetValue("ure_layout_graph",""); DataManager::SetValue("ure_layout_review","Calculate and review the current selections before applying");
+    set("ure_layout_graph",""); set("ure_layout_review","Calculate and review the current selections before applying");
     for(const auto* name:{"ure_gpt_plan_hash","ure_gpt_journal_hash","ure_gpt_can_execute","ure_gpt_can_rollback","ure_gpt_can_resume",
-        "ure_partition_journal_hash","ure_partition_can_resume","ure_partition_can_rollback","ure_partition_can_cancel"})DataManager::SetValue(name,"");
+        "ure_partition_journal_hash","ure_partition_can_resume","ure_partition_can_rollback","ure_partition_can_cancel"})set(name,"");
 }
 ure::Value partition_selection() {
     ure::Value selected; for(const auto* key:{"ure_gpt_kind","ure_gpt_source","ure_gpt_sector","ure_partition_journal"})selected[key]=value(key); return selected;
@@ -195,7 +231,7 @@ ure::Value partition_selection() {
 void clear_stock_review() {
     pending_stock_plan=ure::Value(); reviewed_stock_choices=ure::Value(); pending_stock_journal.clear(); reviewed_stock_journal.clear();
     for(const auto* name:{"ure_stock_job_hash","ure_stock_job_journal_hash","ure_stock_job_summary","ure_stock_job_can_execute",
-        "ure_stock_job_can_resume","ure_stock_job_can_rollback","ure_stock_job_can_cancel"})DataManager::SetValue(name,"");
+        "ure_stock_job_can_resume","ure_stock_job_can_rollback","ure_stock_job_can_cancel"})set(name,"");
 }
 ure::Value stock_selection() {
     ure::Value selected;
@@ -250,20 +286,38 @@ ure::Value layout_request() {
 void clear_restore_review() {
     pending_restore_plan=ure::Value(); pending_restore_journal.clear(); pending_restore_backup.clear(); reviewed_restore_journal.clear();
     for(const auto* name:{"ure_restore_plan_hash","ure_restore_journal_hash","ure_restore_can_execute","ure_restore_can_resume","ure_restore_can_rollback","ure_restore_can_cancel"})
-        DataManager::SetValue(name,"");
+        set(name,"");
 }
 void clear_stream_review() {
     reviewed_stream_journal.clear();
-    for(const auto* name:{"ure_stream_journal_hash","ure_stream_can_rollback","ure_stream_can_finish","ure_stream_can_cancel"})DataManager::SetValue(name,"");
+    for(const auto* name:{"ure_stream_journal_hash","ure_stream_can_rollback","ure_stream_can_finish","ure_stream_can_cancel"})set(name,"");
+}
+void invalidate_reviews() {
+    pending_plan={}; pending_backup={}; pending_gpt_plan={}; pending_stock_plan={}; pending_restore_plan={}; pending_tree={}; managed_plan={}; boot_plan={};
+    reviewed_filesystem_journal.clear(); reviewed_gpt_journal.clear(); reviewed_stock_journal.clear(); reviewed_restore_journal.clear(); reviewed_stream_journal.clear();
+    reviewed_partition_journal.clear(); boot_reviewed_journal.clear();
+    for(const auto* key:{"ure_manage_hash","ure_plan_hash","ure_backup_hash","ure_tree_hash","ure_gpt_plan_hash","ure_gpt_journal_hash",
+        "ure_partition_journal_hash","ure_restore_plan_hash","ure_restore_journal_hash","ure_stream_journal_hash","ure_boot_hash","ure_boot_journal_hash",
+        "ure_stock_job_hash","ure_stock_job_journal_hash","ure_fs_journal_hash","ure_journal_hash"})set(key,"");
+    for(const auto* key:{"ure_manage_can_apply","ure_gpt_can_execute","ure_restore_can_execute","ure_stock_job_can_execute","ure_boot_can_stage"})set(key,"0");
+}
+static std::string text_prefix(const std::string& text,std::size_t limit) {
+    auto size=std::min(text.size(),limit);
+    // Preserve complete UTF-8 scalars at the preview boundary. Editor input
+    // is already validated; binary console output remains a private record.
+    for(unsigned tail=0;tail<4 && !ure::utf8(std::string_view(text.data(),size));++tail)if(size)--size;
+    ure::require(ure::utf8(std::string_view(text.data(),size)),"gui-binary-output","This output is binary; inspect its private record through ADB");
+    return text.substr(0,size);
 }
 void refresh_editor() {
     const auto rows=editor->lines();
     current_line=std::min(current_line,rows.size()-1);
-    DataManager::SetValue("ure_line",rows[current_line]);
-    DataManager::SetValue("ure_line_number",std::to_string(current_line+1)+" / "+std::to_string(rows.size()));
-    DataManager::SetValue("ure_preview",editor->text().substr(0,65536));
-    pending_plan=ure::Value(); pending_journal.clear(); DataManager::SetValue("ure_plan_hash","");
+    set("ure_line",rows[current_line]);
+    set("ure_line_number",std::to_string(current_line+1)+" / "+std::to_string(rows.size()));
+    set("ure_preview",text_prefix(editor->text(),65536));
+    pending_plan=ure::Value(); pending_journal.clear(); set("ure_plan_hash","");
 }
+};
 }
 // Render-thread-owned sample. Only its two font references change while a size
 // is selected; the theme and every real hit rectangle remain untouched.
@@ -464,39 +518,36 @@ bool ure_gui_keep_variable(const std::string& name) {
     std::string existing;
     return DataManager::GetValue(name,existing)==0;
 }
-int GUIAction::uremanager(std::string command) {
-    std::lock_guard<std::mutex> guard(session_mutex);
+// URE management callbacks: explicit owned session, no GUI access on workers.
+namespace {
+int ManagementSession::run(const std::string& command) {
     try {
         ure::Root system("/");
-        const auto btrfs_action=value("ure_btrfs_action");
-        const bool control=btrfs_action=="scrub-cancel" || btrfs_action=="balance-pause" || btrfs_action=="balance-cancel";
-        ure::require(!maintenance_running || command=="btrfs-info" || command=="btrfs-scrub-status" || command=="btrfs-balance-status" ||
-            ((command=="btrfs-plan" || command=="btrfs-execute") && control),"operation-busy","A native maintenance job is running; inspect status or review its cancellation");
         if(command=="mirror-enable" || command=="mirror-disable") {
             gr_external_enable(command=="mirror-enable");
-            DataManager::SetValue("ure_mirror_status","Display change queued for the render thread");
+            set("ure_mirror_status","Display change queued for the render thread");
         } else if(command=="mirror-apply") {
             int width=0,height=0,rate=0;
             ure::require(uke_display::parse_selection(value("ure_mirror_resolution"),value("ure_mirror_refresh"),width,height,rate),
                 "invalid-display-mode","Select a valid resolution and refresh rate");
             const int percent=ure::display_scale_parse(value("ure_mirror_scale_choice"));
             ure::require(gr_external_configure(width,height,rate,percent),"invalid-display-mode","Output selection is outside the supported range");
-            DataManager::SetValue("ure_mirror_scale_requested",percent);
-            DataManager::SetValue("ure_mirror_status","Output settings queued; unsupported modes preserve the active resolution");
+            set("ure_mirror_scale_requested",percent);
+            set("ure_mirror_status","Output settings queued; unsupported modes preserve the active resolution");
         } else if(command=="mirror-modes") {
-            DataManager::SetValue("ure_mirror_modes",gr_external_modes());
+            set("ure_mirror_modes",gr_external_modes());
         } else if(command=="scale-reset" || command=="scale-load") {
             const int percent=command=="scale-reset" ? 75 : ure::display_settings_load(value("ure_scale_directory"))["scale_percent"].asInt();
-            DataManager::SetValue("ure_scale_choice",percent);
-            DataManager::SetValue("ure_scale_status","Selection ready. Apply to change the interface size.");
+            set("ure_scale_choice",percent);
+            set("ure_scale_status","Selection ready. Apply to change the interface size.");
         } else if(command=="scale-apply") {
             const int percent=ure::display_scale_parse(value("ure_scale_choice"));
-            DataManager::SetValue("ure_ui_scale_percent",percent);
-            DataManager::SetValue("ure_scale_status","Applied to text, icons and touch targets.");
+            set("ure_ui_scale_percent",percent);
+            set("ure_scale_status","Applied to text, icons and touch targets.");
             PageManager::RequestUreReload();
         } else if(command=="scale-save") {
             const auto saved=ure::display_settings_save(value("ure_scale_directory"),ure::display_scale_parse(value("ure_ui_scale_applied")));
-            DataManager::SetValue("ure_scale_status",saved["volatile_filesystem"]==true ?
+            set("ure_scale_status",saved["volatile_filesystem"]==true ?
                 "Saved on volatile storage; this setting will be lost on reboot" : "Saved and read back; load this directory after mounting it on future boots");
         } else if(command=="capabilities")publish(ure::capabilities(system));
         else if(command=="storage")publish(ure::storage_graph(system));
@@ -505,18 +556,18 @@ int GUIAction::uremanager(std::string command) {
         else if(command=="stock-job-plan") {
             clear_stock_review(); ure::Root parent(value("ure_journal_parent")); pending_stock_plan=ure::stock_job_plan(stock_request());
             reviewed_stock_choices=stock_selection(); pending_stock_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-stock-"+pending_stock_plan["operation_id"].asString())).string();
-            DataManager::SetValue("ure_stock_job_hash",pending_stock_plan["plan_sha256"].asString()); DataManager::SetValue("ure_stock_job_can_execute","1");
-            DataManager::SetValue("ure_stock_job_summary",stock_summary(pending_stock_plan,pending_stock_journal)); publish(pending_stock_plan);
+            set("ure_stock_job_hash",pending_stock_plan["plan_sha256"].asString()); set("ure_stock_job_can_execute","1");
+            set("ure_stock_job_summary",stock_summary(pending_stock_plan,pending_stock_journal)); publish(pending_stock_plan);
         } else if(command=="stock-job-execute") {
             if(ure::json(stock_selection())!=ure::json(reviewed_stock_choices)) { clear_stock_review(); throw ure::Error("stale-plan","Stock model, SKU, images, source, reset or slot choices changed; review a fresh plan"); }
             ure::require(pending_stock_plan.isObject() && !pending_stock_journal.empty() && pending_stock_plan["plan_sha256"].asString()==value("ure_stock_job_hash"),
                 "plan-required","Review the complete six-LUN stock job first");
             publish(ure::stock_job_execute(pending_stock_plan,pending_stock_journal,value("ure_stock_job_hash")));
-            DataManager::SetValue("ure_stock_job_journal",pending_stock_journal); clear_stock_review();
+            set("ure_stock_job_journal",pending_stock_journal); clear_stock_review();
         } else if(command=="stock-job-inspect") {
             clear_stock_review(); const auto review=ure::stock_job_recover(value("ure_stock_job_journal"),"inspect"); publish(review);
-            reviewed_stock_journal=value("ure_stock_job_journal"); DataManager::SetValue("ure_stock_job_journal_hash",review["plan_sha256"].asString());
-            for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_stock_job_can_"+action.asString(),"1");
+            reviewed_stock_journal=value("ure_stock_job_journal"); set("ure_stock_job_journal_hash",review["plan_sha256"].asString());
+            for(const auto& action:review["recovery_actions"])set("ure_stock_job_can_"+action.asString(),"1");
         } else if(command=="stock-job-resume" || command=="stock-job-rollback" || command=="stock-job-cancel") {
             ure::require(!reviewed_stock_journal.empty() && reviewed_stock_journal==value("ure_stock_job_journal") && !value("ure_stock_job_journal_hash").empty(),
                 "confirmation-required","Inspect and review the selected six-LUN journal first");
@@ -525,16 +576,16 @@ int GUIAction::uremanager(std::string command) {
             boot_clear_review();
         } else if(command=="boot-route-inventory") {
             auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables"); publish(ure::boot_route_inventory(esp,variables));
-            DataManager::SetValue("ure_status","Registered EFI entries and unchanged default; Uke/Aloha device routing is not yet accepted");
+            set("ure_status","Registered EFI entries and unchanged default; Uke/Aloha device routing is not yet accepted");
         } else if(command=="boot-route-plan") {
             boot_clear_review(); auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
             boot_plan=ure::boot_route_plan(esp,variables,boot_request_fields()); boot_reviewed_selection=boot_selection();
             ure::Root parent(value("ure_journal_parent"));
             boot_pending_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-boot-"+boot_plan["operation_id"].asString())).string();
             auto review=boot_plan; review["journal_directory"]=boot_pending_journal; publish(review);
-            DataManager::SetValue("ure_boot_hash",boot_plan["plan_sha256"].asString());
-            DataManager::SetValue("ure_boot_can_stage",boot_plan["fixture_execute_allowed"].asBool() ? "1" : "0");
-            DataManager::SetValue("ure_boot_summary","One-time "+value("ure_boot_target")+": EFI option "+boot_plan["selected"]["number"].asString()+
+            set("ure_boot_hash",boot_plan["plan_sha256"].asString());
+            set("ure_boot_can_stage",boot_plan["fixture_execute_allowed"].asBool() ? "1" : "0");
+            set("ure_boot_summary","One-time "+value("ure_boot_target")+": EFI option "+boot_plan["selected"]["number"].asString()+
                 " / "+boot_plan["selected"]["description"].asString()+"\nPreserved default: "+boot_plan["fallback"]["number"].asString()+
                 " / "+boot_plan["fallback"]["description"].asString()+"\n"+boot_plan["risk"].asString()+"\nJournal: "+boot_pending_journal);
         } else if(command=="boot-route-stage-fixture") {
@@ -543,15 +594,15 @@ int GUIAction::uremanager(std::string command) {
             if(ure::json(boot_selection())!=ure::json(boot_reviewed_selection)) { boot_clear_review(); throw ure::Error("stale-plan","Boot target, profile, ESP or journal choices changed; review a new request"); }
             auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
             publish(ure::boot_route_execute(esp,variables,boot_plan,boot_pending_journal,value("ure_boot_hash")));
-            DataManager::SetValue("ure_boot_journal",boot_pending_journal); boot_clear_review();
+            set("ure_boot_journal",boot_pending_journal); boot_clear_review();
         } else if(command=="boot-journal-history") {
             publish(ure::boot_route_history(value("ure_boot_journal")));
         } else if(command=="boot-journal-inspect") {
             boot_clear_review(); auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
             const auto review=ure::boot_route_action(esp,variables,value("ure_boot_journal"),"inspect"); publish(review);
             boot_reviewed_journal=value("ure_boot_journal"); boot_journal_selection=boot_context_selection();
-            DataManager::SetValue("ure_boot_journal_hash",review["plan_sha256"].asString());
-            for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_boot_can_"+action.asString(),"1");
+            set("ure_boot_journal_hash",review["plan_sha256"].asString());
+            for(const auto& action:review["recovery_actions"])set("ure_boot_can_"+action.asString(),"1");
         } else if(command=="boot-journal-recover" || command=="boot-journal-cancel" || command=="boot-journal-fallback-fixture") {
             ure::require(!boot_reviewed_journal.empty() && !value("ure_boot_journal_hash").empty() &&
                 ure::json(boot_context_selection())==ure::json(boot_journal_selection),"review-required","Inspect the selected journal and its exact ESP/variable store first");
@@ -565,32 +616,32 @@ int GUIAction::uremanager(std::string command) {
                 "ure_boot_esp","ure_boot_variables","ure_boot_option","ure_boot_fallback","ure_boot_partuuid","ure_boot_journal"};
             ure::require(allowed.count(field),"invalid-field","Select a supported management field");
             edited_management_field=field;
-            DataManager::SetValue("ure_form_field",field); DataManager::SetValue("ure_form_value",value(field));
-            DataManager::SetValue("ure_form_back",field.rfind("ure_boot_",0)==0 ? "ure_boot_manager" : field.rfind("ure_btrfs_",0)==0 ? "ure_btrfs" : field.rfind("ure_rescue_",0)==0 || field=="ure_esp" ? "ure_linux" : "ure_filesystems");
+            set("ure_form_field",field); set("ure_form_value",value(field));
+            set("ure_form_back",field.rfind("ure_boot_",0)==0 ? "ure_boot_manager" : field.rfind("ure_btrfs_",0)==0 ? "ure_btrfs" : field.rfind("ure_rescue_",0)==0 || field=="ure_esp" ? "ure_linux" : "ure_filesystems");
         } else if(command=="manage-field-save") {
             const auto field=value("ure_form_field");
             ure::require(!edited_management_field.empty() && field==edited_management_field && value("ure_form_value").size()<=4096,"invalid-field","Invalid management field selection");
             // The editable field is selected exclusively by manage-edit-* above.
-            DataManager::SetValue(field,value("ure_form_value")); DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+            set(field,value("ure_form_value")); set("ure_manage_hash",""); set("ure_manage_can_apply","0");
             boot_clear_review();
             edited_management_field.clear();
         } else if(command=="linux-audit") {
             auto root=os_root(); auto esp=selected_esp(); const auto report=ure::linux_boot_audit(root,esp.get()); publish(report);
-            DataManager::SetValue("ure_status",std::to_string(report["error_count"].asUInt())+" errors, "+std::to_string(report["warning_count"].asUInt())+" warnings; metadata inspection only");
+            set("ure_status",std::to_string(report["error_count"].asUInt())+" errors, "+std::to_string(report["warning_count"].asUInt())+" warnings; metadata inspection only");
         } else if(command=="rescue-plan") {
             auto root=os_root(); auto esp=selected_esp(); const auto request=rescue_request();
             review_management("rescue",ure::linux_rescue_plan(root,request,esp.get()),management_selection("rescue",request));
         } else if(command=="rescue-execute") {
             const auto request=rescue_request(); reviewed_management("rescue",management_selection("rescue",request)); auto root=os_root(); auto esp=selected_esp();
-            DataManager::SetValue("ure_manage_journal",managed_journal);
+            set("ure_manage_journal",managed_journal);
             const auto result=ure::linux_rescue_execute(root,managed_plan,managed_journal,value("ure_manage_hash"),esp.get()); publish(result);
-            DataManager::SetValue("ure_status",result["state"].asString()+"; private console is available in the session journal");
-            DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0"); if(result["successful"]!=true)return 1;
+            set("ure_status",result["state"].asString()+"; private console is available in the session journal");
+            set("ure_manage_hash",""); set("ure_manage_can_apply","0"); if(result["successful"]!=true)return 1;
         } else if(command=="rescue-inspect") {
             auto store=ure::private_directory(value("ure_manage_journal"),false); ure::Value result;
             result["plan"]=ure::parse_json(store.read("plan.json")); result["state"]=ure::parse_json(store.read("state.json"));
             if(store.exists("console.log")) { auto file=store.open("console.log",O_RDONLY); const auto bytes=ure::storage_bytes(file.get());
-                result["console_preview"]=ure::storage_read(file.get(),0,static_cast<std::size_t>(std::min<std::uint64_t>(bytes,65536))); result["console_preview_truncated"]=bytes>65536; }
+                result["console_preview"]=text_prefix(ure::storage_read(file.get(),0,static_cast<std::size_t>(std::min<std::uint64_t>(bytes,65540))),65536); result["console_preview_truncated"]=bytes>65536; }
             publish(result);
         } else if(command=="filesystem-capabilities")publish(ure::filesystem_capabilities());
         else if(command=="partition-capabilities")publish(ure::partition_capabilities());
@@ -602,22 +653,22 @@ int GUIAction::uremanager(std::string command) {
             review_management("filesystem",ure::filesystem_operation_plan(system,target,request,"global-os3.0.303.0"),management_selection("filesystem",request));
         } else if(command=="filesystem-execute") {
             auto target=backup_target(system,true); const auto request=filesystem_request(target.identity["bytes"].asUInt64()); reviewed_management("filesystem",management_selection("filesystem",request));
-            DataManager::SetValue("ure_manage_journal",managed_journal); publish(ure::filesystem_operation_execute(system,target,managed_plan,managed_journal,value("ure_manage_hash")));
-            DataManager::SetValue("ure_status","Filesystem applied and independently checked; complete original bytes remain in the journal");
-            DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+            set("ure_manage_journal",managed_journal); publish(ure::filesystem_operation_execute(system,target,managed_plan,managed_journal,value("ure_manage_hash")));
+            set("ure_status","Filesystem applied and independently checked; complete original bytes remain in the journal");
+            set("ure_manage_hash",""); set("ure_manage_can_apply","0");
         } else if(command=="filesystem-journal-inspect") {
             auto target=backup_target(system); const auto report=ure::filesystem_operation_recover(system,target,value("ure_manage_journal"),"inspect",""); publish(report);
-            reviewed_filesystem_journal=value("ure_manage_journal"); DataManager::SetValue("ure_fs_journal_hash",report["plan_sha256"].asString());
+            reviewed_filesystem_journal=value("ure_manage_journal"); set("ure_fs_journal_hash",report["plan_sha256"].asString());
             managed_selection=management_selection("filesystem");
-            for(const auto* action:{"resume","rollback","cancel"})DataManager::SetValue("ure_fs_can_"+std::string(action),"0");
-            for(const auto& action:report["application"]["recovery_actions"])DataManager::SetValue("ure_fs_can_"+action.asString(),"1");
-            if(report["original_unchanged_verified"]==true)DataManager::SetValue("ure_fs_can_cancel","1");
+            for(const auto* action:{"resume","rollback","cancel"})set("ure_fs_can_"+std::string(action),"0");
+            for(const auto& action:report["application"]["recovery_actions"])set("ure_fs_can_"+action.asString(),"1");
+            if(report["original_unchanged_verified"]==true)set("ure_fs_can_cancel","1");
         } else if(command=="filesystem-resume" || command=="filesystem-rollback" || command=="filesystem-cancel") {
             ure::require(reviewed_filesystem_journal==value("ure_manage_journal") && !value("ure_fs_journal_hash").empty() &&
                 ure::json(managed_selection)==ure::json(management_selection("filesystem")),"review-required","Inspect this filesystem journal and current target first");
             const auto action=command.substr(11); auto target=backup_target(system,action!="cancel");
             publish(ure::filesystem_operation_recover(system,target,reviewed_filesystem_journal,action,value("ure_fs_journal_hash")));
-            DataManager::SetValue("ure_fs_journal_hash",""); reviewed_filesystem_journal.clear();
+            set("ure_fs_journal_hash",""); reviewed_filesystem_journal.clear();
         } else if(command.rfind("btrfs-",0)==0) {
             if(command=="btrfs-send-verify")publish(ure::btrfs_send_verify(value("ure_btrfs_store")));
             else if(command=="btrfs-backup-inspect")publish(ure::btrfs_backup_inspect(value("ure_btrfs_store")));
@@ -628,12 +679,12 @@ int GUIAction::uremanager(std::string command) {
                 selection["operation_id"]=maintenance_plan["operation_id"];
                 if(command=="btrfs-plan") {
                     review_management("btrfs-control",maintenance_plan,selection); managed_journal=maintenance_journal;
-                    DataManager::SetValue("ure_manage_journal",maintenance_journal);
-                    DataManager::SetValue("ure_status","Control the captured maintenance filesystem; confirm its running plan hash");
+                    set("ure_manage_journal",maintenance_journal);
+                    set("ure_status","Control the captured maintenance filesystem; confirm its running plan hash");
                 } else {
                     reviewed_management("btrfs-control",selection);
                     publish(ure::btrfs_manage_control(*maintenance_root,maintenance_plan,maintenance_journal,selection["action"].asString(),value("ure_manage_hash")));
-                    DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                    set("ure_manage_hash",""); set("ure_manage_can_apply","0");
                 }
             }
             else {
@@ -641,24 +692,9 @@ int GUIAction::uremanager(std::string command) {
                 if(command=="btrfs-info" || command=="btrfs-subvolumes" || command=="btrfs-usage" || command=="btrfs-device-stats" || command=="btrfs-scrub-status" || command=="btrfs-balance-status")publish(ure::btrfs_native_info(root,command.substr(6)));
                 else if(command=="btrfs-plan") { const auto request=btrfs_request(root); review_management("btrfs",ure::btrfs_manage_plan(root,request,"global-os3.0.303.0"),management_selection("btrfs",request)); }
                 else if(command=="btrfs-execute") {
-                    reviewed_management("btrfs",management_selection("btrfs",btrfs_request(root))); DataManager::SetValue("ure_manage_journal",managed_journal);
-                    if(managed_plan["request"]["action"]=="scrub" || managed_plan["request"]["action"]=="balance") {
-                        const auto plan=managed_plan; const auto directory=managed_journal,confirmation=value("ure_manage_hash");
-                        ure::Fd descriptor(::fcntl(root.fd(),F_DUPFD_CLOEXEC,3));
-                        ure::require(descriptor.get()>=0,"root-unavailable","Cannot retain the reviewed maintenance root");
-                        const auto captured=std::make_shared<ure::Root>(std::move(descriptor));
-                        ure::require(!maintenance_running.exchange(true),"operation-busy","A native maintenance job is already running");
-                        maintenance_root=captured; maintenance_plan=plan; maintenance_journal=directory;
-                        DataManager::SetValue("ure_maintenance_state","RUNNING");
-                        try { std::thread([plan,directory,captured,confirmation] {
-                            try { const auto result=ure::btrfs_manage_execute(*captured,plan,directory,confirmation); publish(result); DataManager::SetValue("ure_maintenance_state",result["state"].asString()); }
-                            catch(const ure::Error& error) { ure::Value failure; failure["error"]["code"]=error.code; failure["error"]["message"]=error.what(); publish(failure); DataManager::SetValue("ure_maintenance_state","INTERRUPTED: inspect native status and journal"); }
-                            catch(...) { DataManager::SetValue("ure_maintenance_state","FAILED: inspect the private journal"); }
-                            maintenance_running=false;
-                        }).detach(); } catch(...) { maintenance_running=false; throw; }
-                        DataManager::SetValue("ure_status","Native maintenance is running; status and reviewed cancellation remain available");
-                    } else publish(ure::btrfs_manage_execute(root,managed_plan,managed_journal,value("ure_manage_hash")));
-                    DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                    reviewed_management("btrfs",management_selection("btrfs",btrfs_request(root))); set("ure_manage_journal",managed_journal);
+                    publish(ure::btrfs_manage_execute(root,managed_plan,managed_journal,value("ure_manage_hash")));
+                    set("ure_manage_hash",""); set("ure_manage_can_apply","0");
                 } else if(command=="btrfs-snapshot-plan" || command=="btrfs-send-plan") {
                     const auto snapshot=command=="btrfs-snapshot-plan";
                     const auto plan=snapshot ? ure::btrfs_snapshot_plan(root,value("ure_btrfs_source"),value("ure_btrfs_parent"),value("ure_btrfs_name"),"global-os3.0.303.0",value("ure_btrfs_store")) :
@@ -669,7 +705,7 @@ int GUIAction::uremanager(std::string command) {
                 } else if(command=="btrfs-backup-execute") {
                     ure::require(managed_kind=="btrfs-snapshot" || managed_kind=="btrfs-send","review-required","Review a snapshot or send backup first"); reviewed_management(managed_kind,management_selection("btrfs-backup"));
                     publish(managed_kind=="btrfs-snapshot" ? ure::btrfs_snapshot_execute(root,value("ure_btrfs_store"),value("ure_manage_hash")) : ure::btrfs_send_capture(root,value("ure_btrfs_store"),value("ure_manage_hash")));
-                    DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                    set("ure_manage_hash",""); set("ure_manage_can_apply","0");
                 } else throw ure::Error("unknown-action","Unknown native Btrfs action");
             }
         }
@@ -692,20 +728,20 @@ int GUIAction::uremanager(std::string command) {
             ure::Root root(path);
             if(command=="journals")publish(ure::transaction_list(root,value("ure_journal_parent")));
             else if(command=="journal-inspect") {
-                DataManager::SetValue("ure_journal_hash","");
-                for(const auto* action:{"resume","cancel","rollback"})DataManager::SetValue(std::string("ure_can_")+action,"0");
+                set("ure_journal_hash","");
+                for(const auto* action:{"resume","cancel","rollback"})set(std::string("ure_can_")+action,"0");
                 const auto inspected=ure::transaction_inspect(root,value("ure_journal")); publish(inspected);
-                DataManager::SetValue("ure_journal_hash",inspected["plan_sha256"].asString());
+                set("ure_journal_hash",inspected["plan_sha256"].asString());
                 for(const auto& action:inspected["recovery_actions"])if(action=="resume" || action=="cancel" || action=="rollback")
-                    DataManager::SetValue("ure_can_"+action.asString(),"1");
-                DataManager::SetValue("ure_status","Review the current file and verified backup before choosing an action");
+                    set("ure_can_"+action.asString(),"1");
+                set("ure_status","Review the current file and verified backup before choosing an action");
             } else {
                 const auto confirmation=value("ure_journal_hash"); ure::require(!confirmation.empty(),"confirmation-required","Inspect and review this journal first");
                 if(command=="journal-resume")publish(ure::transaction_resume(root,value("ure_journal"),confirmation));
                 if(command=="journal-cancel")publish(ure::transaction_cancel(root,value("ure_journal"),confirmation));
                 if(command=="journal-rollback")publish(ure::transaction_rollback(root,value("ure_journal"),confirmation));
-                DataManager::SetValue("ure_journal_hash","");
-                for(const auto* action:{"resume","cancel","rollback"})DataManager::SetValue(std::string("ure_can_")+action,"0");
+                set("ure_journal_hash","");
+                for(const auto* action:{"resume","cancel","rollback"})set(std::string("ure_can_")+action,"0");
             }
         } else if(command.rfind("stream-",0)==0) {
             if(command=="stream-plan" || command=="stream-inspect")clear_stream_review();
@@ -720,15 +756,15 @@ int GUIAction::uremanager(std::string command) {
                 review["plan_file"]=file; review["before_manifest_file"]=before;
                 review["journal_directory"]=(ure::fs::path(value("ure_journal_parent"))/("ure-stream-"+plan["operation_id"].asString())).string();
                 review["host_required"]=true; publish(review);
-                DataManager::SetValue("ure_status","Review this plan on the host; verify both complete host backups before starting transfer");
+                set("ure_status","Review this plan on the host; verify both complete host backups before starting transfer");
             } else if(command=="stream-inspect") {
                 auto target=backup_target(system); const auto review=ure::restore_stream_status(system,target,value("ure_stream_journal")); publish(review);
-                reviewed_stream_journal=value("ure_stream_journal"); DataManager::SetValue("ure_stream_journal_hash",review["plan_sha256"].asString());
+                reviewed_stream_journal=value("ure_stream_journal"); set("ure_stream_journal_hash",review["plan_sha256"].asString());
                 for(const auto& action:review["recovery_actions"]) {
-                    if(action=="host-rollback")DataManager::SetValue("ure_stream_can_rollback","1");
-                    if(action=="finish" || action=="cancel")DataManager::SetValue("ure_stream_can_"+action.asString(),"1");
+                    if(action=="host-rollback")set("ure_stream_can_rollback","1");
+                    if(action=="finish" || action=="cancel")set("ure_stream_can_"+action.asString(),"1");
                 }
-                DataManager::SetValue("ure_status","Review current bytes; reconnect the host for remaining restore or rollback chunks");
+                set("ure_status","Review current bytes; reconnect the host for remaining restore or rollback chunks");
             } else if(command=="stream-rollback" || command=="stream-finish" || command=="stream-cancel") {
                 ure::require(!reviewed_stream_journal.empty() && reviewed_stream_journal==value("ure_stream_journal") && !value("ure_stream_journal_hash").empty(),
                     "confirmation-required","Inspect and review this host-assisted journal first");
@@ -737,7 +773,7 @@ int GUIAction::uremanager(std::string command) {
                 else if(command=="stream-finish")publish(ure::restore_stream_finish(system,target,reviewed_stream_journal,confirmation));
                 else publish(ure::restore_stream_cancel(system,target,reviewed_stream_journal,confirmation));
                 clear_stream_review();
-                DataManager::SetValue("ure_status",command=="stream-rollback" ? "Rollback direction recorded; reconnect the host to transfer original chunks" : "Journal action completed and verified");
+                set("ure_status",command=="stream-rollback" ? "Rollback direction recorded; reconnect the host to transfer original chunks" : "Journal action completed and verified");
             } else throw ure::Error("unknown-action","Unknown host-assisted restore action");
         } else if(command.rfind("restore-",0)==0) {
             if(command=="restore-plan" || command=="restore-inspect")clear_restore_review();
@@ -750,21 +786,21 @@ int GUIAction::uremanager(std::string command) {
                 ure::save_json(file,pending_restore_plan); auto review=pending_restore_plan;
                 review["before"]["chunk_count"]=review["before"]["chunks"].size(); review["before"].removeMember("chunks");
                 review["plan_file"]=file; review["journal_directory"]=pending_restore_journal; publish(review);
-                DataManager::SetValue("ure_restore_plan_hash",pending_restore_plan["plan_sha256"].asString());
-                DataManager::SetValue("ure_restore_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
-                DataManager::SetValue("ure_status","Review complete-object overwrite, required free space and rollback destination");
+                set("ure_restore_plan_hash",pending_restore_plan["plan_sha256"].asString());
+                set("ure_restore_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
+                set("ure_status","Review complete-object overwrite, required free space and rollback destination");
             } else if(command=="restore-execute") {
                 ure::require(pending_restore_plan.isObject() && value("ure_restore_plan_hash")==pending_restore_plan["plan_sha256"].asString(),"confirmation-required","Create and review this restore plan first");
                 ure::require(value("ure_backup_dir")==pending_restore_backup && ure::fs::path(pending_restore_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),"stale-plan","Backup or journal destination changed; review a new plan");
                 auto target=backup_target(system,true);
-                DataManager::SetValue("ure_restore_journal",pending_restore_journal);
+                set("ure_restore_journal",pending_restore_journal);
                 publish(ure::restore_execute(system,target,pending_restore_plan,pending_restore_journal,value("ure_restore_plan_hash")));
-                DataManager::SetValue("ure_restore_journal",pending_restore_journal); clear_restore_review();
+                set("ure_restore_journal",pending_restore_journal); clear_restore_review();
             } else if(command=="restore-inspect") {
                 auto target=backup_target(system); const auto review=ure::restore_inspect(system,target,value("ure_restore_journal")); publish(review);
-                reviewed_restore_journal=value("ure_restore_journal"); DataManager::SetValue("ure_restore_journal_hash",review["plan_sha256"].asString());
-                for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_restore_can_"+action.asString(),"1");
-                DataManager::SetValue("ure_status","Review verified current bytes and available recovery actions");
+                reviewed_restore_journal=value("ure_restore_journal"); set("ure_restore_journal_hash",review["plan_sha256"].asString());
+                for(const auto& action:review["recovery_actions"])set("ure_restore_can_"+action.asString(),"1");
+                set("ure_status","Review verified current bytes and available recovery actions");
             } else if(command=="restore-resume" || command=="restore-rollback" || command=="restore-cancel") {
                 ure::require(!reviewed_restore_journal.empty() && reviewed_restore_journal==value("ure_restore_journal") && !value("ure_restore_journal_hash").empty(),"confirmation-required","Inspect and review the selected restore journal first");
                 auto target=backup_target(system,command!="restore-cancel"); const auto confirmation=value("ure_restore_journal_hash");
@@ -777,15 +813,15 @@ int GUIAction::uremanager(std::string command) {
             const auto store=value("ure_tree_store");
             if(command=="tree-verify")publish(ure::backup_tree_verify(store));
             else if(command=="tree-plan" || command=="tree-review") {
-                pending_tree=ure::Value(); DataManager::SetValue("ure_tree_hash","");
+                pending_tree=ure::Value(); set("ure_tree_hash","");
                 if(command=="tree-plan") {
                     const auto path=value("ure_tree_root"); ure::require(ure::fs::path(path).is_absolute() && path!="/","root-required","Select an already mounted Linux or home directory");
                     ure::Root source(path); pending_tree=ure::backup_tree_plan(source,".","global-os3.0.303.0",store);
                 } else pending_tree=ure::backup_tree_inspect(store);
                 reviewed_tree_store=store; reviewed_tree_root=value("ure_tree_root"); reviewed_tree_destination=value("ure_tree_destination");
-                DataManager::SetValue("ure_tree_hash",pending_tree["plan_sha256"].asString());
+                set("ure_tree_hash",pending_tree["plan_sha256"].asString());
                 auto review=pending_tree; review["selected_root"]=reviewed_tree_root; review["backup_store"]=store; review["restore_destination"]=reviewed_tree_destination;
-                publish(review); DataManager::SetValue("ure_status","Review source, metadata, backup store and new restore destination; no mount or unlock was performed");
+                publish(review); set("ure_status","Review source, metadata, backup store and new restore destination; no mount or unlock was performed");
             } else if(command=="tree-capture" || command=="tree-restore") {
                 ure::require(pending_tree.isObject() && pending_tree["plan_sha256"].asString()==value("ure_tree_hash") && reviewed_tree_store==store,
                     "review-required","Review this tree plan before capture or restore");
@@ -796,30 +832,30 @@ int GUIAction::uremanager(std::string command) {
                     ure::require(value("ure_tree_destination")==reviewed_tree_destination,"stale-plan","Restore destination changed; review again");
                     publish(ure::backup_tree_restore(store,reviewed_tree_destination,value("ure_tree_hash")));
                 }
-                pending_tree=ure::Value(); DataManager::SetValue("ure_tree_hash","");
+                pending_tree=ure::Value(); set("ure_tree_hash","");
             } else throw ure::Error("unknown-command","Unknown directory backup action");
         } else if(command.rfind("raw-",0)==0) {
             if(command=="raw-image" || command=="raw-live") {
-                pending_backup=ure::Value(); pending_backup_directory.clear(); DataManager::SetValue("ure_backup_hash","");
-                DataManager::SetValue("ure_raw_kind",command=="raw-image" ? "image" : "live"); DataManager::SetValue("ure_raw_source","");
+                pending_backup=ure::Value(); pending_backup_directory.clear(); set("ure_backup_hash","");
+                set("ure_raw_kind",command=="raw-image" ? "image" : "live"); set("ure_raw_source","");
             } else if(command=="raw-usage") {
                 ure::require(value("ure_raw_kind")=="live","live-source-required","Usage observations apply to a selected live Storage Graph identity");
                 publish(ure::storage_usage(system,value("ure_raw_source")));
             } else if(command=="raw-plan") {
-                pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
+                pending_backup=ure::Value(); set("ure_backup_hash","");
                 auto target=backup_target(system); pending_backup_directory=value("ure_backup_dir");
-                DataManager::SetValue("ure_raw_source",target.identity[value("ure_raw_kind")=="live" ? "stable_id" : "path"].asString());
+                set("ure_raw_source",target.identity[value("ure_raw_kind")=="live" ? "stable_id" : "path"].asString());
                 pending_backup=ure::backup_storage_plan(system,target,"global-os3.0.303.0",64*1024*1024); review_backup();
             } else if(command=="raw-capture") {
                 ure::require(pending_backup.isObject() && pending_backup["plan_sha256"].asString()==value("ure_backup_hash"),"plan-required","Review a storage backup plan first");
                 validate_backup_selection(pending_backup);
                 ure::require(value("ure_backup_dir")==pending_backup_directory,"stale-plan","Destination changed; review a new backup plan");
                 publish(ure::backup_capture(system,pending_backup,pending_backup_directory,false));
-                pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
+                pending_backup=ure::Value(); set("ure_backup_hash","");
             } else if(command=="raw-resume") {
                 const auto directory=value("ure_backup_dir"); const auto plan=ure::json_file(ure::fs::path(directory)/"plan.json");
                 if(value("ure_raw_kind")=="live") {
-                    const auto selected=backup_target(system); DataManager::SetValue("ure_raw_source",selected.identity["stable_id"].asString());
+                    const auto selected=backup_target(system); set("ure_raw_source",selected.identity["stable_id"].asString());
                 }
                 validate_backup_selection(plan); publish(ure::backup_capture(system,plan,directory,true));
             } else throw ure::Error("unknown-command","Unknown storage backup action");
@@ -830,7 +866,7 @@ int GUIAction::uremanager(std::string command) {
                 ure::require(!path.empty() && path.front()=='/' && path!="/","root-required","Select an already mounted source root");
                 ure::Root root(path);
                 if(command=="backup-plan") {
-                    pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
+                    pending_backup=ure::Value(); set("ure_backup_hash","");
                     pending_backup_directory=value("ure_backup_dir");
                     pending_backup=ure::backup_plan(root,value("ure_file"),"global-os3.0.303.0");
                     review_backup();
@@ -838,42 +874,42 @@ int GUIAction::uremanager(std::string command) {
                     ure::require(pending_backup.isObject() && pending_backup["plan_sha256"].asString()==value("ure_backup_hash"),"plan-required","Review a backup plan first");
                     ure::require(value("ure_backup_dir")==pending_backup_directory,"stale-plan","Backup destination changed; review a new plan");
                     publish(ure::backup_capture(root,pending_backup,pending_backup_directory,false));
-                    pending_backup=ure::Value(); DataManager::SetValue("ure_backup_hash","");
+                    pending_backup=ure::Value(); set("ure_backup_hash","");
                 } else publish(ure::backup_capture(root,ure::json_file(ure::fs::path(value("ure_backup_dir"))/"plan.json"),value("ure_backup_dir"),true));
             }
         } else if(command=="partition-job-inspect") {
             clear_gpt_review(); auto target=gpt_target(system); const auto report=ure::partition_job_recover(system,target,value("ure_partition_journal"),"inspect"); publish(report);
             reviewed_partition_journal=value("ure_partition_journal"); reviewed_partition_selection=partition_selection();
-            DataManager::SetValue("ure_partition_journal_hash",report["plan_sha256"].asString());
-            for(const auto& action:report["recovery_actions"])DataManager::SetValue("ure_partition_can_"+action.asString(),"1");
-            DataManager::SetValue("ure_status","Journal readback: "+report["classification"].asString()+"; choose only an available recovery action");
+            set("ure_partition_journal_hash",report["plan_sha256"].asString());
+            for(const auto& action:report["recovery_actions"])set("ure_partition_can_"+action.asString(),"1");
+            set("ure_status","Journal readback: "+report["classification"].asString()+"; choose only an available recovery action");
         } else if(command=="partition-job-resume" || command=="partition-job-rollback" || command=="partition-job-cancel") {
             ure::require(!reviewed_partition_journal.empty() && reviewed_partition_journal==value("ure_partition_journal") && !value("ure_partition_journal_hash").empty() &&
                 ure::json(reviewed_partition_selection)==ure::json(partition_selection()),"review-required","Inspect this combined partition journal and the unchanged target first");
             const auto action=command.substr(14); auto target=gpt_target(system,action!="cancel");
             publish(ure::partition_job_recover(system,target,reviewed_partition_journal,action,value("ure_partition_journal_hash"))); clear_gpt_review();
         } else if(command.rfind("layout-",0)==0 && command!="layout-preview" && command!="layout-plan" && command!="layout-apply-image") {
-            clear_gpt_review(); DataManager::SetValue("ure_layout_graph",""); DataManager::SetValue("ure_layout_review","Selections changed; calculate and review the layout again");
+            clear_gpt_review(); set("ure_layout_graph",""); set("ure_layout_review","Selections changed; calculate and review the layout again");
             if(command=="layout-mode-standard") {
-                DataManager::SetValue("ure_layout_mode","standard"); DataManager::SetValue("ure_layout_placement","after_userdata");
-                DataManager::SetValue("ure_layout_userdata_policy","preserve"); DataManager::SetValue("ure_layout_record_edits","[]");
-                DataManager::SetValue("ure_layout_userdata_guid","");
-            } else if(command=="layout-mode-advanced")DataManager::SetValue("ure_layout_mode","advanced");
+                set("ure_layout_mode","standard"); set("ure_layout_placement","after_userdata");
+                set("ure_layout_userdata_policy","preserve"); set("ure_layout_record_edits","[]");
+                set("ure_layout_userdata_guid","");
+            } else if(command=="layout-mode-advanced")set("ure_layout_mode","advanced");
             else if(command.rfind("layout-edit-",0)==0) {
                 const auto role=command.substr(12); ure::require(role=="esp" || role=="linux" || role=="windows" || role=="userdata","invalid-layout-role","Select a supported layout role");
-                DataManager::SetValue("ure_layout_edit_role",role);
-                for(const auto* field:{"size","unit","filesystem","guid"})DataManager::SetValue("ure_layout_edit_"+std::string(field),value("ure_layout_"+role+"_"+field));
+                set("ure_layout_edit_role",role);
+                for(const auto* field:{"size","unit","filesystem","guid"})set("ure_layout_edit_"+std::string(field),value("ure_layout_"+role+"_"+field));
             } else if(command=="layout-row-save") {
                 const auto role=value("ure_layout_edit_role"); ure::require(role=="esp" || role=="linux" || role=="windows" || role=="userdata","invalid-layout-role","Select a supported layout role");
-                for(const auto* field:{"size","unit","filesystem","guid"})DataManager::SetValue("ure_layout_"+role+"_"+field,value("ure_layout_edit_"+std::string(field)));
-            } else if(command=="layout-placement-after")DataManager::SetValue("ure_layout_placement","after_userdata");
+                for(const auto* field:{"size","unit","filesystem","guid"})set("ure_layout_"+role+"_"+field,value("ure_layout_edit_"+std::string(field)));
+            } else if(command=="layout-placement-after")set("ure_layout_placement","after_userdata");
             else if(command=="layout-placement-before" || command=="layout-userdata-recreate") {
                 ure::require(value("ure_layout_mode")=="advanced","advanced-mode-required","Select advanced mode to erase and recreate userdata");
-                DataManager::SetValue("ure_layout_userdata_policy","recreate");
-                if(command=="layout-placement-before")DataManager::SetValue("ure_layout_placement","before_userdata");
+                set("ure_layout_userdata_policy","recreate");
+                if(command=="layout-placement-before")set("ure_layout_placement","before_userdata");
             } else if(command=="layout-userdata-preserve") {
-                DataManager::SetValue("ure_layout_userdata_policy","preserve"); DataManager::SetValue("ure_layout_placement","after_userdata");
-            } else if(command=="layout-record-clear")DataManager::SetValue("ure_layout_record_edits","[]");
+                set("ure_layout_userdata_policy","preserve"); set("ure_layout_placement","after_userdata");
+            } else if(command=="layout-record-clear")set("ure_layout_record_edits","[]");
             else if(command=="layout-record-add") {
                 ure::require(value("ure_layout_mode")=="advanced","advanced-mode-required","Select advanced mode before requesting existing record changes");
                 const auto text=value("ure_layout_record_index"); unsigned index=0; const auto parsed=std::from_chars(text.data(),text.data()+text.size(),index);
@@ -884,7 +920,7 @@ int GUIAction::uremanager(std::string command) {
                 const auto text_edits=value("ure_layout_record_edits"); ure::require(text_edits.size()<=65536,"size-limit","Advanced edits exceed their limit");
                 const auto existing=ure::parse_json(text_edits); ure::require(existing.isArray() && existing.size()<4096,"invalid-record-edit","Invalid advanced edit list");
                 ure::Value edits(Json::arrayValue); for(const auto& edit:existing)if(edit["index"].asUInt()!=index)edits.append(edit); edits.append(row);
-                const auto serialized=ure::json(edits); ure::require(serialized.size()<=65536,"size-limit","Advanced edits exceed their limit"); DataManager::SetValue("ure_layout_record_edits",serialized);
+                const auto serialized=ure::json(edits); ure::require(serialized.size()<=65536,"size-limit","Advanced edits exceed their limit"); set("ure_layout_record_edits",serialized);
             } else throw ure::Error("unknown-action","Unknown layout selection action");
         } else if(command=="layout-preview" || command=="layout-plan" || command=="layout-apply-image") {
             if(command=="layout-apply-image") {
@@ -895,34 +931,34 @@ int GUIAction::uremanager(std::string command) {
                 ure::require(value("ure_gpt_kind")=="image","live-write-unavailable","Live repartitioning requires the complete backup, format/migration and device trust backend");
                 ure::require(ure::fs::path(pending_gpt_journal).parent_path()==ure::fs::path(value("ure_journal_parent")),"stale-plan","Journal destination changed; review again");
                 auto target=gpt_target(system,true); publish(ure::partition_job_execute(system,target,pending_gpt_plan,pending_gpt_journal,value("ure_gpt_plan_hash")));
-                DataManager::SetValue("ure_partition_journal",pending_gpt_journal); clear_gpt_review();
-                DataManager::SetValue("ure_status","Image filesystems and GPT verified; original userdata and GPT remain available for complete rollback");
+                set("ure_partition_journal",pending_gpt_journal); clear_gpt_review();
+                set("ure_status","Image filesystems and GPT verified; original userdata and GPT remain available for complete rollback");
             } else {
-                clear_gpt_review(); DataManager::SetValue("ure_layout_graph",""); auto target=gpt_target(system); const auto request=layout_request();
+                clear_gpt_review(); set("ure_layout_graph",""); auto target=gpt_target(system); const auto request=layout_request();
                 ure::Value layout;
                 if(command=="layout-plan") {
                     ure::require(target.identity["kind"]=="regular-image","live-write-unavailable","Live repartitioning awaits device firmware, ownership and Android encryption acceptance; use read-only preview");
                     ure::Root parent(value("ure_journal_parent")); pending_gpt_plan=ure::partition_job_plan(system,target,request,"global-os3.0.303.0");
                     layout=pending_gpt_plan["gpt"]["layout"]; reviewed_layout_request=request;
                     pending_gpt_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-layout-"+pending_gpt_plan["operation_id"].asString())).string();
-                    DataManager::SetValue("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
-                    DataManager::SetValue("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
+                    set("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
+                    set("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
                     ure::save_json("/tmp/ure-layout-plan-"+pending_gpt_plan["operation_id"].asString()+".json",pending_gpt_plan);
                 } else layout=ure::partition_layout(target,request,"global-os3.0.303.0",&system);
                 // The widget needs only bounded allocation geometry, never unit identities.
                 ure::Value graph; graph["format"]=layout["format"]; graph["pool"]=layout["pool"]; graph["rows"]=ure::Value(Json::arrayValue);
                 for(const auto& row:layout["rows"]) { ure::Value part; for(const auto* field:{"role","pool_offset","bytes"})part[field]=row[field]; graph["rows"].append(part); }
                 if(command=="layout-plan") { layout["warnings"]=pending_gpt_plan["warnings"];
-                    DataManager::SetValue("ure_layout_review",ure::partition_layout_text(layout)+"\nComplete image job: filesystem preparation, userdata writes and GPT.\nRequired journal space: "+
+                    set("ure_layout_review",ure::partition_layout_text(layout)+"\nComplete image job: filesystem preparation, userdata writes and GPT.\nRequired journal space: "+
                         std::to_string(pending_gpt_plan["estimated_journal_bytes"].asUInt64()/1048576)+" MiB\nJournal: "+pending_gpt_journal);
                     publish(pending_gpt_plan);
-                } else { DataManager::SetValue("ure_layout_review",ure::partition_layout_text(layout)); publish(layout); }
-                DataManager::SetValue("ure_layout_graph",ure::json(graph)); DataManager::SetValue("ure_status","Review original userdata bounds, filesystems, data loss, journal space and advanced edits before applying");
+                } else { set("ure_layout_review",ure::partition_layout_text(layout)); publish(layout); }
+                set("ure_layout_graph",ure::json(graph)); set("ure_status","Review original userdata bounds, filesystems, data loss, journal space and advanced edits before applying");
             }
         } else if(command.rfind("gpt-",0)==0) {
             if(command=="gpt-image" || command=="gpt-live") {
-                clear_gpt_review(); DataManager::SetValue("ure_gpt_kind",command=="gpt-image" ? "image" : "live");
-                DataManager::SetValue("ure_gpt_source","");
+                clear_gpt_review(); set("ure_gpt_kind",command=="gpt-image" ? "image" : "live");
+                set("ure_gpt_source","");
             } else if(command=="gpt-verify")publish(ure::gpt_backup_verify(value("ure_gpt_backup_dir")));
             else if(command=="gpt-execute") {
                 ure::require(pending_gpt_plan["operation"]!="gpt.layout" && pending_gpt_plan["operation"]!="partition.apply-layout","layout-review-required","Layout changes use their own explicit scoped review");
@@ -935,8 +971,8 @@ int GUIAction::uremanager(std::string command) {
                     "stale-plan","Stock inputs, LUN or original identity backup changed; review a new plan");
                 auto target=gpt_target(system,true);
                 publish(ure::gpt_execute(target,pending_gpt_plan,pending_gpt_journal,value("ure_gpt_plan_hash"),&system));
-                DataManager::SetValue("ure_gpt_journal",pending_gpt_journal);
-                clear_gpt_review(); DataManager::SetValue("ure_status","Image GPT verified; inspect its journal before rollback");
+                set("ure_gpt_journal",pending_gpt_journal);
+                clear_gpt_review(); set("ure_status","Image GPT verified; inspect its journal before rollback");
             } else if(command=="gpt-rollback" || command=="gpt-resume") {
                 ure::require(!reviewed_gpt_journal.empty() && reviewed_gpt_journal==value("ure_gpt_journal") && !value("ure_gpt_journal_hash").empty(),
                     "confirmation-required","Inspect and review the selected GPT journal first");
@@ -961,34 +997,34 @@ int GUIAction::uremanager(std::string command) {
                         ure::require(ure::fs::path(inputs).is_absolute() && (original.empty() || ure::fs::path(original).is_absolute()),
                             "invalid-path","Select absolute stock-input and optional original-backup paths");
                         pending_gpt_plan=ure::gpt_stock_plan(target,inputs,static_cast<unsigned>(lun[0]-'0'),"global-os3.0.303.0",original,&system);
-                        DataManager::SetValue("ure_stock_inputs",pending_gpt_plan["stock_inputs_directory"].asString());
-                        DataManager::SetValue("ure_stock_identity_backup",pending_gpt_plan["backup_directory"].asString());
+                        set("ure_stock_inputs",pending_gpt_plan["stock_inputs_directory"].asString());
+                        set("ure_stock_identity_backup",pending_gpt_plan["backup_directory"].asString());
                     } else pending_gpt_plan=ure::gpt_plan(target,command=="gpt-repair-plan" ? "gpt.repair" : "gpt.restore","global-os3.0.303.0",
                         command=="gpt-restore-plan" ? ure::fs::path(value("ure_gpt_backup_dir")) : ure::fs::path(),&system);
                     pending_gpt_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-gpt-"+pending_gpt_plan["operation_id"].asString())).string();
                     const auto file="/tmp/ure-gpt-plan-"+pending_gpt_plan["operation_id"].asString()+".json"; ure::save_json(file,pending_gpt_plan);
                     auto review=pending_gpt_plan; review["journal_directory"]=pending_gpt_journal; review["plan_file"]=file; publish(review);
-                    DataManager::SetValue("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
-                    DataManager::SetValue("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
-                    DataManager::SetValue("ure_status",command=="gpt-stock-plan" ? "Review affected partitions and OS visibility; this restores metadata only" :
+                    set("ure_gpt_plan_hash",pending_gpt_plan["plan_sha256"].asString());
+                    set("ure_gpt_can_execute",target.identity["kind"]=="regular-image" ? "1" : "0");
+                    set("ure_status",command=="gpt-stock-plan" ? "Review affected partitions and OS visibility; this restores metadata only" :
                         "Review both partition tables and journal destination; live writes remain gated");
                 } else if(command=="gpt-journal-inspect") {
                     const auto review=ure::gpt_journal_inspect(target,value("ure_gpt_journal"),&system); publish(review);
-                    reviewed_gpt_journal=value("ure_gpt_journal"); DataManager::SetValue("ure_gpt_journal_hash",review["plan_sha256"].asString());
-                    for(const auto& action:review["recovery_actions"])DataManager::SetValue("ure_gpt_can_"+action.asString(),"1");
+                    reviewed_gpt_journal=value("ure_gpt_journal"); set("ure_gpt_journal_hash",review["plan_sha256"].asString());
+                    for(const auto& action:review["recovery_actions"])set("ure_gpt_can_"+action.asString(),"1");
                 } else throw ure::Error("unknown-action","Unknown GPT action");
             }
         } else if(command=="load") {
             editor.reset(); selected_root.reset(); pending_plan=ure::Value();
-            DataManager::SetValue("ure_line",""); DataManager::SetValue("ure_preview","");
-            DataManager::SetValue("ure_plan_hash",""); DataManager::SetValue("ure_line_number","");
+            set("ure_line",""); set("ure_preview","");
+            set("ure_plan_hash",""); set("ure_line_number","");
             const auto path=value("ure_root");
             ure::require(!path.empty() && path.front()=='/' && path!="/","root-required","Select an already mounted OS root");
             auto root=std::make_unique<ure::Root>(path);
             auto loaded=std::make_unique<ure::Editor>(*root,value("ure_file"),"global-os3.0.303.0");
             for(const auto& row:loaded->lines())ure::require(row.size()<=8192,"line-too-long","GUI editor accepts lines up to 8192 bytes; use the bounded CLI backend for longer lines");
             selected_root=std::move(root); editor=std::move(loaded); current_line=0; refresh_editor();
-            DataManager::SetValue("ure_status","Loaded; changes remain in memory until confirmed");
+            set("ure_status","Loaded; changes remain in memory until confirmed");
         } else {
             ure::require(editor && selected_root,"editor-empty","Load a file first");
             if(command=="apply-line")editor->line(current_line,value("ure_line"));
@@ -1009,22 +1045,272 @@ int GUIAction::uremanager(std::string command) {
                 ure::Root journal_parent(value("ure_journal_parent"));
                 pending_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-transaction-"+pending_plan["operation_id"].asString())).string();
                 review["journal_directory"]=pending_journal;
-                DataManager::SetValue("ure_plan_hash",pending_plan["plan_sha256"].asString()); publish(review);
-                DataManager::SetValue("ure_status","Review the file identity, backup and checksum before confirming"); return 0;
+                set("ure_plan_hash",pending_plan["plan_sha256"].asString()); publish(review);
+                set("ure_status","Review the file identity, backup and checksum before confirming"); return 0;
             } else if(command=="save") {
                 ure::require(pending_plan.isObject(),"plan-required","Create and review a save plan first");
                 const auto directory=pending_journal; ure::require(!directory.empty(),"journal-required","Review a journal destination before saving");
                 publish(ure::transaction_run(*selected_root,pending_plan,directory,value("ure_plan_hash")));
-                DataManager::SetValue("ure_journal",directory);
-                DataManager::SetValue("ure_status","Saved and verified; rollback journal: "+directory);
+                set("ure_journal",directory);
+                set("ure_status","Saved and verified; rollback journal: "+directory);
                 editor.reset(); pending_plan=ure::Value(); return 0;
             } else throw ure::Error("unknown-action","Unknown URE action");
-            refresh_editor(); DataManager::SetValue("ure_status","Buffer updated; no file write performed");
+            refresh_editor(); set("ure_status","Buffer updated; no file write performed");
         }
         return 0;
     } catch(const ure::Error& error) {
-        if(command.rfind("scale-",0)==0)DataManager::SetValue("ure_scale_status",error.code+": "+error.what());
-        DataManager::SetValue("ure_status",error.code+": "+error.what());
+        if(error.code=="gui-job-output-limit")invalidate_reviews();
+        if(command.rfind("scale-",0)==0)set("ure_scale_status",error.code+": "+error.what());
+        set("ure_status",error.code+": "+error.what());
         ure::Value result; result["error"]["code"]=error.code; result["error"]["message"]=error.what(); publish(result); return 1;
-    } catch(const std::exception&) { DataManager::SetValue("ure_status","Unexpected input or runtime failure"); return 1; }
+    } catch(const std::exception&) { set("ure_status","Unexpected input or runtime failure"); return 1; }
+}
+}
+namespace {
+struct GuiManagementOwner {
+    std::mutex mutex;
+    std::shared_ptr<ManagementSession> session=std::make_shared<ManagementSession>(),running;
+    ure::Value inputs;
+    std::uint64_t epoch=0,last_poll=0;
+    std::string published_status;
+    // Declared last: the owned worker joins before its roots/session are freed.
+    ure::GuiJobExecutor jobs;
+};
+GuiManagementOwner management_owner;
+ure::Value management_inputs() {
+    static constexpr const char* keys[]={
+    "ure_backup_dir",
+    "ure_backup_hash",
+    "ure_boot_esp",
+    "ure_boot_fallback",
+    "ure_boot_hash",
+    "ure_boot_journal",
+    "ure_boot_journal_hash",
+    "ure_boot_model",
+    "ure_boot_option",
+    "ure_boot_partuuid",
+    "ure_boot_profile",
+    "ure_boot_target",
+    "ure_boot_variables",
+    "ure_btrfs_action",
+    "ure_btrfs_backup",
+    "ure_btrfs_device",
+    "ure_btrfs_incremental_parent",
+    "ure_btrfs_limit",
+    "ure_btrfs_name",
+    "ure_btrfs_parent",
+    "ure_btrfs_path",
+    "ure_btrfs_readonly",
+    "ure_btrfs_repair",
+    "ure_btrfs_root",
+    "ure_btrfs_saved",
+    "ure_btrfs_size",
+    "ure_btrfs_source",
+    "ure_btrfs_store",
+    "ure_btrfs_unit",
+    "ure_btrfs_usage",
+    "ure_esp",
+    "ure_file",
+    "ure_find",
+    "ure_form_back",
+    "ure_form_field",
+    "ure_form_value",
+    "ure_fs_action",
+    "ure_fs_erase",
+    "ure_fs_journal_hash",
+    "ure_fs_label",
+    "ure_fs_size",
+    "ure_fs_type",
+    "ure_fs_unit",
+    "ure_gpt_backup_dir",
+    "ure_gpt_journal",
+    "ure_gpt_journal_hash",
+    "ure_gpt_kind",
+    "ure_gpt_plan_hash",
+    "ure_gpt_sector",
+    "ure_gpt_source",
+    "ure_journal",
+    "ure_journal_hash",
+    "ure_journal_parent",
+    "ure_layout_edit_role",
+    "ure_layout_mode",
+    "ure_layout_placement",
+    "ure_layout_record_contents",
+    "ure_layout_record_edits",
+    "ure_layout_record_filesystem",
+    "ure_layout_record_guid",
+    "ure_layout_record_index",
+    "ure_layout_userdata_guid",
+    "ure_layout_userdata_policy",
+    "ure_line",
+    "ure_manage_hash",
+    "ure_manage_journal",
+    "ure_mirror_modes",
+    "ure_mirror_refresh",
+    "ure_mirror_resolution",
+    "ure_mirror_scale_choice",
+    "ure_mirror_scale_requested",
+    "ure_partition_journal",
+    "ure_partition_journal_hash",
+    "ure_plan_hash",
+    "ure_raw_kind",
+    "ure_raw_sector",
+    "ure_raw_source",
+    "ure_replace",
+    "ure_rescue_",
+    "ure_rescue_action",
+    "ure_rescue_command",
+    "ure_rescue_kernel",
+    "ure_rescue_timeout",
+    "ure_rescue_write",
+    "ure_restore_journal",
+    "ure_restore_journal_hash",
+    "ure_restore_plan_hash",
+    "ure_root",
+    "ure_scale_choice",
+    "ure_scale_directory",
+    "ure_ui_scale_applied",
+    "ure_ui_scale_percent",
+    "ure_stock_identity_backup",
+    "ure_stock_inputs",
+    "ure_stock_job_boot",
+    "ure_stock_job_hash",
+    "ure_stock_job_images",
+    "ure_stock_job_journal",
+    "ure_stock_job_journal_hash",
+    "ure_stock_job_model",
+    "ure_stock_job_originals",
+    "ure_stock_job_reset",
+    "ure_stock_job_sku",
+    "ure_stock_job_slots",
+    "ure_stock_job_super",
+    "ure_stock_job_whole_boot",
+    "ure_stock_job_zero",
+    "ure_stock_lun",
+    "ure_stream_journal",
+    "ure_stream_journal_hash",
+    "ure_stream_manifest",
+    "ure_tree_destination",
+    "ure_tree_hash",
+    "ure_tree_root",
+    "ure_tree_store",
+    };
+    ure::Value input{Json::objectValue}; std::size_t bytes=0;
+    const auto capture=[&](const std::string& key) {
+        const auto text=value(key); bytes+=text.size();
+        ure::require(text.size()<=65536 && bytes<=512*1024,"gui-job-input-limit","Management selections exceed the bounded input budget"); input[key]=text;
+    };
+    for(const auto* key:keys)capture(key);
+    for(const auto* role:{"esp","linux","windows","userdata"})
+        for(const auto* field:{"size","unit","filesystem","guid"})capture("ure_layout_"+std::string(role)+"_"+field);
+    for(const auto* field:{"size","unit","filesystem","guid"})capture("ure_layout_edit_"+std::string(field));
+    return input;
+}
+bool immediate_display_command(const std::string& command) {
+    return command=="scale-apply" || command=="scale-reset" || command=="mirror-apply" ||
+        command=="mirror-enable" || command=="mirror-disable" || command=="mirror-modes";
+}
+void apply_management_updates(const ure::Value& updates) {
+    ure::require(updates.isObject() && updates.size()<=256,"gui-job-output-limit","Invalid management publication");
+    for(auto it=updates.begin();it!=updates.end();++it)DataManager::SetValue(it.name(),it->asString());
+}
+void publish_job_status() {
+    const auto status=management_owner.jobs.status();
+    const auto encoded=ure::json(status); if(encoded==management_owner.published_status)return;
+    management_owner.published_status=encoded;
+    DataManager::SetValue("ure_job_status",encoded);
+    DataManager::SetValue("ure_job_state",status["state"].asString());
+    DataManager::SetValue("ure_job_active",status["active"]==true ? "1" : "0");
+    DataManager::SetValue("ure_job_result_pending",status["result_pending"]==true ? "1" : "0");
+    if(status.isMember("job_id"))DataManager::SetValue("ure_job_id",status["job_id"].asString());
+    DataManager::SetValue("ure_job_phase",status.get("phase","idle").asString());
+}
+int collect_management_job() {
+    const auto status=management_owner.jobs.status();
+    if(status["result_pending"]!=true)return 0;
+    const auto input=management_inputs();
+    const bool same=input==management_owner.inputs && status["view_epoch"].asUInt64()==management_owner.epoch;
+    const auto result=management_owner.jobs.collect(same ? management_owner.epoch : management_owner.epoch+1);
+    if(result["ready"]!=true)return 0;
+    DataManager::SetValue("ure_job_result",ure::json(result));
+    const auto& output=result["output"];
+    const auto code=output.isMember("exit_code") ? output["exit_code"].asInt() : 1;
+    DataManager::SetValue("ure_job_exit_code",code);
+    DataManager::SetValue("ure_job_notice",result["cancel_requested"]==true ?
+        "The backend returned after a stop request. Read its final result; a request alone does not establish cancellation." :
+        "Job finished. Read its final result and journal.");
+    if(same && output.isMember("updates")) {
+        management_owner.session=std::move(management_owner.running);
+        apply_management_updates(output["updates"]);
+    } else {
+        management_owner.session=std::make_shared<ManagementSession>();
+        management_owner.running.reset();
+        if(!same) {
+            for(const auto* key:{"ure_manage_hash","ure_plan_hash","ure_backup_hash","ure_tree_hash","ure_gpt_plan_hash","ure_gpt_journal_hash",
+                "ure_partition_journal_hash","ure_restore_plan_hash","ure_restore_journal_hash","ure_stream_journal_hash","ure_boot_hash","ure_boot_journal_hash",
+                "ure_stock_job_hash","ure_stock_job_journal_hash","ure_fs_journal_hash","ure_journal_hash"})DataManager::SetValue(key,"");
+            for(const auto* key:{"ure_manage_can_apply","ure_gpt_can_execute","ure_restore_can_execute","ure_stock_job_can_execute","ure_boot_can_stage"})DataManager::SetValue(key,"0");
+            DataManager::SetValue("ure_status","Selections changed during the job. Its result is retained in Job status; review the current target again.");
+        } else {
+            DataManager::SetValue("ure_output",ure::json(output));
+            DataManager::SetValue("ure_status","The job did not publish a complete result. Inspect Job status and the backend journal before continuing.");
+        }
+    }
+    publish_job_status(); return code;
+}
+}
+// Render-loop polling is bounded and never waits for a worker's native I/O.
+void ure_gui_poll_jobs() {
+    std::unique_lock<std::mutex> lock(management_owner.mutex,std::try_to_lock); if(!lock.owns_lock())return;
+    const auto now=ure::monotonic_ms(); if(now-management_owner.last_poll<50)return; management_owner.last_poll=now;
+    try { static_cast<void>(collect_management_job()); publish_job_status(); }
+    catch(const ure::Error&) { DataManager::SetValue("ure_job_notice","Job publication failed; its backend cleanup remains unverified. Inspect the private journal."); }
+}
+int GUIAction::uremanager(std::string command) {
+    std::unique_lock<std::mutex> lock(management_owner.mutex,std::try_to_lock);
+    if(!lock.owns_lock())return 1;
+    try {
+        if(command=="job-status") { publish_job_status(); return 0; }
+        if(command=="job-result") { DataManager::SetValue("ure_output",value("ure_job_result")); return 0; }
+        if(command=="job-collect")return collect_management_job();
+        if(command=="job-cancel") {
+            const auto ack=management_owner.jobs.request_cancel(value("ure_job_id"));
+            DataManager::SetValue("ure_job_cancel_ack",ure::json(ack));
+            DataManager::SetValue("ure_job_notice","Stop requested. A running native operation may finish before stopping; inspect its final journal and cleanup state.");
+            publish_job_status(); return 0;
+        }
+        if(command=="job-view-changed") { ++management_owner.epoch; return 0; }
+        if(immediate_display_command(command)) {
+            ManagementSession display; display.variables=management_inputs(); const auto code=display.run(command);
+            apply_management_updates(display.updates); return code;
+        }
+        static_cast<void>(collect_management_job());
+        ure::require(management_owner.jobs.status()["active"]!=true && management_owner.session,"gui-job-busy","An owned job is running. Job status and stop requests remain available.");
+        auto input=management_inputs(); auto owned=management_owner.session;
+        owned->variables=input; owned->updates=ure::Value(Json::objectValue); owned->update_bytes=0;
+        management_owner.inputs=input; ++management_owner.epoch;
+        management_owner.running=owned; management_owner.session.reset();
+        try {
+            const auto id=management_owner.jobs.start(input,management_owner.epoch,{},true,
+                [owned,command](const ure::GuiJobRequest& request,ure::GuiJobControl& control) {
+                    owned->variables=request.inputs(); control.checkpoint("native-operation",0,0,true);
+                    const auto code=owned->run(command);
+                    ure::Value result; result["exit_code"]=code; result["command"]=command; result["updates"]=std::move(owned->updates);
+                    result["native_io_may_be_noninterruptible"]=true; result["backend_cleanup_verified"]=false; return result;
+                });
+            DataManager::SetValue("ure_job_id",id);
+        } catch(...) {
+            management_owner.session=std::move(management_owner.running); static_cast<void>(management_owner.jobs.collect(management_owner.epoch)); throw;
+        }
+        DataManager::SetValue("ure_job_exit_code",""); DataManager::SetValue("ure_job_result",""); DataManager::SetValue("ure_job_cancel_ack","");
+        DataManager::SetValue("ure_job_notice","Working with the reviewed selections. Status remains available; some native operations cannot stop immediately.");
+        DataManager::SetValue("ure_status","Working; open Job status for progress and stop requests.");
+        publish_job_status(); return 0;
+    } catch(const ure::Error& error) {
+        DataManager::SetValue("ure_job_notice",error.code+": "+error.what()); return 1;
+    } catch(const std::exception&) { DataManager::SetValue("ure_job_notice","Unexpected job admission or publication failure"); return 1; }
+}
+void ure_gui_shutdown_jobs() {
+    // Never join under the GUI state mutex. Native I/O may be noninterruptible.
+    management_owner.jobs.shutdown();
 }

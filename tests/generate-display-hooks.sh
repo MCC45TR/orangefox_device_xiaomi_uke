@@ -10,7 +10,7 @@ recovery="$component/src/upstream/orangefox-android16/bootable/recovery"
         'static std::atomic<bool> ure_reload_theme{false};' \
         'static float scale_theme_w=1,scale_theme_h=1;' \
         'static int tw_x_offset=0,tw_y_offset=0,tw_w_offset=0,tw_h_offset=0;'
-    awk '/^void ure_gui_density\(/ { copying=1 } /^int GUIAction::uremanager\(/ { exit } copying { print }' \
+    awk '/^void ure_gui_density\(/ { copying=1 } /^\/\/ URE management callbacks:/ { exit } copying { print }' \
         "$component/src/device/xiaomi/uke/ure-gui.cpp"
     awk '/^int PageSet::LoadVariables\(/ { copying=1 } /^int PageSet::LoadPages\(/ { exit } copying { print }' \
         "$recovery/gui/pages.cpp"

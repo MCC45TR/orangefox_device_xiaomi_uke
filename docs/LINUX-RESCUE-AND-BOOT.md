@@ -5,6 +5,11 @@ Linux manager. The native library reads contained os-release aliases and chooses
 an Arch, Fedora, Debian, Alpine or generic adapter from ID/ID_LIKE. It never
 substitutes the recovery's installed kernel or distribution for the selected OS.
 
+Long management actions now use the [owned GUI job executor](GUI-JOB-EXECUTION.md).
+Queue admission and backend completion are separate. Job status remains
+reachable, and an advisory stop request never claims that native I/O or cleanup
+has already stopped.
+
 ## Managed chroot
 
 The session recreates the mount/PID/network/IPC/UTS namespaces, isolates mount

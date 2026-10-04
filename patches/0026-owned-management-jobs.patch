@@ -1,0 +1,23 @@
+--- a/gui/gui.cpp
++++ b/gui/gui.cpp
+@@ -830,6 +830,10 @@
+ 		}
+ 		if (Fox_Remote_State::ShouldForceRender())
+ 			gForceRender.set_value(1);
++		// Collect bounded management messages on the GUI thread. Workers own
++		// their immutable selections and never update widgets or DataManager.
++		extern void ure_gui_poll_jobs();
++		ure_gui_poll_jobs();
+ 		// Poll while idle too: connecting a monitor must not require a tablet
+ 		// touch. The DRM sink bounds connector probes and framebuffer updates.
+ 		if (gr_external_update())
+@@ -851,7 +855,8 @@
+ 			else
+ 				idle_frames = 0;
+ 			// due to possible animation objects, we need to delay activating the input timeout
+-			input_timeout_ms = idle_frames > 15 ? 1000 : 0;
++			input_timeout_ms = idle_frames > 15 ?
++				(DataManager::GetIntValue("ure_job_active") == 1 ? 50 : 1000) : 0;
+ 
+ #ifndef PRINT_RENDER_TIME
+ 			if (ret > 1)

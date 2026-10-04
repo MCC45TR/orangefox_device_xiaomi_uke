@@ -16,8 +16,8 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-009 | Dedicated image/live capability contract, stable trust/geometry/ownership/fallback blockers, earlier refusal before request/target access, actual GUI review and explicit front recreation/original rollback; five native/five sanitizer controls and both CLI sets passed | Native physical writer and encrypted userdata migration remain unimplemented/unaccepted; fresh target and combined guest pending |
 | AUD-010 | Populated/fragmented/damaged ext4 and populated F2FS/NTFS/FAT oracles; inspectable space refusal, exact persisted size and volume identity guards; four native/four sanitizer controls and six-format CLI sets passed | Fresh target/combined guest, arbitrary damage and encrypted-data acceptance separate |
 | AUD-012 | Compiled aggregate cgroup-v2 envelope, GUI/ancestor headroom, blocked-worker admission, read-only proc and supervisor protection, exact-owner cancellation and conservative cleanup; eight native/eight sanitizer controls plus real host stress and namespace CLI sets passed | Fresh target/combined guest, GUI latency (AUD-013), protected negative OOM inheritance and external forced-restart recovery remain separate; shipping backend/physical acceptance unaccepted |
-| AUD-013 | Owned GUI executor and immutable inputs | Pending |
-| AUD-014 | Joinable maintenance and global lifetime | Pending |
+| AUD-013 | Owned worker, frozen session inputs, short GUI locks, bounded single completion, stale-view refusal and truthful advisory stop; nine native/nine sanitizer controls and exact reviewed source-stack controls passed | Fresh target, rendered-frame/combined visual guest and physical acceptance remain separate; global lifetime and exact backend GUI control follow in AUD-014 |
+| AUD-014 | Detached maintenance removed as part of the owned executor; concurrent worker shutdown joins | Global lifecycle registry, application teardown and separate exact-owner GUI maintenance/rescue controllers remain pending |
 | AUD-015 | Global directory-memory admission | Pending |
 | AUD-022 | Host reserve and separate parallelism | Pending |
 | AUD-023 | Nested disk temporary storage | Pending |
@@ -104,3 +104,19 @@ or combined guest. The tests exposed and corrected missing state after space
 refusal and successful F2FS no-op resize; independent original bytes, persisted
 geometry, contents and metadata now bound the acceptance claim. Preserved
 fixture failures and numeric/readback corrections are recorded in dated lessons.
+
+AUD-013's nine focused controls passed native in 72.26 seconds and under pinned
+Clang ASan/UBSan/leak checks in 125.45 seconds. Both unchanged-source comparisons
+match `5229d440ae19d7df0a5207f6beaa7ac4a60910fd7bb1a671c364bfe6b60ffd93`.
+Actual callbacks use a frozen owned session and bounded once-only GUI publication.
+Real 512 MiB hash/backup and 320 MiB ext4 resize/rollback controls verified data
+and continued status sampling. Native maximum status latency was 1 ms; the
+instrumented maximum was 28 ms. Stop acknowledgements were at most 1 ms and
+explicitly advisory. They do not prove that native I/O, kernel maintenance or
+cleanup stopped. Changed selections and view epochs refuse stale publication;
+UTF-8 preview boundaries, persisted applied scale, six-LUN display projection,
+normal scale/mirror/graph and exact reviewed source-stack controls also passed.
+The detached worker is removed, but AUD-014's global lifecycle, orderly teardown
+and separate exact-owner GUI backend controllers remain unfinished. Fresh target,
+rendered-frame/combined guest, full release and physical acceptance remain open.
+See `docs/GUI-JOB-EXECUTION.md` and the dated parent engineering lessons.

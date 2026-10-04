@@ -154,6 +154,10 @@
     <variable name="ure_file" value="etc/fstab"/>
     <variable name="ure_status" value="Experimental build; device acceptance is pending"/>
     <variable name="ure_output" value="Select an operation"/>
+    <variable name="ure_job_state" value="IDLE"/>
+    <variable name="ure_job_active" value="0"/>
+    <variable name="ure_job_result_pending" value="0"/>
+    <variable name="ure_job_notice" value="Long operations keep their reviewed selections. Some native work cannot stop immediately."/>
     <variable name="ure_find" value=""/>
     <variable name="ure_replace" value=""/>
     <variable name="ure_journal_parent" value="/tmp"/>
@@ -1842,7 +1846,12 @@
           <text>Recovery tools for your tablet</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="1392"/>
+          <placement x="0" y="0" w="%screen_w%" h="1632"/>
+          <listitem name="Job status" description="Inspect ongoing work, request a stop and read the final result">
+            <icon res="ure_history_icon"/>
+            <action function="uremanager">job-status</action>
+            <action function="page">ure_job_status</action>
+          </listitem>
           <listitem name="Display and input" description="Interface size, external monitor and pointer controls">
             <icon res="ure_display_icon"/>
             <action function="page">ure_group_display</action>
@@ -2882,6 +2891,48 @@
       <action>
         <touch key="back"/>
         <action function="page">ure_display</action>
+      </action>
+    </page>
+    <page name="ure_job_status">
+      <template name="base_ex"/>
+      <text style="text_ab_title">
+        <placement x="%col1_x_indent%" y="%ab_bc_y%"/>
+        <text>Job status</text>
+      </text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption">
+          <placement x="%gl_text_x%" y="0"/>
+          <text>%ure_job_state% / %ure_job_phase%</text>
+        </text>
+        <textbox>
+          <placement x="%col1_x%" y="0" w="%input_w%" h="360"/>
+          <font resource="Secondary"/>
+          <color foreground="%text%" background="%background%"/>
+          <text>%ure_job_notice%</text>
+        </textbox>
+        <listbox style="ure_menu">
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
+          <listitem name="Refresh status" description="Collect completed work; keep running work open">
+            <icon res="ure_check_icon"/>
+            <action function="uremanager">job-collect</action>
+            <action function="uremanager">job-status</action>
+          </listitem>
+          <listitem name="Request a stop" description="A request does not prove cancellation or cleanup; inspect the final journal">
+            <icon res="ure_tools_icon"/>
+            <action function="uremanager">job-cancel</action>
+          </listitem>
+          <listitem name="Read job result" description="Includes work from an earlier selection without applying its review">
+            <icon res="ure_history_icon"/>
+            <action function="uremanager">job-result</action>
+            <action function="page">ure_output</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/>
+      <template name="gestures"/>
+      <action>
+        <touch key="back"/>
+        <action function="page">ure_home</action>
       </action>
     </page>
     <page name="ure_output">
