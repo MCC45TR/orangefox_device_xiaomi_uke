@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-10-04",
+  "recovery_baseline_commit": "6b5f3adfc44c2f46f132ef55670791f6cd010ab0",
+  "environment": "Small x86_64 host probes; no full rebuild, VM or tablet execution",
+  "compiler": {
+    "toolchain": "AOSP clang-r547379",
+    "sha256": "55d80d777d85327543868817fb836231691eae2e13030ab31a01a769a820bf2f",
+    "language_standard": "C++20",
+    "flags": ["-O0", "-g1", "-fsanitize=address,undefined", "-fno-sanitize=vptr", "-fno-omit-frame-pointer"],
+    "asan_options": "detect_leaks=0:halt_on_error=1",
+    "tablet_payload": false
+  },
+  "unbuilt_draft_inputs": {
+    "src/device/xiaomi/uke/ure-gui.cpp": "e225baf8732f618e3e8a24481df3e94a45e76483f7a2cdfd97f072d4b0676a2f",
+    "src/device/xiaomi/uke/ure-localization.hpp": "03cb4c6bd2d9dcea596d092c2e40ef1ad43ded7bec820d7e2d8f0efa4d69af51",
+    "src/device/xiaomi/uke/ure-locale-keys.hpp": "bcc97c6a20464cf021d02cf4546e03847f14699643bdff77bbefea801834a555",
+    "src/device/xiaomi/uke/localization/fonts/ure-cjk.ttf": "e2b481ad6525d7915f02b6e9600fe6bc159b7749ee8b9846ce192918da5ce1e3"
+  },
+  "probes": [
+    {
+      "finding": "AUD-002",
+      "kind": "Exact upstream decoder function extracted and renamed for a standalone host main",
+      "source": "src/upstream/orangefox-android16/bootable/recovery/minuitwrp/truetype.cpp",
+      "source_sha256": "99fff5b1819b325d86a2bd992aeff1165c6219fc9d1d982c50887d770201b29a",
+      "probe_source_sha256": "7a2bb7c321306540b154098d9274a6c4c79d0978705f26e6d8a4fac95f5ba33d",
+      "probe_elf_sha256": "148732339ca714e49aea9fa8732361e01c34f222582344754c049ea09699b1f0",
+      "allocated_input_bytes": [248, 0],
+      "result": "AddressSanitizer heap-buffer-overflow; read size 1",
+      "exit_code": 1,
+      "reproduced_defect": true,
+      "private_log_sha256": "c92fea92ba7f14d7e1cfb2dc667cceaed7486449eceb78c7019bdbdc3b727207"
+    },
+    {
+      "finding": "AUD-030",
+      "kind": "Full draft localization tool, keys subcommand, one-entry public-text catalog",
+      "source": "src/localization/catalog.cpp",
+      "source_sha256": "cd3286477f5f6c37d96042c56afe21070d3bb26f0bded689383a37c6fc7879cc",
+      "probe_elf_sha256": "b5b76624dea4cd0e404da8c1f044ed90e9fed2bfbcafda8563c8f5b92a34c4b0",
+      "input": {"strings": [{"source": "Audit entry", "name": "ure_audit"}]},
+      "input_file_sha256": "70fc82ec89349d51ce5d997bfb856e72c3f43c470cba61cb5871a8bf1ea04c6f",
+      "result": "AddressSanitizer heap-use-after-free; read size 2",
+      "exit_code": 1,
+      "reproduced_defect": true,
+      "shipped_regression": false,
+      "private_log_sha256": "9c4ec0be33412b15d8ca3d2861c928a49531d1b99e81aeb56c12f60bdcc29fe7"
+    },
+    {
+      "finding": "AUD-030",
+      "kind": "Full draft localization catalog with a five-second deadline",
+      "catalog_bytes": 21935820,
+      "catalog_sha256": "14e532c3be14b0e3e94c1b20e539bce81a465227ca1db5ea5e44cd37e6e21c3f",
+      "custom_string_count": 2664,
+      "result": "Deadline expired; inconclusive",
+      "exit_code": 124,
+      "reproduced_defect": false
+    }
+  ],
+  "capacity": {
+    "checker_sha256": "bc0d2b7b73defcee5defbe22b945dda086f362a545dab24da17db645647eb077",
+    "checker_status": "Uncommitted draft, not yet a publication gate",
+    "private_positive_receipt_sha256": "22e8b89fd619ef4258d7cb6094fa16ac23af5fc54cb82878f3f41b136a4758f5",
+    "candidate": "ure-vm-review-alpha",
+    "image_bytes": 104857600,
+    "header_version": 4,
+    "kernel_bytes": 0,
+    "ramdisk_bytes": 38812491,
+    "aligned_payload_bytes": 38817792,
+    "reviewed_profiles": ["global", "cn"],
+    "slots_checked_per_profile": ["recovery_a", "recovery_b"],
+    "slot_bytes": 104857600,
+    "maximum_avb_reservation_bytes": 69632,
+    "payload_headroom_bytes": 65970176,
+    "all_four_comparisons_passed": true,
+    "synthetic_recovery_b_one_sector_smaller": {"rejected": true, "exit_code": 1, "success_receipt_written": false},
+    "unbuilt_draft_size_verified": false,
+    "live_capacity_verified": false
+  },
+  "font": {
+    "scope": "Staged recovery Roboto resource character-map inspection with host fc-query",
+    "sha256": "06cba01eb71ea5cbd3a7df498910624db68953beead4be18fd91f8ec7dc72351",
+    "required_script_blocks_absent": ["Arabic", "Hebrew", "Indic", "Thai", "CJK"],
+    "all_language_rendering_accepted": false,
+    "draft_cjk_font_bytes": 15628896
+  },
+  "failed_preparation": {
+    "host_gcc_sanitizer_link": "Missing libasan.so.8.0.0; no linked probe or accepted sanitizer result",
+    "correction": "Use the existing hash-verified project Clang toolchain",
+    "host_packages_installed": false
+  },
+  "scope": {
+    "raw_logs_private": true,
+    "new_full_build": false,
+    "new_vm_test": false,
+    "host_block_writes": false,
+    "physical_device": false,
+    "current_draft_product_acceptance": false
+  }
+}
