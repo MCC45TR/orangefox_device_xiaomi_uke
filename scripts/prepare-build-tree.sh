@@ -226,7 +226,7 @@ elif git -C "$recovery_source" apply --check "$navigation_resources_patch"; then
 else
   echo 'Unexpected navigation-resource source; refusing an unverified patch' >&2; exit 1
 fi
-for additional in 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch; do
+for additional in 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch 0022-bounded-utf8-text.patch; do
   if git -C "$recovery_source" apply --reverse --check "$component/patches/$additional" 2>/dev/null; then
     :
   elif git -C "$recovery_source" apply --check "$component/patches/$additional"; then
@@ -242,7 +242,7 @@ verification_index=$(mktemp "$component/build/recovery-patch-index-XXXXXX")
 unlink "$verification_index"
 trap '[[ ! -e $verification_index ]] || unlink "$verification_index"' EXIT
 GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" read-tree HEAD
-for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch; do
+for file in 0002-native-ure-ui.patch 0004-link-native-ure.patch 0006-tablet-interface-density.patch 0007-usb-monitor-and-input.patch 0008-partition-layout-graph.patch 0010-drm-framebuffer-initialization.patch 0011-literal-ure-theme-defaults.patch 0012-responsive-stock-theme.patch 0014-preserve-hid-report-boundaries.patch 0015-menu-list-default-scroll.patch 0016-described-recovery-menus.patch 0017-early-extra-navigation-resources.patch 0018-scale-preview-widget.patch 0019-scaled-monitor-output.patch 0020-shared-recovery-write-gate.patch 0022-bounded-utf8-text.patch; do
   GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" apply --cached --unidiff-zero "$component/patches/$file"
 done
 cmp <(GIT_INDEX_FILE="$verification_index" git -C "$recovery_source" diff --cached --name-only HEAD) \

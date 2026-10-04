@@ -33,6 +33,15 @@ if(BUILD_TESTING)
     find_package(LibXml2 REQUIRED)
     set(UKE_RECOVERY_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/bootable/recovery")
     set(UKE_FASTBOOT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/system/core/fastboot")
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text-decoder.cpp"
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-text-decoder.sh" "${CMAKE_CURRENT_BINARY_DIR}/text-decoder.cpp"
+        DEPENDS "${UKE_RECOVERY_SOURCE}/minuitwrp/truetype.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-text-decoder.sh")
+    add_executable(uke-text-decoder-tests ../../../../../tests/ure/text_decoder.cpp "${CMAKE_CURRENT_BINARY_DIR}/text-decoder.cpp")
+    target_compile_features(uke-text-decoder-tests PRIVATE cxx_std_20)
+    target_include_directories(uke-text-decoder-tests PRIVATE ../../../../../tests/ure)
+    target_compile_options(uke-text-decoder-tests PRIVATE -Wall -Wextra -Werror)
+    add_test(NAME ure-production-bounded-utf8 COMMAND uke-text-decoder-tests)
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-write-gate-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         DEPENDS "${UKE_RECOVERY_SOURCE}/partitionmanager.cpp" "${UKE_RECOVERY_SOURCE}/partition.cpp"

@@ -32,6 +32,9 @@ cd "$component"
     printf '%s\0' tests/check-write-gate.sh tests/generate-write-gate-hooks.sh configs/ure/legacy-write-entry-points.tsv \
         patches/0020-shared-recovery-write-gate.patch patches/0021-fastbootd-write-gate.patch src/device/xiaomi/uke/ure-write-gate.hpp \
         src/device/xiaomi/uke/BoardConfig.mk src/device/xiaomi/uke/recovery/root/system/etc/recovery.fstab
+    printf '%s\0' tests/generate-text-decoder.sh patches/0022-bounded-utf8-text.patch \
+        src/upstream/orangefox-android16/bootable/recovery/minuitwrp/truetype.cpp \
+        src/upstream/orangefox-android16/bootable/recovery/minuitwrp/include/minuitwrp/truetype.hpp
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/theme/common/languages/en.xml
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/{Android.bp,partition.cpp,partitionmanager.cpp,twrp-functions.cpp,openrecoveryscript.cpp,ure-write-gate.hpp} \
         src/upstream/orangefox-android16/bootable/recovery/{install/{install.cpp,wipe_data.cpp,adb_install.cpp},twrpinstall/{install.cpp,twinstall.cpp,adb_install.cpp},recovery_utils/roots.cpp,gui/action.cpp,twrpRepacker.cpp} \
