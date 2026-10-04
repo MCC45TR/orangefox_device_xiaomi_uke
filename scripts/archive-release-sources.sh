@@ -2,10 +2,17 @@
 # Create source snapshots with licenses, nested Magisk dependencies and build inputs.
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
+    exec bash "$component/scripts/with-host-budget.sh" native bash "${BASH_SOURCE[0]}" "$@"
+fi
+source "$component/scripts/release-policy-lib.sh"
 tree="$component/src/upstream/orangefox-android16"
-candidate=${1:-prerelease}
+candidate=${1:?Candidate name required}
+[[ $# == 1 ]]
 [[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
 destination="$component/artifacts/$candidate"
+release_mutable_destination "$destination"
+bash "$component/scripts/release-policy.sh" validate "$destination/RELEASE-POLICY.json"
 gki="$component/../senemos-uke-kernel/referances/android/gki-stock-14529422"
 magisk="$component/referances/tools/magiskboot-v26.5-vb-beta"
 source_work=$(mktemp -d "$component/build/release-sources-XXXXXX")
@@ -110,6 +117,7 @@ cp -a -- "$component/configs" "$source_work/project/"
 cp -- "$component/.gitattributes" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
 cp -- "$component/docs/HOST-BUILD-BUDGET.md" "$source_work/project/"
+cp -- "$component/docs/BUILD-COMPLETION.md" "$component/docs/RELEASE-POLICY.md" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"
 cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$source_work/project/"

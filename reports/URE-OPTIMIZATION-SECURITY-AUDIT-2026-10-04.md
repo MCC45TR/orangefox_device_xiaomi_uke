@@ -433,6 +433,16 @@ names identify artifacts, not their safety requirements. **Acceptance:** publish
 the same requested capability set under a new name with a missing receipt and
 verify refusal. Keep sealed existing candidates immutable.
 
+**Superseding source/host checkpoint, 5 October 2026:** Candidate-name branches
+are removed. Explicit class/capability policy requires complete matching
+native/sanitizer catalogs and the applicable exact generic-VM records. Missing
+receipts refused under three new names; all fourteen receipt, metadata and
+already-bound policy controls passed. Six publication/report/export paths
+preserved the historical sealed alpha byte for byte, including the previously
+unguarded source archive. Fresh complete build/package/guest results remain
+pending; JSON presence alone is not evidence acceptance. See
+[the release policy](../docs/RELEASE-POLICY.md) and ordered remediation record.
+
 ### AUD-026 — P1: the new localization inputs are absent from native receipts
 
 **Confirmed draft integration gap.** `scripts/native-inputs.sh` explicitly lists

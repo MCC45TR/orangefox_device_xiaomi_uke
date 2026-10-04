@@ -69,6 +69,9 @@ without a rebuild, replaced tools/ELFs, missing acknowledgment, altered receipts
 and different images refuse. New manifest schema 3 derives its compile result
 from accepted completion evidence. Sealed candidate directories refuse mutation.
 The public summary omits private host directory identity and raw diagnostics.
+Exports and audit reports refuse output paths in sealed candidate directories.
+The [explicit release policy](RELEASE-POLICY.md) additionally binds the requested
+class/capabilities, complete native/sanitizer catalogs and applicable VM receipts.
 These local content checks are separate from authenticated updates and a
 production trust root, which remain AUD-035 work.
 

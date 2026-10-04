@@ -2,24 +2,39 @@
 # Offline artifact/header and staged payload inventory. Does not run target code.
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
+    exec bash "$component/scripts/with-host-budget.sh" native bash "${BASH_SOURCE[0]}" "$@"
+fi
+source "$component/scripts/release-policy-lib.sh"
 out="$component/src/upstream/orangefox-android16/out-public"
 product="$out/target/product/uke"
 payload="$product/recovery/root"
-candidate=${1:-prerelease}
+candidate=${1:?Candidate name required}
+[[ $# == 1 ]]
 [[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
-vm_review_candidate=false
-if [[ $candidate == ure-vm-review-alpha || $candidate == ure-function-vm-alpha ]]; then vm_review_candidate=true; fi
 destination="$component/artifacts/$candidate"
-[[ ! -e $destination/ARTIFACT-MANIFEST.json ]] || { echo 'A sealed candidate is immutable; choose a new candidate directory.' >&2; exit 1; }
-bash "$component/scripts/build-evidence.sh" export "$destination/BUILD-COMPLETION.json"
+release_mutable_destination "$destination"
+release_plan="$destination/RELEASE-POLICY.json"
+release_check_receipts "$component/configs/release-policy.json" "$release_plan" "$destination" "$component/reports/private"
+release_needed() { release_has_requirement "$release_plan" "$1"; }
+release_capability() { jq -e --arg cap "$1" '.capabilities|index($cap)!=null' "$release_plan" >/dev/null; }
+description_work=$(mktemp -d "$component/build/describe-release-XXXXXXXX")
+trap 'rm -rf -- "$description_work"' EXIT
+bash "$component/scripts/build-evidence.sh" export "$description_work/BUILD-COMPLETION.json"
+cmp "$description_work/BUILD-COMPLETION.json" "$destination/BUILD-COMPLETION.json"
 recovery="$destination/OrangeFox-uke-recovery.img"
 temporary="$destination/OrangeFox-uke-fastboot-boot.img"
-repeat_record="$component/reports/private/$candidate-first-package.sha256"
-if [[ $candidate == prerelease ]]; then repeat_record="$component/reports/private/first-package.sha256"; fi
+repeat_record="$destination/PACKAGE-REPEAT.sha256"
 [[ -s $repeat_record ]] || {
     echo 'Run and record the package-repeat check before sealing the manifest' >&2; exit 1;
 }
 (cd -- "$destination" && sha256sum -c "$repeat_record" >/dev/null)
+jq -e --arg policy "$(release_digest "$release_plan")" --arg files "$(release_digest "$repeat_record")" \
+    --arg receipt "$(jq -er .receipt_index_sha256 "$destination/BUILD-COMPLETION.json")" \
+    '.schema_version==1 and .evidence_class=="host-package-repeat" and .passed==true and .iterations==2 and
+     .release_policy_sha256==$policy and .file_manifest_sha256==$files and .build_receipt_index_sha256==$receipt and
+     (.independent_clean_builds==false) and (.binary_reproducibility==false) and (.physical_device==false)' \
+    "$destination/PACKAGE-REPEAT.json" >/dev/null
 [[ -s $destination/EXTRACTED-RAMDISK-AUDIT.json && -s $component/reports/private/native-verification.json ]]
 # This regression gate applies to every newly sealed candidate, independent of
 # its name. Historical manifests and binaries remain immutable.
@@ -51,21 +66,21 @@ jq -e '.validation.source_built_layout_renderer_and_pages' "$destination/EXTRACT
 jq -e '.validation.source_built_native_management_pages and .validation.source_built_f2fs_format_and_resize_tools and .validation.vm_test_binary_excluded' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 jq -e --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" '.aarch64_runner_sha256==$runner and .auditor_sha256==$auditor' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 cmp <(bash "$component/scripts/native-inputs.sh") "$component/reports/private/native-test-inputs.sha256"
+bash "$component/scripts/native-test-catalog.sh" "$component/build/ure-host" > "$description_work/catalog.json"
+cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
+release_native_pair "$component/reports/private/native-verification.json" "$component/reports/private/partition-sanitizer-verification.json" \
+    "$component/reports/private/native-test-inputs.sha256" "$description_work/catalog.json" "$component/build/ure-host/uke-recoveryctl"
 cp -- "$component/reports/private/native-verification.json" "$destination/NATIVE-HOST-VERIFICATION.json"
 cp -- "$component/reports/private/native-test-inputs.sha256" "$destination/NATIVE-TEST-INPUTS.sha256"
+cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
 vm_record=null
 partition_vm_record=null
-sanitizer_record=null
+sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 gui_vm_record=null
 stock_namespace_record=null
 functional_vm_records=null
 write_gate_vm_record=null
-if [[ $candidate == ure-write-gate-alpha ]]; then
-    cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
-    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
-        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==27 and .validation.address_sanitizer and
-         .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
-        "$component/reports/private/partition-sanitizer-verification.json" >/dev/null
+if release_needed write-gate-vm; then
     jq -e --arg runner "$(sha256sum "$component/tests/check-write-gate-vm.sh" | cut -d' ' -f1)" \
         --arg binary "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
         --arg adapted "$(sha256sum "$component/build/gui-vm/recovery-vm" | cut -d' ' -f1)" \
@@ -75,13 +90,11 @@ if [[ $candidate == ure-write-gate-alpha ]]; then
          (.host_block_attachment==false) and (.physical_device==false) and (.shipping_kernel_test==false) and
          (.unmodified_shipping_gui_test==false) and (.complete_feature_acceptance==false)' \
         "$component/reports/private/write-gate-vm-verification.json" >/dev/null
-    cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     cp -- "$component/reports/private/write-gate-vm-verification.json" "$destination/WRITE-GATE-VM-VERIFICATION.json"
     cp -- "$component/docs/RECOVERY-WRITE-POLICY.md" "$destination/"
-    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
     write_gate_vm_record=$(cat "$destination/WRITE-GATE-VM-VERIFICATION.json")
 fi
-if [[ $candidate == ure-rescue-filesystems-alpha ]]; then
+if release_needed btrfs-vm; then
     fixture="$out/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture/android_recovery_arm64_armv8-a/uke-btrfs-vm-fixture"
     jq -e --arg runner "$(sha256sum "$component/tests/check-btrfs-vm.sh" | cut -d' ' -f1)" \
         --arg binary "$(sha256sum "$fixture" | cut -d' ' -f1)" \
@@ -89,14 +102,8 @@ if [[ $candidate == ure-rescue-filesystems-alpha ]]; then
         "$component/reports/private/btrfs-vm-verification.json" >/dev/null
     cp -- "$component/reports/private/btrfs-vm-verification.json" "$destination/BTRFS-VM-VERIFICATION.json"
     vm_record=$(cat "$destination/BTRFS-VM-VERIFICATION.json")
-    cmp "$component/reports/private/sanitizer-test-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
-    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
-        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==17 and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
-        "$component/reports/private/rescue-sanitizer-verification.json" >/dev/null
-    cp -- "$component/reports/private/rescue-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
-    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 fi
-if [[ $candidate == ure-partition-job-alpha ]]; then
+if release_needed partition-vm; then
     jq -e '.validation.cpp_combined_partition_filesystem_job_and_interruption and .validation.partition_job_cli and (.validation.tablet_forced_reboot==false)' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_combined_partition_job' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
@@ -106,40 +113,25 @@ if [[ $candidate == ure-partition-job-alpha ]]; then
         "$component/reports/private/partition-vm-verification.json" >/dev/null
     cp -- "$component/reports/private/partition-vm-verification.json" "$destination/PARTITION-VM-VERIFICATION.json"
     partition_vm_record=$(cat "$destination/PARTITION-VM-VERIFICATION.json")
-    cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
-    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" \
-        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==18 and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
-        "$component/reports/private/partition-sanitizer-verification.json" >/dev/null
-    cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
-    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
 fi
-if [[ $candidate == ure-stock-job-alpha || $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then
-    expected_tests=21
-    if [[ $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then expected_tests=23; fi
-    if [[ $vm_review_candidate == true ]]; then expected_tests=24; fi
+if release_capability stock-restore; then
     jq -e '.validation.cpp_six_lun_stock_jobs_and_sigkill and .validation.cpp_android_sparse_and_logical_range_oracles and .validation.cpp_actual_six_lun_stock_gui and .validation.stock_job_cli and (.validation.stock_model_sku_physical_acceptance==false) and (.validation.tablet_forced_reboot==false)' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_six_lun_stock_job and .validation.qemu_user_six_lun_stock_job' \
         "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
-    cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
-    jq -e --arg inputs "$(sha256sum "$component/reports/private/native-test-inputs.sha256" | cut -d' ' -f1)" --argjson count "$expected_tests" \
-        '.native_test_inputs_sha256==$inputs and .ctest_executable_count==$count and .validation.address_sanitizer and .validation.undefined_behavior_sanitizer and .validation.leak_detection and (.validation.physical_device==false)' \
-        "$component/reports/private/partition-sanitizer-verification.json" >/dev/null
-    cp -- "$component/reports/private/partition-sanitizer-verification.json" "$destination/SANITIZER-VERIFICATION.json"
     cp -- "$component/manifests/stock-payloads-global.json" "$destination/STOCK-PAYLOAD-CATALOG.json"
     cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$destination/STOCK-IMAGE-RESTORE.md"
-    sanitizer_record=$(cat "$destination/SANITIZER-VERIFICATION.json")
     # The earlier partition candidate's guest-reset record describes a different
     # CLI. Leave both VM records null rather than transferring that evidence.
 fi
-if [[ $candidate == ure-stock-preflight-alpha || $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then
+if release_capability stock-restore; then
     jq -e '.validation.cpp_capacity_adjusted_boot_programming_pins and .validation.installer_full_partition_dtbo_and_corruption and .validation.independent_stock_boot_programming_catalog' \
         "$component/reports/private/native-verification.json" >/dev/null
     jq -e '.validation.source_built_capacity_adjusted_stock_preflight' "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
     cp -- "$component/manifests/stock-boot-programming-global.json" "$destination/STOCK-BOOT-PROGRAMMING.json"
     cp -- "$component/docs/STOCK-BOOT-PREFLIGHT.md" "$destination/STOCK-BOOT-PREFLIGHT.md"
 fi
-if [[ $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; then
+if release_capability boot-router; then
     jq -e '.validation.cpp_one_shot_boot_and_actual_sigkill and .validation.cpp_actual_boot_gui_callbacks and
         .validation.boot_router_cli and .validation.uefi_variable_fixture_only and
         (.validation.uke_boot_routing_accepted==false)' "$component/reports/private/native-verification.json" >/dev/null
@@ -148,7 +140,7 @@ if [[ $candidate == ure-boot-router-alpha || $vm_review_candidate == true ]]; th
         "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
     cp -- "$component/docs/BOOT-ROUTING.md" "$destination/BOOT-ROUTING.md"
 fi
-if [[ $vm_review_candidate == true ]]; then
+if release_needed gui-vm; then
     jq -e '.validation.actual_menu_renderer_spacing_and_descriptions and
         .validation.pinned_icon_rgba_verification and .validation.scale_selection_requires_apply and
         .validation.actual_scale_preview_and_font_ownership and .validation.independent_monitor_scale_and_idle_redraw' \
@@ -159,19 +151,6 @@ if [[ $vm_review_candidate == true ]]; then
     # These fresh records may be attached only to their exact tested ELFs.
     # The graphical VM relinks recovery with adapters and is documented
     # separately; it cannot make the shipping GUI validation flag true.
-    fixture="$out/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture/android_recovery_arm64_armv8-a/uke-btrfs-vm-fixture"
-    jq -e --arg runner "$(sha256sum "$component/tests/check-btrfs-vm.sh" | cut -d' ' -f1)" \
-        --arg binary "$(sha256sum "$fixture" | cut -d' ' -f1)" \
-        '.passed and .validation_kind=="qemu-system-native-ioctl" and .runner_sha256==$runner and .fixture_elf_sha256==$binary and (.checks|length)>=14 and (.physical_device==false) and (.shipping_kernel_test==false) and (.tablet_hardware_test==false)' \
-        "$component/reports/private/btrfs-vm-verification.json" >/dev/null
-    jq -e --arg runner "$(sha256sum "$component/tests/check-partition-job-vm.sh" | cut -d' ' -f1)" \
-        --arg binary "$(jq -er .native_cli_sha256 "$destination/EXTRACTED-RAMDISK-AUDIT.json")" \
-        '.passed and .validation_kind=="qemu-system-native-partition-job" and .runner_sha256==$runner and .native_cli_sha256==$binary and (.checks|length)>=10 and .interruption=="guest-sysrq-emergency-reboot" and (.physical_device==false) and (.shipping_kernel_test==false) and (.tablet_hardware_test==false) and (.ufs_controller_test==false)' \
-        "$component/reports/private/partition-vm-verification.json" >/dev/null
-    cp -- "$component/reports/private/btrfs-vm-verification.json" "$destination/BTRFS-VM-VERIFICATION.json"
-    cp -- "$component/reports/private/partition-vm-verification.json" "$destination/PARTITION-VM-VERIFICATION.json"
-    vm_record=$(cat "$destination/BTRFS-VM-VERIFICATION.json")
-    partition_vm_record=$(cat "$destination/PARTITION-VM-VERIFICATION.json")
     jq -e --arg runner "$(sha256sum "$component/tests/check-gui-vm.sh" | cut -d' ' -f1)" \
         --arg controller "$(sha256sum "$component/tests/gui-vm-control.sh" | cut -d' ' -f1)" \
         --arg binary "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
@@ -190,6 +169,8 @@ if [[ $vm_review_candidate == true ]]; then
         "$component/reports/private/adapted-gui-visual-verification.json" >/dev/null
     cp -- "$component/reports/private/adapted-gui-visual-verification.json" "$destination/ADAPTED-GUI-VM-VERIFICATION.json"
     gui_vm_record=$(cat "$destination/ADAPTED-GUI-VM-VERIFICATION.json")
+fi
+if release_needed stock-namespace-vm; then
     jq -e --arg runner "$(sha256sum "$component/tests/check-stock-namespace-vm.sh" | cut -d' ' -f1)" \
         --arg fixture "$(sha256sum "$component/tests/fixtures/stock-adb-2026-10-03.json" | cut -d' ' -f1)" \
         --arg generator "$(sha256sum "$component/tests/vm/stock-layout.cpp" | cut -d' ' -f1)" \
@@ -210,7 +191,7 @@ if [[ $vm_review_candidate == true ]]; then
     cp -- "$component/tests/fixtures/stock-adb-2026-10-03.json" "$destination/STOCK-NAMESPACE-FIXTURE.json"
     stock_namespace_record=$(cat "$destination/STOCK-NAMESPACE-VM-VERIFICATION.json")
 fi
-if [[ $candidate == ure-function-vm-alpha ]]; then
+if release_needed functional-core; then
     functional_records=()
     generic_kernel=$(sha256sum "$component/build/gui-vm/kernel/arch/arm64/boot/Image" | cut -d' ' -f1)
     userspace_inputs=$(
@@ -245,7 +226,11 @@ if [[ $candidate == ure-function-vm-alpha ]]; then
     cp -- "$component/docs/FUNCTIONAL-VM-TESTS.md" "$component/reports/URE-FUNCTION-VM-REVIEW.md" "$destination/"
 fi
 for archive in STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz; do [[ -s $destination/$archive ]]; done
-(cd "$component" && find .gitattributes src/device src/installer src/inventory configs patches manifests scripts tests -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
+release_receipt_hashes "$component/configs/release-policy.json" "$release_plan" "$destination" "$component/reports/private" \
+    | jq -s . > "$description_work/receipt-hashes.json"
+project_roots=(.gitattributes LICENSE src/device src/installer src/inventory configs patches manifests scripts tests)
+for optional in src/host src/localization; do [[ ! -d $component/$optional ]] || project_roots+=("$optional"); done
+(cd "$component" && find "${project_roots[@]}" -type f -print0 | sort -z | xargs -0 sha256sum) > "$destination/PROJECT-INPUTS.sha256"
 [[ $(stat -c %s "$recovery") == 104857600 && $(stat -c %s "$temporary") == 100663296 ]]
 kernel_bytes=$(od -An -tu4 -j8 -N4 "$temporary" | tr -d ' ')
 ramdisk_bytes=$(od -An -tu4 -j12 -N4 "$recovery" | tr -d ' ')
@@ -289,7 +274,10 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     --arg avbtool_commit "$(git -C "$component/src/upstream/orangefox-android16/external/avb" rev-parse HEAD)" \
     --arg kernel "$kernel_hash" --arg ramdisk "$ramdisk_hash" --argjson ramdisk_bytes "$ramdisk_bytes" \
     '{schema_version:3,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},build_completion:$completion[0],stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,functional_vm_records:$functional_vm,validation:{compile:($completion[0].validation.service_completed and $completion[0].validation.current_source_and_output_match),header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
-    | jq --argjson write_gate_vm "$write_gate_vm_record" '.write_gate_vm_record=$write_gate_vm' \
+    | jq --argjson write_gate_vm "$write_gate_vm_record" --slurpfile release "$release_plan" \
+         --slurpfile receipts "$description_work/receipt-hashes.json" \
+         '.write_gate_vm_record=$write_gate_vm | .release_policy=$release[0] | .release_class=$release[0].release_class |
+          .required_receipt_hashes=$receipts[0]' \
     > "$destination/ARTIFACT-MANIFEST.json"
 # Hash every generated public release file once, including source snapshots.
 (cd -- "$destination" && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)

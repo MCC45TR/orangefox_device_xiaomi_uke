@@ -2,18 +2,27 @@
 # Package three distinct experimental assets. Never flash or open a block device.
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
+    exec bash "$component/scripts/with-host-budget.sh" native bash "${BASH_SOURCE[0]}" "$@"
+fi
+source "$component/scripts/release-policy-lib.sh"
 tree="$component/src/upstream/orangefox-android16"
 out="$tree/out-public"
 product="$out/target/product/uke"
-candidate=${1:-prerelease}
+candidate=${1:?Candidate name and explicit release request required}
 [[ $candidate =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]
 destination="$component/artifacts/$candidate"
-[[ ! -e $destination/ARTIFACT-MANIFEST.json ]] || { echo 'A sealed candidate is immutable; choose a new candidate directory.' >&2; exit 1; }
-instructions="$component/docs/PRE-RELEASE.md"
-if [[ $candidate != prerelease ]]; then instructions="$component/docs/URE-NATIVE-CANDIDATE.md"; fi
+release_mutable_destination "$destination"
+[[ $# == 2 ]]
+request=$2
+package_work=$(mktemp -d "$component/build/package-XXXXXX")
+trap 'rm -rf -- "$package_work"' EXIT
+bash "$component/scripts/release-policy.sh" normalize "$request" > "$package_work/RELEASE-POLICY.json"
+release_plan_matches "$destination" "$package_work/RELEASE-POLICY.json"
+instructions="$component/docs/URE-NATIVE-CANDIDATE.md"
 kernel="$component/build/stock-global/boot/kernel"
 installer="$product/recovery/root/system/bin/uke-recovery-install"
-bash "$component/scripts/build-evidence.sh" verify
+bash "$component/scripts/build-evidence.sh" export "$package_work/BUILD-COMPLETION.json"
 mkboot="$out/host/linux-x86/bin/mkbootimg"
 avb="$out/host/linux-x86/bin/avbtool"
 for command in jq dd od zip sha256sum readelf strings; do command -v "$command" >/dev/null; done
@@ -32,8 +41,7 @@ readelf -h "$installer" | grep -q 'Machine:.*AArch64'
 "$component/tests/check-payload.sh" "$product/recovery/root"
 "$component/tests/check-nested-payloads.sh" "$product/recovery/root"
 mkdir -p "$destination"
-package_work=$(mktemp -d "$component/build/package-XXXXXX")
-trap 'rm -rf -- "$package_work"' EXIT
+cp -- "$package_work/RELEASE-POLICY.json" "$package_work/BUILD-COMPLETION.json" "$destination/"
 ramdisk_bytes=$(od -An -tu4 -j12 -N4 "$product/recovery.img" | tr -d ' ')
 [[ $ramdisk_bytes =~ ^[0-9]+$ && $ramdisk_bytes -gt 0 && $ramdisk_bytes -lt 65000000 ]]
 dd if="$product/recovery.img" of="$package_work/ramdisk" bs=1M iflag=skip_bytes,count_bytes skip=4096 count="$ramdisk_bytes" status=none
@@ -72,7 +80,7 @@ find "$package_work" -type f -exec touch -d '@1790726400' {} +
 zipfile="$destination/OrangeFox-uke-flashable.zip"
 [[ ! -e $zipfile ]] || mv -- "$zipfile" "$package_work/previous.zip"
 (cd -- "$package_work" && zip -X -9 "$zipfile" META-INF/com/google/android/update-binary \
-    recovery.img uke-recovery-install recovery.sha256 INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md PARTITION-MANAGER.md STOCK-IMAGE-RESTORE.md STOCK-BOOT-PREFLIGHT.md DISPLAY-SCALING.md EXTERNAL-MONITOR.md TREE-BACKUP.md FILESYSTEM-MANAGER.md LINUX-RESCUE-AND-BOOT.md BTRFS-MANAGER.md BOOT-ROUTING.md RECOVERY-INTERFACE.md SENSOR-READINESS.md RECOVERY-WRITE-POLICY.md LICENSE >/dev/null)
+    recovery.img uke-recovery-install recovery.sha256 RELEASE-POLICY.json BUILD-COMPLETION.json INSTALL.md STOCK-RETURN.md URE-TOOLS.json URE-NATIVE.md HOST-RESTORE.md PARTITION-MANAGER.md STOCK-IMAGE-RESTORE.md STOCK-BOOT-PREFLIGHT.md DISPLAY-SCALING.md EXTERNAL-MONITOR.md TREE-BACKUP.md FILESYSTEM-MANAGER.md LINUX-RESCUE-AND-BOOT.md BTRFS-MANAGER.md BOOT-ROUTING.md RECOVERY-INTERFACE.md SENSOR-READINESS.md RECOVERY-WRITE-POLICY.md LICENSE >/dev/null)
 unzip -t "$zipfile" >/dev/null
 cp -- "$component/manifests/orangefox-android16-uke.lock.xml" "$destination/ORANGEFOX-SOURCE-PINS.xml"
 cp -- "$component/manifests/stock-kernel-source.json" "$destination/STOCK-KERNEL-SOURCE.json"
@@ -80,5 +88,6 @@ cp -- "$instructions" "$destination/INSTALL.md"
 cp -- "$component/docs/PRE-RELEASE.md" "$destination/STOCK-RETURN.md"
 cp -- "$component/src/device/xiaomi/uke/ure-tools.lock.json" "$destination/URE-TOOLS.json"
 (cd -- "$destination" && sha256sum OrangeFox-uke-fastboot-boot.img OrangeFox-uke-recovery.img \
-    OrangeFox-uke-flashable.zip ORANGEFOX-SOURCE-PINS.xml STOCK-KERNEL-SOURCE.json INSTALL.md > SHA256SUMS)
+    OrangeFox-uke-flashable.zip ORANGEFOX-SOURCE-PINS.xml STOCK-KERNEL-SOURCE.json INSTALL.md \
+    RELEASE-POLICY.json BUILD-COMPLETION.json > SHA256SUMS)
 echo 'Three experimental assets packaged; no device boot or flash has been performed.'

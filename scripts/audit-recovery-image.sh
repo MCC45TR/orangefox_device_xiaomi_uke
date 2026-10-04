@@ -4,6 +4,8 @@ set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 image=$(realpath -- "${1:?Usage: audit-recovery-image.sh IMAGE REPORT_JSON [--qemu]}")
 report=${2:?Missing output report}
+source "$component/scripts/release-policy-lib.sh"
+release_output_mutable "$component" "$report"
 mode=${3:-}
 [[ -z $mode || $mode == --qemu ]]
 tree="$component/src/upstream/orangefox-android16"

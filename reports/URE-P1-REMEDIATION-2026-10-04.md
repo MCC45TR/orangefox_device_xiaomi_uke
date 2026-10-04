@@ -22,7 +22,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-022 | RAM/ancestor headroom reserve, post-lock unit readback, separate compiler/Soong scheduling, reviewed host stacks and measured cold/warm cache/Go controls passed | Full clean/warm Android RSS/PSI/OOM and desktop response remain pending after AUD-023/024; small fixtures do not diagnose the earlier task shutdowns |
 | AUD-023 | Kernel-resolved private disk identity/space/inode admission across both namespaces; actual 64 MiB write/cache accounting and RAM/substitution/readonly refusals passed | Full clean/warm recovery build and output capacity/immutable closure remain pending; free-space snapshots are not allocation guarantees |
 | AUD-024 | Fresh isolated output, complete source-content/pin/tool snapshots, readonly completion receipts, successful-service acknowledgment and atomic output publication; actual compiler/interruption/substitution controls and production stale-output refusal passed | Fresh complete Android build, extracted-payload audit and combined guest pending; local evidence is not authenticated updates or a hermetic OS closure |
-| AUD-025 | Explicit release classes and capability-driven receipts | Pending |
+| AUD-025 | Explicit class/capability policy, mandatory shipped-feature coverage, matching complete native/sanitizer catalogs, bound package repeats and six sealed-output guards; renamed-candidate/missing-record/metadata and historical-alpha controls passed | Fresh complete native/sanitizer/image/package and applicable combined guest receipts pending; policy preflight is not build acceptance and physical classes remain unavailable |
 | AUD-026 | Complete localization input closure | Pending |
 | AUD-029 | Bounded all-language fallback, shaping and RTL | Pending |
 | AUD-030 | Localization generator owner lifetime | Pending |
@@ -75,6 +75,42 @@ in dated parent lessons. These controls are source/reference-host evidence:
 they do not compile a new complete image, authenticate updates, establish binary
 reproducibility, diagnose earlier application shutdowns, or accept a tablet.
 See [the completion contract](../docs/BUILD-COMPLETION.md).
+
+## AUD-025: artifact names cannot weaken release requirements
+
+New packages require an explicit `experimental`, `vm-reviewed` or
+`function-reviewed` request. All ten shipped capability domains must appear
+exactly once. The reviewed policy derives five, ten or fourteen required
+receipts respectively. Unknown classes/features, omissions, duplicates, extra
+request fields, changed requirements/digests and physical-acceptance requests
+refuse. A candidate retains its normalized policy; changing it requires a new
+directory. No device-validated class is configured.
+
+Manifest validation retains the exact source/image/ELF/runner/scope predicates.
+Native and sanitizer receipts now bind complete sorted CTest names and counts
+to the current configured catalog instead of historical hardcoded numbers.
+Package-repeat evidence binds two packages from the same accepted build and
+policy; it does not establish two clean builds. Required receipt digests and
+the normalized policy are included in manifest schema 3.
+
+Final frozen source-input manifest SHA-256:
+`a491b60e1f93332e7a3f0584edcf24ef94015ab482f51436467eac4ef753c5d9`.
+Three differently named directories with the same capabilities refused the
+same missing functional receipt without changing their file contents. All
+fourteen missing/indirect receipt controls passed, as did malformed JSON,
+tampered policy and catalog/source/CLI/compiler/sanitizer metadata refusals.
+The actual configured catalog has 47 names; this enumeration is not a fresh
+47-test execution receipt. Presence and metadata fixtures cannot accept an
+Android build or a VM result.
+
+Package, manifest, source-archive, repeat, image-audit and completion-export
+entry points refused the locally available historical sealed alpha. Complete
+before/after file hashes matched. Unmodified copied entry points also passed
+isolated sealed fixtures, and a lower-class request refused an already bound
+candidate before build/export effects. The archive path's previously missing
+seal check is corrected. [The release policy](../docs/RELEASE-POLICY.md)
+documents the future fresh-build/testing workflow. No new complete image,
+package repeat, sanitizer matrix, combined guest or tablet acceptance is claimed.
 
 These are engineering results, not claims that every capability is implemented
 or accepted on a tablet. Unaccepted device workflows must stay explicitly

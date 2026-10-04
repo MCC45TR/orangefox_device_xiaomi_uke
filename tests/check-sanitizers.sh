@@ -22,7 +22,8 @@ cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-sanitized-clang -G Ninja
     '-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer' \
     '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined -fno-sanitize=vptr'
 cmake --build build/ure-sanitized-clang -j"$jobs"
-count=$(ctest --test-dir build/ure-sanitized-clang --show-only=json-v1 | jq -er '.tests | length')
+bash scripts/native-test-catalog.sh build/ure-sanitized-clang > reports/private/partition-sanitizer-test-catalog.json
+count=$(jq -er 'length' reports/private/partition-sanitizer-test-catalog.json)
 [[ $count -ge 24 ]]
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
     ctest --test-dir build/ure-sanitized-clang --output-on-failure
@@ -30,7 +31,8 @@ UKE_DRM_SANITIZER=1 bash tests/check-drm-surface.sh
 cmp <(bash scripts/native-inputs.sh) reports/private/partition-sanitizer-inputs.sha256
 jq -n --arg inputs "$(sha256sum reports/private/partition-sanitizer-inputs.sha256 | cut -d' ' -f1)" \
     --arg compiler "$expected" --argjson count "$count" \
-    '{schema_version:1,native_test_inputs_sha256:$inputs,compiler_sha256:$compiler,ctest_executable_count:$count,
+    --slurpfile catalog reports/private/partition-sanitizer-test-catalog.json \
+    '{schema_version:1,native_test_inputs_sha256:$inputs,compiler_sha256:$compiler,ctest_executable_count:$count,ctest_test_names:$catalog[0],
       validation:{address_sanitizer:true,undefined_behavior_sanitizer:true,leak_detection:true,halt_on_error:true,vptr_instrumentation:false,physical_device:false}}' \
     > reports/private/partition-sanitizer-verification.json
 printf '%s\n' 'Pinned Clang address/undefined/leak gates passed; vptr instrumentation remains excluded by the pinned host runtime limitation.'

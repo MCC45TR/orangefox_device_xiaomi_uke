@@ -6,8 +6,13 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 android="$component/src/upstream/orangefox-android16"
 build_scripts="$component/scripts"
 source "$build_scripts/build-evidence-lib.sh"
+source "$build_scripts/release-policy-lib.sh"
 mode=${1:?begin|seal|publish|acknowledge|verify|payload|export}
 shift
+if [[ $mode == export ]]; then
+    [[ $# == 1 ]]
+    release_output_mutable "$component" "$1"
+fi
 if [[ ( $mode == verify || $mode == export ) && ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
     exec bash "$component/scripts/with-host-budget.sh" native bash "$component/scripts/build-evidence.sh" "$mode" "$@"
 fi
@@ -98,6 +103,7 @@ case $mode in
         ;;
     payload)
         [[ $# == 3 ]]
+        release_output_mutable "$component" "$3"
         current_job
         build_receipt_integrity "$job" android-recovery
         [[ -s $job/SERVICE-COMPLETION.json ]]

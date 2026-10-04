@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "shipping_capabilities": ["boot-router", "btrfs", "display-input", "filesystems", "kernel-boot-audit", "linux-rescue", "stock-restore", "storage-backup", "userdata-layout", "write-policy"],
+  "classes": {
+    "experimental": {"required_receipts": ["build", "image-audit", "native", "package-repeat", "sanitizers"]},
+    "vm-reviewed": {"required_receipts": ["build", "image-audit", "native", "package-repeat", "sanitizers"]},
+    "function-reviewed": {"required_receipts": ["build", "image-audit", "native", "package-repeat", "sanitizers"]}
+  },
+  "capabilities": {
+    "boot-router": {"experimental": [], "vm-reviewed": [], "function-reviewed": ["functional-core"]},
+    "btrfs": {"experimental": [], "vm-reviewed": ["btrfs-vm"], "function-reviewed": ["btrfs-vm", "functional-btrfs"]},
+    "display-input": {"experimental": [], "vm-reviewed": ["gui-vm"], "function-reviewed": ["gui-vm"]},
+    "filesystems": {"experimental": [], "vm-reviewed": [], "function-reviewed": ["functional-filesystems"]},
+    "kernel-boot-audit": {"experimental": [], "vm-reviewed": [], "function-reviewed": ["functional-rescue"]},
+    "linux-rescue": {"experimental": [], "vm-reviewed": [], "function-reviewed": ["functional-rescue"]},
+    "stock-restore": {"experimental": [], "vm-reviewed": ["stock-namespace-vm"], "function-reviewed": ["stock-namespace-vm"]},
+    "storage-backup": {"experimental": [], "vm-reviewed": [], "function-reviewed": ["functional-core"]},
+    "userdata-layout": {"experimental": [], "vm-reviewed": ["partition-vm"], "function-reviewed": ["partition-vm", "functional-core"]},
+    "write-policy": {"experimental": [], "vm-reviewed": ["write-gate-vm"], "function-reviewed": ["write-gate-vm", "functional-core"]}
+  },
+  "receipts": {
+    "build": {"scope": "artifact", "file": "BUILD-COMPLETION.json"},
+    "image-audit": {"scope": "artifact", "file": "EXTRACTED-RAMDISK-AUDIT.json"},
+    "package-repeat": {"scope": "artifact", "file": "PACKAGE-REPEAT.json"},
+    "native": {"scope": "private", "file": "native-verification.json"},
+    "sanitizers": {"scope": "private", "file": "partition-sanitizer-verification.json"},
+    "btrfs-vm": {"scope": "private", "file": "btrfs-vm-verification.json"},
+    "partition-vm": {"scope": "private", "file": "partition-vm-verification.json"},
+    "gui-vm": {"scope": "private", "file": "adapted-gui-visual-verification.json"},
+    "stock-namespace-vm": {"scope": "private", "file": "stock-namespace-vm-verification.json"},
+    "write-gate-vm": {"scope": "private", "file": "write-gate-vm-verification.json"},
+    "functional-core": {"scope": "private", "file": "functional-core-vm-verification.json"},
+    "functional-filesystems": {"scope": "private", "file": "functional-filesystems-vm-verification.json"},
+    "functional-rescue": {"scope": "private", "file": "functional-rescue-vm-verification.json"},
+    "functional-btrfs": {"scope": "private", "file": "functional-btrfs-vm-verification.json"}
+  }
+}

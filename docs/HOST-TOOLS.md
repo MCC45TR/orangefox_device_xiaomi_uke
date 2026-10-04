@@ -55,6 +55,10 @@ FBE-disabled profile. Final compressed-ramdisk audits verify these changes.
 
 Packaging accepts a separate candidate directory name. Sealed candidate
 directories refuse changes and the existing public alpha is preserved.
+Every new package also requires an explicit class/capability request under the
+[release policy](RELEASE-POLICY.md). Candidate names never select its native,
+sanitizer or generic-VM requirements. Package repeats bind the same accepted
+build and policy; complete native/sanitizer catalogs replace historical counts.
 New manifest schema 3 records the base Git commit separately from changed
 working-tree sources, includes exact input-file checksums and derives compile
 evidence from the matching accepted build completion and extracted payload.

@@ -33,6 +33,8 @@ cd "$component"
     printf '%s\0' scripts/host-temp-policy.sh scripts/with-android-build-environment.sh scripts/run-android-build-job.sh tests/check-host-temp.sh
     printf '%s\0' scripts/index-build-tree.sh scripts/build-evidence-lib.sh scripts/build-evidence.sh \
         src/host/publish-build-directory.cpp tests/check-build-evidence.sh scripts/audit-recovery-image.sh scripts/package-prerelease.sh scripts/describe-prerelease.sh scripts/archive-release-sources.sh
+    printf '%s\0' configs/release-policy.json scripts/release-policy-lib.sh scripts/release-policy.sh \
+        scripts/native-test-catalog.sh scripts/check-package-repeat.sh tests/check-release-policy.sh
     printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
     printf '%s\0' tests/installer_test.cpp tests/check-stock-boot-programming.sh scripts/describe-stock-boot-programming.sh manifests/stock-boot-programming-global.json
     printf '%s\0' tests/check-boot-router.sh tests/check-aarch64.sh
