@@ -146,6 +146,9 @@ void filesystem_tree_gate(int fd);
 void filesystem_tree_outside(int source, int destination);
 Value descriptor_identity(int fd);
 Value storage_preflight(const Root& system, const StorageTarget& target, const std::string& profile);
+Value device_profile_admission_status(const Root& system, const std::string& requested_profile);
+// Host declarations only; never live write admission or a physical receipt.
+Value device_profile_compare_fixture(const Value& contract, const Value& observation);
 Value filesystem_capabilities();
 Value filesystem_operation_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
 // Prepare and independently check a private replacement. Never write the source.

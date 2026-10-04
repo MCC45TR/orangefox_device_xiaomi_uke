@@ -47,7 +47,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
     if(command=="partition")return op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
-    if(command=="storage")return op=="preflight";
+    if(command=="storage")return op=="preflight" || op=="profile-status" || op=="profile-compare-fixture";
     if(command=="boot")return op.starts_with("route-");
     if(command=="linux")return op=="audit" || op=="rescue-plan" || op=="rescue-execute" || op=="rescue-inspect";
     if(command=="btrfs")return op=="control" || op=="info" || op=="subvolumes" || op=="usage" || op=="device-stats" || op=="scrub-status" || op=="balance-status" || op=="plan" || op=="execute" ||
@@ -58,6 +58,18 @@ Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
     if(command=="operation") { positional(options,2); options.allow({}); return operation_lease_status(); }
+    if(command=="storage" && operation=="profile-status") {
+        positional(options,2); options.allow({"--system-root","--profile"});
+        Root system(options.get("--system-root","/")); return device_profile_admission_status(system,options.need("--profile"));
+    }
+    if(command=="storage" && operation=="profile-compare-fixture") {
+        positional(options,3); options.allow({"--observation"});
+#ifdef __ANDROID__
+        throw Error("fixture-only-command","Imported profile declarations cannot authorize live device plans");
+#else
+        return device_profile_compare_fixture(json_file(words[2]),json_file(options.need("--observation")));
+#endif
+    }
     if(command=="backup") {
         positional(options,5); options.allow({"--destination","--confirm"});
         const auto& action=words[4];

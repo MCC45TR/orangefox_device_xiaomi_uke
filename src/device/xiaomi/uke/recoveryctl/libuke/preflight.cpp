@@ -36,6 +36,8 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
     out["firmware_profile"]=profile; out["checks"]=Value(Json::arrayValue); out["blockers"]=Value(Json::arrayValue);
     out["private_record"]=true; out["physical_test_record"]=false; out["atomic_snapshot"]=false; out["android_fbe_access_authorized"]=false;
     out["native_live_writer_ready"]=live_storage_backend_accepted(); out["firmware_identity_validated"]=false;
+    out["device_profile"]=device_profile_admission_status(system,profile);
+    out["model_sku_geometry_validated"]=false;
     if(target.identity["kind"]=="regular-image") {
         check(out,"regular-file-identity",true,"Selected image inode, geometry and metadata were revalidated");
         check(out,"physical-storage-write",false,"Image fixtures do not prove live firmware, slot, snapshot or storage ownership");
@@ -50,6 +52,15 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
     const auto label=target.identity["label"].asString();
     check(out,"target-owner",target.identity["partition"]==true && (label=="uke_linux" || label=="uke_windows" || label=="uke_esp" || label=="uke_home"),
         "Standard filesystem jobs are restricted to Linux, Windows, home or ESP partitions; Android data and firmware require separate trust and restore workflows");
+    check(out,"accepted-model-sku-capacity-profile",out["device_profile"]["profile_accepted"]==true,
+        "Only an accepted commercial model/SKU/capacity, exact installed firmware and this unit's six-LUN geometry/GUID backup may authorize live planning");
+    // Do not hash gigabytes of an unaccepted unit's boot media or mistake
+    // current recovery properties for its installed Android firmware.
+    if(out["device_profile"]["profile_accepted"]!=true) {
+        check(out,"exact-stock-boot-stack",false,"Whole-partition boot verification is unavailable until unit-profile admission; source package pins are not installed identity");
+        check(out,"accepted-live-transaction-backend",false,"The Uke live writer remains unaccepted");
+        out["image_job_eligible"]=false; out["live_job_eligible"]=false; return out;
+    }
     if(authoritative) {
         out["ownership"]=storage_usage(system,target.identity["stable_id"].asString());
         check(out,"mount-process-swap-usb-ownership",out["ownership"]["quiescent_observed"]==true,"Every visible namespace, holder, swap and gadget export must be resolved and idle");

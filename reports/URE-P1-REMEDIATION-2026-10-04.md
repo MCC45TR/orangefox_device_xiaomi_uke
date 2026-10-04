@@ -11,7 +11,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-003 | Checked raster/parser budgets, bounded global caches, font ownership and clipping; production native and sanitizer controls passed | Fresh target and combined visual guest |
 | AUD-004 | Volatile writer removed; persistent regular-image installer, atomic first records, interrupted preparation recovery, exact fallback/plan/path binding and checked terminal fsync; five native and five sanitizer controls passed | Fresh target/combined guest; live installation explicitly unavailable pending physical fallback and durability admission |
 | AUD-005 | Common process-independent host ownership, explicit compound delegation, durable exact retirement, retained tree/stream recovery and shared lifecycle/control callbacks; native/sanitizer and CLI controls passed | Fresh target/combined guest; Android coordinator and physical durability unaccepted; rescue aggregate resources and GUI worker ownership follow in AUD-012–014 |
-| AUD-006 | Exact installed model/profile/geometry admission | Pending; physical evidence unavailable |
+| AUD-006 | Bounded exact model/SKU/firmware and six-LUN declaration comparator; unit-bound original GUID backups, complete A/B boot declarations, stable profile blockers and early live preflight refusal; three native and three sanitizer controls plus JSON CLI checks passed | Fresh target/combined guest; no live profile accepted because the OS2 stock inventory lacks full physical GPT/geometry and boot/fallback evidence |
 | AUD-007 | Prefix versus complete boot-layout restoration | Pending |
 | AUD-009 | Explicit image/live repartition capabilities | Pending |
 | AUD-010 | Populated, fragmented and damaged filesystem oracles | Pending |

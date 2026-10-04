@@ -54,6 +54,8 @@ static Value usage() {
         "linux rescue-execute PLAN --root ROOT [--esp ESP] --journal NEW_DIR --confirm SHA256",
         "linux rescue-inspect JOURNAL",
         "storage preflight --image IMAGE|--object ID --profile PROFILE [--sector-size 512/4096]",
+        "storage profile-status --profile PROFILE [--system-root ROOT]",
+        "storage profile-compare-fixture CONTRACT --observation RECORD (host declarations only)",
         "filesystem capabilities",
         "filesystem plan REQUEST --image IMAGE|--object ID --profile PROFILE --output PLAN",
         "filesystem execute PLAN --image IMAGE --journal NEW_DIR --confirm SHA256",

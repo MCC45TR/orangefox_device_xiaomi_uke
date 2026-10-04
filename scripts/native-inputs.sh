@@ -45,6 +45,7 @@ cd "$component"
         patches/0025-fastbootd-operation-lifecycle.patch configs/fastboot-patches.list \
         scripts/prepare-reviewed-patches.sh scripts/prepare-fastboot-patches.sh \
         src/upstream/orangefox-android16/bootable/recovery/partitions.hpp
+    printf '%s\0' tests/check-device-profile.sh
     # Optional owner work can be consumed by the GUI fixture scaffolding. Its
     # exact inputs belong in a local receipt even before a separate review.
     for path in src/device/xiaomi/uke/ure-localization.hpp src/device/xiaomi/uke/ure-locale-keys.hpp; do

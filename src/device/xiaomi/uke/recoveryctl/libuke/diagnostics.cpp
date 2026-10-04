@@ -141,6 +141,10 @@ Value capabilities(const Root& system) {
     }
     result["filesystem_management"]=filesystem_capabilities();
     result["live_storage_writer_accepted"]=false; result["btrfs_receive_implemented"]=false;
+    result["device_profile_admission"]["accepted_live_profile_count"]=0;
+    result["device_profile_admission"]["live_plan_allowed"]=false;
+    result["device_profile_admission"]["code"]="device-profile-unaccepted";
+    result["device_profile_admission"]["reason"]="Commercial model/SKU/capacity and installed firmware require separate six-LUN geometry, unit-bound GUID backups and whole boot-stack acceptance";
     result["active_scope"]["remote_transport"]="adb-only";
     result["active_scope"]["bitlocker"]=false; result["active_scope"]["ssh_sftp"]=false; result["active_scope"]["network_rescue"]=false;
     result["active_scope"]["delivery_order"]="boot manager; LUKS/Windows; ADB/backups; files/sessions; distribution/diagnostics";
