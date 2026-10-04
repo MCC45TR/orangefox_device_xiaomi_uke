@@ -696,3 +696,16 @@ frozen source inputs. See [the resource policy](../docs/HOST-BUILD-BUDGET.md) an
 [ordered remediation receipts](URE-P1-REMEDIATION-2026-10-04.md) for measured
 small-job results and the still-open full clean/warm Android, PSI/OOM and desktop
 response gates after AUD-023/024.
+
+### Superseding AUD-023 source/host checkpoint
+
+The Android inner namespace now binds the admitted disk scratch, verifies its
+kernel-resolved filesystem and directory identity before the command, and
+retains separate space/inode admission and create/sync evidence. The actual
+production mount recipe allocated a 64 MiB random regular file with zero shmem
+growth and no anonymous-memory increase. Disk page cache is still charged.
+RAM, different-directory and readonly substitutions refused before commands.
+The first mount-list entry was found to describe a shadowed old mount; statfs
+now supplies placement identity, with all target entries retained privately as
+diagnostics. Full clean/warm image and output-closure acceptance remain open.
+See [the ordered remediation receipt](URE-P1-REMEDIATION-2026-10-04.md).

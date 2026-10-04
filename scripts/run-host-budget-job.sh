@@ -17,7 +17,8 @@ maximum=$(jq -r .memory_max_mib "$policy")
 high=$(jq -r .memory_high_mib "$policy")
 systemctl --user set-property --runtime "$unit" "MemoryMax=$((maximum*1048576))" "MemoryHigh=$((high*1048576))"
 [[ $(cat "$cg/memory.max") == $((maximum*1048576)) && $(cat "$cg/memory.high") == $((high*1048576)) ]]
-export UKE_HOST_JOBS GOMAXPROCS GOMEMLIMIT GOGC=40 UKE_HOST_BUDGET_ACTIVE=1
+bash "$component/scripts/host-temp-policy.sh" "$label" /tmp /tmp/host-temp-policy.json > /tmp/host-temp-admitted.json
+export UKE_HOST_JOBS GOMAXPROCS GOMEMLIMIT GOGC=40 UKE_HOST_BUDGET_ACTIVE=1 TMPDIR=/tmp TMP=/tmp TEMP=/tmp
 UKE_HOST_JOBS=$(jq -r .compile_jobs "$policy")
 GOMAXPROCS=$(jq -r .soong_procs "$policy")
 GOMEMLIMIT="$(jq -r .go_heap_mib "$policy")MiB"

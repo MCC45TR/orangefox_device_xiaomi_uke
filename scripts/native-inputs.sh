@@ -30,6 +30,7 @@ cd "$component"
         tests/check-host-builder-patches.sh patches/0028-soong-host-parallelism.patch patches/0029-blueprint-host-parallelism.patch \
         configs/soong-patches.list configs/blueprint-patches.list \
         src/upstream/orangefox-android16/build/blueprint/{bootstrap/{command.go,bootstrap.go},microfactory/microfactory.go}
+    printf '%s\0' scripts/host-temp-policy.sh scripts/with-android-build-environment.sh scripts/run-android-build-job.sh tests/check-host-temp.sh
     printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
     printf '%s\0' tests/installer_test.cpp tests/check-stock-boot-programming.sh scripts/describe-stock-boot-programming.sh manifests/stock-boot-programming-global.json
     printf '%s\0' tests/check-boot-router.sh tests/check-aarch64.sh

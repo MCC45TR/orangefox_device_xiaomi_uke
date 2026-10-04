@@ -20,7 +20,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-014 | Retained runtime lifecycle leases, exact rescue/Btrfs controllers, pause/error cleanup and joined application teardown; eighteen native/eighteen sanitizer controls passed | Fresh target, combined guest, rendered/locale and physical acceptance remain separate; registry is volatile cooperating ownership |
 | AUD-015 | Iterative frontier, global pre-copy entry/memory admission and anonymous deterministic sorted runs; four native/four sanitizer controls plus actual tree CLI interruption/resume passed | Fresh target/combined guest and physical acceptance remain separate; accounted listing budget excludes bounded metadata/index/runtime overhead and RAM-backed scratch remains volatile |
 | AUD-022 | RAM/ancestor headroom reserve, post-lock unit readback, separate compiler/Soong scheduling, reviewed host stacks and measured cold/warm cache/Go controls passed | Full clean/warm Android RSS/PSI/OOM and desktop response remain pending after AUD-023/024; small fixtures do not diagnose the earlier task shutdowns |
-| AUD-023 | Nested disk temporary storage | Pending |
+| AUD-023 | Kernel-resolved private disk identity/space/inode admission across both namespaces; actual 64 MiB write/cache accounting and RAM/substitution/readonly refusals passed | Full clean/warm recovery build and output capacity/immutable closure remain pending; free-space snapshots are not allocation guarantees |
 | AUD-024 | Immutable build-completion evidence | Pending |
 | AUD-025 | Explicit release classes and capability-driven receipts | Pending |
 | AUD-026 | Complete localization input closure | Pending |
@@ -197,3 +197,37 @@ jobs do not establish full clean recovery build safety or desktop response.
 AUD-023 still leaves inner Android temporary storage on tmpfs, and AUD-024 still
 requires immutable build-completion closure. No full Android build or VM/tablet
 acceptance was performed for this host policy checkpoint.
+
+## AUD-023: preserve the disk scratch through Android isolation
+
+The source changes remove the inner tmpfs overlay and reuse one production
+Android namespace helper for both compilation and its host test. The outer
+service, post-lock worker and inner command verify the same private directory
+device/inode, filesystem magic/ID, owner/mode and receipt. TMPDIR/TMP/TEMP use
+that directory. Conservative admission requires 8 GiB for Android or 2 GiB for
+native/sanitizer jobs plus 131,072 free inodes on fixed-count filesystems.
+Known Btrfs zero counts are dynamic, with a real small create/write/filesystem
+sync/unlink check. Unsupported/RAM/network/overlay filesystems, bad accounting,
+low capacity, altered proof, readonly mounts and directory substitution refuse.
+
+Frozen native-input manifest SHA-256:
+`55bc8d47c4c96c9a80388530f46f4ff7c5728198a0bf2ceaff8b31abb612abcf`.
+The actual nested Btrfs fixture allocated a 67,108,864-byte random file; charged
+file cache and filesystem available-space drop were each 67,117,056 bytes at
+the measured snapshots. Anonymous memory changed by -4,096 bytes and shmem by
+zero. The owned service recorded 73,277,440 peak charged bytes, 4,664 KiB command
+RSS, 0.52 seconds and zero OOM counters. Disk scratch still consumes charged
+cache; unrelated filesystem work can affect aggregate free-space snapshots.
+Actual tmpfs, different disk and readonly substitution controls all refused
+before their sentinel commands. Existing host reserve/cache and exact pinned
+Blueprint compile/runtime controls passed again without input changes.
+
+The first trial's `findmnt --first-only` reported a shadowed old tmpfs although
+the resolved path's statfs and directory identity were Btrfs. That conservative
+false refusal is retained privately. Kernel statfs magic now determines actual
+placement; the receipt retains all target mount entries as diagnostics rather
+than treating the first entry as identity. The corrected bounded fixture also
+synchronizes before filesystem availability accounting. Source/host AUD-023
+supersedes the temporary-storage limitation at the earlier AUD-022 checkpoint.
+No full Android image, combined VM or tablet acceptance is claimed. AUD-024
+must still prevent stale build/output evidence before the complete build.

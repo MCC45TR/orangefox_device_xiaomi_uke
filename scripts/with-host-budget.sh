@@ -10,13 +10,14 @@ shift
 [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]] || {
     echo 'Nested heavy-job admission refused; the existing service already owns the job lock.' >&2; exit 1;
 }
-for command in systemd-run systemctl bwrap flock taskset ccache jq; do command -v "$command" >/dev/null; done
+for command in systemd-run systemctl bwrap flock taskset ccache jq stat sync; do command -v "$command" >/dev/null; done
 [[ $(stat -fc %T /sys/fs/cgroup) == cgroup2fs ]]
 mkdir -p "$component/build/host-budget" "$component/reports/private"
 chmod 0700 "$component/build/host-budget"
 scratch=$(mktemp -d "$component/build/host-budget/$label-XXXXXX")
 unit="uke-recovery-$label-${scratch##*-}"
 unit=${unit,,}
+bash "$component/scripts/host-temp-policy.sh" "$label" "$scratch" > "$scratch/host-temp-policy.json"
 bash "$component/scripts/host-budget-policy.sh" "$label" > "$scratch/initial-policy.json"
 affinity=$(jq -r .affinity "$scratch/initial-policy.json")
 [[ $affinity =~ ^[0-9]+(,[0-9]+)*$ ]]
