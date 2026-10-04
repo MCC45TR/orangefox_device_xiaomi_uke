@@ -180,6 +180,9 @@ std::string storage_image_range_digest(int fd, std::uint64_t offset, std::uint64
 void storage_copy_image_range(int source, int destination, std::uint64_t offset, std::uint64_t bytes);
 Value stock_image_inspect(int source);
 Value stock_image_expand(int source, int fresh_private_destination, bool zero_sparse_holes);
+Value stock_boot_programming_inspect(int source, std::string_view name, std::string_view profile, std::uint64_t capacity);
+Value stock_boot_programming_expand(int source, int fresh_private_destination, std::string_view name, std::string_view profile, std::uint64_t capacity);
+Value stock_boot_partition_inspect(int target, std::uint64_t offset, std::uint64_t capacity, std::string_view name, std::string_view profile);
 Value stock_job_plan(const Value& request);
 Value stock_job_execute(const Value& plan, const fs::path& journal, const std::string& confirmation);
 Value stock_job_recover(const fs::path& journal, const std::string& action, const std::string& confirmation = {});

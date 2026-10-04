@@ -2,6 +2,7 @@
 // Regular-image range digests and private Android sparse expansion. A kernel
 // hole describes logical zero bytes; it never authorizes skipped UFS writes.
 #include "uke.h"
+#include "../install_policy.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -149,6 +150,60 @@ Value sparse(int source,int destination,bool zero_holes) {
     result["expanded_digest_algorithm"]="ure-image-range-sha256-tree-v1"; result["expanded_digest"]=logical.finish();
     result["structure_verified"]=true; result["declared_checksums_verified"]=true; result["physical_test_record"]=false; return result;
 }
+const uke::StockImage& boot_pin(std::string_view name,std::string_view profile,std::uint64_t capacity) {
+    require(profile=="global-os3.0.303.0","wrong-profile","Whole boot programming requires the separately reviewed Global OS3 source profile");
+    for(const auto& pin:uke::global_stock)if(name==pin.name) {
+        require(capacity==pin.partition_bytes,"stock-capacity-mismatch","Whole boot programming requires the exact reviewed partition capacity"); return pin;
+    }
+    throw Error("protected-stock-payload","No whole-partition programming policy exists for this payload");
+}
+Value boot_program(int source,int destination,std::string_view name,std::string_view profile,std::uint64_t capacity) {
+    const auto& pin=boot_pin(name,profile,capacity); struct stat input{},output{};
+    require(::fstat(source,&input)==0 && S_ISREG(input.st_mode) && input.st_nlink==1 && input.st_size>=0 &&
+        static_cast<std::uint64_t>(input.st_size)==pin.source_bytes && sha256(source)==pin.source_sha256,
+        "stock-source-mismatch","Whole boot source differs from its reviewed raw bytes and SHA-256");
+    if(destination>=0) {
+        require(::fstat(destination,&output)==0 && (input.st_dev!=output.st_dev || input.st_ino!=output.st_ino),
+            "unsafe-stage-image","Source and private replacement must be distinct files");
+    }
+    require(pin.partition_bytes>=pin.source_bytes && (pin.source_bytes==pin.partition_bytes ||
+        (std::string_view(pin.programming_layout)=="aosp-fastboot-copy-avb-footer" && pin.source_bytes>=64 && pin.partition_bytes-pin.source_bytes>=64)),
+        "invalid-stock-policy","Reviewed boot layout is inconsistent");
+    const auto footer=pin.source_bytes==pin.partition_bytes ? std::string() : storage_read(source,pin.source_bytes-64,64);
+    require(footer.empty() || footer.starts_with("AVBf"),"stock-source-mismatch","Reviewed DTBO footer magic differs");
+    if(destination>=0)fresh(destination,pin.partition_bytes);
+    Digest raw,source_digest; LogicalTree logical(pin.partition_bytes); std::uint64_t written=0;
+    const auto emit=[&](std::string_view data) {
+        raw.add(data); logical.add(data);
+        if(destination>=0 && std::any_of(data.begin(),data.end(),[](char byte) { return byte!=0; }))write(destination,written,data);
+        written+=data.size();
+    };
+    for(std::uint64_t at=0;at<pin.source_bytes;) {
+        const auto data=storage_read(source,at,static_cast<std::size_t>(std::min<std::uint64_t>(65536,pin.source_bytes-at)));
+        source_digest.add(data); emit(data); at+=data.size();
+    }
+    const std::string zeros(65536,'\0'); const auto gap=pin.partition_bytes-pin.source_bytes-footer.size();
+    for(std::uint64_t at=0;at<gap;) {
+        const auto bytes=static_cast<std::size_t>(std::min<std::uint64_t>(zeros.size(),gap-at)); emit(std::string_view(zeros).substr(0,bytes)); at+=bytes;
+    }
+    if(!footer.empty())emit(footer);
+    require(written==pin.partition_bytes && source_digest.finish()==pin.source_sha256 && regular(source)==pin.source_bytes,
+        "stale-source","Reviewed boot source changed during programming");
+    const auto digest=logical.finish(),whole=raw.finish();
+    require(whole==pin.partition_sha256,"invalid-stock-policy","Programmed whole partition differs from the reviewed canonical digest");
+    if(destination>=0) {
+        require(::fsync(destination)==0,"io-error","Cannot synchronize the private whole-boot replacement");
+        require(sha256(destination)==whole && storage_image_range_digest(destination,0,pin.partition_bytes)==digest,
+            "verification-error","Private whole-boot replacement readback differs");
+    }
+    Value result; result["schema"]=1; result["format"]="ure-reviewed-stock-boot-programming";
+    result["name"]=std::string(name); result["firmware_profile"]=std::string(profile); result["encoding"]="raw";
+    result["source_bytes"]=Json::UInt64(pin.source_bytes); result["source_sha256"]=pin.source_sha256;
+    result["expanded_bytes"]=Json::UInt64(pin.partition_bytes); result["partition_sha256"]=whole; result["programming_layout"]=pin.programming_layout;
+    result["expanded_digest_algorithm"]="ure-image-range-sha256-tree-v1"; result["expanded_digest"]=digest;
+    result["dont_care_bytes"]=Json::UInt64(0); result["whole_partition_source_layout_verified"]=true;
+    result["android_boot_compatibility_verified"]=false; result["physical_test_record"]=false; return result;
+}
 } // namespace
 
 std::string storage_image_range_digest(int fd,std::uint64_t offset,std::uint64_t bytes) {
@@ -197,5 +252,21 @@ Value stock_image_expand(int source,int destination,bool zero_holes) {
     const auto bytes=regular(source); require(bytes>0 && bytes<=maximum,"invalid-image","Stock image size is invalid");
     if(bytes>=4 && le(storage_read(source,0,4),0,4)==0xed26ff3aU)return sparse(source,destination,zero_holes);
     auto result=stock_image_inspect(source); storage_copy_image_range(source,destination,0,bytes); return result;
+}
+Value stock_boot_programming_inspect(int source,std::string_view name,std::string_view profile,std::uint64_t capacity) {
+    return boot_program(source,-1,name,profile,capacity);
+}
+Value stock_boot_programming_expand(int source,int destination,std::string_view name,std::string_view profile,std::uint64_t capacity) {
+    return boot_program(source,destination,name,profile,capacity);
+}
+Value stock_boot_partition_inspect(int target,std::uint64_t offset,std::uint64_t capacity,std::string_view name,std::string_view profile) {
+    const auto& pin=boot_pin(name,profile,capacity); bounds(target,offset,capacity); Digest raw;
+    for(std::uint64_t at=0;at<capacity;) {
+        const auto data=storage_read(target,offset+at,static_cast<std::size_t>(std::min<std::uint64_t>(65536,capacity-at))); raw.add(data); at+=data.size();
+    }
+    Value result; result["name"]=std::string(name); result["firmware_profile"]=std::string(profile); result["bytes"]=Json::UInt64(capacity);
+    result["expected_sha256"]=pin.partition_sha256; result["observed_sha256"]=raw.finish(); result["programming_layout"]=pin.programming_layout;
+    result["full_partition_layout_matches_reviewed_profile"]=result["observed_sha256"]==result["expected_sha256"];
+    result["android_boot_compatibility_verified"]=false; result["physical_test_record"]=false; return result;
 }
 } // namespace ure

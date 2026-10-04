@@ -12,7 +12,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-004 | Volatile writer removed; persistent regular-image installer, atomic first records, interrupted preparation recovery, exact fallback/plan/path binding and checked terminal fsync; five native and five sanitizer controls passed | Fresh target/combined guest; live installation explicitly unavailable pending physical fallback and durability admission |
 | AUD-005 | Common process-independent host ownership, explicit compound delegation, durable exact retirement, retained tree/stream recovery and shared lifecycle/control callbacks; native/sanitizer and CLI controls passed | Fresh target/combined guest; Android coordinator and physical durability unaccepted; rescue aggregate resources and GUI worker ownership follow in AUD-012–014 |
 | AUD-006 | Bounded exact model/SKU/firmware and six-LUN declaration comparator; unit-bound original GUID backups, complete A/B boot declarations, stable profile blockers and early live preflight refusal; three native and three sanitizer controls plus JSON CLI checks passed | Fresh target/combined guest; no live profile accepted because the OS2 stock inventory lacks full physical GPT/geometry and boot/fallback evidence |
-| AUD-007 | Prefix versus complete boot-layout restoration | Pending |
+| AUD-007 | Explicit exact-profile whole boot programming; default preserved tails, separate full-layout results, complete DTBO-tail mirrors, legacy/offline recovery and actual host SIGKILL; focused native/sanitizer, CLI and independent catalog controls passed | Fresh target/combined guest; installed Android boot trust, unit geometry and physical durability remain unaccepted |
 | AUD-009 | Explicit image/live repartition capabilities | Pending |
 | AUD-010 | Populated, fragmented and damaged filesystem oracles | Pending |
 | AUD-012 | Aggregate rescue resource envelope | Pending |
@@ -69,3 +69,15 @@ checks. Complete regression totals and subsequent affected receipts remain
 separate; a fresh complete release receipt is not inferred from an interrupted
 script followed by targeted checks. Every device effect in lifecycle fixtures
 was mocked; no host block device or connected tablet was accessed.
+
+AUD-007's three-control sets passed native in 58.90 seconds and pinned Clang
+ASan/UBSan/leak checks in 156.66 seconds. Native and instrumented CLI checks
+passed, as did the independent five-image programming catalog. Subsequent
+explicit missing/end-shifted-footer and truncation fixture controls passed
+native in 2.42 seconds and instrumented in 2.79 seconds; only that test source
+changed between the frozen input manifests.
+The final matching implementation and the existing stock/GUI controls did not
+change. A successful prefix write can report a noncanonical preserved tail;
+whole programming requires the complete compiled layout before commit. Both
+keep boot-ready and Android-compatibility results false. These focused receipts
+do not constitute a fresh target, complete release or combined VM acceptance.

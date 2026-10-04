@@ -65,8 +65,13 @@ requires exact model/SKU/firmware and measured partition evidence; do not infer
 that a rejected device needs rewriting. The unsigned embedded DTBO vbmeta does
 not establish installed AVB, KeyMint/TEE or Android encryption trust.
 
-The six-LUN image coordinator separately programs selected OEM source extents
-and protects existing tails. Its image success is not proof that a protected
-tail satisfies this stricter canonical boot-programming check or boots Android.
+The six-LUN image coordinator defaults to selected OEM source extents and
+protected tails. It now offers an explicit reviewed whole-boot layout policy
+for the five compiled boot payloads at their exact pinned capacities. DTBO then
+includes its canonical gap and final footer, with all original tail bytes backed
+up for rollback. Both modes report complete selected boot-layout checks
+separately from programmed-range verification. A prefix job may commit while
+reporting a noncanonical protected tail. Neither image success nor a matching
+whole source layout proves installed-firmware trust or Android boot acceptance.
 See [the image contract](STOCK-IMAGE-RESTORE.md) and the accompanying
 [preflight build report](../reports/URE-STOCK-PREFLIGHT-BUILD.md).

@@ -95,6 +95,54 @@ int main(int argc,char** argv) {
             check(ure::sha256(metadata.get())=="999f892b89a9b4dcbcdc54e4d1e5dd85f4edc1cefe2606dcb960824e97e81c18" && observed["encoding"]=="android-sparse-v1" && observed["expanded_bytes"].asUInt64()==64*1024*1024,"Pinned OEM metadata source or expansion differs");
             auto stock_out=fresh(work/"metadata-expanded.img"); const auto result=ure::stock_image_expand(metadata.get(),stock_out.get(),true);
             check(ure::json(result)==ure::json(observed) && ure::storage_bytes(stock_out.get())==64*1024*1024 && observed["expanded_digest"].asString()==ure::storage_image_range_digest(stock_out.get(),0,64*1024*1024),"OEM metadata expansion lost logical-byte binding");
+            for(const auto* name:{"dtbo","init_boot"}) {
+                const uke::StockImage* policy=nullptr; for(const auto& pin:uke::global_stock)if(std::string_view(name)==pin.name)policy=&pin;
+                check(policy!=nullptr,"Missing boot fixture pin"); auto source_boot=input.open(std::string(name)+".img",O_RDONLY);
+                auto canonical=fresh(work/(std::string(name)+"-whole.img"));
+                const auto preview=ure::stock_boot_programming_inspect(source_boot.get(),name,"global-os3.0.303.0",policy->partition_bytes);
+                const auto programmed=ure::stock_boot_programming_expand(source_boot.get(),canonical.get(),name,"global-os3.0.303.0",policy->partition_bytes);
+                check(ure::json(preview)==ure::json(programmed) && ure::sha256(canonical.get())==policy->partition_sha256 &&
+                    ure::storage_image_range_digest(canonical.get(),0,policy->partition_bytes)==programmed["expanded_digest"].asString(),"Virtual and private whole boot layouts differ");
+                check(ure::stock_boot_partition_inspect(canonical.get(),0,policy->partition_bytes,name,"global-os3.0.303.0")["full_partition_layout_matches_reviewed_profile"]==true &&
+                    programmed["android_boot_compatibility_verified"]==false,"Whole boot inspection lost its bounded source-only scope");
+                auto untouched=fresh(work/(std::string(name)+"-refusal.img"));
+                reject([&]{ure::stock_boot_programming_expand(source_boot.get(),untouched.get(),name,"cn-os3.0.302.0",policy->partition_bytes);},"wrong-profile");
+                reject([&]{ure::stock_boot_programming_expand(source_boot.get(),untouched.get(),name,"global-os3.0.303.0",policy->partition_bytes+4096);},"stock-capacity-mismatch");
+                reject([&]{ure::stock_boot_programming_expand(raw.get(),untouched.get(),name,"global-os3.0.303.0",policy->partition_bytes);},"stock-source-mismatch");
+                check(ure::storage_bytes(untouched.get())==0,"A refused whole-boot request wrote its replacement");
+                reject([&]{ure::stock_boot_programming_expand(source_boot.get(),source_boot.get(),name,"global-os3.0.303.0",policy->partition_bytes);},"unsafe-stage-image");
+                reject([&]{ure::stock_boot_programming_expand(source_boot.get(),canonical.get(),name,"global-os3.0.303.0",policy->partition_bytes);},"unsafe-stage-image");
+                check(ure::sha256(canonical.get())==policy->partition_sha256,"A reused replacement was changed on refusal");
+                if(std::string_view(name)=="dtbo") {
+                    const auto original=ure::bounded_read(ure::fs::path(argv[1])/"dtbo.img",policy->source_bytes); auto expected=original;
+                    expected.resize(static_cast<std::size_t>(policy->partition_bytes), '\0'); expected.replace(expected.size()-64,64,original.substr(original.size()-64));
+                    check(ure::sha256(expected)==policy->partition_sha256,"Independent DTBO layout differs from the compiled pin");
+                    for(std::size_t at=0;at<expected.size();) {
+                        const auto bytes=std::min<std::size_t>(65536,expected.size()-at);
+                        check(ure::storage_read(canonical.get(),at,bytes)==std::string_view(expected).substr(at,bytes),"DTBO differs from an independent exact source, zero-gap and duplicate-footer oracle"); at+=bytes;
+                    }
+                    for(const auto at:{policy->source_bytes-1,policy->source_bytes,policy->source_bytes+4096,policy->partition_bytes-65,policy->partition_bytes-64,policy->partition_bytes-1}) {
+                        const auto byte=ure::storage_read(canonical.get(),at,1); put_bytes(canonical.get(),std::string(1,static_cast<char>(byte[0]^1)),at);
+                        check(ure::stock_boot_partition_inspect(canonical.get(),0,policy->partition_bytes,name,"global-os3.0.303.0")["full_partition_layout_matches_reviewed_profile"]==false,"DTBO corruption escaped whole-partition verification");
+                        put_bytes(canonical.get(),byte,at);
+                    }
+                    const auto final_footer=original.substr(original.size()-64);
+                    put_bytes(canonical.get(),std::string(64,'\0'),policy->partition_bytes-64);
+                    check(ure::stock_boot_partition_inspect(canonical.get(),0,policy->partition_bytes,name,"global-os3.0.303.0")["full_partition_layout_matches_reviewed_profile"]==false,"Missing final AVB footer was accepted");
+                    put_bytes(canonical.get(),final_footer,policy->partition_bytes-128);
+                    check(ure::stock_boot_partition_inspect(canonical.get(),0,policy->partition_bytes,name,"global-os3.0.303.0")["full_partition_layout_matches_reviewed_profile"]==false,"End-shifted AVB footer was accepted");
+                    put_bytes(canonical.get(),std::string(64,'\0'),policy->partition_bytes-128); put_bytes(canonical.get(),final_footer,policy->partition_bytes-64);
+                    check(::ftruncate(canonical.get(),static_cast<off_t>(policy->partition_bytes-1))==0,"Cannot truncate whole-layout fixture");
+                    reject([&]{ure::stock_boot_partition_inspect(canonical.get(),0,policy->partition_bytes,name,"global-os3.0.303.0");},"invalid-image-range");
+                    check(::ftruncate(canonical.get(),static_cast<off_t>(policy->partition_bytes))==0,"Cannot restore whole-layout fixture size");
+                    put_bytes(canonical.get(),final_footer,policy->partition_bytes-64);
+                    reject([&]{ure::stock_boot_partition_inspect(canonical.get(),UINT64_MAX,policy->partition_bytes,name,"global-os3.0.303.0");},"invalid-image-range");
+                    auto corrupt_source=fresh(work/"corrupt-dtbo-source.img"); put_bytes(corrupt_source.get(),original); put_bytes(corrupt_source.get(),"Q",policy->source_bytes-64);
+                    reject([&]{ure::stock_boot_programming_expand(corrupt_source.get(),untouched.get(),name,"global-os3.0.303.0",policy->partition_bytes);},"stock-source-mismatch");
+                    check(ure::storage_bytes(untouched.get())==0,"Corrupt source changed the replacement before admission");
+                }
+            }
+            reject([&]{ure::stock_boot_programming_inspect(raw.get(),"userdata","global-os3.0.303.0",4096);},"protected-stock-payload");
         }
         if(argc>=3) {
             const auto catalog=ure::parse_json(ure::bounded_read(argv[2],65536)); check(catalog["payloads"].size()==std::size(ure::stock_source::global),"Source catalog and native pin counts differ");

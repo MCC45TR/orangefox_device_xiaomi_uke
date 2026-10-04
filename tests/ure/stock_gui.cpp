@@ -27,7 +27,7 @@ int main(int argc,char** argv) {
         const auto before=digests(images); GUIAction action;
         for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_stock_job_model","poco-pad-x1"},{"ure_stock_job_sku","fixture-declared"},
             {"ure_stock_inputs",(images/"inputs").string()},{"ure_stock_job_images",images.string()},{"ure_stock_job_originals",""},
-            {"ure_stock_job_boot","0"},{"ure_stock_job_slots","a"},{"ure_stock_job_super","0"},{"ure_stock_job_reset","0"},{"ure_stock_job_zero","0"},{"ure_journal_parent",work.string()}})
+            {"ure_stock_job_boot","0"},{"ure_stock_job_slots","a"},{"ure_stock_job_super","0"},{"ure_stock_job_reset","0"},{"ure_stock_job_zero","0"},{"ure_stock_job_whole_boot","0"},{"ure_journal_parent",work.string()}})
             DataManager::SetValue(key,text);
         check(action.uremanager("stock-job-plan")==0 && value("ure_stock_job_hash").size()==64 && value("ure_stock_job_can_execute")=="1","Actual GUI did not review all six LUNs");
         check(value("ure_stock_job_summary").find("LUN 5:")!=std::string::npos && value("ure_stock_job_summary").find("Required journal space")!=std::string::npos,"GUI summary omitted a LUN or staging budget");
@@ -35,6 +35,12 @@ int main(int argc,char** argv) {
         check(action.uremanager("stock-job-execute")==1 && value("ure_stock_job_hash").empty() && digests(images)==before,"Changed SKU reused a GUI confirmation");
         DataManager::SetValue("ure_stock_job_sku","fixture-declared"); DataManager::SetValue("ure_stock_job_boot","1");
         check(action.uremanager("stock-job-plan")==0 && ure::parse_json(value("ure_output"))["request"]["payloads"].size()==7,"GUI slot A boot set omitted an OS image");
+        DataManager::SetValue("ure_stock_job_whole_boot","1");
+        check(action.uremanager("stock-job-execute")==1 && value("ure_stock_job_hash").empty() && digests(images)==before,"Changed boot layout policy reused a GUI confirmation");
+        check(action.uremanager("stock-job-plan")==0 && value("ure_stock_job_summary").find("reviewed-whole-partition")!=std::string::npos,"GUI omitted explicit whole boot layout review");
+        const auto whole=ure::parse_json(value("ure_output"));
+        for(const auto& row:whole["regions"])if(row["name"]=="dtbo_a")check(row["bytes"].asUInt64()==24*1024*1024 && row["programmed_observation"]["whole_partition_source_layout_verified"]==true,"GUI whole layout remained a prefix plan");
+        DataManager::SetValue("ure_stock_job_whole_boot","0");
         DataManager::SetValue("ure_stock_job_slots","both"); check(action.uremanager("stock-choice-changed")==0 && value("ure_stock_job_hash").empty(),"Slot selector did not invalidate review");
         check(action.uremanager("stock-job-plan")==0 && ure::parse_json(value("ure_output"))["request"]["payloads"].size()==14,"GUI both-slot boot set was incomplete");
         DataManager::SetValue("ure_stock_job_boot","0"); DataManager::SetValue("ure_stock_job_reset","1");

@@ -93,7 +93,10 @@ int main(int argc,char** argv) {
         }
         auto request=fixture(original,work/"payload"); payload(request,4,"dtbo_a","dtbo.img"); payload(request,4,"vbmeta_a","vbmeta.img"); payload(request,0,"vbmeta_system_a","vbmeta_system.img");
         const auto before=digests(request); const auto plan=ure::stock_job_plan(request); const auto journal=work/"payload/job";
-        check(ure::stock_job_execute(plan,journal,plan["plan_sha256"].asString())["state"]=="COMMITTED","Selected stock OS contents did not commit");
+        const auto prefix_result=ure::stock_job_execute(plan,journal,plan["plan_sha256"].asString());
+        check(prefix_result["state"]=="COMMITTED" && prefix_result["selected_programming_ranges_verified"]==true &&
+            prefix_result["full_partition_layout_matches_reviewed_profile"]==false && prefix_result["boot_ready_verified"]==false,
+            "Prefix restore confused a verified payload with a whole DTBO layout or boot acceptance");
         for(const auto& row:plan["regions"])if(row["role"]=="payload") {
             auto target=ure::storage_image(request["luns"][row["lun"].asUInt()]["image"].asString(),4096);
             const auto check_path=work/("verify-"+row["name"].asString()+".img"); ure::Fd verified(::open(check_path.c_str(),O_RDWR|O_CREAT|O_EXCL,0600));
@@ -106,7 +109,47 @@ int main(int argc,char** argv) {
         check(ure::stock_job_recover(journal,"inspect")["classification"]=="TARGET_CONTENT_VERIFIED","Offline stock inspection failed");
         ure::stock_job_recover(journal,"rollback",plan["plan_sha256"].asString()); unchanged(request,before);
         ure::fs::rename(work/"payload/offline-inputs",work/"payload/inputs");
+        // Previously created schema-1 prefix journals remain recoverable. A new
+        // choice cannot reinterpret an old 20 MiB extent as a whole partition.
+        auto legacy=ure::stock_job_plan(request); legacy["request"].removeMember("boot_payload_layout");
+        for(auto& row:legacy["regions"]) { row.removeMember("programming_scope"); row.removeMember("programmed_observation"); }
+        reseal(legacy); const auto legacy_journal=work/"payload/legacy-job";
+        check(ure::stock_job_execute(legacy,legacy_journal,legacy["plan_sha256"].asString())["full_partition_layout_matches_reviewed_profile"]==false,"Legacy prefix plan changed its tail policy");
+        ure::stock_job_recover(legacy_journal,"rollback",legacy["plan_sha256"].asString()); unchanged(request,before);
+        auto whole_request=fixture(original,work/"whole"); payload(whole_request,4,"dtbo_a","dtbo.img"); payload(whole_request,4,"vbmeta_a","vbmeta.img");
+        whole_request["boot_payload_layout"]="reviewed-whole-partition"; const auto whole_before=digests(whole_request); const auto whole_plan=ure::stock_job_plan(whole_request);
+        check(whole_plan["regions"][0]["bytes"].asUInt64()==24*1024*1024 && whole_plan["regions"][1]["programming_scope"]=="source-payload-range",
+            "Whole boot policy changed unrelated payload extents or left DTBO at 20 MiB");
+        auto forged=whole_plan; forged["regions"][0]["programmed_observation"]["partition_sha256"]=std::string(64,'1'); reseal(forged);
+        reject([&]{ure::stock_job_execute(forged,work/"wrong-layout-pin",forged["plan_sha256"].asString());},"invalid-stock-plan"); unchanged(whole_request,whole_before);
+        const auto whole_journal=work/"whole/job"; const auto whole_result=ure::stock_job_execute(whole_plan,whole_journal,whole_plan["plan_sha256"].asString());
+        check(whole_result["state"]=="COMMITTED" && whole_result["full_partition_layout_matches_reviewed_profile"]==true &&
+            whole_result["boot_ready_verified"]==false && whole_result["android_boot_compatibility_verified"]==false,"Whole source layout overclaimed tablet boot acceptance");
+        const auto& whole_row=whole_plan["regions"][0];
+        auto whole_target=ure::storage_image(whole_request["luns"][4]["image"].asString(),4096,true);
+        const auto whole_offset=whole_row["offset"].asUInt64();
+        ure::Root whole_inputs(work/"whole/inputs"); auto dtbo_source=whole_inputs.open("dtbo.img",O_RDONLY);
+        check(ure::storage_read(whole_target.descriptor.get(),whole_offset+20*1024*1024,14)==std::string(14,'\0') &&
+            ure::storage_read(whole_target.descriptor.get(),whole_offset+24*1024*1024-64,64)==ure::storage_read(dtbo_source.get(),20*1024*1024-64,64),
+            "Whole stock job differs from independent gap/footer byte oracles");
+        ure::fs::rename(work/"whole/inputs",work/"whole/offline-inputs");
+        check(ure::stock_job_recover(whole_journal,"inspect")["full_partition_layout_matches_reviewed_profile"]==true,"Offline inspection lost canonical layout verification");
+        ure::stock_job_recover(whole_journal,"rollback",whole_plan["plan_sha256"].asString()); unchanged(whole_request,whole_before);
+        // A prefix write into an already canonical tail reports the matching
+        // whole layout without claiming that the prefix job produced the tail.
+        const auto canonical=work/"whole/canonical.img"; ure::Fd canonical_fd(::open(canonical.c_str(),O_RDWR|O_CREAT|O_EXCL,0600));
+        ure::stock_boot_programming_expand(dtbo_source.get(),canonical_fd.get(),"dtbo","global-os3.0.303.0",24*1024*1024);
+        for(std::uint64_t at=20*1024*1024;at<24*1024*1024;) {
+            const auto data=ure::storage_read(canonical_fd.get(),at,static_cast<std::size_t>(std::min<std::uint64_t>(65536,24*1024*1024-at)));
+            write_bytes(whole_target.descriptor.get(),data,whole_offset+at); at+=data.size();
+        }
+        ure::fs::rename(work/"whole/offline-inputs",work/"whole/inputs"); whole_request["boot_payload_layout"]="preserve-tail";
+        const auto canonical_tail_before=digests(whole_request); const auto prefix_with_good_tail=ure::stock_job_plan(whole_request); const auto good_tail_journal=work/"whole/good-tail-job";
+        check(ure::stock_job_execute(prefix_with_good_tail,good_tail_journal,prefix_with_good_tail["plan_sha256"].asString())["full_partition_layout_matches_reviewed_profile"]==true,
+            "Canonical preserved tail was incorrectly reported as a layout mismatch");
+        ure::stock_job_recover(good_tail_journal,"rollback",prefix_with_good_tail["plan_sha256"].asString()); unchanged(whole_request,canonical_tail_before);
         auto bad=request; bad["model"]="unverified-donor"; reject([&]{ure::stock_job_plan(bad);},"invalid-stock-request");
+        bad=request; bad["boot_payload_layout"]="zero-all-tails"; reject([&]{ure::stock_job_plan(bad);},"invalid-stock-request");
         bad=request; bad["firmware_profile"]="cn-os3.0.302.0"; reject([&]{ure::stock_job_plan(bad);},"wrong-profile");
         bad=request; bad["luns"].resize(5); reject([&]{ure::stock_job_plan(bad);},"invalid-stock-request");
         bad=request; bad["luns"][5]["image"]=bad["luns"][0]["image"]; reject([&]{ure::stock_job_plan(bad);},"duplicate-stock-lun");
@@ -126,6 +169,33 @@ int main(int argc,char** argv) {
         reject([&]{ure::stock_job_execute(fresh_plan,work/"bad-source",fresh_plan["plan_sha256"].asString());},"stock-source-mismatch"); unchanged(request,before);
         check(ure::stock_job_recover(work/"bad-source","inspect")["classification"]=="ORIGINAL","Failed staging changed a LUN");
         check(ure::stock_job_recover(work/"bad-source","cancel",fresh_plan["plan_sha256"].asString())["state"]=="CANCELLED_SAFE","Failed staging could not be cancelled"); write_bytes(source_fd.get(),original_byte,0);
+        // Kill after actual writes have entered the former DTBO tail. The next
+        // selected payload keeps a real writer alive while the parent observes
+        // the tail; this is not an assertion about one physical sector timing.
+        auto tail_request=fixture(original,work/"tail-interrupted"); tail_request["boot_payload_layout"]="reviewed-whole-partition";
+        payload(tail_request,4,"dtbo_a","dtbo.img"); payload(tail_request,4,"boot_a","boot.img");
+        auto tail_target=ure::storage_image(tail_request["luns"][4]["image"].asString(),4096,true); std::uint64_t tail_offset=0;
+        const auto tail_gpt=ure::gpt_inspect(tail_target.descriptor.get(),4096);
+        for(const auto& row:tail_gpt["partitions"])if(row["label"]=="dtbo_a")tail_offset=row["start_lba"].asUInt64()*4096+20*1024*1024;
+        check(tail_offset>0,"Missing interrupted tail fixture extent"); write_bytes(tail_target.descriptor.get(),std::string(4*1024*1024,'T'),tail_offset);
+        const auto tail_before=digests(tail_request); const auto tail_plan=ure::stock_job_plan(tail_request); const auto tail_journal=work/"tail-interrupted/job";
+        const auto tail_child=::fork(); check(tail_child>=0,"Cannot fork tail interruption fixture");
+        if(tail_child==0) { try { ure::stock_job_execute(tail_plan,tail_journal,tail_plan["plan_sha256"].asString()); ::_exit(0); } catch(...) { ::_exit(2); } }
+        bool tail_killed=false; int tail_status=0;
+        for(unsigned attempt=0;attempt<30000;++attempt) {
+            if(ure::storage_read(tail_target.descriptor.get(),tail_offset,1)==std::string(1,'\0')) {
+                check(::kill(tail_child,SIGKILL)==0,"Cannot stop writer after DTBO tail programming"); tail_killed=true; break;
+            }
+            if(::waitpid(tail_child,&tail_status,WNOHANG)==tail_child)break;
+            ::usleep(1000);
+        }
+        check(tail_killed,"Did not observe actual DTBO tail writes before the child ended");
+        check(::waitpid(tail_child,&tail_status,0)==tail_child && WIFSIGNALED(tail_status) && WTERMSIG(tail_status)==SIGKILL,"Tail writer was not killed");
+        ure::fs::rename(work/"tail-interrupted/inputs",work/"tail-interrupted/offline-inputs");
+        check(ure::stock_job_recover(tail_journal,"inspect")["before_and_after_verified"]==true,"Offline tail recovery lost complete original/replacement mirrors");
+        const auto tail_resumed=ure::stock_job_recover(tail_journal,"resume",tail_plan["plan_sha256"].asString());
+        check(tail_resumed["state"]=="COMMITTED" && tail_resumed["full_partition_layout_matches_reviewed_profile"]==true && tail_resumed["boot_ready_verified"]==false,"Interrupted full layout did not resume or overclaimed boot acceptance");
+        ure::stock_job_recover(tail_journal,"rollback",tail_plan["plan_sha256"].asString()); unchanged(tail_request,tail_before);
         // Kill a real child after a payload write has durably begun.
         auto interrupted=fixture(original,work/"interrupted"); payload(interrupted,4,"boot_a","boot.img"); const auto original_digests=digests(interrupted); const auto pending=ure::stock_job_plan(interrupted);
         const auto interrupted_journal=work/"interrupted/job"; const auto child=::fork(); check(child>=0,"Cannot fork interruption fixture");

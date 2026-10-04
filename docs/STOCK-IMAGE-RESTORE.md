@@ -26,8 +26,16 @@ The upstream format and zero treatment used for checksum verification are
 documented in [AOSP libsparse](https://android.googlesource.com/platform/system/core/+/5fa5708025843fe24566401025d830f05a3a39e2/libsparse/sparse_read.cpp).
 
 Source bytes, decoded programming bytes and destination capacity are distinct.
-The pinned DTBO file is 20 MiB; its stock partition is 24 MiB. The remaining
-4 MiB stays protected. The sparse userdata image decodes to exactly 45 GiB.
+The pinned DTBO file is 20 MiB; its stock partition is 24 MiB. With the default
+`boot_payload_layout: "preserve-tail"`, the remaining 4 MiB stays protected.
+With explicitly selected `"reviewed-whole-partition"`, the five reviewed boot
+payloads use their complete, exact pinned partition capacities. DTBO preserves
+the exact 20 MiB source, adds the reviewed zero gap and duplicates its 64-byte
+AVB footer at the end of the 24 MiB partition. This mode does not extend vbmeta,
+super, userdata or any other payload. Unknown profiles, capacities and layouts
+are refused before replacement preparation or target effects.
+
+The sparse userdata image decodes to exactly 45 GiB.
 This is its programming extent, not a measurement of the tablet's capacity.
 
 Only these destinations are supported:
@@ -44,6 +52,26 @@ require a paired data-loss choice. Sparse DONT_CARE ranges require explicit
 zero policy and are zeroed inside the reviewed programming extent. A larger
 userdata tail stays protected: this is not secure erasure or proof of Android
 FBE/boot compatibility. Slot destinations never switch the active boot slot.
+
+Source decoding and whole programming have separate observations and digests.
+A private fresh single-link replacement is streamed with 64 KiB buffers and
+verified against both the complete logical tree and the compiled whole-partition
+SHA-256. No generic tail padding or erase policy exists. Full DTBO programming
+backs up all 24 MiB, including arbitrary original tail bytes, for exact rollback.
+Its conservative journal estimate grows by 8 MiB relative to a prefix job.
+
+Terminal results and read-only journal inspection include
+`selected_boot_layout_checks`, `selected_programming_ranges_verified` (terminal
+only), and `full_partition_layout_matches_reviewed_profile`. A prefix job may
+commit with the last field false if its protected tail is noncanonical. A
+canonical tail that was already present can produce a matching whole-layout
+result after a prefix write. These checks do not assert who produced that tail.
+Whole boot mode requires a complete matching layout before commit. No selected
+reviewed boot payload produces a false aggregate, rather than vacuous success.
+`boot_ready_verified` and `android_boot_compatibility_verified` remain false in
+both modes: source layout matching is not installed-firmware or tablet boot
+acceptance. `complete_stock_image_job` covers the requested image programming
+job, not a validated boot chain.
 
 ## Journal and recovery
 
@@ -95,6 +123,14 @@ absolute image path and an optional absolute same-target identity_backup path.
 Payload rows contain lun, label and filename. An empty payload list restores
 only stock tables and protects every payload byte.
 
+The optional `boot_payload_layout` choice is normalized to `preserve-tail` when
+absent. New plans capture their programming scope and replacement observation.
+Existing schema-1 prefix plans retain their original source-range interpretation
+and remain inspectable/resumable/rollback-capable. Selecting a new policy never
+reinterprets an already retained journal. Offline recovery revalidates each raw
+replacement mirror against its compiled source or whole-layout SHA-256 before
+any write; a resealed plan cannot substitute an arbitrary replacement digest.
+
 Commands:
 
 - stock image-inspect IMAGE
@@ -112,11 +148,18 @@ plan itself. Unknown options, missing decisions and stale choices are refused.
 
 The stock pages select declared model/SKU, the directory containing lun0.img
 through lun5.img, verified stock inputs, optional original GPT directories,
-explicit A/B slot scope, OS payloads, paired data reset, sparse zero policy and
+explicit A/B slot scope, OS payloads, whole boot layout, paired data reset, sparse zero policy and
 a journal. Review shows every measured LUN capacity, programming extent,
 protected tail, staging budget and warnings. Changing model, SKU, slots,
 sources or policies invalidates confirmation. Interrupted journals require
 separate inspection before resume, rollback or unchanged-staging cancellation.
+
+The whole boot choice is off by default. Its description identifies the DTBO
+gap/footer replacement and original-tail backup. Review shows the captured
+policy, full programming extent, remaining protected tail, budget and warnings.
+Changing the choice, even outside the normal selector callback, invalidates the
+captured confirmation before execution. Actual host callback tests exercise
+that rejection; full target rendering follows in the combined guest stage.
 
 Tests use independent logical-byte and OEM XML oracles, pinned raw/sparse
 sources, two capacity scales, both model declarations, whole logical LUN

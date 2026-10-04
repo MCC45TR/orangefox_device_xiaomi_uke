@@ -183,6 +183,7 @@
     <variable name="ure_stock_job_super" value="0"/>
     <variable name="ure_stock_job_reset" value="0"/>
     <variable name="ure_stock_job_zero" value="0"/>
+    <variable name="ure_stock_job_whole_boot" value="0"/>
     <variable name="ure_stock_job_journal" value=""/>
     <variable name="ure_stock_job_hash" value=""/>
     <variable name="ure_stock_job_journal_hash" value=""/>
@@ -4050,6 +4051,25 @@
           <listitem name="Select slot A, B or both" description="Review startup identity and the retained fallback choice.">
             <icon res="ure_boot_icon"/>
             <action function="page">ure_stock_job_slots</action>
+          </listitem>
+        </listbox>
+        <text style="caption">
+          <placement x="%col1_x%" y="0"/>
+          <text>Whole boot layout: %ure_stock_job_whole_boot%. The default preserves bytes after each source payload.</text>
+        </text>
+        <listbox style="ure_menu">
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
+          <listitem name="Restore the reviewed whole boot partition layout" description="Replace the selected boot partitions in full. DTBO includes its zero gap and final AVB footer; the original tail is backed up.">
+            <icon res="ure_boot_icon"/>
+            <condition var1="ure_stock_job_whole_boot" var2="0"/>
+            <action function="uremanager">stock-choice-changed</action>
+            <action function="set">ure_stock_job_whole_boot=1</action>
+          </listitem>
+          <listitem name="Preserve bytes after each source payload" description="Write the source payload only. A preserved DTBO tail may not match the reviewed whole-partition layout.">
+            <icon res="ure_check_icon"/>
+            <condition var1="ure_stock_job_whole_boot" var2="1"/>
+            <action function="uremanager">stock-choice-changed</action>
+            <action function="set">ure_stock_job_whole_boot=0</action>
           </listitem>
         </listbox>
         <text style="caption">

@@ -200,7 +200,7 @@ void clear_stock_review() {
 ure::Value stock_selection() {
     ure::Value selected;
     for(const auto* key:{"ure_stock_inputs","ure_stock_job_images","ure_stock_job_originals","ure_stock_job_model","ure_stock_job_sku",
-        "ure_stock_job_boot","ure_stock_job_slots","ure_stock_job_super","ure_stock_job_reset","ure_stock_job_zero","ure_journal_parent"})selected[key]=value(key);
+        "ure_stock_job_boot","ure_stock_job_slots","ure_stock_job_super","ure_stock_job_reset","ure_stock_job_zero","ure_stock_job_whole_boot","ure_journal_parent"})selected[key]=value(key);
     return selected;
 }
 ure::Value stock_request() {
@@ -209,6 +209,7 @@ ure::Value stock_request() {
     ure::Value request; request["schema"]=1; request["format"]="ure-stock-job-request"; request["firmware_profile"]="global-os3.0.303.0";
     request["stock_inputs_directory"]=value("ure_stock_inputs"); request["model"]=value("ure_stock_job_model"); request["sku"]=value("ure_stock_job_sku");
     request["erase_android_data"]=choice("ure_stock_job_reset"); request["zero_sparse_holes"]=choice("ure_stock_job_zero");
+    request["boot_payload_layout"]=choice("ure_stock_job_whole_boot") ? "reviewed-whole-partition" : "preserve-tail";
     request["luns"]=ure::Value(Json::arrayValue); request["payloads"]=ure::Value(Json::arrayValue);
     for(unsigned lun=0;lun<6;++lun) {
         ure::Value row; row["lun"]=lun; row["image"]=(images/("lun"+std::to_string(lun)+".img")).lexically_normal().string();
@@ -229,6 +230,7 @@ std::string stock_summary(const ure::Value& plan,const std::string& journal) {
     std::string text="Declared model: "+plan["request"]["model"].asString()+"; SKU: "+plan["request"]["sku"].asString()+"\nImage workflow; tablet identity and boot acceptance pending.\n";
     for(const auto& lun:plan["luns"])text+="LUN "+std::to_string(lun["lun"].asUInt())+": "+std::to_string(lun["identity"]["bytes"].asUInt64()/1048576)+" MiB\n";
     text+="Selected OS payloads: "+std::to_string(plan["request"]["payloads"].size())+"\nRequired journal space: "+std::to_string(plan["estimated_journal_bytes"].asUInt64()/1048576)+" MiB\nJournal: "+journal+"\n";
+    text+="Boot programming policy: "+plan["request"]["boot_payload_layout"].asString()+"\n";
     for(const auto& row:plan["regions"])if(row["role"]=="payload")text+=row["name"].asString()+": program "+std::to_string(row["bytes"].asUInt64()/1048576)+" MiB; preserve tail "+std::to_string((row["destination_capacity"].asUInt64()-row["bytes"].asUInt64())/1048576)+" MiB\n";
     for(const auto& warning:plan["warnings"])text+=warning.asString()+"\n";
     return text;

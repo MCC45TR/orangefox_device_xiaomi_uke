@@ -3,6 +3,7 @@
 #include "uke.h"
 #include "operation_guard.hpp"
 #include "stock_payloads.h"
+#include "../install_policy.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -38,12 +39,30 @@ const stock_source::Payload& pin(const Value& row) {
     }
     throw Error("protected-stock-payload","Only reviewed OS payloads are supported; early firmware and unit-bound partitions stay protected");
 }
+const uke::StockImage* boot_policy(const stock_source::Payload& source) {
+    for(const auto& policy:uke::global_stock)if(std::string_view(source.label)==policy.name) {
+        require(source.encoding==std::string_view("raw") && source.source_bytes==policy.source_bytes && source.expanded_bytes==policy.source_bytes &&
+            std::string_view(source.sha256)==policy.source_sha256,"invalid-stock-policy","Stock payload and whole-boot source pins disagree"); return &policy;
+    }
+    return nullptr;
+}
+const stock_source::Payload& planned_pin(const Value& row) {
+    Value selected; selected["lun"]=row["lun"]; selected["label"]=row["name"]; selected["filename"]=row["filename"]; return pin(selected);
+}
+bool whole_boot(const Value& request,const stock_source::Payload& source) {
+    return request["boot_payload_layout"]=="reviewed-whole-partition" && boot_policy(source)!=nullptr;
+}
+const Value& programmed(const Value& row) {
+    return row.isMember("programmed_observation") ? row["programmed_observation"] : row["source_observation"];
+}
 void request_check(const Value& request) {
-    fields(request,{"schema","format","model","sku","firmware_profile","stock_inputs_directory","luns","payloads","erase_android_data","zero_sparse_holes"});
+    fields(request,{"schema","format","model","sku","firmware_profile","stock_inputs_directory","luns","payloads","erase_android_data","zero_sparse_holes","boot_payload_layout"});
     require(request["schema"]==1 && request["format"]=="ure-stock-job-request" &&
         (request["model"]=="xiaomi-pad-7" || request["model"]=="poco-pad-x1") && request["sku"].isString() &&
         request["sku"].asString().size()<=64 && identifier(request["sku"].asString()),"invalid-stock-request","Select Pad 7 or POCO Pad X1 and an explicit declared SKU tag");
     require(request["firmware_profile"]=="global-os3.0.303.0","wrong-profile","Stock jobs require separately reviewed firmware pins; this backend has Global OS3.0.303.0 only");
+    require(!request.isMember("boot_payload_layout") || request["boot_payload_layout"]=="preserve-tail" || request["boot_payload_layout"]=="reviewed-whole-partition",
+        "invalid-stock-request","Choose preserve-tail or explicitly reviewed whole boot partitions");
     require(fs::path(string(request["stock_inputs_directory"])).is_absolute() && request["luns"].isArray() && request["luns"].size()==6 &&
         request["payloads"].isArray() && request["payloads"].size()<=24 && request["erase_android_data"].isBool() && request["zero_sparse_holes"].isBool(),
         "invalid-stock-request","Select all six image LUNs, reviewed payloads and explicit reset/sparse policies");
@@ -184,14 +203,27 @@ void check_plan(const Value& plan) {
     std::uint64_t total=0,chunks=0; Json::ArrayIndex index=0;
     for(const auto& selected:plan["request"]["payloads"]) {
         const auto& source=pin(selected); const auto& row=plan["regions"][index++]; const auto& part=partition(plan["luns"][source.lun]["gpt"],selected["label"].asString());
+        const auto* policy=boot_policy(source); const bool whole=whole_boot(plan["request"],source);
+        const auto bytes=whole ? policy->partition_bytes : source.expanded_bytes;
         require(row["role"]=="payload" && row["name"]==selected["label"] && row["filename"]==source.filename && number(row["lun"],source.lun) &&
-            number(row["source_bytes"],source.source_bytes) && number(row["bytes"],source.expanded_bytes) && row["source_sha256"]==source.sha256 &&
+            number(row["source_bytes"],source.source_bytes) && number(row["bytes"],bytes) && row["source_sha256"]==source.sha256 &&
             row["encoding"]==source.encoding && number(row["offset"],part["start_lba"].asUInt64()*4096) && number(row["destination_capacity"],part["bytes"].asUInt64()) &&
-            source.expanded_bytes<=part["bytes"].asUInt64() && row["source_observation"]["expanded_digest_algorithm"]==algorithm &&
-            row["source_observation"]["expanded_digest"]==row["after_digest"] && number(row["source_observation"]["expanded_bytes"],source.expanded_bytes) &&
+            bytes<=part["bytes"].asUInt64() && row["source_observation"]["expanded_digest_algorithm"]==algorithm &&
+            number(row["source_observation"]["expanded_bytes"],source.expanded_bytes) &&
             number(row["source_observation"]["source_bytes"],source.source_bytes) && row["source_observation"]["encoding"]==source.encoding &&
             row["source_observation"]["dont_care_bytes"].isUInt64() && (row["source_observation"]["dont_care_bytes"].asUInt64()==0 || plan["request"]["zero_sparse_holes"]==true),
             "invalid-stock-plan","Stock payload programming extent or decoded source binding differs");
+        require(programmed(row)["expanded_digest_algorithm"]==algorithm && programmed(row)["expanded_digest"]==row["after_digest"] &&
+            number(programmed(row)["expanded_bytes"],bytes) && (!plan["request"].isMember("boot_payload_layout") ||
+            row["programming_scope"]==(whole ? "reviewed-whole-partition" : "source-payload-range")),"invalid-stock-plan","Stock programming scope differs from its explicit policy");
+        if(whole)require(part["bytes"].asUInt64()==policy->partition_bytes && programmed(row)["schema"]==1 &&
+            programmed(row)["format"]=="ure-reviewed-stock-boot-programming" && programmed(row)["name"]==policy->name &&
+            programmed(row)["firmware_profile"]==plan["request"]["firmware_profile"] && programmed(row)["encoding"]=="raw" &&
+            number(programmed(row)["source_bytes"],policy->source_bytes) && programmed(row)["source_sha256"]==policy->source_sha256 &&
+            programmed(row)["partition_sha256"]==policy->partition_sha256 && programmed(row)["programming_layout"]==policy->programming_layout &&
+            programmed(row)["whole_partition_source_layout_verified"]==true && programmed(row)["physical_test_record"]==false &&
+            programmed(row)["android_boot_compatibility_verified"]==false,"invalid-stock-plan","Whole boot layout differs from its exact reviewed source policy");
+        else require(json(programmed(row))==json(row["source_observation"]),"invalid-stock-plan","Prefix programming must preserve its decoded source binding");
     }
     for(const auto* name:metadata_order)for(unsigned lun=0;lun<6;++lun) {
         const auto& gpt=plan["luns"][lun]["gpt"]; const auto& before=named(gpt["before"],name); const auto& after=named(gpt["after"],name); const auto& row=plan["regions"][index++];
@@ -229,6 +261,23 @@ void original_verify(const Targets& targets,const Value& plan) {
     for(const auto& row:plan["regions"])require(storage_image_range_digest(targets.values[row["lun"].asUInt()].descriptor.get(),row["offset"].asUInt64(),row["bytes"].asUInt64())==row["before_digest"].asString(),
         "changed-target","Original stock programming bytes changed after review");
 }
+void boot_layout_checks(const Targets& targets,const Value& plan,Value& result,bool require_whole) {
+    result["selected_boot_layout_checks"]=Value(Json::arrayValue); bool all=true;
+    for(const auto& row:plan["regions"])if(row["role"]=="payload") {
+        const auto& source=planned_pin(row); const auto* policy=boot_policy(source); if(!policy)continue;
+        Value observed;
+        if(row["destination_capacity"].asUInt64()==policy->partition_bytes)observed=stock_boot_partition_inspect(
+            targets.values[row["lun"].asUInt()].descriptor.get(),row["offset"].asUInt64(),policy->partition_bytes,policy->name,plan["request"]["firmware_profile"].asString());
+        else { observed["full_partition_layout_matches_reviewed_profile"]=false; observed["reason_code"]="stock-capacity-mismatch"; }
+        observed["label"]=row["name"]; observed["lun"]=row["lun"]; observed["programmed_bytes"]=row["bytes"];
+        observed["programming_scope"]=whole_boot(plan["request"],source) ? "reviewed-whole-partition" : "source-payload-range";
+        const bool matches=observed["full_partition_layout_matches_reviewed_profile"]==true; all=all && matches;
+        if(require_whole && whole_boot(plan["request"],source))require(matches,"verification-error","Final whole boot partition differs from its reviewed canonical layout");
+        result["selected_boot_layout_checks"].append(observed);
+    }
+    result["full_partition_layout_matches_reviewed_profile"]=!result["selected_boot_layout_checks"].empty() && all;
+    result["boot_ready_verified"]=false; result["android_boot_compatibility_verified"]=false;
+}
 Fd source_file(const Root& inputs,const Value& row) {
     auto file=inputs.open(row["filename"].asString(),O_RDONLY|O_NONBLOCK); struct stat st{};
     require(::fstat(file.get(),&st)==0 && S_ISREG(st.st_mode) && st.st_nlink==1 && st.st_size>=0 &&
@@ -248,8 +297,10 @@ void prepare(Targets& targets,const Root& store,const fs::path& path,const Value
     for(Json::ArrayIndex i=0;i<plan["regions"].size();++i) {
         journal_binding(store,path); const auto& row=plan["regions"][i]; auto after=store.open(file_name(i,true),O_RDWR|O_CREAT|O_EXCL,0600);
         if(row["role"]=="payload") {
-            auto source=source_file(inputs,row); const auto observation=stock_image_expand(source.get(),after.get(),plan["request"]["zero_sparse_holes"].asBool());
-            require(json(observation)==json(row["source_observation"]) && sha256(source.get())==row["source_sha256"].asString(),"stale-source","Stock decoded image differs from its review");
+            auto source=source_file(inputs,row); const auto& source_pin=planned_pin(row);
+            const auto observation=whole_boot(plan["request"],source_pin) ? stock_boot_programming_expand(source.get(),after.get(),source_pin.label,
+                plan["request"]["firmware_profile"].asString(),row["destination_capacity"].asUInt64()) : stock_image_expand(source.get(),after.get(),plan["request"]["zero_sparse_holes"].asBool());
+            require(json(observation)==json(programmed(row)) && sha256(source.get())==row["source_sha256"].asString(),"stale-source","Stock programmed image differs from its review");
         } else {
             const auto& ranges=metadata[row["lun"].asUInt()]; const StorageRange* wanted=nullptr;
             for(const auto& range:ranges)if(range.name==row["name"].asString())wanted=&range;
@@ -292,6 +343,7 @@ Review inspect(const Targets& targets,const Root& store,const Value& plan,bool t
     result["recovery_actions"]=Value(Json::arrayValue); result["physical_test_record"]=false; result["live_write_backend_ready"]=false;
     result["read_only"]=true;
     result["private_record"]=true; result["atomic_all_luns"]=false; result["protected_ranges_verified"]=true; result["cooperating_locks_only"]=true;
+    boot_layout_checks(targets,plan,result,false);
     if(!store.exists("application.json")) {
         original_verify(targets,plan); result["classification"]="ORIGINAL"; result["all_six_originals_verified"]=true; result["before_and_after_verified"]=false;
         if(review.state["state"]!="CANCELLED_SAFE" || terminal_replay)result["recovery_actions"].append("cancel");
@@ -308,6 +360,11 @@ Review inspect(const Targets& targets,const Root& store,const Value& plan,bool t
         require(storage_image_range_digest(before.get(),0,bytes)==row["before_digest"].asString() &&
             storage_image_range_digest(after.get(),0,bytes)==row["after_digest"].asString(),"backup-corrupt","Complete stock original or decoded replacement mirror differs");
         if(row["role"]=="gpt")require(sha256(before.get())==row["before_sha256"].asString() && sha256(after.get())==row["after_sha256"].asString(),"backup-corrupt","Stock GPT mirror differs from its reviewed metadata");
+        if(row["role"]=="payload") {
+            const auto& source=planned_pin(row);
+            if(source.encoding==std::string_view("raw"))require(sha256(after.get())==(whole_boot(plan["request"],source) ? boot_policy(source)->partition_sha256 : source.sha256),
+                "backup-corrupt","Stock raw replacement mirror differs from the compiled source or whole-layout pin");
+        }
         for(std::uint64_t at=0;at<bytes;) {
             const auto size=std::min(chunk_size,bytes-at); require(chunk_index<app["chunks"].size(),"invalid-stock-journal","Stock application is incomplete");
             const auto& chunk=app["chunks"][chunk_index++];
@@ -378,6 +435,7 @@ Value apply(Targets& targets,const Root& store,const fs::path& path,Review revie
         for(unsigned lun=0;lun<6;++lun)require(json(gpt_inspect(targets.values[lun].descriptor.get(),4096))==json(review.plan["luns"][lun]["gpt"][rollback ? "current_table" : "desired_table"]),
             "verification-error","A final LUN GPT differs from the reviewed complete table");
         state["verified"]=true; state["all_six_luns_verified"]=true; state["protected_ranges_verified"]=true; state["complete_stock_image_job"]=!rollback;
+        state["selected_programming_ranges_verified"]=true; boot_layout_checks(targets,review.plan,state,!rollback);
         state["physical_test_record"]=false; state["live_write_backend_ready"]=false; state["atomic_all_luns"]=false;
         operation.token().require_binding(operation_binding(review.plan["operation"].asString(),review.plan,path,stock_operation_targets(review.plan)));
         phase(store,state,rollback ? "ROLLED_BACK" : "COMMITTED"); return operation.finish(state,true,true);
@@ -387,6 +445,7 @@ Value apply(Targets& targets,const Root& store,const fs::path& path,Review revie
 
 Value stock_job_plan(const Value& request) {
     request_check(request); Value chosen=request;
+    if(!chosen.isMember("boot_payload_layout"))chosen["boot_payload_layout"]="preserve-tail";
     chosen["stock_inputs_directory"]=fs::path(chosen["stock_inputs_directory"].asString()).lexically_normal().string();
     for(auto& row:chosen["luns"]) {
         row["image"]=fs::path(row["image"].asString()).lexically_normal().string();
@@ -411,8 +470,11 @@ Value stock_job_plan(const Value& request) {
         require(number(row["source_observation"]["expanded_bytes"],source.expanded_bytes) && row["source_observation"]["encoding"]==source.encoding,
             "stock-source-mismatch","Pinned payload expansion differs from its separately reviewed source contract");
         require(row["source_observation"]["dont_care_bytes"].asUInt64()==0 || chosen["zero_sparse_holes"]==true,"sparse-zero-policy-required","Review zero filling of sparse stock DONT_CARE ranges explicitly");
-        row["after_digest"]=row["source_observation"]["expanded_digest"];
-        row["before_digest"]=storage_image_range_digest(targets.values[source.lun].descriptor.get(),row["offset"].asUInt64(),source.expanded_bytes);
+        const bool whole=whole_boot(chosen,source);
+        row["programming_scope"]=whole ? "reviewed-whole-partition" : "source-payload-range";
+        row["programmed_observation"]=whole ? stock_boot_programming_inspect(file.get(),source.label,chosen["firmware_profile"].asString(),destination["bytes"].asUInt64()) : row["source_observation"];
+        row["bytes"]=row["programmed_observation"]["expanded_bytes"]; row["after_digest"]=row["programmed_observation"]["expanded_digest"];
+        row["before_digest"]=storage_image_range_digest(targets.values[source.lun].descriptor.get(),row["offset"].asUInt64(),row["bytes"].asUInt64());
         plan["regions"].append(row);
     }
     for(const auto* name:metadata_order)for(unsigned lun=0;lun<6;++lun) {
@@ -431,7 +493,10 @@ Value stock_job_plan(const Value& request) {
     plan["warnings"]=Value(Json::arrayValue);
     plan["warnings"].append("All six originals and decoded replacements are verified before the first target write. This coordinates recovery; it does not make six LUNs atomic.");
     plan["warnings"].append("Pad 7/POCO Pad X1 and SKU tags are declarations for image fixtures. Installed model, firmware, capacity profile, Android trust and physical rollback are unverified; live writes stay blocked.");
-    plan["warnings"].append("Only selected OS payload programming extents are overwritten. Unselected slot contents, early firmware, calibration, unit-bound data and unprogrammed tails stay byte-identical.");
+    plan["warnings"].append("Only selected programming extents are overwritten. Unselected slots, early firmware, calibration, unit-bound data and all bytes outside these extents stay byte-identical.");
+    plan["warnings"].append(chosen["boot_payload_layout"]=="reviewed-whole-partition" ?
+        "Selected reviewed boot partitions are replaced in full at their exact pinned capacity. DTBO includes the zero gap and copied AVB footer. All original tail bytes are backed up for rollback. This source layout does not prove Android boot compatibility." :
+        "Preserve-tail writes source payload ranges only. DTBO's remaining 4 MiB stays unchanged; a successful payload write may still fail whole-partition layout verification. Select reviewed whole boot programming explicitly to replace that tail.");
     plan["warnings"].append("Stock table restoration removes custom OS partition visibility. Their bytes remain unless they intersect an explicitly selected OS payload extent. Slot selection and boot registration are separate operations.");
     if(chosen["erase_android_data"]==true)plan["warnings"].append("Metadata and userdata are replaced together. Sparse DONT_CARE bytes in the reviewed programming extent are zeroed. The rest of a larger userdata partition remains protected; this is not secure erasure or verified Android boot compatibility.");
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); original_verify(targets,plan);
