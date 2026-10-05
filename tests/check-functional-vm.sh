@@ -91,6 +91,14 @@ assert_error() { assert_json "$1" ".result==\"error\" and .error.code==\"$2\""; 
 case "$group" in
 core)
     assert_json capabilities '.data.active_scope.remote_transport=="adb-only" and .data.active_scope.bitlocker==false and .data.active_scope.network_rescue==false'
+    assert_json platform-admission '.data.format=="ure-platform-capabilities" and .data.read_only and (.data.live_action_allowed|not) and
+        (.data.credential_use_allowed|not) and (.data.mapper_creation_allowed|not) and (.data.encrypted_mount_allowed|not) and
+        (.data.physical_test_record|not) and (.data.features|length)==11 and .data.health.decision=="hold"'
+    assert_json platform-untrusted '(.data.current_system_root|not) and (.data.blockers|index("platform-observation-root-untrusted"))!=null'
+    for operation in fbe-open slot-set snapshot-merge super-apply ota-install second-install; do
+        assert_error "platform-$operation" platform-action-unavailable
+    done
+    assert_error platform-import fixture-only-command
     assert_error block-path-refused invalid-image
     assert_error unrelated-options invalid-options
     assert_json arch-detect '.data.distribution.ID=="arch" and .data.recovery_kernel_is_installed_kernel==false'

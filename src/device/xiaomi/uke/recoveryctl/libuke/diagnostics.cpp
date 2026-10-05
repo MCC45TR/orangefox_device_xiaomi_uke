@@ -141,6 +141,7 @@ Value capabilities(const Root& system) {
     }
     result["filesystem_management"]=filesystem_capabilities();
     result["partition_management"]=partition_capabilities();
+    result["platform_admission"]=platform_capabilities(system,"global-os3.0.303.0");
     result["live_storage_writer_accepted"]=false; result["btrfs_receive_implemented"]=false;
     result["device_profile_admission"]["accepted_live_profile_count"]=0;
     result["device_profile_admission"]["live_plan_allowed"]=false;

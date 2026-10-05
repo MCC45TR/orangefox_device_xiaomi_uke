@@ -42,6 +42,9 @@ bool management_command(const std::vector<std::string>& args) {
     if(args.size()<2)return false;
     const auto& command=args[0]; const auto& op=args[1];
     if(command=="operation")return op=="status";
+    if(command=="platform")return true;
+    if(command=="android")return op=="capabilities" || op=="preflight" || op=="fbe-open" || op=="slot-set" ||
+        op=="snapshot-merge" || op=="super-apply" || op=="ota-install" || op=="second-install";
     if(command=="backup")return op=="tree-recover";
     if(command=="installer")return op.starts_with("image-");
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
@@ -57,6 +60,27 @@ bool management_command(const std::vector<std::string>& args) {
 Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
+    if(command=="platform" || command=="android") {
+        if(operation=="capabilities" || operation=="preflight") {
+            positional(options,2); options.allow({"--system-root","--profile"});
+            Root system(options.get("--system-root","/")); return platform_capabilities(system,options.need("--profile"));
+        }
+        if(command=="platform" && operation=="compare-fixture") {
+            positional(options,3); options.allow({"--observation"});
+#ifdef __ANDROID__
+            throw Error("fixture-only-command","Imported platform declarations cannot authorize device actions");
+#else
+            return platform_compare_fixture(json_file(words[2]),json_file(options.need("--observation")));
+#endif
+        }
+        const std::map<std::string,std::string> actions{{"fbe-open","android-fbe"},{"slot-set","android-slots"},
+            {"snapshot-merge","android-snapshots"},{"super-apply","android-super"},{"ota-install","android-ota"},{"second-install","android-secondary"}};
+        require(command=="android" && actions.contains(operation),"invalid-platform-feature","Unknown platform operation");
+        positional(options,3); options.allow({"--system-root","--profile","--object","--journal","--confirm"});
+        // Refuse before any request, journal, root, target, credential, mapper,
+        // mount or HAL writer is accessed. Advanced settings cannot bypass it.
+        platform_require_live_action(actions.at(operation));
+    }
     if(command=="operation") { positional(options,2); options.allow({}); return operation_lease_status(); }
     if(command=="storage" && operation=="profile-status") {
         positional(options,2); options.allow({"--system-root","--profile"});

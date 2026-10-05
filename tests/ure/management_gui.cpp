@@ -18,6 +18,9 @@ int main(int argc,char* argv[]) {
     try {
         const auto image=fixture/"filesystem.img"; { std::ofstream file(image); file.seekp(32*1024*1024-1); file.put('\0'); }
         const auto original=digest(image); GUIAction action;
+        check(run_management(action,"capabilities")==0 && ure::parse_json(value("ure_output"))["platform_admission"]["features"].size()==11 &&
+            ure::parse_json(value("ure_output"))["platform_admission"]["live_action_allowed"]==false && digest(image)==original,
+            "Actual capability GUI omitted platform limits or enabled device actions");
         check(run_management(action,"partition-capabilities")==0 && ure::parse_json(value("ure_output"))["live_device"]["repartition_available"]==false &&
             ure::parse_json(value("ure_output"))["regular_image"]["existing_shared_esp_policy"]=="PRESERVE_EXACT_BYTES" && digest(image)==original,
             "GUI capability review enabled live repartitioning or changed its selected image");

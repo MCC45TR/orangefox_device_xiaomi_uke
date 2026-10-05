@@ -153,6 +153,11 @@ Value storage_preflight(const Root& system, const StorageTarget& target, const s
 Value device_profile_admission_status(const Root& system, const std::string& requested_profile);
 // Host declarations only; never live write admission or a physical receipt.
 Value device_profile_compare_fixture(const Value& contract, const Value& observation);
+// Dedicated platform contracts. Imported declarations remain host fixtures;
+// neither properties nor a successful comparison grant device authority.
+Value platform_capabilities(const Root& system, const std::string& profile);
+Value platform_compare_fixture(const Value& contract, const Value& observation);
+void platform_require_live_action(std::string_view feature);
 Value filesystem_capabilities();
 Value filesystem_operation_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
 // Prepare and independently check a private replacement. Never write the source.

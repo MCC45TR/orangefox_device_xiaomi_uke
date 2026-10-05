@@ -17,6 +17,8 @@
     "tests/check-localization-keys.sh",
     "tests/check-gui-language.sh",
     "tests/check-localization-review.sh",
+    "tests/check-platform.sh",
+    "tests/check-platform-arm64.sh",
     "tests/ure/localization_review.cpp",
     "tests/generate-management-hooks.sh",
     "tests/ure/gui_language.cpp",

@@ -57,6 +57,8 @@ cd "$component"
         src/upstream/orangefox-android16/bootable/recovery/partitions.hpp
     printf '%s\0' tests/check-device-profile.sh
     printf '%s\0' tests/check-partition-capabilities.sh
+    printf '%s\0' tests/check-platform.sh tests/check-platform-arm64.sh
+    printf '%s\0' tests/check-functional-vm.sh tests/vm/functional-init.sh
     printf '%s\0' tests/check-populated-filesystems.sh
     printf '%s\0' tests/with-rescue-cgroup.sh patches/0026-owned-management-jobs.patch patches/0027-join-management-jobs-before-teardown.patch
     find src/upstream/orangefox-android16/external/freetype/{src,include,builds/unix} -type f -print0

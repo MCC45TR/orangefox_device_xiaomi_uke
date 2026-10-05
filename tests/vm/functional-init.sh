@@ -66,6 +66,17 @@ check() { echo "URE_FUNCTION_CHECK $1"; }
 case "$mode" in
 core)
     call capabilities capabilities
+    call platform-admission platform capabilities --profile vm-unaccepted
+    mkdir -p /media/platform-untrusted
+    call platform-untrusted android preflight --profile vm-unaccepted --system-root /media/platform-untrusted
+    mkfifo /media/platform-unopened-request
+    for operation in fbe-open slot-set snapshot-merge super-apply ota-install second-install; do
+        reject "platform-$operation" android "$operation" /media/platform-unopened-request \
+            --system-root /media/platform-missing --object unopened --journal /media/platform-unopened-journal --confirm synthetic
+    done
+    reject platform-import platform compare-fixture /media/platform-unopened-request --observation /media/platform-unopened-request
+    [ ! -e /media/platform-unopened-journal ] || fail platform-created-journal
+    check platform-exact-feature-health-hold-and-pre-access-refusal
     call filesystem-capabilities filesystem capabilities
     reject block-path-refused filesystem inspect --image /dev/vda
     reject unrelated-options help --confirm ignored

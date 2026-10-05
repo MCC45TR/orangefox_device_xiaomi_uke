@@ -37,6 +37,7 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
     out["private_record"]=true; out["physical_test_record"]=false; out["atomic_snapshot"]=false; out["android_fbe_access_authorized"]=false;
     out["native_live_writer_ready"]=live_storage_backend_accepted(); out["firmware_identity_validated"]=false;
     out["device_profile"]=device_profile_admission_status(system,profile);
+    out["platform_admission"]=platform_capabilities(system,profile);
     out["model_sku_geometry_validated"]=false;
     if(target.identity["kind"]=="regular-image") {
         check(out,"regular-file-identity",true,"Selected image inode, geometry and metadata were revalidated");
@@ -54,6 +55,8 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
         "Standard filesystem jobs are restricted to Linux, Windows, home or ESP partitions; Android data and firmware require separate trust and restore workflows");
     check(out,"accepted-model-sku-capacity-profile",out["device_profile"]["profile_accepted"]==true,
         "Only an accepted commercial model/SKU/capacity, exact installed firmware and this unit's six-LUN geometry/GUID backup may authorize live planning");
+    check(out,"platform-feature-and-health-admission",out["platform_admission"]["live_action_allowed"]==true,
+        "Platform trust, slot/snapshot lifecycle, persistent ownership, fallback and exact-unit battery/thermal/UFS policies must all be accepted");
     // Do not hash gigabytes of an unaccepted unit's boot media or mistake
     // current recovery properties for its installed Android firmware.
     if(out["device_profile"]["profile_accepted"]!=true) {

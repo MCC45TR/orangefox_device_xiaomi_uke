@@ -61,6 +61,7 @@ bash tests/check-localization-evidence.sh
 bash tests/check-localization-keys.sh native
 bash tests/check-gui-language.sh native
 bash tests/check-localization-review.sh native
+bash tests/check-platform.sh native
 [[ ! -f $URE_OPERATION_COORDINATOR/owner.json ]]
 cmp <(bash scripts/native-inputs.sh) "$initial_inputs"
 cp -- "$initial_inputs" reports/private/native-test-inputs.sha256
@@ -92,6 +93,9 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.read_only_mounts_preserve_no_replay_options=true' \
     | jq '.validation.production_bounded_unicode_scalars=true | .validation.production_text_raster_parser_and_cache_budgets=true |
         .validation.production_text_allocation_failure_and_rotated_clipping=true | .validation.reviewed_source_stack_unknown_changes_refused=true' \
+    | jq '.validation.platform_exact_context_contracts_and_pre_access_refusal=true |
+        .validation.platform_read_only_health_and_hold_policy=true |
+        .validation.platform_physical_backends_accepted=false' \
     | jq '.validation.host_localization_key_owner_schema_and_exact_header_closure=true |
         .validation.actual_gui_language_review_context=true | .validation.host_offline_translation_current_source_and_parent=true' \
     | jq '.validation.durable_recovery_image_installer_and_initial_publication_sigkill=true |
