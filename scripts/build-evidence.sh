@@ -129,6 +129,8 @@ case $mode in
         trap 'rm -rf -- "$work"' EXIT
         build_verify "$component" "$android" "$job" "$android/out-public" android-recovery "$work"
         jq --slurpfile service "$job/SERVICE-COMPLETION.json" \
+            --slurpfile localization "$job/receipt/inputs/localization.json" \
+            --arg localization_sha "$(build_digest "$job/receipt/inputs/localization.json")" \
             --arg receipt "$(build_digest "$job/receipt/SHA256SUMS")" \
             --arg project_files "$(build_digest "$job/receipt/inputs/project/files.sha256")" \
             --arg android_files "$(build_digest "$job/receipt/inputs/android/files.sha256")" \
@@ -137,7 +139,8 @@ case $mode in
             --arg runtime "$(build_digest "$job/receipt/inputs/host-runtime.tsv")" \
             'del(.job_id,.output_identity) | .receipt_index_sha256=$receipt |
              .inputs={project_file_manifest_sha256:$project_files,android_file_manifest_sha256:$android_files,
-                      android_revisions_sha256:$revisions,host_executable_manifest_sha256:$tools,host_direct_runtime_manifest_sha256:$runtime} |
+                      android_revisions_sha256:$revisions,host_executable_manifest_sha256:$tools,host_direct_runtime_manifest_sha256:$runtime,
+                      localization:$localization[0],localization_inputs_sha256:$localization_sha} |
              .validation.service_completed=($service[0].command_status==0 and $service[0].new_oom_events==0 and $service[0].published and
                                           $service[0].systemd_run_status==0 and $service[0].controller_confirmed) |
              .validation.current_source_and_output_match=true | .validation.full_host_os_closure=false |

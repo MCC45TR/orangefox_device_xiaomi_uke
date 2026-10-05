@@ -18,6 +18,8 @@ magisk="$component/referances/tools/magiskboot-v26.5-vb-beta"
 source_work=$(mktemp -d "$component/build/release-sources-XXXXXX")
 trap 'rm -rf -- "$source_work"' EXIT
 mkdir -p "$destination" "$source_work/build-inputs"
+bash "$component/scripts/localization-evidence.sh" source > "$source_work/localization-before.json"
+cmp "$source_work/localization-before.json" "$destination/LOCALIZATION-INPUTS.json"
 [[ $(git -C "$gki" rev-parse HEAD) == $(jq -r .source_commit "$component/manifests/stock-kernel-source.json") ]]
 git -C "$gki" archive --format=tar --prefix=kernel/ HEAD > "$source_work/gki.tar"
 kernel="$component/build/stock-global/boot/kernel"
@@ -118,6 +120,8 @@ cp -- "$component/.gitattributes" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
 cp -- "$component/docs/HOST-BUILD-BUDGET.md" "$source_work/project/"
 cp -- "$component/docs/BUILD-COMPLETION.md" "$component/docs/RELEASE-POLICY.md" "$source_work/project/"
+cp -- "$component/docs/LOCALIZATION-EVIDENCE.md" "$destination/LOCALIZATION-INPUTS.json" \
+    "$destination/GUI-RESOURCE-INPUTS.json" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"
 cp -- "$component/docs/STOCK-IMAGE-RESTORE.md" "$source_work/project/"
@@ -180,6 +184,8 @@ if [[ -f $component/reports/URE-STOCK-PREFLIGHT-BUILD.md ]]; then
     cp -- "$component/reports/URE-STOCK-PREFLIGHT-BUILD.md" "$source_work/project/STOCK-PREFLIGHT-BUILD-REPORT.md"
 fi
 tar -rf "$source_work/recovery.tar" -C "$source_work" project
+bash "$component/scripts/localization-evidence.sh" source > "$source_work/localization-after.json"
+cmp "$source_work/localization-before.json" "$source_work/localization-after.json"
 gzip -n -1 -c "$source_work/recovery.tar" > "$destination/RECOVERY-UTILITY-SOURCES.tar.gz"
 (cd -- "$destination" && sha256sum STOCK-GKI-SOURCE.tar.gz RECOVERY-UTILITY-SOURCES.tar.gz >> SHA256SUMS)
 echo 'Stock GKI and recovery utility source snapshots archived with original licenses.'

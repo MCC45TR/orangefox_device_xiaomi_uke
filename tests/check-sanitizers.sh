@@ -30,9 +30,10 @@ ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_
 UKE_DRM_SANITIZER=1 bash tests/check-drm-surface.sh
 cmp <(bash scripts/native-inputs.sh) reports/private/partition-sanitizer-inputs.sha256
 jq -n --arg inputs "$(sha256sum reports/private/partition-sanitizer-inputs.sha256 | cut -d' ' -f1)" \
+    --arg localization "$(sed -n 's/^# localization_source_sha256=//p' reports/private/partition-sanitizer-inputs.sha256)" \
     --arg compiler "$expected" --argjson count "$count" \
     --slurpfile catalog reports/private/partition-sanitizer-test-catalog.json \
-    '{schema_version:1,native_test_inputs_sha256:$inputs,compiler_sha256:$compiler,ctest_executable_count:$count,ctest_test_names:$catalog[0],
-      validation:{address_sanitizer:true,undefined_behavior_sanitizer:true,leak_detection:true,halt_on_error:true,vptr_instrumentation:false,physical_device:false}}' \
+    '{schema_version:1,native_test_inputs_sha256:$inputs,localization_inputs_sha256:$localization,compiler_sha256:$compiler,ctest_executable_count:$count,ctest_test_names:$catalog[0],
+      validation:{localization_input_closure:true,address_sanitizer:true,undefined_behavior_sanitizer:true,leak_detection:true,halt_on_error:true,vptr_instrumentation:false,physical_device:false}}' \
     > reports/private/partition-sanitizer-verification.json
 printf '%s\n' 'Pinned Clang address/undefined/leak gates passed; vptr instrumentation remains excluded by the pinned host runtime limitation.'

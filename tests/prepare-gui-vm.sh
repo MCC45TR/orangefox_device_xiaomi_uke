@@ -3,6 +3,7 @@
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 tree="$component/src/upstream/orangefox-android16"
+bash "$component/scripts/build-evidence.sh" verify
 destination="$component/build/gui-vm"
 mkdir -p "$destination"
 clang="$tree/prebuilts/clang/host/linux-x86/clang-r547379/bin/clang++"

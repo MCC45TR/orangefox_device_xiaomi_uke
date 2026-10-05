@@ -59,11 +59,6 @@ cd "$component"
     printf '%s\0' tests/check-partition-capabilities.sh
     printf '%s\0' tests/check-populated-filesystems.sh
     printf '%s\0' tests/with-rescue-cgroup.sh patches/0026-owned-management-jobs.patch patches/0027-join-management-jobs-before-teardown.patch
-    # Optional owner work can be consumed by the GUI fixture scaffolding. Its
-    # exact inputs belong in a local receipt even before a separate review.
-    for path in src/device/xiaomi/uke/ure-localization.hpp src/device/xiaomi/uke/ure-locale-keys.hpp; do
-        [[ ! -f $path ]] || printf '%s\0' "$path"
-    done
     find src/upstream/orangefox-android16/external/freetype/{src,include,builds/unix} -type f -print0
     find src/upstream/orangefox-android16/bootable/recovery/libpixelflinger/include -type f -print0
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/gui/theme/common/languages/en.xml
@@ -78,3 +73,8 @@ cd "$component"
         src/upstream/orangefox-android16/bootable/recovery/gui/{hardwarekeyboard.cpp,objects.hpp,mousecursor.cpp}
     printf '%s\0' src/upstream/orangefox-android16/external/libdrm/{xf86drm.h,xf86drmMode.h,include/drm/drm.h,include/drm/drm_mode.h,include/drm/drm_fourcc.h}
 } | sort -z | xargs -0 sha256sum
+# This comment is a composite inventory identity, not a single file checksum.
+# It includes every supported language and optional owner draft, dependencies,
+# fonts/licenses, directory membership, modes, links and exact source pins.
+localization_identity=$(bash scripts/localization-evidence.sh source | sha256sum | cut -d' ' -f1)
+printf '# localization_source_sha256=%s\n' "$localization_identity"

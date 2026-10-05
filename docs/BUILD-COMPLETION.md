@@ -8,7 +8,11 @@ The preserved public alpha and its historical manifest are unchanged.
 ## What the receipt binds
 
 Before compilation, the host captures project sources, headers, configuration,
-patches, scripts, tests, assets and optional localization inputs. The Android
+patches, scripts, tests, assets and optional localization inputs. Production
+receipts also carry the [localization inventory](LOCALIZATION-EVIDENCE.md),
+which binds supported languages, themes, fonts/notices and exact dependency
+pins to native and GUI resource evidence. Inventory is separate from glyph,
+translation and font-license acceptance. The Android
 tree is indexed by actual file content, including staged, ignored and untracked
 sources and prebuilts. File/symlink modes, targets and source timestamps are
 recorded; source timestamps can affect compiler macros. Fixed Git revisions and

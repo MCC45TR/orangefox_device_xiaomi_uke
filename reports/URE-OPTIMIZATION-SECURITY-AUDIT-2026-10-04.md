@@ -455,6 +455,21 @@ host, visual, payload and publication receipts. **Acceptance:** mutate each new
 header/font/language input and verify receipt invalidation. Do not apply older
 baseline passing receipts to the unbuilt draft.
 
+**5 October source/host checkpoint:** A reviewed inventory now captures all 32
+language resources, optional localization/fallback headers and generators,
+fonts/notices, theme assets and five locked dependency projects. Native and
+sanitizer producers, complete production build receipts, package/repeat/source
+archives, extracted-image audits and adapted GUI publication bind these input
+identities. Isolated exact-source controls changed every supported language and
+each draft header/generator/font/license category, plus modes, links, directory
+membership and a content-identical dependency revision. Old GUI resource records
+refused. The first actual source scan exposed a lock-manifest default-path case;
+the corrected producer and fixture cover it. These inventory controls do not
+execute the unsafe draft generator, accept glyphs/translations/licenses or
+establish a fresh complete image/guest result. See
+[localization evidence](../docs/LOCALIZATION-EVIDENCE.md); AUD-029/030/031 and
+the later combined build/VM gates remain distinct.
+
 ### AUD-027 — P2: repeated packaging is not full build reproducibility
 
 **Known, correctly disclosed limitation.** The manifest currently distinguishes

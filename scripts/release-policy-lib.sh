@@ -76,14 +76,17 @@ release_validate_plan() {
 }
 release_has_requirement() { jq -e --arg requirement "$2" '.required_receipts|index($requirement)!=null' "$1" >/dev/null; }
 release_native_pair() {
-    local native=$1 sanitizer=$2 inputs=$3 catalog=$4 cli=$5 record
+    local native=$1 sanitizer=$2 inputs=$3 catalog=$4 cli=$5 record localization
     release_regular_json "$native" || return 1
     release_regular_json "$sanitizer" || return 1
     [[ -f $inputs && ! -L $inputs && -f $catalog && ! -L $catalog && -f $cli && ! -L $cli ]] || return 1
     jq -e 'type=="array" and length>0 and .==(sort|unique) and all(.[];type=="string")' "$catalog" >/dev/null || return 1
+    localization=$(sed -n 's/^# localization_source_sha256=//p' "$inputs")
+    [[ $localization =~ ^[0-9a-f]{64}$ ]] || return 1
     for record in "$native" "$sanitizer"; do
-        jq -e --arg inputs "$(release_digest "$inputs")" --slurpfile catalog "$catalog" \
+        jq -e --arg inputs "$(release_digest "$inputs")" --arg localization "$localization" --slurpfile catalog "$catalog" \
             '.schema_version==1 and .native_test_inputs_sha256==$inputs and .ctest_test_names==$catalog[0] and
+             .localization_inputs_sha256==$localization and .validation.localization_input_closure==true and
              .ctest_executable_count==($catalog[0]|length) and (.validation.physical_device==false)' "$record" >/dev/null || return 1
     done
     jq -e --arg binary "$(release_digest "$cli")" \

@@ -24,8 +24,12 @@ rg -q -- "<page name=\"$page\">" "$payload/sbin/maintainer.xml" "$payload/twres/
 mkdir -p "$component/build/gui-vm" "$component/reports/private"
 job=$(mktemp -d "$component/build/gui-vm/job-XXXXXX")
 root="$job/root"
+bash "$component/scripts/build-evidence.sh" export "$job/BUILD-COMPLETION.json"
+bash "$component/scripts/localization-evidence.sh" source > "$job/localization-inputs.json"
+bash "$component/scripts/localization-evidence.sh" ui "$payload" > "$job/shipping-ui-inputs.json"
 mkdir "$root"
 cp -a "$payload/." "$root/"
+cmp <(bash "$component/scripts/localization-evidence.sh" ui "$root") "$job/shipping-ui-inputs.json"
 install -m755 "$adapters/recovery-vm" "$root/system/bin/recovery-vm"
 install -m755 "$adapters/uke-vm-properties" "$root/system/bin/uke-vm-properties"
 install -m644 "$adapters/property_info" "$root/ure-vm-property-info"
@@ -52,6 +56,7 @@ sed -i "s|<page name=\"$page\">|&<action><action function=\"set\">tw_screen_time
 install -d -m700 "$root/mnt/uke-settings"
 jq -n --argjson scale "$scale" '{schema:1,format:"ure-display-settings",scale_percent:$scale,uniform_density:true}' > "$root/mnt/uke-settings/display.json"
 chmod 600 "$root/mnt/uke-settings/display.json"
+bash "$component/scripts/localization-evidence.sh" ui "$root" > "$job/overlay-ui-inputs.json"
 printf '%s\n' "$((seconds/2))" > "$root/ure-vm-attempts"
 cat > "$root/ure-gui-vm-init" <<'GUEST'
 #!/system/bin/sh
@@ -115,7 +120,14 @@ timeout "$((seconds+120))" "$qemu" -machine virt -cpu cortex-a72 -m 2048 -accel 
 rg -q '^URE_GUI_EXIT 0\r?$' "$job/console.log"
 rg -q "Set page: '$page'" "$job/console.log"
 if rg -q 'Scudo ERROR|Fatal signal|Kernel panic' "$job/console.log"; then exit 1; fi
+cmp <(bash "$component/scripts/localization-evidence.sh" source) "$job/localization-inputs.json"
+cmp <(bash "$component/scripts/localization-evidence.sh" ui "$payload") "$job/shipping-ui-inputs.json"
+cmp <(bash "$component/scripts/localization-evidence.sh" ui "$root") "$job/overlay-ui-inputs.json"
 jq -n --arg kernel "$(sha256sum "$kernel" | cut -d' ' -f1)" \
+    --arg localization "$(sha256sum "$job/localization-inputs.json" | cut -d' ' -f1)" \
+    --arg assets "$(sha256sum "$job/shipping-ui-inputs.json" | cut -d' ' -f1)" \
+    --arg overlay_assets "$(sha256sum "$job/overlay-ui-inputs.json" | cut -d' ' -f1)" \
+    --arg completion "$(jq -er .receipt_index_sha256 "$job/BUILD-COMPLETION.json")" \
     --arg runner "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
     --arg shipping "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
     --arg adapted "$(sha256sum "$root/system/bin/recovery-vm" | cut -d' ' -f1)" \
@@ -127,6 +139,8 @@ jq -n --arg kernel "$(sha256sum "$kernel" | cut -d' ' -f1)" \
     --arg settings "$(sha256sum "$root/mnt/uke-settings/display.json" | cut -d' ' -f1)" \
     '{schema_version:1,validation_kind:"qemu-system-adapted-orangefox-gui",process_smoke_passed:true,page:$page,
       framebuffer:{width:$width,height:$height},initial_scale_percent:$scale,settings_fixture_sha256:$settings,
+      localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$assets,overlay_ui_assets_sha256:$overlay_assets,
+      build_completion_receipt_index_sha256:$completion,
       kernel_sha256:$kernel,runner_sha256:$runner,shipping_recovery_sha256:$shipping,adapted_recovery_sha256:$adapted,
       property_helper_sha256:$properties,property_trie_sha256:$trie,overlay_theme_sha256:$theme,console_sha256:$log,
       adapters:{memfd_code_cache:true,synthetic_property_area:true,disposable_fstab:true,page_redirect:true},

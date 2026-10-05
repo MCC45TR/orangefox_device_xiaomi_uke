@@ -77,18 +77,21 @@ cp "$work/valid-presence.json" "$missing"
 bash "$driver" preflight "$work/function-reviewed-plan.json" "$artifact" "$work/private"
 bash "$component/scripts/native-test-catalog.sh" "$component/build/ure-host" > "$work/catalog.json"
 printf 'Fixture input manifest, not the real source receipt.\n' > "$work/inputs.sha256"
+printf '# localization_source_sha256=%s\n' "$(printf fixture-localization | sha256sum | cut -d' ' -f1)" >> "$work/inputs.sha256"
 cp /usr/bin/true "$work/host-cli"
 jq -n --arg inputs "$(sha256sum "$work/inputs.sha256" | cut -d' ' -f1)" \
+    --arg localization "$(sed -n 's/^# localization_source_sha256=//p' "$work/inputs.sha256")" \
     --arg cli "$(sha256sum "$work/host-cli" | cut -d' ' -f1)" --slurpfile catalog "$work/catalog.json" \
-    '{schema_version:1,native_test_inputs_sha256:$inputs,host_cli_sha256:$cli,ctest_test_names:$catalog[0],
-      ctest_executable_count:($catalog[0]|length),validation:{physical_device:false,name_independent_release_policy:true}}' > "$work/native.json"
+    '{schema_version:1,native_test_inputs_sha256:$inputs,localization_inputs_sha256:$localization,host_cli_sha256:$cli,ctest_test_names:$catalog[0],
+      ctest_executable_count:($catalog[0]|length),validation:{localization_input_closure:true,physical_device:false,name_independent_release_policy:true}}' > "$work/native.json"
 jq 'del(.host_cli_sha256)|.compiler_sha256="55d80d777d85327543868817fb836231691eae2e13030ab31a01a769a820bf2f"|
-    .validation={physical_device:false,address_sanitizer:true,undefined_behavior_sanitizer:true,leak_detection:true,halt_on_error:true}' \
+    .validation={localization_input_closure:true,physical_device:false,address_sanitizer:true,undefined_behavior_sanitizer:true,leak_detection:true,halt_on_error:true}' \
     "$work/native.json" > "$work/sanitizers.json"
 pair() { bash "$driver" native-pair "$work/native.json" "$1" "$work/inputs.sha256" "$work/catalog.json" "$work/host-cli"; }
 pair "$work/sanitizers.json"
 for change in '.ctest_executable_count=24' '.ctest_test_names[0]="foreign-test"' '.native_test_inputs_sha256="old-input"' \
-    '.compiler_sha256="other-compiler"' '.validation.address_sanitizer=false' '.validation.leak_detection="true"' '.validation.physical_device=true'; do
+    '.compiler_sha256="other-compiler"' '.validation.address_sanitizer=false' '.validation.leak_detection="true"' '.validation.physical_device=true' \
+    'del(.localization_inputs_sha256)' '.localization_inputs_sha256="old-translation"' '.validation.localization_input_closure=false'; do
     jq "$change" "$work/sanitizers.json" > "$work/invalid-sanitizers.json"
     refuse pair "$work/invalid-sanitizers.json"
 done

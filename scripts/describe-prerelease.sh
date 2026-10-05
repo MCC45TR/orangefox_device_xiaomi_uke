@@ -22,6 +22,17 @@ description_work=$(mktemp -d "$component/build/describe-release-XXXXXXXX")
 trap 'rm -rf -- "$description_work"' EXIT
 bash "$component/scripts/build-evidence.sh" export "$description_work/BUILD-COMPLETION.json"
 cmp "$description_work/BUILD-COMPLETION.json" "$destination/BUILD-COMPLETION.json"
+bash "$component/scripts/localization-evidence.sh" source > "$description_work/localization.json"
+bash "$component/scripts/localization-evidence.sh" ui "$payload" > "$description_work/ui.json"
+cmp "$description_work/localization.json" "$destination/LOCALIZATION-INPUTS.json"
+cmp "$description_work/ui.json" "$destination/GUI-RESOURCE-INPUTS.json"
+jq -e --arg source "$(release_digest "$description_work/localization.json")" \
+    --arg ui "$(release_digest "$description_work/ui.json")" \
+    --slurpfile completion "$destination/BUILD-COMPLETION.json" \
+    '.localization_inputs_sha256==$source and .shipping_ui_assets_sha256==$ui and
+     $completion[0].inputs.localization_inputs_sha256==$source and
+     .validation.localization_source_inventory==true and .validation.extracted_gui_resources_match==true' \
+    "$destination/EXTRACTED-RAMDISK-AUDIT.json" >/dev/null
 recovery="$destination/OrangeFox-uke-recovery.img"
 temporary="$destination/OrangeFox-uke-fastboot-boot.img"
 repeat_record="$destination/PACKAGE-REPEAT.sha256"
@@ -68,6 +79,8 @@ jq -e --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' 
 cmp <(bash "$component/scripts/native-inputs.sh") "$component/reports/private/native-test-inputs.sha256"
 bash "$component/scripts/native-test-catalog.sh" "$component/build/ure-host" > "$description_work/catalog.json"
 cmp "$component/reports/private/partition-sanitizer-inputs.sha256" "$component/reports/private/native-test-inputs.sha256"
+[[ $(sed -n 's/^# localization_source_sha256=//p' "$component/reports/private/native-test-inputs.sha256") == \
+    "$(release_digest "$description_work/localization.json")" ]]
 release_native_pair "$component/reports/private/native-verification.json" "$component/reports/private/partition-sanitizer-verification.json" \
     "$component/reports/private/native-test-inputs.sha256" "$description_work/catalog.json" "$component/build/ure-host/uke-recoveryctl"
 cp -- "$component/reports/private/native-verification.json" "$destination/NATIVE-HOST-VERIFICATION.json"
@@ -151,17 +164,22 @@ if release_needed gui-vm; then
     # These fresh records may be attached only to their exact tested ELFs.
     # The graphical VM relinks recovery with adapters and is documented
     # separately; it cannot make the shipping GUI validation flag true.
+    bash "$component/scripts/localization-evidence.sh" verify-gui "$description_work/localization.json" \
+        "$description_work/ui.json" "$component/reports/private/adapted-gui-visual-verification.json"
     jq -e --arg runner "$(sha256sum "$component/tests/check-gui-vm.sh" | cut -d' ' -f1)" \
+        --arg completion "$(jq -er .receipt_index_sha256 "$destination/BUILD-COMPLETION.json")" \
         --arg controller "$(sha256sum "$component/tests/gui-vm-control.sh" | cut -d' ' -f1)" \
         --arg binary "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
         --arg adapted "$(sha256sum "$component/build/gui-vm/recovery-vm" | cut -d' ' -f1)" \
         --arg properties "$(sha256sum "$component/build/gui-vm/uke-vm-properties" | cut -d' ' -f1)" \
         --arg trie "$(sha256sum "$component/build/gui-vm/property_info" | cut -d' ' -f1)" \
         '.passed and .validation_kind=="manually-reviewed-adapted-orangefox-gui" and
-        .runner_sha256==$runner and .controller_sha256==$controller and .shipping_recovery_sha256==$binary and (.runs|length)>=2 and
+        .runner_sha256==$runner and .controller_sha256==$controller and .shipping_recovery_sha256==$binary and
+        .build_completion_receipt_index_sha256==$completion and (.runs|length)>=2 and
         .portrait_reviewed and .landscape_reviewed and (.reviewed_scale_percentages==[50,75,100]) and
         all(.runs[]; .process_smoke_passed and .reviewed_scale_percentages==[50,75,100] and
             .runner_sha256==$runner and .shipping_recovery_sha256==$binary and .adapted_recovery_sha256==$adapted and
+            .build_completion_receipt_index_sha256==$completion and
             .property_helper_sha256==$properties and .property_trie_sha256==$trie and
             .mouse_navigation and .keyboard_navigation and (.screenshots|length)>=6) and
         (.physical_device==false) and (.shipping_kernel_test==false) and (.unmodified_shipping_gui_test==false) and
@@ -276,7 +294,10 @@ jq -n --arg commit "$(git -C "$component" rev-parse HEAD)" \
     '{schema_version:3,classification:"experimental-native-candidate",device:"uke",model_targets:["POCO Pad X1","Xiaomi Pad 7"],firmware_profile:"global-os3.0.303.0",firmware_version:"OS3.0.303.0.WOZMIXM",project_source:{base_commit:$commit,base_tree:$tree,worktree_changes:$changed,input_manifest:"PROJECT-INPUTS.sha256",input_manifest_sha256:$inputs},build_completion:$completion[0],stock_kernel_sha256:$kernel,recovery_ramdisk:{bytes:$ramdisk_bytes,sha256:$ramdisk},host_tools:{mkbootimg:{source_commit:$mkbootimg_commit,executable_sha256:$mkbootimg},avbtool:{source_commit:$avbtool_commit,executable_sha256:$avbtool}},tools:$tools[0],ramdisk_audit:$audit[0],host_fixture_record:$fixtures[0],btrfs_vm_record:$btrfs_vm,partition_vm_record:$partition_vm,sanitizer_record:$sanitizers,adapted_gui_vm_record:$adapted_gui_vm,stock_namespace_vm_record:$stock_namespace_vm,functional_vm_records:$functional_vm,validation:{compile:($completion[0].validation.service_completed and $completion[0].validation.current_source_and_output_match),header_sections:true,zip_integrity:true,static_installer:true,host_policy_fixtures:true,payload_privacy:true,no_python_payload:true,source_identification:true,package_repeat:true,binary_reproducibility:false,physical_device:false,gui_rendering:false,rollback_rehearsal:false,complete_roadmap:false},signatures:{avb:"NONE",zip:"unsigned",checksum:"SHA256SUMS"},source_snapshots:["STOCK-GKI-SOURCE.tar.gz","RECOVERY-UTILITY-SOURCES.tar.gz"]}' \
     | jq --argjson write_gate_vm "$write_gate_vm_record" --slurpfile release "$release_plan" \
          --slurpfile receipts "$description_work/receipt-hashes.json" \
-         '.write_gate_vm_record=$write_gate_vm | .release_policy=$release[0] | .release_class=$release[0].release_class |
+         --slurpfile localization "$destination/LOCALIZATION-INPUTS.json" \
+         --slurpfile gui_resources "$destination/GUI-RESOURCE-INPUTS.json" \
+         '.localization_inputs=$localization[0] | .gui_resource_inputs=$gui_resources[0] |
+          .write_gate_vm_record=$write_gate_vm | .release_policy=$release[0] | .release_class=$release[0].release_class |
           .required_receipt_hashes=$receipts[0]' \
     > "$destination/ARTIFACT-MANIFEST.json"
 # Hash every generated public release file once, including source snapshots.

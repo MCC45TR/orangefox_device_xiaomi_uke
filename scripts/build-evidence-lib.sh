@@ -37,6 +37,11 @@ build_inputs() {
     bash "$build_scripts/index-build-tree.sh" "$component" "$destination/project" project
     bash "$build_scripts/index-build-tree.sh" "$android" "$destination/android" android
     build_pins "$component" "$android" "$destination" "$count"
+    if [[ $count == 399 ]]; then
+        # Production recovery has a reviewed localization inventory. Small
+        # host-fixture jobs remain a distinct class and cannot export it.
+        bash "$component/scripts/localization-evidence.sh" source > "$destination/localization.json"
+    fi
     : > "$destination/host-tools.tsv"
     : > "$destination/host-runtime.tsv"
     # Upstream host Python is used by AOSP tooling only. Target payloads still

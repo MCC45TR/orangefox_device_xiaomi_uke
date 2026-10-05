@@ -61,6 +61,12 @@ hardcoded counts. Matching counts alone cannot substitute different tests. New
 source changes invalidate both receipts. The current host policy controls do not
 constitute a fresh complete native/sanitizer run or an Android image build.
 
+[Localization inventories](LOCALIZATION-EVIDENCE.md) bind all supported language,
+font, notice and theme inputs to build/native/payload/GUI evidence. Packages
+carry their source and actual resource inventories. Current source or resource
+changes invalidate older results; recording their identities does not accept
+glyph coverage, translation meaning or font licensing.
+
 `check-package-repeat.sh` compares two packages from one accepted build and
 records both policy and completion identity. This is package repeatability,
 not independent clean-build reproducibility. A package cannot borrow a repeat

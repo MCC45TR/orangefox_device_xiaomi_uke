@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "required": [
+    "configs/localization-inputs.json",
+    "manifests/orangefox-android16-uke.lock.xml",
+    "scripts/index-build-tree.sh",
+    "scripts/localization-evidence.sh",
+    "scripts/localization-evidence-lib.sh",
+    "scripts/native-inputs.sh",
+    "scripts/prepare-build-tree.sh",
+    "src/device/xiaomi/uke/ure-gui.cpp",
+    "src/device/xiaomi/uke/maintainer.xml",
+    "src/device/xiaomi/uke/prepare-public-ramdisk.sh",
+    "src/device/xiaomi/uke/device.mk",
+    "src/device/xiaomi/uke/recoveryctl/CMakeLists.txt",
+    "tests/check-localization-evidence.sh",
+    "tests/check-gui-vm.sh",
+    "tests/prepare-gui-vm.sh",
+    "tests/gui-vm-control.sh",
+    "src/upstream/orangefox-android16/bootable/recovery/gui/theme/common",
+    "src/upstream/orangefox-android16/bootable/recovery/gui/theme/extra-languages",
+    "src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi",
+    "src/upstream/orangefox-android16/external/roboto-fonts",
+    "src/upstream/orangefox-android16/external/jsoncpp",
+    "src/upstream/orangefox-android16/external/libxml2",
+    "src/upstream/orangefox-android16/external/freetype"
+  ],
+  "optional": [
+    "scripts/translate-locales.sh",
+    "src/device/xiaomi/uke/ure-localization.hpp",
+    "src/device/xiaomi/uke/ure-locale-keys.hpp",
+    "src/device/xiaomi/uke/font-fallback.hpp",
+    "src/device/xiaomi/uke/localization",
+    "src/localization"
+  ],
+  "source_projects": [
+    "bootable/recovery",
+    "external/roboto-fonts",
+    "external/jsoncpp",
+    "external/libxml2",
+    "external/freetype"
+  ],
+  "language_directories": [
+    "bootable/recovery/gui/theme/common/languages",
+    "bootable/recovery/gui/theme/extra-languages/languages"
+  ],
+  "language_codes": [
+    "ar_SA", "bg_BG", "bn_BD", "ca_ES", "cs_CZ", "de_DE", "el_GR", "en",
+    "es-ES", "fa_IR", "fr_FR", "he_IL", "hi_IN", "hu", "id_ID", "it_IT",
+    "ja_JP", "ko_KR", "nl_NL", "no_NO", "pl_PL", "pt_BR", "pt_PT", "ro_RO",
+    "ru", "sr_Cyrl", "th_TH", "tr_TR", "uk_UA", "vi_VN", "zh_CN", "zh_TW"
+  ]
+}
