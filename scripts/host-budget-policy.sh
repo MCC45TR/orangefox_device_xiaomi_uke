@@ -82,9 +82,13 @@ plan=$(jq -cn --argjson memory "$memory" --argjson groups "$groups" --argjson ow
   ([16,$cpus,([1,(($maximum-$internal)/$per_compile|floor)]|max)]|min) as $jobs |
   ([6144,($maximum/2|floor)]|min) as $heap |
   ([8,$cpus,$jobs,([1,($heap/1024|floor)]|max)]|min) as $soong |
+  # Full Soong graphs sustained excessive reclaim at 85 percent. Keep their
+  # soft threshold closer to the same hard ceiling; desktop reserve is unchanged.
+  (if $mode=="arm64" then 0.95 else 0.85 end) as $high_fraction |
   {schema_version:1,mode:$mode,host:$memory,effective_capacity_mib:$capacity,
    shared_available_mib:$available,shared_reserve_mib:$reserve,minimum_mib:$minimum,
-   memory_max_mib:$maximum,memory_high_mib:($maximum*0.85|floor),swap_max_mib:512,
+   memory_max_mib:$maximum,memory_high_mib:($maximum*$high_fraction|floor),
+   memory_high_fraction:$high_fraction,swap_max_mib:512,
    compile_jobs:$jobs,compile_worker_allowance_mib:$per_compile,internal_reserve_mib:$internal,
    soong_procs:$soong,go_heap_mib:$heap,affinity:$affinity,allowed_cpu_count:$cpus,
    admitted:($maximum>=$minimum),ancestor_memory:$groups}')

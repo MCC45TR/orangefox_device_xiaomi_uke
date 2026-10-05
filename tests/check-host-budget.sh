@@ -18,8 +18,9 @@ plan() { bash "$policy" "$1" "$scratch/proc" "$scratch/cgroup" "${2:-caller}"; }
 refuse() { if "$@" > "$scratch/refused.log" 2>&1; then echo 'Expected host admission refusal' >&2; exit 1; fi; }
 snapshot 16384 16384 max max 0
 plan arm64 > "$scratch/16g.json"
-jq -e '.shared_reserve_mib==4096 and .memory_max_mib==12288 and .compile_jobs==13 and .soong_procs==6 and .go_heap_mib==6144' "$scratch/16g.json" >/dev/null
-plan sanitizer | jq -e '.compile_jobs==8 and .memory_max_mib==12288' >/dev/null
+jq -e '.shared_reserve_mib==4096 and .memory_max_mib==12288 and .memory_high_mib==11673 and .memory_high_fraction==0.95 and .compile_jobs==13 and .soong_procs==6 and .go_heap_mib==6144' "$scratch/16g.json" >/dev/null
+plan sanitizer | jq -e '.compile_jobs==8 and .memory_max_mib==12288 and .memory_high_mib==10444 and .memory_high_fraction==0.85' >/dev/null
+plan native | jq -e '.memory_max_mib==12288 and .memory_high_mib==10444 and .memory_high_fraction==0.85' >/dev/null
 snapshot 32768 28672 max max 0
 plan arm64 | jq -e '.compile_jobs==16 and .shared_reserve_mib==8192 and .memory_max_mib==16384' >/dev/null
 snapshot 16384 16384 "$((8*1024*1024*1024))" max "$((2*1024*1024*1024))"
