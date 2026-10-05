@@ -7,6 +7,8 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
+#include <linux/magic.h>
+#include <sys/statfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -144,7 +146,12 @@ int main(int argc,char** argv) {
             check(!ure::fs::exists(fixture.journal),"Refused plan created a journal");
             auto alias=ure::storage_image(fixture.active,4096);
             reject([&] { ure::recovery_install_execute(system,target,alias,fixture.plan,fixture.journal,confirmation); },"installer-fallback-alias");
-            const auto ram=ure::fs::path("/tmp")/("installer-journal-"+ure::operation_id());
+            // The host budget runner deliberately binds disk scratch at /tmp.
+            // Verify the actual RAM filesystem used by this negative control.
+            struct statfs ram_filesystem{};
+            check(::statfs("/dev/shm",&ram_filesystem)==0 && ram_filesystem.f_type==TMPFS_MAGIC,
+                "RAM-journal control requires a verified tmpfs at /dev/shm");
+            const auto ram=ure::fs::path("/dev/shm")/("installer-journal-"+ure::operation_id());
             reject([&] { ure::recovery_install_execute(system,target,fallback,fixture.plan,ram,confirmation); },"installer-durability-unavailable");
             check(!ure::fs::exists(ram),"RAM-backed refusal published a journal");
             select_fault(fixture.active,Fault::ShortWrites);
