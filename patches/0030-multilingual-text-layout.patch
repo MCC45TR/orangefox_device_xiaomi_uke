@@ -1,0 +1,624 @@
+diff --git a/gui/pages.cpp b/gui/pages.cpp
+index 46bcc3bc..8a1ba1df 100755
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -56,6 +56,7 @@ extern "C" {
+ #include "gui.h"
+ }
+ #include "minuitwrp/minui.h"
++#include "minuitwrp/truetype.hpp"
+ 
+ #include "rapidxml.hpp"
+ #include "objects.hpp"
+@@ -1902,7 +1903,8 @@ void PageManager::LoadLanguage(string filename) {
+ 	if (xmlFile == NULL)
+ 		LOGERR("Unable to load '%s'\n", actual_filename.c_str());
+ 	else {
+-		mCurrentSet->LoadLanguage(xmlFile, NULL);
++		if (mCurrentSet->LoadLanguage(xmlFile, NULL) == 0)
++			twrpTruetype::gr_ttf_setLocale(filename.c_str());
+ 		free(xmlFile);
+ 	}
+ 	PartitionManager.Translate_Partition_Display_Names();
+diff --git a/minuitwrp/Android.bp b/minuitwrp/Android.bp
+index 817b5284..fe688039 100644
+--- a/minuitwrp/Android.bp
++++ b/minuitwrp/Android.bp
+@@ -41,6 +41,7 @@ cc_library_shared {
+         "graphics_fbdev.cpp",
+         "resources.cpp",
+         "truetype.cpp",
++        "ure-text-layout.cpp",
+         "graphics_utils.cpp",
+         "events.cpp"
+     ],
+@@ -58,5 +59,5 @@ cc_library_shared {
+         "libsync",
+ 	"libbinder_ndk"
+     ],
+-    static_libs: ["libpixelflinger_twrp"]
++    static_libs: ["libpixelflinger_twrp", "libure_harfbuzz", "libure_fribidi"]
+ }
+diff --git a/minuitwrp/include/minuitwrp/truetype.hpp b/minuitwrp/include/minuitwrp/truetype.hpp
+index fc1abbcc..0c655e0d 100755
+--- a/minuitwrp/include/minuitwrp/truetype.hpp
++++ b/minuitwrp/include/minuitwrp/truetype.hpp
+@@ -21,6 +21,7 @@
+ #include <string>
+ #include <tuple>
+ #include <array>
++#include <vector>
+ #include <ft2build.h>
+ #include <pthread.h>
+ #include FT_FREETYPE_H
+@@ -29,6 +30,15 @@
+ #include <pixelflinger/pixelflinger.h>
+ #include "minui.h"
+ 
++struct hb_font_t;
++namespace ure_text { struct Layout; }
++struct TrueTypeFace {
++    FT_Face face = nullptr;
++    FT_Size size = nullptr;
++    hb_font_t* shaper = nullptr;
++    std::string shared_key;
++};
++
+ typedef struct TrueTypeFontKey {
+     int size;
+     int dpi;
+@@ -71,6 +81,8 @@ typedef struct {
+     int base;
+     FT_Face face;
+     FT_Size ft_size;
++    std::vector<TrueTypeFace> faces;
++    std::array<int,9> fallback_slots;
+     std::map<int, TrueTypeCacheEntry*> glyph_cache;
+     std::map<StringCacheKey, StringCacheEntry*> string_cache;
+     pthread_mutex_t mutex;
+@@ -98,6 +110,7 @@ static const uint32_t offset_basis = 2166136261U;
+ struct TrueTypeBudgetStats {
+     size_t fonts, faces, cache_bytes, font_source_bytes, glyph_entries, string_entries;
+     size_t parser_bytes, refused_parser_allocations;
++    size_t layout_bytes, refused_layout_allocations;
+ };
+ 
+ class twrpTruetype {
+@@ -105,6 +118,10 @@ public:
+     twrpTruetype();
+     static int utf8_to_unicode(const char* pIn, const char* end, unsigned int *pOut);
+     static void* gr_ttf_loadFont(const char *filename, int size, int dpi);
++    static bool gr_ttf_setFallbackDirectory(const char* directory);
++    static bool gr_ttf_setLocale(const char* locale);
++    // Bounded diagnostic inspection uses the exact production layout path.
++    static bool gr_ttf_inspectLayout(const char* text, void* font, ure_text::Layout& out);
+     static void* gr_ttf_scaleFont(void *font, int max_width, int measured_width);
+     static void gr_ttf_freeStringCache(void *key, void *value, [[maybe_unused]] void *context);
+     static void gr_ttf_freeFont(void *font);
+diff --git a/minuitwrp/truetype.cpp b/minuitwrp/truetype.cpp
+index ff6f2df8..9398a56b 100644
+--- a/minuitwrp/truetype.cpp
++++ b/minuitwrp/truetype.cpp
+@@ -38,6 +38,8 @@
+ #include "minuitwrp/truetype.hpp"
+ #include FT_MODULE_H
+ #include FT_OUTLINE_H
++#include "ure-text-layout.hpp"
++#include <hb-ft.h>
+ 
+ extern unsigned int gr_rotation;
+ 
+@@ -84,7 +86,6 @@ int twrpTruetype::utf8_to_unicode(const char* pIn, const char* end, unsigned int
+ 
+ namespace {
+ constexpr size_t TEXT_BYTES = 65536;
+-constexpr size_t TEXT_CHARACTERS = 8192;
+ constexpr size_t RASTER_BYTES = 2 * 1024 * 1024;
+ constexpr size_t CACHE_BYTES = 32 * 1024 * 1024;
+ constexpr size_t FONT_SOURCE_BYTES = 64 * 1024 * 1024;
+@@ -136,18 +137,26 @@ std::array<uint64_t,7> source_identity(const struct stat& s) {
+ 		static_cast<uint64_t>(s.st_mtim.tv_sec), static_cast<uint64_t>(s.st_mtim.tv_nsec),
+ 		static_cast<uint64_t>(s.st_ctim.tv_sec), static_cast<uint64_t>(s.st_ctim.tv_nsec)};
+ }
+-struct SharedFace {
+-	FT_Face face = nullptr;
++struct SharedBytes {
+ 	std::unique_ptr<unsigned char[]> bytes;
+ 	size_t length = 0;
++	bool accounted = false;
++	~SharedBytes() { if (accounted) font_source_bytes -= length; }
++};
++struct SharedFace {
++	FT_Face face = nullptr;
++	std::shared_ptr<SharedBytes> source;
++	std::string source_key;
+ 	size_t users = 0;
+ 	SharedFace() = default;
+ 	SharedFace(const SharedFace&) = delete;
+ 	SharedFace(SharedFace&& other) noexcept : face(std::exchange(other.face, nullptr)),
+-		bytes(std::move(other.bytes)), length(other.length), users(other.users) {}
++		source(std::move(other.source)), source_key(std::move(other.source_key)), users(other.users) {}
+ 	~SharedFace() { if (face) FT_Done_Face(face); }
+ };
+ std::map<std::string, SharedFace> shared_faces;
++std::string fallback_directory = "/twres/fonts/ure";
++std::string text_locale = "en";
+ struct Lock {
+ 	Lock() { pthread_mutex_lock(&font_data.mutex); }
+ 	~Lock() { pthread_mutex_unlock(&font_data.mutex); }
+@@ -178,7 +187,12 @@ TrueTypeFont* registered_font(void* handle) {
+ 	return nullptr;
+ }
+ bool activate(TrueTypeFont* font) {
+-	return font && !FT_Activate_Size(font->ft_size);
++	if (!font) return false;
++	for (auto& face : font->faces) {
++		if (FT_Activate_Size(face.size)) return false;
++		hb_ft_font_changed(face.shaper);
++	}
++	return true;
+ }
+ void erase_string(TrueTypeFont* font) {
+ 	auto it = font->string_cache.begin();
+@@ -203,34 +217,181 @@ bool make_room(TrueTypeFont* font, size_t bytes, bool string_entry) {
+ 	while (bytes > CACHE_BYTES - cache_bytes && !font->glyph_cache.empty()) erase_glyph(font);
+ 	return bytes <= CACHE_BYTES - cache_bytes;
+ }
+-// Must be called under Lock. The raw text is bounded before any string copy.
+-struct Layout { int width = 0; int bytes = 0; bool valid = true; };
++// All font, shaping and glyph operations run under the same FreeType lock.
++auto source_face(const char* filename, long face_index, const std::array<uint64_t,7>* identity = nullptr) {
++	const int fd = open(filename, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
++	if (fd < 0) return shared_faces.end();
++	struct OpenSource { int fd; ~OpenSource() { close(fd); } } open_source{fd};
++	struct stat statbuf{};
++	if (fstat(fd, &statbuf) || !S_ISREG(statbuf.st_mode) || statbuf.st_size <= 0 ||
++		uint64_t(statbuf.st_size) > FONT_FILE_BYTES || (identity && *identity != source_identity(statbuf)))
++		return shared_faces.end();
++	std::string source_key = filename;
++	for (const auto field : source_identity(statbuf)) source_key += ":" + std::to_string(field);
++	const std::string face_key = source_key + ":face:" + std::to_string(face_index);
++	if (auto found = shared_faces.find(face_key); found != shared_faces.end()) return found;
++	if (shared_faces.size() >= FONT_COUNT * 16) return shared_faces.end();
++	SharedFace face;
++	face.source_key = source_key;
++	// Regional TTC faces share one immutable file buffer, including across sizes.
++	for (const auto& existing : shared_faces)
++		if (existing.second.source_key == source_key) { face.source = existing.second.source; break; }
++	if (!face.source) {
++		if (uint64_t(statbuf.st_size) > FONT_SOURCE_BYTES - font_source_bytes) return shared_faces.end();
++		face.source = std::make_shared<SharedBytes>();
++		auto& source = *face.source;
++		source.length = static_cast<size_t>(statbuf.st_size);
++		source.bytes.reset(new (std::nothrow) unsigned char[source.length]);
++		if (!source.bytes) return shared_faces.end();
++		size_t offset = 0;
++		while (offset < source.length) {
++			const auto count = pread(fd, source.bytes.get() + offset, source.length - offset, offset);
++			if (count < 0 && errno == EINTR) continue;
++			if (count <= 0) return shared_faces.end();
++			offset += static_cast<size_t>(count);
++		}
++		struct stat recheck{};
++		if (fstat(fd, &recheck) || source_identity(recheck) != source_identity(statbuf)) return shared_faces.end();
++		font_source_bytes += source.length;
++		source.accounted = true;
++	}
++	if (FT_New_Memory_Face(font_data.ft_library, face.source->bytes.get(), face.source->length, face_index, &face.face) ||
++		!FT_IS_SCALABLE(face.face) || face.face->num_glyphs >= (1 << 20)) return shared_faces.end();
++	return shared_faces.emplace(face_key, std::move(face)).first;
++}
++int add_face(TrueTypeFont* font, const char* filename, long index, const std::array<uint64_t,7>* identity = nullptr) {
++	if (font->faces.size() >= 16) return -1;
++	font->faces.reserve(16);
++	auto source = source_face(filename, index, identity);
++	if (source == shared_faces.end()) return -1;
++	for (size_t i = 0; i < font->faces.size(); ++i)
++		if (font->faces[i].face == source->second.face) return static_cast<int>(i);
++	TrueTypeFace face;
++	try {
++		face.shared_key = source->first;
++		face.face = source->second.face;
++		if (FT_New_Size(face.face, &face.size) || FT_Activate_Size(face.size) ||
++			FT_Set_Char_Size(face.face, 0, font->size * 16, font->dpi, font->dpi)) throw std::bad_alloc();
++		face.shaper = hb_ft_font_create_referenced(face.face);
++		if (hb_font_get_face(face.shaper) == hb_face_get_empty()) throw std::bad_alloc();
++		hb_ft_font_set_load_flags(face.shaper, FT_LOAD_NO_BITMAP);
++		font->faces.push_back(std::move(face));
++		++source->second.users;
++		font->max_height = -1;
++		return static_cast<int>(font->faces.size() - 1);
++	} catch (...) {
++		if (face.shaper) hb_font_destroy(face.shaper);
++		if (face.size) FT_Done_Size(face.size);
++		if (!source->second.users) shared_faces.erase(source);
++		throw;
++	}
++}
++void release_faces(TrueTypeFont* font) {
++	for (auto& face : font->faces) {
++		hb_font_destroy(face.shaper);
++		FT_Done_Size(face.size);
++		auto source = shared_faces.find(face.shared_key);
++		if (source != shared_faces.end() && !--source->second.users) shared_faces.erase(source);
++	}
++	font->faces.clear();
++}
++struct Fallback { const char* file; long index; };
++constexpr Fallback fallback_fonts[]{
++	{"NotoNaskhArabicUI-Regular.ttf", 0}, {"NotoSansHebrew-Regular.ttf", 0},
++	{"NotoSansBengaliUI-VF.ttf", 0}, {"NotoSansDevanagariUI-VF.ttf", 0}, {"NotoSansThaiUI-Regular.ttf", 0},
++	{"NotoSansCJK-Regular.ttc", 0}, {"NotoSansCJK-Regular.ttc", 1},
++	{"NotoSansCJK-Regular.ttc", 2}, {"NotoSansCJK-Regular.ttc", 3}
++};
++int fallback_for(hb_script_t script) {
++	switch (script) {
++	case HB_SCRIPT_ARABIC: return 0;
++	case HB_SCRIPT_HEBREW: return 1;
++	case HB_SCRIPT_BENGALI: return 2;
++	case HB_SCRIPT_DEVANAGARI: return 3;
++	case HB_SCRIPT_THAI: return 4;
++	case HB_SCRIPT_HIRAGANA: case HB_SCRIPT_KATAKANA: return 5;
++	case HB_SCRIPT_HANGUL: return 6;
++	case HB_SCRIPT_BOPOMOFO: return 8;
++	case HB_SCRIPT_HAN:
++		return text_locale == "ja-JP" ? 5 : text_locale == "ko-KR" ? 6 : text_locale == "zh-TW" ? 8 : 7;
++	default: return -1;
++	}
++}
++int ensure_fallback(TrueTypeFont* font, int which) {
++	if (font->fallback_slots[which] != -1) return font->fallback_slots[which];
++	const auto& fallback = fallback_fonts[which];
++	const auto path = fallback_directory + "/" + fallback.file;
++	const int slot = add_face(font, path.c_str(), fallback.index);
++	font->fallback_slots[which] = slot < 0 ? -2 : slot;
++	return slot;
++}
++hb_font_t* select_face(void* handle, uint32_t scalar, hb_script_t script, unsigned int* slot, unsigned int previous) {
++	auto* font = static_cast<TrueTypeFont*>(handle);
++	const auto category = hb_unicode_general_category(hb_unicode_funcs_get_default(), scalar);
++	if (previous < font->faces.size() && (category == HB_UNICODE_GENERAL_CATEGORY_FORMAT ||
++		scalar == 0x200c || scalar == 0x200d ||
++		(scalar >= 0xfe00 && scalar <= 0xfe0f) ||
++		((category == HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK || category == HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK ||
++		  category == HB_UNICODE_GENERAL_CATEGORY_ENCLOSING_MARK) && FT_Get_Char_Index(font->faces[previous].face, scalar)))) {
++		*slot = previous; return font->faces[previous].shaper;
++	}
++	*slot = 0;
++	if (FT_Get_Char_Index(font->face, scalar)) return font->faces.front().shaper;
++	const int selected = fallback_for(script);
++	if (selected >= 0) {
++		const int found = ensure_fallback(font, selected);
++		if (found >= 0 && FT_Get_Char_Index(font->faces[found].face, scalar)) {
++			*slot = static_cast<unsigned int>(found); return font->faces[found].shaper;
++		}
++	}
++	// Symbols or an inherited character can belong to a different fallback.
++	for (int i = 0; i < 9; ++i) {
++		const int found = ensure_fallback(font, i);
++		if (found >= 0 && FT_Get_Char_Index(font->faces[found].face, scalar)) {
++			*slot = static_cast<unsigned int>(found); return font->faces[found].shaper;
++		}
++	}
++	static std::atomic_flag missing = ATOMIC_FLAG_INIT;
++	if (!missing.test_and_set()) fprintf(stderr, "URE_TEXT_MISSING_GLYPH: no licensed font covers a display scalar\n");
++	return font->faces.front().shaper;
++}
++// Must be called under Lock. Never render a partially allocated shaped result.
++struct Layout { int width = 0; int bytes = 0; bool valid = false; ure_text::Layout shaped; };
+ Layout layout(TrueTypeFont* font, const char* input, size_t length, int limit) {
+ 	Layout result;
+-	const char* end = input + length;
+-	int previous = 0;
+-	size_t characters = 0;
+-	while (input < end && *input) {
+-		if (++characters > TEXT_CHARACTERS) { result.valid = false; break; }
+-		unsigned int scalar = 0;
+-		const int consumed = twrpTruetype::utf8_to_unicode(input, end, &scalar);
+-		const int index = FT_Get_Char_Index(font->face, scalar);
+-		// Width measurement never allocates a text raster or rendered glyph.
+-		if (FT_Load_Glyph(font->face, index, FT_LOAD_NO_BITMAP)) { result.valid = false; break; }
+-		int64_t advance = font->face->glyph->advance.x >> 6;
+-		if (FT_HAS_KERNING(font->face) && previous && index) {
+-			FT_Vector delta{};
+-			if (FT_Get_Kerning(font->face, previous, index, FT_KERNING_DEFAULT, &delta)) { result.valid = false; break; }
+-			advance += delta.x >> 6;
++	try {
++		const auto language = hb_language_from_string(text_locale.c_str(), -1);
++		if (language == HB_LANGUAGE_INVALID) return result;
++		const ure_text::FontAccess access{font, select_face, twrpTruetype::utf8_to_unicode};
++		auto shaped = ure_text::shape(input, length, access, language);
++		if (!shaped.valid || (shaped.truncated && (limit == TEXT_WIDTH || shaped.width_26 <= int64_t(limit) * 64))) return result;
++		const auto bytes = ure_text::prefix(shaped, limit);
++		if (bytes != length) {
++			std::vector<size_t> boundaries{0};
++			for (const auto& cluster : shaped.clusters) if (cluster.end <= bytes) boundaries.push_back(cluster.end);
++			auto candidate = ure_text::shape(input, bytes, access, language);
++			if (!candidate.valid) return result;
++			if (candidate.width_26 > int64_t(limit) * 64) {
++				// Context changes at a line edge. Bound re-shapes by log2(8192)
++				// and accept only an actual fitted logical cluster prefix.
++				size_t low = 0, high = boundaries.size() - 1;
++				ure_text::Layout fitted; fitted.valid = true;
++				while (low < high) {
++					const auto middle = low + (high - low + 1) / 2;
++					auto trial = ure_text::shape(input, boundaries[middle], access, language);
++					if (!trial.valid) return result;
++					if (trial.width_26 <= int64_t(limit) * 64) { low = middle; fitted = std::move(trial); }
++					else high = middle - 1;
++				}
++				candidate = std::move(fitted);
++			}
++			shaped = std::move(candidate);
+ 		}
+-		const int64_t width = std::max<int64_t>(0, result.width + advance);
+-		if (width > TEXT_WIDTH) { result.valid = false; break; }
+-		if (width > limit) break;
+-		result.width = static_cast<int>(width);
+-		result.bytes += consumed;
+-		input += consumed;
+-		previous = index;
+-	}
++		result.width = static_cast<int>((shaped.width_26 + 63) / 64);
++		result.bytes = static_cast<int>(shaped.bytes);
++		result.valid = true;
++		result.shaped = std::move(shaped);
++	} catch (const std::bad_alloc&) {}
+ 	return result;
+ }
+ }
+@@ -261,50 +422,57 @@ void* twrpTruetype::gr_ttf_loadFont(const char* filename, int size, int dpi) {
+ 			FT_Add_Default_Modules(font_data.ft_library);
+ 			FT_Set_Default_Properties(font_data.ft_library);
+ 		}
+-		std::string source_key = key.path;
+-		for (const auto field : key.identity) source_key += ":"+std::to_string(field);
+-		auto source = shared_faces.find(source_key);
+-		if (source == shared_faces.end()) {
+-			if (uint64_t(statbuf.st_size) > FONT_SOURCE_BYTES - font_source_bytes) { text_failure(); return nullptr; }
+-			SharedFace face;
+-			face.length = static_cast<size_t>(statbuf.st_size);
+-			face.bytes.reset(new (std::nothrow) unsigned char[face.length]);
+-			if (!face.bytes) { text_failure(); return nullptr; }
+-			size_t offset = 0;
+-			while (offset < face.length) {
+-				const auto count = pread(fd, face.bytes.get()+offset, face.length-offset, offset);
+-				if (count < 0 && errno == EINTR) continue;
+-				if (count <= 0) return nullptr;
+-				offset += static_cast<size_t>(count);
+-			}
+-			struct stat recheck{};
+-			if (fstat(fd, &recheck) || source_identity(recheck) != key.identity) return nullptr;
+-			if (FT_New_Memory_Face(font_data.ft_library, face.bytes.get(), face.length, 0, &face.face)) return nullptr;
+-			if (!FT_IS_SCALABLE(face.face)) return nullptr;
+-			source = shared_faces.emplace(source_key, std::move(face)).first;
+-			font_source_bytes += source->second.length;
+-		}
+-		auto& face = source->second;
+ 		TrueTypeFont* font = nullptr;
+ 		try {
+ 			font = new TrueTypeFont{};
+ 			font->key = new TrueTypeFontKey(key);
+ 			font->type = FONT_TYPE_TTF;
+ 			font->size = size; font->dpi = dpi; font->refcount = 1;
+-			font->face = face.face; font->max_height = -1; font->base = -1;
+-			if (FT_New_Size(font->face, &font->ft_size) || FT_Activate_Size(font->ft_size) ||
+-				FT_Set_Char_Size(font->face, 0, size * 16, dpi, dpi)) throw std::bad_alloc();
++			font->fallback_slots.fill(-1);
++			font->max_height = -1; font->base = -1;
++			if (add_face(font, filename, 0, &key.identity) != 0) throw std::bad_alloc();
++			font->face = font->faces.front().face;
++			font->ft_size = font->faces.front().size;
++			// Stable line metrics cover every packaged writing system. Font files
++			// are shared across sizes; a missing custom-theme fallback is optional.
++			for (int fallback : {0,1,2,3,4,7}) ensure_fallback(font, fallback);
+ 			font_data.fonts.emplace(key, font);
+-			++face.users;
+ 			return font;
+ 		} catch (...) {
+-			if (font) { if (font->ft_size) FT_Done_Size(font->ft_size); delete font->key; delete font; }
+-			if (!face.users) { font_source_bytes -= face.length; shared_faces.erase(source); }
++			if (font) { release_faces(font); delete font->key; delete font; }
+ 			throw;
+ 		}
+ 	} catch (const std::bad_alloc&) { text_failure(); return nullptr; }
+ }
+ 
++bool twrpTruetype::gr_ttf_setFallbackDirectory(const char* directory) {
++	Lock lock;
++	if (!font_data.fonts.empty() || !directory || strnlen(directory,4097) > 4096) return false;
++	struct stat info{};
++	if (lstat(directory, &info) || !S_ISDIR(info.st_mode)) return false;
++	try { fallback_directory = directory; return true; }
++	catch (const std::bad_alloc&) { return false; }
++}
++bool twrpTruetype::gr_ttf_setLocale(const char* locale) {
++	Lock lock;
++	if (!locale || strnlen(locale,33) > 32) return false;
++	static const char* const supported[]{
++		"ar-SA", "bg-BG", "bn-BD", "ca-ES", "cs-CZ", "de-DE", "el-GR", "en", "es-ES", "fa-IR", "fr-FR",
++		"he-IL", "hi-IN", "hu", "id-ID", "it-IT", "ja-JP", "ko-KR", "nl-NL", "no-NO", "pl-PL", "pt-BR",
++		"pt-PT", "ro-RO", "ru", "sr-Cyrl", "th-TH", "tr-TR", "uk-UA", "vi-VN", "zh-CN", "zh-TW"
++	};
++	try {
++		std::string requested(locale);
++		std::replace(requested.begin(), requested.end(), '_', '-');
++		if (std::find(std::begin(supported), std::end(supported), requested) == std::end(supported)) return false;
++		if (text_locale == requested) return true;
++		text_locale = std::move(requested);
++		for (auto& item : font_data.fonts)
++			while (!item.second->string_cache.empty()) erase_string(item.second);
++		return true;
++	} catch (const std::bad_alloc&) { return false; }
++}
++
+ void* twrpTruetype::gr_ttf_scaleFont(void* handle, int max_width, int measured_width) {
+ 	// Copy the key while owning its font; never keep a path pointer across unlock.
+ 	std::string path;
+@@ -336,12 +504,7 @@ void twrpTruetype::gr_ttf_freeFont(void* handle) {
+ 	if (!font || --font->refcount) return;
+ 	while (!font->string_cache.empty()) erase_string(font);
+ 	while (!font->glyph_cache.empty()) erase_glyph(font);
+-	FT_Done_Size(font->ft_size);
+-	auto source = std::find_if(shared_faces.begin(), shared_faces.end(), [font](const auto& source) { return source.second.face == font->face; });
+-	if (source != shared_faces.end() && !--source->second.users) {
+-		font_source_bytes -= source->second.length;
+-		shared_faces.erase(source);
+-	}
++	release_faces(font);
+ 	font_data.fonts.erase(*font->key);
+ 	delete font->key;
+ 	delete font;
+@@ -354,19 +517,22 @@ TrueTypeCacheEntry* twrpTruetype::gr_ttf_glyph_cache_peek(TrueTypeFont* font, in
+ 
+ TrueTypeCacheEntry* twrpTruetype::gr_ttf_glyph_cache_get(TrueTypeFont* font, int index) {
+ 	if (auto* entry = gr_ttf_glyph_cache_peek(font, index)) return entry;
+-	if (FT_Load_Glyph(font->face, index, FT_LOAD_NO_BITMAP)) return nullptr;
+-	const auto& metrics = font->face->glyph->metrics;
++	if (index < 0 || static_cast<unsigned int>(index) >> 20 >= font->faces.size()) return nullptr;
++	auto& slot = font->faces[static_cast<unsigned int>(index) >> 20];
++	const auto face = slot.face;
++	if (FT_Activate_Size(slot.size) || FT_Load_Glyph(face, index & ((1 << 20) - 1), FT_LOAD_NO_BITMAP)) return nullptr;
++	const auto& metrics = face->glyph->metrics;
+ 	if (metrics.width < 0 || metrics.height < 0 || metrics.width > FONT_HEIGHT * 64 || metrics.height > FONT_HEIGHT * 64) return nullptr;
+ 	FT_BBox box{};
+-	FT_Outline_Get_CBox(&font->face->glyph->outline, &box);
++	FT_Outline_Get_CBox(&face->glyph->outline, &box);
+ 	if (box.xMin < -TEXT_WIDTH*64L || box.xMax > TEXT_WIDTH*64L || box.yMin < -TEXT_WIDTH*64L || box.yMax > TEXT_WIDTH*64L) return nullptr;
+ 	const int64_t width = ((int64_t(box.xMax)+63) / 64) - (int64_t(box.xMin) >> 6);
+ 	const int64_t height = ((int64_t(box.yMax)+63) / 64) - (int64_t(box.yMin) >> 6);
+ 	if (width < 0 || height < 0 || width > FONT_HEIGHT || height > FONT_HEIGHT ||
+ 		(height && width > static_cast<int64_t>(RASTER_BYTES) / height)) return nullptr;
+-	if (FT_Render_Glyph(font->face->glyph, FT_RENDER_MODE_NORMAL)) return nullptr;
++	if (FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL)) return nullptr;
+ 	FT_Glyph raw = nullptr;
+-	if (FT_Get_Glyph(font->face->glyph, &raw)) return nullptr;
++	if (FT_Get_Glyph(face->glyph, &raw)) return nullptr;
+ 	auto* glyph = reinterpret_cast<FT_BitmapGlyph>(raw);
+ 	const int64_t pitch = glyph->bitmap.pitch;
+ 	const uint64_t stride = static_cast<uint64_t>(pitch < 0 ? -pitch : pitch);
+@@ -386,8 +552,10 @@ TrueTypeCacheEntry* twrpTruetype::gr_ttf_glyph_cache_get(TrueTypeFont* font, int
+ }
+ 
+ int twrpTruetype::gr_ttf_copy_glyph_to_surface(GGLSurface* dest, FT_BitmapGlyph glyph, int offX, int offY, int base) {
+-	if (!dest || !glyph || !dest->data || !glyph->bitmap.buffer || dest->stride < 0 ||
++	if (!dest || !glyph || !dest->data || dest->stride < 0 ||
+ 		static_cast<unsigned>(dest->stride) < dest->width || glyph->bitmap.pixel_mode != FT_PIXEL_MODE_GRAY) return -1;
++	if (!glyph->bitmap.width || !glyph->bitmap.rows) return 0; // Space has no pixel buffer.
++	if (!glyph->bitmap.buffer) return -1;
+ 	const int64_t pitch = glyph->bitmap.pitch;
+ 	const int64_t stride = pitch < 0 ? -pitch : pitch;
+ 	if (stride < glyph->bitmap.width || glyph->bitmap.rows > FONT_HEIGHT || glyph->bitmap.width > FONT_HEIGHT) return -1;
+@@ -402,28 +570,32 @@ int twrpTruetype::gr_ttf_copy_glyph_to_surface(GGLSurface* dest, FT_BitmapGlyph
+ 		const int64_t source_row = pitch < 0 ? glyph->bitmap.rows - 1 - (y-top) : y-top;
+ 		const auto* source = glyph->bitmap.buffer + source_row * stride + (x0-left);
+ 		auto* target = dest->data + y * dest->stride + x0;
+-		memcpy(target, source, static_cast<size_t>(x1-x0));
++		// Combining marks can overlap their base. Zero coverage must never
++		// erase an earlier glyph; source-over composes the two A8 masks.
++		for (int64_t x = 0; x < x1-x0; ++x)
++			target[x] = static_cast<unsigned char>(source[x] + (unsigned(target[x]) * (255-source[x]) + 127) / 255);
+ 	}
+ 	return 0;
+ }
+ 
+ void twrpTruetype::gr_ttf_calcMaxFontHeight(TrueTypeFont* font) {
+-	FT_BBox bounds{0, LONG_MAX, 0, LONG_MIN};
+-	for (unsigned int scalar = '!'; scalar <= '~'; ++scalar) {
+-		if (FT_Load_Glyph(font->face, FT_Get_Char_Index(font->face, scalar), FT_LOAD_NO_BITMAP)) continue;
+-		FT_Glyph glyph = nullptr;
+-		if (FT_Get_Glyph(font->face->glyph, &glyph)) continue;
+-		FT_BBox box{};
+-		FT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_PIXELS, &box);
+-		bounds.yMin = std::min(bounds.yMin, box.yMin); bounds.yMax = std::max(bounds.yMax, box.yMax);
+-		FT_Done_Glyph(glyph);
++	int64_t ascender = 0, descender = 0;
++	for (const auto& face : font->faces) {
++		const auto& metrics = face.size->metrics;
++		if (metrics.ascender < 0 || metrics.descender > 0 ||
++			metrics.ascender > FONT_HEIGHT * 64L || metrics.descender < -FONT_HEIGHT * 64L) {
++			font->max_height = -1; return;
++		}
++		ascender = std::max<int64_t>(ascender, (metrics.ascender + 63) / 64);
++		descender = std::max<int64_t>(descender, (-metrics.descender + 63) / 64);
++	}
++	const int64_t padding = font->size / 4;
++	const int64_t height = ascender + descender + padding;
++	if (height <= 0 || height > FONT_HEIGHT || ascender + padding > FONT_HEIGHT) {
++		font->max_height = -1; return;
+ 	}
+-	if (bounds.yMin > bounds.yMax) bounds.yMin = bounds.yMax = 0;
+-	if (bounds.yMin < -FONT_HEIGHT*64L || bounds.yMax > FONT_HEIGHT*64L) { font->max_height = -1; return; }
+-	const int64_t height = int64_t(bounds.yMax) - bounds.yMin + font->size / 4;
+-	const int64_t base = int64_t(bounds.yMax) + font->size / 4;
+-	if (height <= 0 || height > FONT_HEIGHT || base < 0 || base > FONT_HEIGHT) { font->max_height = -1; return; }
+-	font->max_height = static_cast<int>(height); font->base = static_cast<int>(base);
++	font->max_height = static_cast<int>(height);
++	font->base = static_cast<int>(ascender + padding);
+ }
+ 
+ int twrpTruetype::gr_ttf_render_text(TrueTypeFont* font, GGLSurface* surface, const std::string& text, int max_width) {
+@@ -441,25 +613,17 @@ int twrpTruetype::gr_ttf_render_text(TrueTypeFont* font, GGLSurface* surface, co
+ 	surface->version = sizeof(*surface); surface->width = fit.width;
+ 	surface->height = font->max_height; surface->stride = fit.width;
+ 	surface->format = GGL_PIXEL_FORMAT_A_8; surface->data = pixels.get();
+-	const char* input = text.data();
+-	const char* end = input + fit.bytes;
+-	int previous = 0;
+-	int64_t x = 0;
+-	while (input < end && *input) {
+-		unsigned int scalar = 0;
+-		const int consumed = utf8_to_unicode(input, end, &scalar);
+-		const int index = FT_Get_Char_Index(font->face, scalar);
+-		if (FT_HAS_KERNING(font->face) && previous && index) {
+-			FT_Vector delta{};
+-			if (FT_Get_Kerning(font->face, previous, index, FT_KERNING_DEFAULT, &delta)) { *surface = {}; return text_failure(); }
+-			x += delta.x >> 6;
+-		}
++	for (const auto& positioned : fit.shaped.glyphs) {
++		if (positioned.slot >= font->faces.size() || positioned.index >= (1U << 20) ||
++			std::abs(positioned.x_26) > int64_t(TEXT_WIDTH) * 64 ||
++			std::abs(positioned.y_26) > int64_t(FONT_HEIGHT) * 64) { *surface = {}; return text_failure(); }
++		const int index = static_cast<int>((positioned.slot << 20) | positioned.index);
+ 		auto* glyph = gr_ttf_glyph_cache_get(font, index);
+-		if (!glyph || x < -TEXT_WIDTH || x > TEXT_WIDTH) { *surface = {}; return text_failure(); }
+-		if (bytes) gr_ttf_copy_glyph_to_surface(surface, glyph->glyph, static_cast<int>(x), 0, font->base);
+-		x += glyph->glyph->root.advance.x >> 16;
+-		previous = index;
+-		input += consumed;
++		if (!glyph) { *surface = {}; return text_failure(); }
++		if (bytes && gr_ttf_copy_glyph_to_surface(surface, glyph->glyph,
++			static_cast<int>(positioned.x_26 >> 6), static_cast<int>(positioned.y_26 >> 6), font->base)) {
++			*surface = {}; return text_failure();
++		}
+ 	}
+ 	pixels.release();
+ 	return fit.bytes;
+@@ -503,6 +667,17 @@ int twrpTruetype::gr_ttf_measureEx(const char* text, void* handle) {
+ 	const auto fit = layout(font, text, length, TEXT_WIDTH);
+ 	return fit.valid ? fit.width : text_failure();
+ }
++bool twrpTruetype::gr_ttf_inspectLayout(const char* text, void* handle, ure_text::Layout& out) {
++	Lock lock;
++	out = {};
++	auto* font = registered_font(handle);
++	size_t length = 0;
++	if (!activate(font) || !bounded_text(text, length)) return false;
++	auto fit = layout(font, text, length, TEXT_WIDTH);
++	if (!fit.valid) return false;
++	out = std::move(fit.shaped);
++	return true;
++}
+ int twrpTruetype::gr_ttf_maxExW(const char* text, void* handle, int max_width) {
+ 	Lock lock;
+ 	auto* font = registered_font(handle);
+@@ -579,7 +754,8 @@ int twrpTruetype::gr_ttf_getMaxFontHeight(void* handle) {
+ 
+ TrueTypeBudgetStats twrpTruetype::gr_ttf_getBudgetStats() {
+ 	Lock lock;
+-	TrueTypeBudgetStats stats{font_data.fonts.size(), shared_faces.size(), cache_bytes, font_source_bytes, 0, 0, parser_bytes, refused_parser_allocations};
++	TrueTypeBudgetStats stats{font_data.fonts.size(), shared_faces.size(), cache_bytes, font_source_bytes, 0, 0,
++		parser_bytes, refused_parser_allocations, ure_text::allocated_bytes(), ure_text::refused_allocations()};
+ 	for (const auto& item : font_data.fonts) {
+ 		stats.glyph_entries += item.second->glyph_cache.size();
+ 		stats.string_entries += item.second->string_cache.size();

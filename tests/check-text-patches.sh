@@ -15,4 +15,16 @@ if bash "$component/scripts/prepare-recovery-patches.sh" "$scratch/source" > "$s
 fi
 [[ $(sha256sum "$scratch/source/minuitwrp/truetype.cpp" | cut -d' ' -f1) == "$before" ]]
 bash "$component/scripts/prepare-recovery-patches.sh" "$source_path" check
+freetype_source="$component/src/upstream/orangefox-android16/external/freetype"
+git clone --shared --no-checkout "$freetype_source" "$scratch/freetype" >/dev/null 2>&1
+git -C "$scratch/freetype" checkout --detach d968d2541f7158e18ab22680bfa08a538019bf6a >/dev/null 2>&1
+bash "$component/scripts/prepare-reviewed-patches.sh" "$scratch/freetype" apply freetype
+bash "$component/scripts/prepare-reviewed-patches.sh" "$scratch/freetype" check freetype
+printf '\n/* Unreviewed FreeType sentinel */\n' >> "$scratch/freetype/src/truetype/ttgxvar.c"
+before=$(sha256sum "$scratch/freetype/src/truetype/ttgxvar.c" | cut -d' ' -f1)
+if bash "$component/scripts/prepare-reviewed-patches.sh" "$scratch/freetype" apply freetype > "$scratch/freetype-refusal.log" 2>&1; then
+    echo 'Unknown FreeType source changes were incorrectly accepted' >&2; exit 1
+fi
+[[ $(sha256sum "$scratch/freetype/src/truetype/ttgxvar.c" | cut -d' ' -f1) == "$before" ]]
+bash "$component/scripts/prepare-reviewed-patches.sh" "$freetype_source" check freetype
 echo 'Reviewed text source stack and unknown-change preservation passed; disposable clone retained privately.'

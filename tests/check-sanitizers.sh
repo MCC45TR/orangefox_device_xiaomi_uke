@@ -15,6 +15,7 @@ compiler="$component/src/upstream/orangefox-android16/prebuilts/clang/host/linux
 expected=55d80d777d85327543868817fb836231691eae2e13030ab31a01a769a820bf2f
 [[ -x $compiler && $(sha256sum "$compiler" | cut -d' ' -f1) == "$expected" ]]
 mkdir -p reports/private
+bash scripts/prepare-reviewed-patches.sh "$component/src/upstream/orangefox-android16/external/freetype" apply freetype
 bash scripts/native-inputs.sh > reports/private/partition-sanitizer-inputs.sha256
 cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-sanitized-clang -G Ninja \
     -DCMAKE_CXX_COMPILER="$compiler" -DCMAKE_C_COMPILER="${compiler%++}" -DCMAKE_BUILD_TYPE=Debug \

@@ -13,7 +13,10 @@
     {"name": "wimlib-imagex", "version": "1.14.5", "commit": "cd5e231c348c255ae5088873b5a66ee0eb96fa07", "license": "GPL-3.0-or-later", "ntfs_support": true, "fuse_support": false, "adapter": "configs/ure/wimlib-Android.bp"},
     {"name": "Dropbear", "version": "2025.89", "commit": "179de98f7b9584a309ffc48e39c61da940760740", "license": "MIT and bundled original notices", "password_auth": false, "pam_auth": false, "forwarding": false, "sftp": false, "automatic_start": false, "adapter": "configs/ure/dropbear-Android.bp"},
     {"name": "cryptsetup", "version": "2.8.8", "commit": "f1dbcce190719c9e177e8fbaf3df0b908f87d920", "role": "reference-only", "packaged": false},
-    {"name": "btrfs-progs", "version": "7.1", "commit": "4ab0e80be9e3bb1db2e6038e6d4316d35fb7ba8b", "role": "reference-only", "packaged": false, "kernel_filesystem_support": false}
+    {"name": "btrfs-progs", "version": "7.1", "commit": "4ab0e80be9e3bb1db2e6038e6d4316d35fb7ba8b", "role": "reference-only", "packaged": false, "kernel_filesystem_support": false},
+    {"name":"HarfBuzz","version":"14.5.1","commit":"eb033319fc2ebe723597fa497d4bb4331bab8b6b","license":"MIT and ISC and Unicode-3.0","role":"bounded native multilingual shaping","adapter":"configs/text-layout/harfbuzz-Android.bp"},
+    {"name":"FriBidi","version":"1.0.17","commit":"b93119f5fdc7ea47672cc304c1455ffa6dfe7536","license":"LGPL-2.1-or-later","role":"bounded native bidi ordering","unicode_data":"14.0.0","adapter":"configs/text-layout/fribidi-Android.bp","patch":"patches/0031-fribidi-allocation-failure.patch"},
+    {"name":"Noto fallback fonts","commit":"f1fe27f9777986e0f5973b4e6dda8be9dae49a95","license":"OFL-1.1","role":"unchanged Arabic, Hebrew, Bengali, Devanagari, Thai and regional CJK assets","asset_lock":"manifests/text-layout.lock.json"}
   ],
   "other_tool_pins": "manifests/orangefox-android16-uke.lock.xml",
   "host_only_python_policy": "docs/HOST-TOOLS.md"

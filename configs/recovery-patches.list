@@ -18,3 +18,4 @@
 0024-shared-operation-lifecycle.patch
 0026-owned-management-jobs.patch
 0027-join-management-jobs-before-teardown.patch
+0030-multilingual-text-layout.patch

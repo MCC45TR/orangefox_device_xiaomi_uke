@@ -1,0 +1,16 @@
+Origin: https://github.com/freetype/freetype/commit/b1cbcb20454e3b465b0d3ea4d5457975cfa747e7
+Purpose: Backport the upstream zero-region guard to the pinned AOSP FreeType.
+License: The original FreeType source-file license remains unchanged.
+
+--- a/src/truetype/ttgxvar.c
++++ b/src/truetype/ttgxvar.c
+@@ -1024,6 +1024,9 @@
+     if ( innerIndex >= varData->itemCount )
+       return 0; /* Out of range. */
+ 
++    if ( varData->regionIdxCount == 0 )
++      return 0; /* Avoid "applying zero offset to null pointer". */
++
+     if ( varData->regionIdxCount < 16 )
+     {
+       deltaSet = deltaSetStack;

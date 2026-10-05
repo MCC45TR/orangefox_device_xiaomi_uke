@@ -12,7 +12,7 @@ records remain historical; adding a current digest to an old pass is prohibited.
 all common/extra/portrait theme files, packaged Roboto source and notices,
 JsonCpp, libxml2 and FreeType sources/licenses, build consumers, and optional
 owner localization headers, generator, font helper and font directory. It checks
-the five exact project revisions against the locked manifest, including projects
+the six exact project revisions against the locked manifest, including projects
 whose path defaults to their name. Duplicate, missing or new language codes
 require a reviewed configuration change. Inventory does not execute the draft
 generator, font helper or translation fetcher and does not contact a service.
@@ -72,6 +72,9 @@ An input inventory proves which bytes were captured. It does not establish
 glyph coverage, RTL order, script shaping, correct translated warnings or font
 license closure. The inventory records these acceptance flags as false. The
 optional CJK draft has no accepted adjacent provenance/license and must not be
-promoted by its content hash. Multilingual rendering, generator memory safety
-and translation context/provenance are separate AUD-029/030/031 work. Neither
+promoted by its content hash. The [AUD-029 checkpoint](MULTILINGUAL-TEXT.md)
+provides separately scoped production-renderer source/host checks and exact
+licensed assets; its results do not turn inventory flags into rendering passes.
+Generator memory safety and translation context/provenance remain AUD-030/031.
+Neither
 host controls nor a generic VM establish tablet display/input acceptance.

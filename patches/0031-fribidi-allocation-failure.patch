@@ -1,0 +1,43 @@
+--- a/lib/fribidi-bidi.c
++++ b/lib/fribidi-bidi.c
+@@ -1116,8 +1116,18 @@
+         bracket_stack[iso_level] = local_bracket_stack[iso_level];
+ 
+       for (iso_level=LOCAL_BRACKET_SIZE; iso_level < num_iso_levels; iso_level++)
++        {
+         bracket_stack[iso_level] = fribidi_malloc (sizeof (bracket_stack[0])
+                                                        * FRIBIDI_BIDI_MAX_NESTED_BRACKET_PAIRS);
++          if UNLIKELY
++            (!bracket_stack[iso_level])
++            {
++              int allocated;
++              for (allocated=LOCAL_BRACKET_SIZE; allocated < iso_level; allocated++)
++                fribidi_free (bracket_stack[allocated]);
++              goto out;
++            }
++        }
+     }
+ 
+     /* Build the bd16 pair stack. */
+@@ -1778,6 +1788,8 @@
+ 	  char *runs_and_ranges =
+ 	    fribidi_malloc (num_runs * (sizeof (FriBidiL2Run) +
+ 					 sizeof (FriBidiL2Range)));
++	  if UNLIKELY
++	    (!runs_and_ranges) goto out;
+ 	  FriBidiL2Run *runs = (FriBidiL2Run *) runs_and_ranges;
+ 	  FriBidiL2Range *ranges =
+ 	    (FriBidiL2Range *) (runs_and_ranges +
+@@ -1825,6 +1837,12 @@
+ 					     0) +
+ 					    (map ? sizeof (FriBidiStrIndex) :
+ 					     0)));
++		  if UNLIKELY
++		    (!tmp)
++		    {
++		      fribidi_free (runs_and_ranges);
++		      goto out;
++		    }
+ 		  FriBidiChar *tmp_visual = visual_str ? (FriBidiChar *) tmp :
+ 		    NULL;
+ 		  FriBidiStrIndex *tmp_map =

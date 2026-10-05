@@ -48,7 +48,7 @@ sources=(build/soong build/blueprint bootable/recovery vendor/recovery vendor/tw
     external/e2fsprogs external/f2fs-tools external/gptfdisk external/exfatprogs
     external/lzma external/magisk-prebuilt external/libncurses
     external/lz4 external/zlib external/zstd external/boringssl
-    external/toybox external/selinux external/roboto-fonts bionic system/core system/extras
+    external/toybox external/selinux external/roboto-fonts external/noto-fonts external/freetype bionic system/core system/extras
     system/libbase system/libziparchive system/update_engine external/ntfs-3g external/jsoncpp external/libdrm)
 verify_reviewed_patch() {
     local source_path=$1; shift
@@ -76,12 +76,13 @@ for path in "${sources[@]}"; do
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 cmp "$tree/$path/ure-write-gate.hpp" "$component/src/device/xiaomi/uke/ure-write-gate.hpp"
                 cmp "$tree/$path/ure-lifecycle.hpp" "$component/src/device/xiaomi/uke/ure-lifecycle.hpp"
-                for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
+                for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp ure-text-layout.hpp ure-text-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
                 done;;
             system/core) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check fastboot;;
             external/ntfs-3g) verify_reviewed_patch "$tree/$path" 0003-build-ntfsresize.patch;;
             external/zstd) verify_reviewed_patch "$tree/$path" 0009-native-boot-audit-codecs.patch;;
+            external/freetype) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check freetype;;
             vendor/recovery) verify_reviewed_patch "$tree/$path" 0005-propagate-callback-failure.patch;;
             *) echo "Unexpected modification in source: $path" >&2; exit 1;;
         esac
@@ -92,6 +93,16 @@ for path in "${sources[@]}"; do
         vendor/recovery) exclusions=(':(exclude)prebuilt' ':(exclude)installer' ':(exclude)Files/*.ttf' ':(exclude)Files/*.zip');;
     esac
     git -C "$tree/$path" archive --format=tar --prefix="android/$path/" HEAD . "${exclusions[@]}" > "$source_work/part.tar"
+    tar --concatenate --file="$source_work/recovery.tar" "$source_work/part.tar"
+done
+# Immutable shaping libraries include their release-generated Unicode tables.
+# This check rejects unreviewed source or build adapters before redistribution.
+bash "$component/scripts/prepare-text-layout-sources.sh"
+for name in harfbuzz fribidi; do
+    version=$(jq -er --arg name "$name" '.libraries[]|select(.name==$name)|.version' "$component/manifests/text-layout.lock.json")
+    text_source="$component/src/upstream/text-layout/$name-$version"
+    diff -qr "$text_source" "$tree/external/ure-$name"
+    tar -cf "$source_work/part.tar" -C "$component/src/upstream/text-layout" "$name-$version"
     tar --concatenate --file="$source_work/recovery.tar" "$source_work/part.tar"
 done
 # Preserve pristine upstream snapshots and the adapters that reconstruct the
@@ -113,6 +124,10 @@ cp -- "$component/referances/lucide-0.563.0/LICENSE" "$source_work/project/icon-
 for path in device installer inventory host; do
     cp -a -- "$component/src/$path" "$source_work/project/src/"
 done
+# The inventoried owner font draft has no accepted adjacent redistribution
+# notice and is not a production input. Exclude only the copied draft directory;
+# preserve the developer's original files and the accepted source lock.
+rm -rf -- "$source_work/project/src/device/xiaomi/uke/localization/fonts"
 [[ ! -d $component/src/localization ]] || cp -a -- "$component/src/localization" "$source_work/project/src/"
 cp -a -- "$component/patches" "$component/manifests" "$component/scripts" "$component/tests" "$source_work/project/"
 cp -a -- "$component/configs" "$source_work/project/"
@@ -120,7 +135,7 @@ cp -- "$component/.gitattributes" "$source_work/project/"
 cp -- "$component/LICENSE" "$component/docs/PRE-RELEASE.md" "$component/docs/HOST-TOOLS.md" "$source_work/project/"
 cp -- "$component/docs/HOST-BUILD-BUDGET.md" "$source_work/project/"
 cp -- "$component/docs/BUILD-COMPLETION.md" "$component/docs/RELEASE-POLICY.md" "$source_work/project/"
-cp -- "$component/docs/LOCALIZATION-EVIDENCE.md" "$destination/LOCALIZATION-INPUTS.json" \
+cp -- "$component/docs/LOCALIZATION-EVIDENCE.md" "$component/docs/MULTILINGUAL-TEXT.md" "$destination/LOCALIZATION-INPUTS.json" \
     "$destination/GUI-RESOURCE-INPUTS.json" "$source_work/project/"
 cp -- "$component/docs/URE-NATIVE.md" "$component/docs/URE-NATIVE-CANDIDATE.md" "$source_work/project/"
 cp -- "$component/docs/HOST-RESTORE.md" "$component/docs/PARTITION-MANAGER.md" "$source_work/project/"

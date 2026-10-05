@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+// Immutable upstream sources; project build adapter only.
+package { default_applicable_licenses: ["libure_fribidi_license"] }
+license {
+    name: "libure_fribidi_license",
+    visibility: [":__subpackages__"],
+    license_kinds: ["SPDX-license-identifier-LGPL-2.1-or-later"],
+    license_text: ["COPYING"],
+}
+cc_library_static {
+    name: "libure_fribidi",
+    recovery_available: true,
+    vendor_available: true,
+    host_supported: true,
+    srcs: [
+        "lib/fribidi-bidi.c",
+        "lib/fribidi-bidi-types.c",
+        "lib/fribidi-brackets.c",
+        "lib/fribidi-run.c",
+    ],
+    local_include_dirs: [".","lib"],
+    export_include_dirs: [".","lib"],
+    cflags: [
+        "-DHAVE_CONFIG_H",
+    ],
+    c_std: "gnu11",
+}

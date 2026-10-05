@@ -23,7 +23,13 @@ AOSP capacity-adjusted layout without executing fastboot or OEM scripts.
 
 The host-only `prepare-public-ramdisk.sh` callback stages the compiled Bash explicitly, including after an incremental build left a vendor prebuilt behind. It omits generic FRP, AVB-disable and verity/encryption-edit addon recipes because they have no Uke-specific target/fallback guard. It accepts only the neutral build's exact generated ramdisk path, is not copied into the tablet ramdisk, and does not access a block device. The stock kernel's upstream `/root/initrd` literal is a runtime initrd relocation path in `init/do_mounts_initrd.c`, not a personal build path; it remains unmodified.
 
-Font assets with unestablished redistribution terms are replaced in the generated ramdisk by aliases of `external/roboto-fonts/RobotoStatic-Regular.ttf` at commit `c50938f329a44707b06b336166c95ec2aa49c331`, with its Apache-2.0 notice retained. Distinct font-family selection is therefore not supported in this alpha. Recovery source snapshots exclude the original font binaries and unrelated vendor prebuilt/addon archives; the pinned repositories remain the acquisition references.
+The existing public alpha uses aliases of the licensed AOSP static Roboto font
+and does not supply distinct font families. The [new multilingual source
+checkpoint](MULTILINGUAL-TEXT.md) adds six unchanged, license-identified Noto
+fallback assets, exact notices and bounded native shaping/bidi libraries. It does
+not retrospectively rebuild or accept that alpha. Recovery source snapshots
+exclude unaccepted local font drafts and unrelated vendor prebuilt/addon archives;
+accepted Roboto/Noto originals and their notices are retained.
 
 The nested ZIP audit found a private build prefix in a legacy addon updater. All generic bundled addon ZIPs are omitted from the alpha, with their optional UI actions unsupported. The shipped script sources are included directly in the source snapshot; the upstream binary installer directory is excluded. The project installation ZIP is audited separately and contains only its C++ helper, recovery image, POSIX wrapper, hash and documentation.
 

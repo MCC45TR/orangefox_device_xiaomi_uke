@@ -124,23 +124,41 @@ if(BUILD_TESTING)
         target_compile_options(freetype PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
     endif()
     find_package(Threads REQUIRED)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../../../../../configs/text-layout/CMakeLists.cmake")
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-text-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp"
         DEPENDS "${UKE_RECOVERY_SOURCE}/minuitwrp/graphics.cpp" "${UKE_RECOVERY_SOURCE}/minuitwrp/graphics_utils.cpp"
             "${UKE_RECOVERY_SOURCE}/gui/scrolllist.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-text-hooks.sh")
     add_executable(uke-text-renderer-tests ../../../../../tests/ure/text_renderer.cpp "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp"
-        "${UKE_RECOVERY_SOURCE}/minuitwrp/truetype.cpp")
+        "${UKE_RECOVERY_SOURCE}/minuitwrp/truetype.cpp" ../ure-text-layout.cpp)
     target_compile_features(uke-text-renderer-tests PRIVATE cxx_std_20)
-    target_include_directories(uke-text-renderer-tests PRIVATE ../../../../../tests/ure)
+    target_include_directories(uke-text-renderer-tests PRIVATE .. ../../../../../tests/ure)
     target_include_directories(uke-text-renderer-tests SYSTEM PRIVATE "${UKE_RECOVERY_SOURCE}/minuitwrp/include"
         "${UKE_RECOVERY_SOURCE}/gui/include" "${UKE_RECOVERY_SOURCE}/libpixelflinger/include")
     target_compile_options(uke-text-renderer-tests PRIVATE -Wall -Wextra -Werror -Wno-missing-field-initializers -include linux/types.h)
-    target_link_libraries(uke-text-renderer-tests PRIVATE freetype Threads::Threads)
+    target_link_libraries(uke-text-renderer-tests PRIVATE ure-harfbuzz ure-fribidi freetype Threads::Threads)
     target_link_options(uke-text-renderer-tests PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc
         -Wl,--wrap=_Znwm -Wl,--wrap=_Znam -Wl,--wrap=_ZnwmRKSt9nothrow_t -Wl,--wrap=_ZnamRKSt9nothrow_t
         -Wl,--wrap=FT_Load_Glyph -Wl,--wrap=FT_Render_Glyph)
     ure_test(ure-production-text-allocation-and-clipping uke-text-renderer-tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf")
+    add_executable(uke-text-multilingual-tests ../../../../../tests/ure/text_multilingual.cpp
+        "${CMAKE_CURRENT_BINARY_DIR}/text-hooks.cpp" "${UKE_RECOVERY_SOURCE}/minuitwrp/truetype.cpp" ../ure-text-layout.cpp)
+    add_custom_target(ure-text-font-fixture
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../prepare-font-resources.sh"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16" "${CMAKE_CURRENT_BINARY_DIR}/text-font-fixture")
+    add_dependencies(uke-text-multilingual-tests ure-text-font-fixture)
+    target_compile_features(uke-text-multilingual-tests PRIVATE cxx_std_20)
+    target_include_directories(uke-text-multilingual-tests PRIVATE .. ../../../../../tests/ure)
+    target_include_directories(uke-text-multilingual-tests SYSTEM PRIVATE "${UKE_RECOVERY_SOURCE}/minuitwrp/include"
+        "${UKE_RECOVERY_SOURCE}/gui/include" "${UKE_RECOVERY_SOURCE}/libpixelflinger/include")
+    target_compile_options(uke-text-multilingual-tests PRIVATE -Wall -Wextra -Werror -Wno-missing-field-initializers -include linux/types.h)
+    target_link_libraries(uke-text-multilingual-tests PRIVATE ure-harfbuzz ure-fribidi freetype Threads::Threads LibXml2::LibXml2)
+    ure_test(ure-production-multilingual-layout uke-text-multilingual-tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf"
+        "${CMAKE_CURRENT_BINARY_DIR}/text-font-fixture/twres/fonts/ure" "${UKE_RECOVERY_SOURCE}"
+        "${CMAKE_CURRENT_BINARY_DIR}/text-atlases")
+    set_tests_properties(ure-production-multilingual-layout PROPERTIES TIMEOUT 240)
     set_tests_properties(ure-production-bounded-utf8 ure-production-text-allocation-and-clipping PROPERTIES TIMEOUT 45)
     add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/generate-write-gate-hooks.sh" "${CMAKE_CURRENT_BINARY_DIR}/write-gate-hooks.cpp"

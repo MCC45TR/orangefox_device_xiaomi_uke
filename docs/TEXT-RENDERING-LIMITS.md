@@ -18,6 +18,8 @@ Current implementation limits are:
 | Per-font string/glyph entries | 128 / 512 |
 | Font instances / one source / all owned source bytes | 64 / 32 MiB / 64 MiB |
 | FreeType parser/library heap / one parser allocation | 64 MiB / 16 MiB |
+| Shared HarfBuzz/FriBidi heap / one allocation | 16 MiB / 4 MiB |
+| Positioned output glyphs per layout | 32,768 |
 
 The FreeType memory callbacks enforce parser limits **before** allocation or
 decompression. Bounded source length alone does not bound WOFF expansion. Glyph
@@ -40,5 +42,7 @@ zlib/WOFF support, compiles the complete production renderer and extracts actual
 rotation, scale and console-wrap functions. It covers all four rotations, edge
 texture coordinates, negative bearings/pitch, allocation failure, cache churn,
 source replacement, decompression refusal, concurrency and complete ownership
-release. Native and sanitizer results are separate from Android compilation,
-shipping GUI, script shaping/fallback coverage and physical device acceptance.
+release. The [multilingual checkpoint](MULTILINGUAL-TEXT.md) adds exact licensed
+fallbacks, logical cluster fitting, script shaping and bidi oracles. Native and
+sanitizer results remain separate from Android compilation, shipping GUI,
+translation semantics and physical device acceptance.

@@ -1,4 +1,6 @@
 #include "text-renderer.h"
+#include "ure-text-layout.hpp"
+#include <fribidi.h>
 #include <array>
 #include <atomic>
 #include <climits>
@@ -93,17 +95,62 @@ static void glyph_clips() {
     glyph.bitmap.rows = 3; glyph.bitmap.width = 4; glyph.bitmap.pitch = 4;
     glyph.bitmap.pixel_mode = FT_PIXEL_MODE_GRAY; glyph.bitmap.buffer = source.data();
     auto storage = std::make_unique<unsigned char[]>(4);
+    std::fill_n(storage.get(),4,0);
     GGLSurface dest{}; dest.width = 2; dest.height = 2; dest.stride = 2; dest.data = storage.get();
     glyph.left = -1; glyph.top = 1;
     require(!twrpTruetype::gr_ttf_copy_glyph_to_surface(&dest, &glyph, 0, 0, 0), "negative bearing clip");
     require(storage[0] == 6 && storage[1] == 7 && storage[2] == 10 && storage[3] == 11, "positive pitch oracle");
     glyph.bitmap.pitch = -4;
+    std::fill_n(storage.get(),4,0);
     require(!twrpTruetype::gr_ttf_copy_glyph_to_surface(&dest, &glyph, 0, 0, 0), "negative pitch clip");
     require(storage[0] == 6 && storage[1] == 7 && storage[2] == 2 && storage[3] == 3, "negative pitch oracle");
     for (int coordinate : {INT_MIN, INT_MAX})
         require(!twrpTruetype::gr_ttf_copy_glyph_to_surface(&dest, &glyph, coordinate, coordinate, coordinate), "extreme clipped coordinates");
     glyph.bitmap.pitch = 2;
     require(twrpTruetype::gr_ttf_copy_glyph_to_surface(&dest, &glyph, 0, 0, 0) == -1, "undersized pitch refusal");
+    const std::array<unsigned char,4> overlap{0,128,255,64};
+    glyph.bitmap.width=2; glyph.bitmap.rows=2; glyph.bitmap.pitch=2;
+    glyph.bitmap.buffer=const_cast<unsigned char*>(overlap.data());
+    glyph.left=0; glyph.top=0;
+    std::fill_n(storage.get(),4,100);
+    require(!twrpTruetype::gr_ttf_copy_glyph_to_surface(&dest,&glyph,0,0,0),"overlapping A8 masks");
+    require(storage[0]==100 && storage[1]==178 && storage[2]==255 && storage[3]==139,
+        "independent source-over oracle preserves base under transparent mark pixels");
+}
+static void bidi_allocation_failures() {
+    // Exercise both newly guarded line-reorder allocations independently.
+    const std::array<FriBidiCharType,3> types{FRIBIDI_TYPE_LTR,FRIBIDI_TYPE_RTL,FRIBIDI_TYPE_LTR};
+    const auto memory=ure_text::allocated_bytes();
+    for(int allocation : {0,1}) {
+        std::array<FriBidiLevel,3> levels{0,1,0};
+        std::array<FriBidiStrIndex,3> map{0,1,2};
+        fail_after=allocation;
+        const auto result=fribidi_reorder_line(0,types.data(),3,0,FRIBIDI_PAR_LTR,levels.data(),nullptr,map.data());
+        fail_after=-1;
+        require(!result,"line-reorder heap and temporary-buffer allocation refusals");
+        require(ure_text::allocated_bytes()==memory,"line-reorder failure releases earlier allocation");
+    }
+    // More than 16 nested isolates enters FriBidi's heap bracket-stack path.
+    std::vector<FriBidiChar> text{'A'};
+    for(int depth=0;depth<40;++depth) { text.push_back(0x2066); text.push_back('('); text.push_back(0x05d0); }
+    for(int depth=0;depth<40;++depth) { text.push_back(')'); text.push_back(0x2069); }
+    text.push_back('B');
+    std::vector<FriBidiCharType> bidi_types(text.size());
+    std::vector<FriBidiBracketType> brackets(text.size());
+    std::vector<FriBidiLevel> levels(text.size());
+    const auto length=static_cast<FriBidiStrIndex>(text.size());
+    fribidi_get_bidi_types(text.data(),length,bidi_types.data());
+    fribidi_get_bracket_types(text.data(),length,bidi_types.data(),brackets.data());
+    size_t refused=0;
+    const auto injected_before=injected_allocations;
+    for(int allocation=0;allocation<240;++allocation) {
+        FriBidiParType base=FRIBIDI_PAR_ON;
+        fail_after=allocation;
+        if(!fribidi_get_par_embedding_levels_ex(bidi_types.data(),brackets.data(),length,&base,levels.data())) ++refused;
+        fail_after=-1;
+        require(ure_text::allocated_bytes()==memory,"nested-isolate failure releases all bidi owners");
+    }
+    require(refused>30 && injected_allocations-injected_before>30,"nested-isolate bracket-stack failures exercised");
 }
 int main(int argc, char** argv) {
     require(argc == 2, "licensed source font argument");
@@ -114,6 +161,7 @@ int main(int argc, char** argv) {
     GRSurface surface{3200,2136,12800,4,nullptr,0};
     gr_context = &context; gr_draw = &surface;
     glyph_clips();
+    bidi_allocation_failures();
     require(!twrpTruetype::gr_ttf_loadFont(nullptr, 48, 300), "null font path");
     require(!twrpTruetype::gr_ttf_loadFont(argv[1], INT_MAX, INT_MAX), "overflow size/dpi");
     void* font = twrpTruetype::gr_ttf_loadFont(argv[1], 48, 300);
@@ -122,7 +170,7 @@ int main(int argc, char** argv) {
     const FT_GlyphSlotRec original_slot = *actual_font->face->glyph;
     const size_t before_render = render_calls;
     synthetic_outline = true;
-    require(!twrpTruetype::gr_ttf_glyph_cache_get(actual_font,INT_MAX), "pre-render product refusal");
+    require(!twrpTruetype::gr_ttf_glyph_cache_get(actual_font,FT_Get_Char_Index(actual_font->face,'W')), "pre-render product refusal");
     synthetic_outline = false;
     *actual_font->face->glyph = original_slot;
     require(render_calls == before_render, "large outline refused before raster allocation");

@@ -1,0 +1,4 @@
+lib/fribidi-bidi.c
+lib/fribidi-bidi-types.c
+lib/fribidi-brackets.c
+lib/fribidi-run.c

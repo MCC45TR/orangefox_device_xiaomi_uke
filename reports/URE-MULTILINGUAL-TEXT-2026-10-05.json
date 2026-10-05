@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-05",
+  "finding": "AUD-029",
+  "evidence_scope": "source-and-focused-reference-host",
+  "native": {
+    "schema_version": 1,
+    "evidence_scope": "focused-production-text-host",
+    "mode": "native",
+    "native_test_inputs_sha256": "c0396fda842315a52947d6990d340934305894cf4e8abf2427d88320ffac9fa4",
+    "localization_inputs_sha256": "fbef50e0e44c1cbef271b8c974e366dbc39d723d86c2c1c9e29a972aaf33b973",
+    "compiler_sha256": "d43227c181347687c224da7c1b8e9db756c6f24a43c810c2d40f0dfb266e6f6f",
+    "executable_index_sha256": "272eea5ce5bf17e436576040f3859418c30268e0ee5aa55d28321d53820299c2",
+    "test_log_sha256": "04ea78f2fec66216ddf4b9f37ba6aa3ffe5738abcfec57b7686b8e7b279d344f",
+    "atlas_index_sha256": "f1e334d8a7eb95731164e7f6906f7f4cc202c4713bce4f0c965421cf8ee7b091",
+    "test_names": [
+      "ure-production-bounded-utf8",
+      "ure-production-text-allocation-and-clipping",
+      "ure-production-multilingual-layout"
+    ],
+    "validation": {
+      "source_before_after": true,
+      "original_font_bytes": true,
+      "production_script_controls": true,
+      "allocation_failure": true,
+      "orientation_scale_draws": true,
+      "sanitizer_runtime_negative": false,
+      "address_undefined_leak_checks": false,
+      "vptr_instrumentation": false,
+      "complete_native_catalog": false,
+      "complete_android_build": false,
+      "shipping_gui": false,
+      "combined_vm": false,
+      "physical_device": false
+    }
+  },
+  "sanitizer": {
+    "schema_version": 1,
+    "evidence_scope": "focused-production-text-host",
+    "mode": "sanitizer",
+    "native_test_inputs_sha256": "c0396fda842315a52947d6990d340934305894cf4e8abf2427d88320ffac9fa4",
+    "localization_inputs_sha256": "fbef50e0e44c1cbef271b8c974e366dbc39d723d86c2c1c9e29a972aaf33b973",
+    "compiler_sha256": "55d80d777d85327543868817fb836231691eae2e13030ab31a01a769a820bf2f",
+    "executable_index_sha256": "556e3c7a01cd0fc5131596ee0948b1cb9ff552eb62ac246f91b16e44886f61ec",
+    "test_log_sha256": "96dfca41a23c6a4e1771bb4b1ca469d034d86d473e1718047bf73c9980b2f13a",
+    "atlas_index_sha256": "3caf526e0bcccc8969a4dd22672dd49deb756f385afc5a85d85dba60e2a9df9c",
+    "test_names": [
+      "ure-production-bounded-utf8",
+      "ure-production-text-allocation-and-clipping",
+      "ure-production-multilingual-layout"
+    ],
+    "validation": {
+      "source_before_after": true,
+      "original_font_bytes": true,
+      "production_script_controls": true,
+      "allocation_failure": true,
+      "orientation_scale_draws": true,
+      "sanitizer_runtime_negative": true,
+      "address_undefined_leak_checks": true,
+      "vptr_instrumentation": false,
+      "complete_native_catalog": false,
+      "complete_android_build": false,
+      "shipping_gui": false,
+      "combined_vm": false,
+      "physical_device": false
+    }
+  },
+  "coverage": {
+    "languages": 32,
+    "resource_records": 35191,
+    "scalars_excluding_ascii_controls": 798009,
+    "scales": [
+      50,
+      55,
+      60,
+      65,
+      70,
+      75,
+      80,
+      85,
+      90,
+      95,
+      100
+    ],
+    "orientation_draws": 616,
+    "atlas_compiler_byte_equality": true
+  },
+  "benchmark": {
+    "environment": "reference host, Debug builds; workload is the complete language corpus and native samples",
+    "native": {
+      "elapsed_ms": 6271,
+      "peak_rss_kib": 49640
+    },
+    "sanitizer": {
+      "elapsed_ms": 43024,
+      "peak_rss_kib": 639764
+    }
+  },
+  "controls": {
+    "text_resources_log_sha256": "56166a3cbf4f52b57f9e14e0711e569dc356a9c71e749ed368968d05ebf0c997",
+    "reviewed_stack_log_sha256": "82dbe03b5fd66b78b8072a429e9c54ca005842d873a9c3086916c6514d36dec6",
+    "localization_inventory_log_sha256": "f08d51ae69e89ee5eb296b76a7f1b8653de417729f3c6e878a988ba236fb30a5"
+  },
+  "visual_review": {
+    "native_font_atlas_scales": [
+      50,
+      75
+    ],
+    "whole_gui": false
+  },
+  "acceptance": {
+    "complete_native_catalog": false,
+    "complete_android_build": false,
+    "recovery_partition_capacity": false,
+    "shipping_gui": false,
+    "combined_vm": false,
+    "translation_semantics": false,
+    "unicode_18_bidi_conformance": false,
+    "physical_device": false
+  }
+}

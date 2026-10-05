@@ -21,6 +21,8 @@ entry=$(jq -ce --arg id "$profile" '.profiles[] | select(.id==$id and .download_
 soong_source="$tree/build/soong"
 bash "$component/scripts/prepare-reviewed-patches.sh" "$soong_source" apply soong
 bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/build/blueprint" apply blueprint
+bash "$component/scripts/prepare-android-text-layout.sh"
+bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/external/freetype" apply freetype
 [[ -f $vendor_directory_patch ]] || { echo 'Recovery vendor directory patch is missing' >&2; exit 1; }
 if git -C "$build_make" apply --unidiff-zero --reverse --check "$vendor_directory_patch" 2>/dev/null; then
   : # Already applied.
@@ -106,6 +108,9 @@ recovery_source="$tree/bootable/recovery"
 bash "$component/scripts/prepare-recovery-patches.sh" "$recovery_source"
 copy_changed "$device_source/ure-gui.cpp" "$recovery_source/gui/ure.cpp"
 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp; do
+  copy_changed "$device_source/$file" "$recovery_source/minuitwrp/$file"
+done
+for file in ure-text-layout.hpp ure-text-layout.cpp; do
   copy_changed "$device_source/$file" "$recovery_source/minuitwrp/$file"
 done
 copy_changed "$device_source/ure-write-gate.hpp" "$recovery_source/ure-write-gate.hpp"

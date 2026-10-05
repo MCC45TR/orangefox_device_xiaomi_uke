@@ -509,6 +509,14 @@ required; bound caches and retain combining/script tables when subsetting.
 Arabic/Hebrew order, Indic/Thai shaping, CJK, labels and destructive warnings at
 every scale/orientation. Measure font loading RSS and image size after packaging.
 
+**5 October source/host checkpoint:** the [bounded multilingual renderer](../docs/MULTILINGUAL-TEXT.md)
+and [reviewed results](URE-MULTILINGUAL-TEXT-2026-10-05.json) add original licensed
+fallbacks, logical shaping/bidi, cluster fitting and reproduced failure-path fixes.
+Three native and three sanitizer tests cover the actual 32-language corpus and
+616 native orientation/scale draws. Whole-GUI warnings, complete target/image
+capacity, package and combined VM acceptance remain pending. The original
+historical packaging finding above is preserved.
+
 ### AUD-030 — P1: draft localization key generation uses freed JSON storage
 
 **Reproduced draft defect, not a shipped regression.**

@@ -11,6 +11,7 @@ cd "$component"
 export CCACHE_DIR=${CCACHE_DIR:-"$component/build/ccache/native"}
 mkdir -p "$CCACHE_DIR"
 mkdir -p reports/private
+bash scripts/prepare-reviewed-patches.sh "$component/src/upstream/orangefox-android16/external/freetype" apply freetype
 initial_inputs=$(mktemp reports/private/native-initial-inputs-XXXXXX)
 trap 'rm -f -- "$initial_inputs"' EXIT
 bash scripts/native-inputs.sh > "$initial_inputs"
@@ -52,6 +53,7 @@ UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/ch
 bash tests/check-installer.sh
 bash tests/check-write-gate.sh
 bash tests/check-text-patches.sh
+bash tests/check-text-layout-resources.sh
 bash tests/check-stock-boot-programming.sh
 bash tests/check-payload-fixtures.sh
 bash tests/check-release-policy.sh

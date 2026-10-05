@@ -37,6 +37,7 @@ bash "$component/scripts/localization-evidence.sh" source > "$work/localization.
 bash "$component/scripts/localization-evidence.sh" ui "$work/root" > "$work/extracted-ui.json"
 bash "$component/scripts/localization-evidence.sh" ui "$tree/out-public/target/product/uke/recovery/root" > "$work/staged-ui.json"
 cmp "$work/extracted-ui.json" "$work/staged-ui.json"
+bash "$component/scripts/check-font-resources.sh" "$work/root"
 bash "$component/tests/check-payload.sh" "$work/root"
 bash "$component/tests/check-nested-payloads.sh" "$work/root"
 bash "$component/tests/check-elf-closure.sh" "$work/root"
@@ -66,6 +67,13 @@ for binary in recovery fastbootd uke-recovery-install; do
 done
 strings "$work/root/system/bin/recovery" | rg -F 'URE_STORAGE_WRITE_BLOCKED' >/dev/null
 cmp "$tree/out-public/target/product/uke/system/lib64/libminuitwrp.so" "$work/root/system/lib64/libminuitwrp.so"
+for symbol in gr_ttf_setLocale gr_ttf_inspectLayout hb_shape_full fribidi_reorder_line; do
+    readelf --dyn-syms --wide "$work/root/system/lib64/libminuitwrp.so" | grep -F "$symbol" > /dev/null
+done
+bash "$component/src/device/xiaomi/uke/prepare-text-notices.sh" "$tree" "$work/expected-text-notices"
+for notice in harfbuzz.txt harfbuzz-MS-USE.txt harfbuzz-source-notices.txt fribidi-LGPL-2.1.txt fribidi-source-notices.txt unicode-data.txt; do
+    cmp "$work/expected-text-notices/$notice" "$work/root/system/etc/ure/licenses/$notice"
+done
 for binary in uke-recoveryctl uke-recovery-install; do
     strings "$work/root/system/bin/$binary" | rg -F '9e55ff8afdf178e424187f0dc7d6dd2fa570308e22d8df7ac895d65017dbc0d7' >/dev/null
 done

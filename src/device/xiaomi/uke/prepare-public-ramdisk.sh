@@ -88,6 +88,8 @@ for font in "$payload/twres/fonts/"*.ttf; do
     cp -- "$font_source" "$font"
 done
 cp -- /mnt/external/roboto-fonts/NOTICE "$payload/twres/fonts/LICENSE.txt"
+bash /mnt/device/xiaomi/uke/prepare-font-resources.sh /mnt "$payload"
+bash /mnt/device/xiaomi/uke/prepare-text-notices.sh /mnt "$payload/system/etc/ure/licenses"
 
 # These generic addons write FRP, vbmeta or encryption settings without Uke
 # identity/fallback checks. Do not ship their executable recipes in this alpha.
@@ -103,4 +105,4 @@ rm -f -- "$payload/FFiles/OF_DelFRP/OF_DelFRP.zip" \
     "$payload/FFiles/OF_bind_internal/OF_bind_internal.zip" \
     "$payload/FFiles/OF_reset/OF_reset.zip" \
     "$payload/FFiles/Tools/system_sar_mount/system_sar_mount.zip"
-echo 'Uke public ramdisk: source-built Bash, licensed Roboto aliases; generic firmware/security-write addons omitted.'
+echo 'Uke public ramdisk: source-built Bash and text layout, licensed Roboto/Noto fonts; guarded recovery tools.'
