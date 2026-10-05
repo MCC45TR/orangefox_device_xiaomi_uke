@@ -530,6 +530,19 @@ the 2,664-entry custom catalog; no localization-completion claim is justified.
 generated key count/order/collisions. **Acceptance:** empty, one-entry and full
 catalogs under sanitizers, exact key closure, and real callback/rendering builds.
 
+**5 October source/reference-host correction:** the generator keeps a named JSON
+owner through validation and iteration, refuses malformed/duplicate/colliding
+rows, emits byte-preserving sorted C++ literals and publishes a header only after
+structural checks. Empty, one, non-BMP/control and current 3,189-row catalogs
+compiled against the actual lookup adapter with exact counts/order/bytes; five
+native/five pinned-Clang sanitizer controls passed. The original temporary-owner
+pattern still fails the independent ASan negative. Unvalidated translation
+commands are disabled. See [the scoped evidence](URE-LOCALIZATION-KEYS-2026-10-05.json)
+and [reproduction guide](../docs/LOCALIZATION-KEY-GENERATION.md). The historical
+2,664-row observation above is preserved; the fresh catalog reflects current
+sources. Complete 49-test catalogs, target/image, shipping GUI/VM and translation
+semantics remain unaccepted.
+
 ### AUD-031 — P1: draft translation materialization needs stronger provenance
 
 **Confirmed validation gap.** `catalog.cpp:377–387` imports `validated.json`

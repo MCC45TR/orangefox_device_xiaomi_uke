@@ -47,7 +47,8 @@ done < <(jq -r '.language_codes[]' "$fixture/configs/localization-inputs.json")
 for file in scripts/translate-locales.sh src/device/xiaomi/uke/ure-localization.hpp \
     src/device/xiaomi/uke/ure-locale-keys.hpp src/device/xiaomi/uke/font-fallback.hpp \
     src/device/xiaomi/uke/localization/fonts/ure-cjk.ttf src/localization/catalog.cpp \
-    src/localization/font-instance.cpp \
+    src/localization/font-instance.cpp src/localization/key-catalog.cpp src/localization/key-catalog.hpp \
+    tests/check-localization-keys.sh tests/ure/localization_keys.cpp tests/ure/localization_header.cpp tests/ure/localization_owner_negative.cpp \
     src/upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf \
     src/upstream/orangefox-android16/external/roboto-fonts/NOTICE \
     src/upstream/orangefox-android16/external/jsoncpp/LICENSE \
@@ -80,7 +81,8 @@ done
 for path in scripts/translate-locales.sh src/device/xiaomi/uke/ure-localization.hpp \
     src/device/xiaomi/uke/ure-locale-keys.hpp src/device/xiaomi/uke/font-fallback.hpp \
     src/device/xiaomi/uke/localization/fonts/ure-cjk.ttf src/localization/catalog.cpp \
-    src/localization/font-instance.cpp \
+    src/localization/font-instance.cpp src/localization/key-catalog.cpp src/localization/key-catalog.hpp \
+    tests/check-localization-keys.sh tests/ure/localization_keys.cpp tests/ure/localization_header.cpp tests/ure/localization_owner_negative.cpp \
     src/upstream/orangefox-android16/external/roboto-fonts/RobotoStatic-Regular.ttf \
     src/upstream/orangefox-android16/external/roboto-fonts/NOTICE \
     src/upstream/orangefox-android16/external/jsoncpp/LICENSE \

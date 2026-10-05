@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-05",
+  "finding": "AUD-030",
+  "evidence_scope": "focused source and reference-host localization key generation",
+  "source_inputs_sha256": "58c4215e4582366a495ad5143c6223bf520974aa1d57183c85143d0a0f8f64df",
+  "localization_inputs_sha256": "da28e15569909b476ddc0110d4e576c96cb07312cf3e6b98b9d69101e018e168",
+  "native": {
+    "receipt_sha256": "9ba0b78c019f1733c456adc8fbb389671a3769029368efdaae2593a62cb126eb",
+    "compiler_sha256": "d43227c181347687c224da7c1b8e9db756c6f24a43c810c2d40f0dfb266e6f6f",
+    "ctest_count": 5
+  },
+  "sanitizer": {
+    "receipt_sha256": "5faf8047a33fa5ab0873b8cc66c279eb439bcdef274550c343cc97ed5058b569",
+    "compiler_sha256": "55d80d777d85327543868817fb836231691eae2e13030ab31a01a769a820bf2f",
+    "ctest_count": 5,
+    "address_and_undefined_and_leak_checks": true,
+    "halt_on_error": true,
+    "vptr_instrumentation": false,
+    "original_temporary_owner_pattern": "refused with ASan heap-use-after-free"
+  },
+  "catalog": {
+    "sha256": "84a7ad7b06d148c19366b532a1b4c5b40d8bfdd854a4235d727948a7ac8c347b",
+    "bytes": 26641600,
+    "current_source_rows": 3189,
+    "language_inventory_count": 32,
+    "full_header_sha256": "6c7249f3ecca351f2576be86755a70bb5c0aca15417687eaa7d74d18219d56ac",
+    "generated_header_entry_counts": [
+      1,
+      2,
+      2,
+      3189
+    ],
+    "gcc_clang_catalog_and_headers_byte_identical": true
+  },
+  "controls": {
+    "owner_lifetime": true,
+    "row_schema_types_and_unique_keys": true,
+    "max_row_fixture": 16384,
+    "actual_refusals": 57,
+    "malformed_catalog_preserves_previous_header": true,
+    "indirect_and_special_file_refusals": true,
+    "deterministic_byte_order_and_utf8_escaping": true,
+    "actual_lookup_and_opaque_data": true,
+    "disabled_unvalidated_translation_commands": true,
+    "current_ctest_catalog_count": 49,
+    "complete_catalog_executed": false,
+    "localization_and_release_policy_refusals": true
+  },
+  "corrections": [
+    "Pinned JsonCpp accepted an in-object comment despite allowComments=false; explicit token scan refuses it",
+    "Current full catalog initially assigned Extra a hash-derived key; prepare now reserves ure_extra_tab and does not silently overwrite collisions",
+    "Required generator files retain complete directory membership capture; new source/test mutation controls and fresh frozen receipts passed"
+  ],
+  "host_libraries": {
+    "jsoncpp_source_commit": "8f65e4b14b9946910e1519231097870b5953b00f",
+    "libxml2_version": "2.15.4",
+    "openssl_version": "4.0.3"
+  },
+  "acceptance": {
+    "complete_native_catalog": false,
+    "translation_provenance": false,
+    "semantic_review": false,
+    "complete_android_build": false,
+    "recovery_partition_capacity": false,
+    "shipping_gui": false,
+    "combined_vm": false,
+    "physical_device": false
+  }
+}

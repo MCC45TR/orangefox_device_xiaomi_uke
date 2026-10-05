@@ -10,8 +10,9 @@ records remain historical; adding a current digest to an old pass is prohibited.
 `configs/localization-inputs.json` declares the input closure. The host-only
 `scripts/localization-evidence.sh source` reads the 32 actual language resources,
 all common/extra/portrait theme files, packaged Roboto source and notices,
-JsonCpp, libxml2 and FreeType sources/licenses, build consumers, and optional
-owner localization headers, generator, font helper and font directory. It checks
+JsonCpp, libxml2 and FreeType sources/licenses, build consumers, the required
+host key generator/lookup headers and their controls, plus optional owner
+translation-fetch/font drafts. It checks
 the six exact project revisions against the locked manifest, including projects
 whose path defaults to their name. Duplicate, missing or new language codes
 require a reviewed configuration change. Inventory does not execute the draft
@@ -75,6 +76,9 @@ optional CJK draft has no accepted adjacent provenance/license and must not be
 promoted by its content hash. The [AUD-029 checkpoint](MULTILINGUAL-TEXT.md)
 provides separately scoped production-renderer source/host checks and exact
 licensed assets; its results do not turn inventory flags into rendering passes.
-Generator memory safety and translation context/provenance remain AUD-030/031.
+The [AUD-030 checkpoint](LOCALIZATION-KEY-GENERATION.md) separately tests the
+generator's owner lifetime, structural key closure and actual host lookup adapter.
+Translation context/provenance and competent wording review remain AUD-031;
+inventory does not promote the disabled translation commands into accepted tools.
 Neither
 host controls nor a generic VM establish tablet display/input acceptance.

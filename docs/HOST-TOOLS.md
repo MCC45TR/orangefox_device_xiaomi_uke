@@ -70,3 +70,12 @@ working-tree sources, includes exact input-file checksums and derives compile
 evidence from the matching accepted build completion and extracted payload.
 Source snapshots contain pristine upstream files plus the reviewed patches,
 project adapters, tests and original licenses needed to reconstruct this build.
+
+## Localization catalog checks
+
+`uke-locale-catalog` is a C++20 host-only `BUILD_TESTING` target. It compiles the
+pinned JsonCpp implementation and links the host libxml2/OpenSSL development
+libraries. The focused Bash [key producer](LOCALIZATION-KEY-GENERATION.md) uses
+the existing resource envelope and compiler cache, without a translator request
+or Python. Its deliberately invalid owner-lifetime probe is a sanitizer negative
+oracle and must never be included in a tablet payload or treated as a passing test.
