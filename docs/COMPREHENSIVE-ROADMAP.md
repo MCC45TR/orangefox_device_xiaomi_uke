@@ -21,7 +21,7 @@ override this instruction. See [the current boot contract](BOOT-ROUTING.md).
 This roadmap incorporates the supplied `UKE_Recovery_Comprehensive_Roadmap.md`
 dated 30 September 2026, retaining all numbered topics 0–102. The input SHA-256
 is `d9f5787316736eca07b93c47931c9d86ffd2d2a3d068b6c7bba137a34466a4ca`.
-The workspace [development plan](https://github.com/MCC45TR/uke-linux/blob/main/PLAN.md#61-ure-implementation-milestones)
+The workspace [development plan](https://github.com/MCC45TR/uke-linux-docs/blob/main/PLAN.md#61-ure-implementation-milestones)
 tracks its sixteen phases as URE-00–URE-15, alongside the existing 100 platform
 steps. [Feature coverage](FEATURE-PARITY.md#ure-capability-extension) provides
 stable acceptance IDs for the additional capabilities.
@@ -53,7 +53,7 @@ encrypted migration and model-specific physical acceptance remain open. See
 | Installer policy has host negative tests and a QEMU refusal without boot-control evidence; native file/image transactions add verified backups, durable journals and inspected recovery. | Device writes and forced-reboot acceptance, the owner's primary interruption scenario, and shared preflight for all upstream controls remain open. |
 | Stock kernel, module and boot-profile inputs are recorded separately. | Btrfs mounting is blocked by the selected stock kernel; LUKS/BITLK and networking remain planned. Android FBE is blocked pending installed-firmware KeyMint/TEE trust evidence. |
 
-The [hardware ledger](https://github.com/MCC45TR/uke-linux/blob/main/DEVICE-STATUS.md)
+The [hardware ledger](https://github.com/MCC45TR/uke-linux-docs/blob/main/DEVICE-STATUS.md)
 remains the authority for physical results; this roadmap creates no device test
 records. Public support requires the exact model/SKU/firmware gates, not only a
 source or package result. Windows and additional OS layouts are conditional
@@ -3453,8 +3453,8 @@ Every release candidate should record:
 
 ## 88. CI Test Classes
 
-Use the workspace [test contract](https://github.com/MCC45TR/uke-linux/blob/main/docs/testing/TEST-CONTRACT.md)
-and [PLAN.md section 8](https://github.com/MCC45TR/uke-linux/blob/main/PLAN.md#8-human-and-unattended-testing).
+Use the workspace [test contract](https://github.com/MCC45TR/uke-linux-docs/blob/main/docs/testing/TEST-CONTRACT.md)
+and [PLAN.md section 8](https://github.com/MCC45TR/uke-linux-docs/blob/main/PLAN.md#8-human-and-unattended-testing).
 The recovery-specific cases below extend those classes without changing their
 authorization or evidence boundaries. U0/U1/U2 are host/disposable/emulation
 work; controlled device writes require H2.

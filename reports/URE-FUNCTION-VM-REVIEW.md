@@ -232,4 +232,4 @@ Such changes must preserve every write-time ownership check, fsync/readback and
 source-independent rollback; no shortcut was enabled to accelerate this test.
 
 See [the reproducible function-test guide](../docs/FUNCTIONAL-VM-TESTS.md) and
-[the dated lessons](https://github.com/MCC45TR/uke-linux/blob/main/docs/lessons/2026-10-03-RECOVERY-FUNCTION-TESTS.md).
+[the dated lessons](https://github.com/MCC45TR/uke-linux-docs/blob/main/docs/lessons/2026-10-03-RECOVERY-FUNCTION-TESTS.md).

@@ -3,7 +3,7 @@
 The target product is the UKE Recovery Environment (URE), an offline
 Android/Linux/Windows maintenance layer on OrangeFox. The [comprehensive
 roadmap](COMPREHENSIVE-ROADMAP.md) specifies all planned subsystems, APIs, UI
-flows and sixteen implementation phases. The workspace [plan](https://github.com/MCC45TR/uke-linux/blob/main/PLAN.md#61-ure-implementation-milestones)
+flows and sixteen implementation phases. The workspace [plan](https://github.com/MCC45TR/uke-linux-docs/blob/main/PLAN.md#61-ure-implementation-milestones)
 tracks dependencies as URE-00–URE-15; [feature coverage](FEATURE-PARITY.md#ure-capability-extension)
 defines the added acceptance contracts.
 
