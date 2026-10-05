@@ -53,7 +53,12 @@ int main(int argc,char* argv[]) {
         for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_raw_kind","image"},{"ure_raw_source",image.string()},{"ure_raw_sector","512"},
             {"ure_journal_parent",fixture.string()},{"ure_fs_action","format"},{"ure_fs_type","ext4"},{"ure_fs_erase","0"},{"ure_fs_label","URETEST"}})DataManager::SetValue(key,text);
         check(run_management(action,"filesystem-plan")==1 && digest(image)==original,"GUI format accepted missing data-loss choice");
+        DataManager::SetValue("tw_language","en");
         DataManager::SetValue("ure_fs_erase","1"); check(run_management(action,"filesystem-plan")==0 && value("ure_manage_hash").size()==64,"Actual GUI did not prepare a sealed plan");
+        DataManager::SetValue("tw_language","tr_TR");
+        check(run_management(action,"filesystem-execute")==1 && value("ure_manage_hash").empty() && digest(image)==original,
+            "Language change reused a destructive review or changed image bytes");
+        check(run_management(action,"filesystem-plan")==0 && value("ure_manage_hash").size()==64,"Cannot prepare the renewed language review");
         check(value("ure_manage_summary").find("Required journal space")!=std::string::npos && value("ure_manage_can_apply")=="1","GUI summary omitted capacity or eligibility");
         DataManager::SetValue("ure_fs_label","CHANGED"); check(run_management(action,"filesystem-execute")==1 && digest(image)==original,"Changed GUI choices reused a reviewed plan");
         DataManager::SetValue("ure_fs_label","URETEST"); check(run_management(action,"filesystem-execute")==0,"GUI image format did not complete");

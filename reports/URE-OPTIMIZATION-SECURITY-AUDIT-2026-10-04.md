@@ -558,6 +558,18 @@ with competent speakers. **Acceptance:** stale translations after source edits,
 foreign child jobs, unchanged masked tokens with wrong meaning, regional
 Portuguese distinctions and language-switch plan invalidation rules.
 
+**5 October partial correction:** the actual GUI captures the exact selected
+language with immutable worker inputs and invalidates previous plan/journal
+review before mutation when that language changes. Old-language job completion
+is discarded; regional Portuguese selections remain distinct. Captured Btrfs
+controls require a renewed review while owned job cancellation stays available.
+Four native/four sanitizer callback controls passed, and the reviewed GUI
+change also compiled and passed those controls without unrelated owner drafts.
+See [the scoped guide](../docs/LOCALIZATION-REVIEW-CONTEXT.md). Expected-job,
+source/context/parent provenance and competent semantic review are still open;
+translation imports remain disabled. This does not accept the complete current
+50-test catalogs, Android target, shipping/combined GUI or tablet.
+
 ### AUD-032 — P2: draft translation generation has excessive failure fan-out
 
 **Confirmed retry structure and failed trial.** `translate-locales.sh:17–33`

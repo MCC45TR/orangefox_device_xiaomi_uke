@@ -18,7 +18,8 @@ inline std::string translate(std::string_view text, const Lookup& lookup) {
     return entry != end && entry->source == text ? lookup(std::string(entry->key), std::string(text)) : std::string(text);
 }
 // Typed composition keeps paths, model IDs, numbers and hashes opaque. It also
-// permits a language switch after review without recalculating the native plan.
+// allows text to be rendered in the current language. Callers must invalidate
+// the previous warning/journal review before a mutation after a language switch.
 struct Message {
     std::vector<std::pair<bool, std::string>> parts;
     Message& prose(std::string text) { parts.emplace_back(true, std::move(text)); return *this; }

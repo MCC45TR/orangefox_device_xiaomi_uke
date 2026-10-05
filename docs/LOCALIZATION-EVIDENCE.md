@@ -80,5 +80,7 @@ The [AUD-030 checkpoint](LOCALIZATION-KEY-GENERATION.md) separately tests the
 generator's owner lifetime, structural key closure and actual host lookup adapter.
 Translation context/provenance and competent wording review remain AUD-031;
 inventory does not promote the disabled translation commands into accepted tools.
+The [language-review controls](LOCALIZATION-REVIEW-CONTEXT.md) separately cover
+actual stale completions and renewed confirmation after a language change.
 Neither
 host controls nor a generic VM establish tablet display/input acceptance.

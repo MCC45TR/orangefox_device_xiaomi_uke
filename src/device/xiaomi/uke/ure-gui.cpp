@@ -26,6 +26,7 @@ std::string value(const std::string& name) { std::string result; DataManager::Ge
 struct ManagementSession {
     ure::Value variables, updates{Json::objectValue};
     std::size_t update_bytes=0;
+    std::string review_locale;
     std::function<void(const std::string&,const ure::Root&,const ure::Value&,const std::string&)> bind_backend_control;
     std::function<void(const ure::Value&)> backend_control_result;
     int run(const std::string& command);
@@ -301,6 +302,8 @@ void invalidate_reviews() {
         "ure_partition_journal_hash","ure_restore_plan_hash","ure_restore_journal_hash","ure_stream_journal_hash","ure_boot_hash","ure_boot_journal_hash",
         "ure_stock_job_hash","ure_stock_job_journal_hash","ure_fs_journal_hash","ure_journal_hash"})set(key,"");
     for(const auto* key:{"ure_manage_can_apply","ure_gpt_can_execute","ure_restore_can_execute","ure_stock_job_can_execute","ure_boot_can_stage"})set(key,"0");
+    for(const auto* prefix:{"ure_fs","ure_gpt","ure_partition","ure_restore","ure_stream","ure_stock_job"})
+        for(const auto* action:{"resume","rollback","cancel","finish"})set(std::string(prefix)+"_can_"+action,"0");
 }
 static std::string text_prefix(const std::string& text,std::size_t limit) {
     auto size=std::min(text.size(),limit);
@@ -523,6 +526,16 @@ bool ure_gui_keep_variable(const std::string& name) {
 namespace {
 int ManagementSession::run(const std::string& command) {
     try {
+        const auto locale=value("tw_language").empty() ? std::string("en") : value("tw_language");
+        if(review_locale!=locale) {
+            invalidate_reviews(); review_locale=locale;
+            const bool setting=command.rfind("scale-",0)==0 || command.rfind("mirror-",0)==0 || command=="manage-field-save";
+            const bool mutation=command=="save" || command=="apply" || command.ends_with("-execute") || command.ends_with("-apply") ||
+                command.ends_with("-apply-image") || command.ends_with("-capture") || command.ends_with("-stage") ||
+                command.ends_with("-resume") || command.ends_with("-rollback") || command.ends_with("-cancel") ||
+                command.ends_with("-restore") || command.ends_with("-finish");
+            ure::require(setting || !mutation,"review-language-changed","Language changed. Review the current plan or journal again before confirming.");
+        }
         ure::Root system("/");
         if(command=="mirror-enable" || command=="mirror-disable") {
             gr_external_enable(command=="mirror-enable");
@@ -1113,6 +1126,7 @@ struct GuiManagementOwner {
     ure::Value inputs;
     std::uint64_t epoch=0,last_poll=0;
     std::string published_status;
+    std::string controller_review_locale;
     std::shared_ptr<GuiBackendMailbox> backend=std::make_shared<GuiBackendMailbox>();
     bool accepting=true;
     // Declared last: the owned worker joins before its roots/session are freed.
@@ -1122,6 +1136,7 @@ struct GuiManagementOwner {
 GuiManagementOwner management_owner;
 ure::Value management_inputs() {
     static constexpr const char* keys[]={
+    "tw_language",
     "ure_backup_dir",
     "ure_backup_hash",
     "ure_boot_esp",
@@ -1382,7 +1397,12 @@ int GUIAction::uremanager(std::string command) {
                 DataManager::SetValue("ure_output",text); DataManager::SetValue("ure_manage_hash",captured->plan["plan_sha256"].asString());
                 DataManager::SetValue("ure_manage_journal",captured->journal); DataManager::SetValue("ure_job_controller_owner_id",captured->job_id);
                 DataManager::SetValue("ure_manage_can_apply","1");
+                management_owner.controller_review_locale=value("tw_language");
                 DataManager::SetValue("ure_status","Control the original captured filesystem and journal. Confirm its plan hash; current root selections do not retarget it."); return 0;
+            }
+            if(management_owner.controller_review_locale!=value("tw_language")) {
+                DataManager::SetValue("ure_manage_hash",""); DataManager::SetValue("ure_manage_can_apply","0");
+                throw ure::Error("review-language-changed","Language changed. Review the captured backend again before confirming.");
             }
             ure::require(value("ure_job_controller_owner_id")==captured->job_id && value("ure_manage_hash")==captured->plan["plan_sha256"].asString(),
                 "confirmation-required","Review and confirm this exact captured backend first");

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-05",
+  "audit_id": "AUD-031",
+  "scope": "partial-language-review-correction",
+  "source_inputs_sha256": "412799af32a81000aed026860ef7d45366d7ea40944758e3b50570ec7242eaee",
+  "localization_inputs_sha256": "25b6b559efdb4f32e0a8898a34e4233cda1a4b4a7c3dc6d7b69cd52a9c632e02",
+  "working_gui_sha256": "a33844ead0fa2ecd063475728f7c7d3fda4f3862b32038ca5b7089e8b376ff86",
+  "reviewed_gui_sha256": "d8f73d987595dae5040398acab5d261e29d0a72a85a5468a28819fccae1a7bfb",
+  "hook_generator_sha256": "e858b4da7ef561d81a42c151a67e7fd294a29fff4991ef0008af6a10be54140a",
+  "receipts": {
+    "native_sha256": "02c0df3f0ab09e5f75b17bce4dce5f30f8d54d67cfea01638ff5617c4c3d5d4f",
+    "sanitizer_sha256": "6f36541ab20c32d110b7658451ac86a0d8ae7253d66f87175cd1cdd1b592f260",
+    "reviewed_only_native_sha256": "6b8fc08b7dfb29d4a5d7db7dc7f80fa074f80c973a9d06aa507454e1a685047b",
+    "reviewed_only_sanitizer_sha256": "4d7b969a1ac3f68504f520275e410d59ac3e5959cd5f9363e61b38d297660407"
+  },
+  "executed_controls": {
+    "native": 4,
+    "sanitizer": 4,
+    "reviewed_only_native": 4,
+    "reviewed_only_sanitizer": 4
+  },
+  "complete_ctest_catalog_count": 50,
+  "validation": {
+    "stale_completion_negative_reproduced": true,
+    "source_frozen": true,
+    "regional_language_review": true,
+    "fresh_native_backup_verified": true,
+    "filesystem_and_captured_btrfs_review": true,
+    "worker_gui_isolation": true,
+    "owner_overlay_preserved": true,
+    "localization_input_controls": true,
+    "translation_provenance": false,
+    "semantic_review": false,
+    "complete_native_catalog": false,
+    "complete_android_build": false,
+    "shipping_gui": false,
+    "combined_vm": false,
+    "physical_device": false
+  },
+  "limits": [
+    "Private image and actual callback tests use explicit host backend/UI stand-ins.",
+    "Reviewed GUI source excludes the preserved unrelated owner overlay.",
+    "Translation imports remain disabled; placeholder closure is not a semantic review.",
+    "Pinned sanitizer runtime excludes vptr instrumentation."
+  ]
+}

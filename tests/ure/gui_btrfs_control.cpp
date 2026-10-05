@@ -77,7 +77,7 @@ int main(int argc,char** argv) {
             struct stat observed{}; check(::stat(root.c_str(),&observed)==0,"Cannot identify private root fixture"); root_device=observed.st_dev; root_inode=observed.st_ino;
             running=false; entered=false; cancel=false; pause_requested=false; inject_error=scenario==2;
             for(const auto& [key,setting]:std::map<std::string,std::string>{{"ure_btrfs_root",root.string()},{"ure_journal_parent",work.string()},
-                {"ure_btrfs_action",scenario==1 ? "balance" : "scrub"},{"ure_btrfs_device","1"},{"ure_btrfs_repair","1"},{"ure_btrfs_usage","10"},{"ure_btrfs_limit","1"}})DataManager::SetValue(key,setting);
+                {"ure_btrfs_action",scenario==1 ? "balance" : "scrub"},{"ure_btrfs_device","1"},{"ure_btrfs_repair","1"},{"ure_btrfs_usage","10"},{"ure_btrfs_limit","1"},{"tw_language","en"}})DataManager::SetValue(key,setting);
             check(run_management(action,"btrfs-plan")==0,"Actual Btrfs GUI review refused the private ioctl fixture");
             const auto review=ure::parse_json(value("ure_output")); const ure::fs::path journal=review["journal_directory"].asString();
             check(action.uremanager("btrfs-execute")==0,"Cannot start actual GUI Btrfs maintenance"); await_native();
@@ -88,6 +88,10 @@ int main(int argc,char** argv) {
             const auto selected=scenario==1 ? "balance-pause" : "scrub-cancel"; DataManager::SetValue("ure_btrfs_action",selected);
             check(action.uremanager("btrfs-plan")==0,"Exact controller review was unavailable while original worker ran");
             const auto control_review=ure::parse_json(value("ure_output")); check(control_review["owner_job_id"]==id && control_review["journal"]==journal.string(),"Controller review retargeted the mutable root or journal");
+            const auto language_calls=control_calls.load(); DataManager::SetValue("tw_language","tr_TR");
+            check(action.uremanager("btrfs-execute")==1 && language_calls==control_calls && value("ure_manage_can_apply")=="0" && value("ure_manage_hash").empty(),
+                "Language change reused an exact controller review or reached its ioctl");
+            check(action.uremanager("btrfs-plan")==0,"Cannot renew exact controller review in the current language");
             DataManager::SetValue("ure_manage_hash",std::string(64,'0')); const auto calls=control_calls.load();
             check(action.uremanager("btrfs-execute")==1 && calls==control_calls,"Wrong controller confirmation reached its ioctl");
             DataManager::SetValue("ure_manage_hash",review["plan_sha256"].asString()); check(action.uremanager("btrfs-execute")==0,"Exact confirmed controller was refused");

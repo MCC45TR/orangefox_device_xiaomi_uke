@@ -59,6 +59,7 @@ bash tests/check-payload-fixtures.sh
 bash tests/check-release-policy.sh
 bash tests/check-localization-evidence.sh
 bash tests/check-localization-keys.sh native
+bash tests/check-gui-language.sh native
 [[ ! -f $URE_OPERATION_COORDINATOR/owner.json ]]
 cmp <(bash scripts/native-inputs.sh) "$initial_inputs"
 cp -- "$initial_inputs" reports/private/native-test-inputs.sha256
@@ -90,7 +91,8 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.read_only_mounts_preserve_no_replay_options=true' \
     | jq '.validation.production_bounded_unicode_scalars=true | .validation.production_text_raster_parser_and_cache_budgets=true |
         .validation.production_text_allocation_failure_and_rotated_clipping=true | .validation.reviewed_source_stack_unknown_changes_refused=true' \
-    | jq '.validation.host_localization_key_owner_schema_and_exact_header_closure=true' \
+    | jq '.validation.host_localization_key_owner_schema_and_exact_header_closure=true |
+        .validation.actual_gui_language_review_context=true' \
     | jq '.validation.durable_recovery_image_installer_and_initial_publication_sigkill=true |
         .validation.installer_source_independent_resume_and_rollback=true | .validation.readback_only_restore_retries_target_fsync=true |
         .validation.volatile_legacy_installer_removed=true | .validation.physical_installer_durability=false' \
