@@ -75,3 +75,40 @@ Experimental Alpha 1 was removed from GitHub as requested after all thirteen
 published assets were matched against their archived sizes and SHA-256 digests.
 The source tag and verified local archive were preserved. No replacement
 installable release was published merely to satisfy an asset count.
+
+## Follow-up validation — 6 October 2026
+
+The corrected complete native catalog passed all 53 CTest entries in 534.94
+seconds, followed by its CLI/resource/policy controls. The complete pinned
+Clang ASan/UBSan/leak catalog passed the same 53 entries in 1051.22 seconds and
+its focused controls. Their exact native input identity is
+`f9a1fc1d933ff8b46a739a2415c4254ebf18ebd658bda2e8d1bfa62ce154f155`;
+localization input identity is
+`4e60241f4a796ee302b1e195af94e54cae40efe3e67b14b88fbf0d09121c5cd5`.
+These complete records are archived privately before the later text-library
+and host-policy changes. They do not accept that subsequent aggregate input
+set. Vptr instrumentation retains its documented pinned-runtime exclusion.
+
+Fresh Android job `job-9OBgaVY8d8io` failed at 46 percent of 24,385 Ninja
+actions. The actual cause was five enum-conversion diagnostics in FriBidi's
+`fribidi-bidi.c`, rather than an observed OOM termination. Its final owned
+cgroup recorded zero max/OOM/OOM-kill events, 2,729,426 soft-threshold events
+and 13,163,909,120 peak charged bytes. The original admission and both explicit
+runtime soft-threshold adjustments were retained; the hard ceiling remained
+13,854,834,688 bytes. The failed output was not sealed or published.
+
+The narrow correction makes three conversions between the distinct FriBidi
+direction types explicit, preserving their values and strict warnings. All four
+reviewed library objects passed pinned Clang/Bionic ARM64 compilation, together
+with static checks of the direction values and original 32-bit enum ABI.
+Reviewed predecessor migration is digest-bound in both active source snapshots;
+actual original/allocation-patched upgrades and unknown-edit refusals passed.
+Three current native production-text tests passed in 8.75 seconds, including
+32 languages, 35,191 strings, eleven scales and 616 orientation draws. This does
+not provide competent translation-wording or shipping GUI acceptance.
+The next complete image, extracted payload, capacity and guest results
+must be recorded independently. The graph job's default soft threshold is now
+95 percent of the same independently admitted hard maximum; native/sanitizer
+modes retain 85 percent. Host reserve, hard ceiling and device admission were
+not relaxed. A whole-host 16 GiB build and physical installation remain
+unverified.
