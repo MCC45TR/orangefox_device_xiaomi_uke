@@ -80,6 +80,9 @@ The [AUD-030 checkpoint](LOCALIZATION-KEY-GENERATION.md) separately tests the
 generator's owner lifetime, structural key closure and actual host lookup adapter.
 Translation context/provenance and competent wording review remain AUD-031;
 inventory does not promote the disabled translation commands into accepted tools.
+The [offline provenance checkpoint](LOCALIZATION-PROVENANCE.md) binds regenerated
+jobs to current sources, contexts, parent/child identities and exact locale.
+It produces unreviewed drafts and keeps semantic/materialization gates closed.
 The [language-review controls](LOCALIZATION-REVIEW-CONTEXT.md) separately cover
 actual stale completions and renewed confirmation after a language change.
 Neither

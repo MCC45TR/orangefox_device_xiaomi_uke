@@ -5,6 +5,25 @@ and the focused generic guest. The new candidate remains unsealed until broader
 matching receipts exist. P1 remediation follows the original report order;
 combined VM acceptance follows the source changes, and P2 follows afterward.
 
+## Scope checkpoint — 5 October 2026
+
+The original audit contains 23 P1 findings. Nineteen have source/reference-host
+remediation checkpoints; AUD-031 is in progress and AUD-033–035 remain open.
+These counts are not completed-feature or release acceptance counts. Live
+storage/profile admission and the table's other limits remain unresolved.
+Complete current catalogs, one fresh Android candidate and its combined
+functional/visual VM acceptance have not yet been collected.
+
+Remaining source work follows this order: AUD-031 provenance and safe wording
+admission, AUD-033 Btrfs receive/kernel eligibility, AUD-034 exact-profile
+capability contracts, and AUD-035 authenticated updates/rollback. Then collect
+the complete matching build/package/VM results; P2 follows last. Public README
+and branch requests were separate owner-authorized work and do not close a P1
+finding. New features and optional network translator work are outside this
+remediation queue.
+
+## Ordered findings
+
 | Finding | Current result | Remaining acceptance |
 |---|---|---|
 | AUD-002 | Bounded UTF-8 scalar decoding; exhaustive exact-source native and sanitizer controls passed | Fresh target and combined guest |
@@ -26,7 +45,7 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 | AUD-026 | All-language/draft/font/license input closure, six pinned dependencies and source/shipping/reviewed-overlay identities; inventory/mutation and stale-record controls passed | Fresh complete catalogs/build/image/GUI/combined guest pending; inventory flags do not establish rendering or translation acceptance |
 | AUD-029 | Licensed original script/CJK assets, bounded OpenType/bidi layout, contextual logical-prefix fit, original byte clusters and source-over marks; 32-language corpus, 616 scale/orientation draws, interleaved fonts, deep allocation failure, corrected upstream FreeType guard and halt-on-error runtime negative passed in three native/three sanitizer tests | Fresh complete named catalogs, Android target, image/capacity/package and shipping/combined GUI pending; Unicode 18 bidi, translation semantics and physical acceptance remain unavailable |
 | AUD-030 | Retained JSON owner, strict schema/unique keys, deterministic UTF-8 headers, atomic refusal preservation; five native/five sanitizer controls and empty/one/non-BMP/current 3,189-entry header/lookup compilation passed | Full 49-test catalogs and shipping target/GUI/VM pending; translation provenance/semantics remain AUD-031 |
-| AUD-031 | Actual GUI language changes invalidate stale completions, plans, journal actions and captured Btrfs control reviews; four native/four sanitizer callback controls and reviewed-change-only compilation passed | Source/context/parent provenance and competent semantic review pending; full 50-test catalogs, target/GUI/VM separate |
+| AUD-031 | Current-source/tool/context binding, regenerated exact locale jobs, complete parent/child correspondence and wrong-meaning shipping refusal passed in three native/three sanitizer controls; all 31 offline locale bundles round-tripped; earlier actual GUI language-review controls preserved | Competent semantic review remains unavailable and materialization refuses; complete 51-test catalogs, target/GUI/VM separate |
 | AUD-033 | Btrfs receive/restore and shipping-kernel admission | Pending; physical kernel acceptance separate |
 | AUD-034 | Android, boot and hardware capability reasons; pinned donor USB/touch readiness and module/service closure compared | Implementation pending; source comparison is not hardware acceptance |
 | AUD-035 | Authenticated manifest/payload and rollback policy | Pending; production trust remains unconfigured |

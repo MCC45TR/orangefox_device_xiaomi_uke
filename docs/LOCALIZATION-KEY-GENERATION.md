@@ -26,9 +26,11 @@ build/ure-host/uke-locale-catalog keys build/locale-catalog/catalog.json build/l
 
 `prepare` inventories current source strings and contexts. Its regex-based
 collection is a structural draft, not competent linguistic review. `keys`
-generates only a lookup header. Translation import/materialization commands
-remain disabled while their provenance validation is incomplete. The optional
-network script is not invoked by these checks or normal recovery builds.
+generates only a lookup header. Legacy translation commands remain disabled.
+The separate [offline provenance tool](LOCALIZATION-PROVENANCE.md) validates
+current-source jobs and unreviewed responses; materialization still requires
+competent review. The optional network script is not invoked by these checks
+or normal recovery builds.
 
 ## Schema and bounded output
 

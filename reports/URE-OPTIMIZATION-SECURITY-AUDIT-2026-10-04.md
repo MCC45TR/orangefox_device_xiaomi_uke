@@ -570,6 +570,21 @@ source/context/parent provenance and competent semantic review are still open;
 translation imports remain disabled. This does not accept the complete current
 50-test catalogs, Android target, shipping/combined GUI or tablet.
 
+**5 October subsequent source/reference-host checkpoint:** a separate offline
+validator regenerates the catalog and expected jobs from current source/tool,
+page/node/line context and exact locale inputs. Complete child responses are
+rebound to their current parent rather than their own receipt. Three native and
+three sanitizer controls passed, including stale source/member/context,
+foreign/regional jobs, preserved output and deliberate wrong-meaning negatives.
+All 31 non-English bundles round-tripped against the actual 3,191-row catalog:
+3,149 jobs and 100,288 source items. Compact references preserve those items
+while reducing the structural catalog from 33,149,379 to 11,398,663 bytes;
+the immutable catalog identity is calculated once. See the
+[offline contract](../docs/LOCALIZATION-PROVENANCE.md). Imported text remains an
+unreviewed draft. Competent semantic review is unconfigured, so materialization
+refuses; no network translator was run. Complete 51-test catalogs and target,
+shipping GUI, combined VM and tablet acceptance remain open.
+
 ### AUD-032 — P2: draft translation generation has excessive failure fan-out
 
 **Confirmed retry structure and failed trial.** `translate-locales.sh:17–33`

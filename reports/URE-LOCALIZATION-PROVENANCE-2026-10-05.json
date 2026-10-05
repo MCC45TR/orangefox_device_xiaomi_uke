@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-05",
+  "audit_id": "AUD-031",
+  "scope": "source-and-focused-host-offline-provenance",
+  "source_inputs_sha256": "81fbf678f84898bc7d64273bfe210a6a3270449ba01f29887e2b4d15aea801bd",
+  "localization_inputs_sha256": "dacd4857c2fc9f18f922142445bf2fb288afadb3904ec7e3869f5d08674b2562",
+  "current_catalog_sha256": "95f3a0466d50b00121e3dbfa22fd59390b8b29f9c0a287695380f40ed7bce05b",
+  "source_row_count": 3191,
+  "supported_languages": 32,
+  "offline_locale_bundles": 31,
+  "jobs": 3149,
+  "source_items": 100288,
+  "receipts": {
+    "native_sha256": "a470d213dea13250732e4bccacdc20e0e611006332dac5653c21ae32eb65b91b",
+    "sanitizer_sha256": "4f2d092db57676df6fe54b264f209394084787bc4663e3df9c3fc23bb7b86e10",
+    "key_regression_native_sha256": "7ac67e7d55f31418b6fe315d3da29fcf8a2628de25f7bae6ac36791eff682d3a",
+    "key_regression_sanitizer_sha256": "3961aab9e55520bd3a7f65ba775263dd8350ffb6b04a1b8aa468ce926c29c567"
+  },
+  "executed_ctest_count": {
+    "native": 3,
+    "sanitizer": 3
+  },
+  "complete_ctest_catalog_count": 51,
+  "optimization": {
+    "verbose_catalog_bytes": 33149379,
+    "compact_catalog_bytes": 11398663,
+    "source_item_count_preserved": true,
+    "immutable_catalog_digest_calculated_once": true
+  },
+  "validation": {
+    "current_source_context_and_tool_binding": true,
+    "complete_parent_child_correspondence": true,
+    "exact_regional_locale_targets": true,
+    "stale_source_and_member_refusals": true,
+    "raw_response_byte_binding": true,
+    "preserved_invalid_publication": true,
+    "wrong_meaning_cannot_ship": true,
+    "all_non_english_offline_bundles": true,
+    "actual_gui_language_review_context": true,
+    "sanitizers": false,
+    "network_requests": false,
+    "semantic_review": false,
+    "translation_materialization": false,
+    "complete_native_catalog": false,
+    "complete_android_build": false,
+    "shipping_gui": false,
+    "combined_vm": false,
+    "physical_device": false,
+    "frozen_source_match": true,
+    "native_and_sanitizer_catalog_match": true,
+    "independent_empty_one_unicode_full_header_compilation": true,
+    "original_owner_asan_negative": true
+  },
+  "limits": [
+    "Offline provenance is distinct from competent language/meaning review.",
+    "Materialization refuses because no trusted competent-review ledger is configured.",
+    "Host-only C++ tools and isolated fixtures do not establish full target or tablet acceptance.",
+    "Pinned sanitizer runtime excludes vptr instrumentation."
+  ],
+  "executed_key_regression_ctest_count": {
+    "native": 5,
+    "sanitizer": 5
+  }
+}

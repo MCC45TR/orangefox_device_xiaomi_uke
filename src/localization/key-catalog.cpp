@@ -167,8 +167,14 @@ std::string key_header(const KeyTable& keys) {
     for (const auto& [text, key] : keys) header += "    {" + literal(text) + ", " + literal(key) + "},\n";
     return header + "};\n}\n";
 }
-void generate_keys(const std::filesystem::path& input, const std::filesystem::path& output) {
-    const auto bytes = read_catalog(input);
+std::string read_regular(const std::filesystem::path& input) { return read_catalog(input); }
+bool valid_utf8(std::string_view text) { return utf8(text); }
+void publish_regular(const std::filesystem::path& output, const std::string& bytes) {
+    if (bytes.size() > max_catalog_bytes) throw std::runtime_error("Host artifact exceeds output budget");
+    publish_header(output, bytes);
+}
+Json::Value parse_strict(std::string_view bytes) {
+    if (bytes.size() > max_catalog_bytes || !utf8(bytes)) throw std::runtime_error("Invalid JSON input bytes or budget");
     // This pinned JsonCpp still skips comments inside objects with
     // allowComments=false. Reject slash tokens outside JSON strings first.
     bool quoted = false, escaped = false;
@@ -188,7 +194,7 @@ void generate_keys(const std::filesystem::path& input, const std::filesystem::pa
         }
     }
     // The named owner must outlive both the subscript and its entire iteration.
-    const Json::Value catalog = [&] {
+    return [&] {
         Json::Value value; std::string errors;
         Json::CharReaderBuilder builder;
         builder["collectComments"] = false; builder["allowComments"] = false;
@@ -198,9 +204,14 @@ void generate_keys(const std::filesystem::path& input, const std::filesystem::pa
             throw std::runtime_error("Invalid key catalog JSON");
         return value;
     }();
+}
+void generate_keys(const std::filesystem::path& input, const std::filesystem::path& output) {
+    const auto bytes = read_regular(input);
+    // Keep the complete owner alive through extraction and publication.
+    const Json::Value catalog = parse_strict(bytes);
     std::error_code error;
     if (std::filesystem::equivalent(input, output, error) && !error)
         throw std::runtime_error("Key catalog and header must be separate files");
-    publish_header(output, key_header(validate_keys(catalog)));
+    publish_regular(output, key_header(validate_keys(catalog)));
 }
 }

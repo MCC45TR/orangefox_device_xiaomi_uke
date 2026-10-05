@@ -37,8 +37,9 @@ language changes, filesystem review, exact Btrfs control and a successful fresh
 review. Separate copies of the actual hook generator also compiled and ran
 the reviewed GUI change without the owner's unrelated uncommitted overlay.
 
-This is the first AUD-031 correction. Translation source/context/parent
-provenance and competent semantic review remain pending; translation import and
-materialization commands remain disabled. Preserving placeholders cannot prove
-the meaning of a warning. Full Android build, shipping GUI, combined VM,
+This is the first AUD-031 correction. The subsequent
+[offline provenance checkpoint](LOCALIZATION-PROVENANCE.md) checks current
+sources, contexts and parent/child identity. Competent semantic review remains
+pending; legacy imports and materialization remain disabled. Preserving
+placeholders cannot prove the meaning of a warning. Full Android build, shipping GUI, combined VM,
 complete current test catalogs and tablet acceptance remain separate.
