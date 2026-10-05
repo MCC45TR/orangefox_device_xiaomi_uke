@@ -8,7 +8,7 @@ An independent OrangeFox recovery project for the `uke` device family (SM7675), 
 
 **Experimental; neither commercial model has completed physical recovery acceptance.** The default branch, `R12.0`, follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 are tracked separately by model, SKU and installed firmware.
 
-The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. The published alpha is an earlier checkpoint and does not contain all subsequent changes.
+The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. The earlier alpha has been withdrawn; a replacement installable release has not yet passed its publication gates.
 
 Current source [blocks live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass this gate; older release images retain their original behavior.
 
@@ -24,7 +24,7 @@ The **Extra** menu groups the added tools by task, with matching icons and short
 | Backups | Verified raw-image and chunked backups; host-assisted transfer over ADB; Linux and home directory backups preserving sparse files, hardlinks, extended attributes and ACLs; resumable capture and verified restore | [Linux/home backups](docs/TREE-BACKUP.md), [native API](docs/URE-NATIVE.md) |
 | Filesystems and Btrfs | Staged format, check, repair and supported resize operations on filesystem images; native Btrfs subvolume, snapshot, full/incremental send, scrub, balance and rollback tools | [Filesystems](docs/FILESYSTEM-MANAGER.md), [Btrfs](docs/BTRFS-MANAGER.md) |
 | Linux rescue and boot audit | Distribution detection; isolated Arch/Fedora-aware chroot; supported fstab and ESP mounting; resource-limited commands; kernel, initramfs, module, device-tree, UKI and BLS inspection | [Linux recovery](docs/LINUX-RESCUE-AND-BOOT.md) |
-| Android and Windows inspection | Read-only Android slot and super-partition observations; Windows installation and EFI/BCD discovery; conditional WIM/ESD and NTFS inspection | [Native commands](docs/URE-NATIVE.md), [version gates](docs/RECOVERY-VERSION-GATES.md) |
+| Android and Windows inspection | Per-feature Android/boot admission reports; bounded read-only slot, snapshot and battery/thermal/UFS observations; Windows installation and EFI/BCD discovery; conditional WIM/ESD and NTFS inspection | [Platform admission](docs/PLATFORM-ADMISSION.md), [native commands](docs/URE-NATIVE.md) |
 | Files and diagnostics | Metadata-aware browsing; a native text editor with fstab/crypttab/BLS validation; reviewed file replacement and rollback; bounded diagnostics and redacted report export | [Native tools](docs/URE-NATIVE.md) |
 
 Availability depends on the selected filesystem, kernel, packaged tools and operation policy. A capability entry is not device acceptance. In particular:
@@ -43,16 +43,25 @@ Availability depends on the selected filesystem, kernel, packaged tools and oper
 
 ## Downloads
 
-[Experimental Alpha 1](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases/tag/r12.0-uke.20260930-alpha1) is the published R12.0 development checkpoint. Its only packaged firmware profile is **Global OS3.0.303.0.WOZMIXM**. The unsigned artifacts have not been boot-tested on either model; other firmware versions are not installation targets for this release.
+**No current installable release is published.** Experimental Alpha 1 was
+withdrawn on 5 October 2026 after its complete local archive was checked against
+the published asset digests. Its source tag remains available for provenance.
+Current source includes later safety corrections and has separate build and
+validation requirements.
 
-| Asset | Purpose |
+| Planned asset | Purpose |
 |---|---|
 | `OrangeFox-uke-fastboot-boot.img` | Temporary boot candidate; never flash this image |
 | `OrangeFox-uke-recovery.img` | Dedicated recovery image; not a temporary-boot image |
-| `OrangeFox-uke-flashable.zip` | Recovery installer package from the published checkpoint |
-| `SHA256SUMS` and source/manifest assets | Artifact verification, dependency provenance and reproducibility records |
+| `orangefox.zip` | ADB sideload installer, once its dedicated installation path is accepted |
 
-Read the [installation and rollback guide](docs/PRE-RELEASE.md), verify the checksums and retain firmware-matched stock recovery files before evaluating an artifact. The current source disables device installation; historical alpha instructions do not authorize installation of a newer build.
+The replacement is intended to contain these three downloadable files, with
+checksums and validation scope in its release notes. Global
+**OS3.0.303.0.WOZMIXM** is the current source profile; that declaration does not
+accept a physical unit. The present ZIP installer refuses before writing, so it
+cannot yet be published as a working sideload package. Read the
+[installation and rollback guide](docs/PRE-RELEASE.md) and the
+[current validation boundary](reports/URE-PLATFORM-ADMISSION-2026-10-05.md).
 
 ## Development and validation
 

@@ -7,8 +7,10 @@ combined VM acceptance follows the source changes, and P2 follows afterward.
 
 ## Scope checkpoint — 5 October 2026
 
-The original audit contains 23 P1 findings. Nineteen have source/reference-host
-remediation checkpoints; AUD-031 is in progress and AUD-033–035 remain open.
+The original audit contains 23 P1 findings. Nineteen have prior source/reference-host
+remediation checkpoints. AUD-031 and AUD-034 now have partial source controls;
+AUD-033 and AUD-035 remain open. These controls do not complete the corresponding
+device capabilities.
 These counts are not completed-feature or release acceptance counts. Live
 storage/profile admission and the table's other limits remain unresolved.
 Complete current catalogs, one fresh Android candidate and its combined
@@ -47,7 +49,7 @@ remediation queue.
 | AUD-030 | Retained JSON owner, strict schema/unique keys, deterministic UTF-8 headers, atomic refusal preservation; five native/five sanitizer controls and empty/one/non-BMP/current 3,189-entry header/lookup compilation passed | Full 49-test catalogs and shipping target/GUI/VM pending; translation provenance/semantics remain AUD-031 |
 | AUD-031 | Current-source/tool/context binding, regenerated exact locale jobs, complete parent/child correspondence and wrong-meaning shipping refusal passed in three native/three sanitizer controls; all 31 offline locale bundles round-tripped; earlier actual GUI language-review controls preserved | Competent semantic review remains unavailable and materialization refuses; complete 51-test catalogs, target/GUI/VM separate |
 | AUD-033 | Btrfs receive/restore and shipping-kernel admission | Pending; physical kernel acceptance separate |
-| AUD-034 | Android, boot and hardware capability reasons; pinned donor USB/touch readiness and module/service closure compared | Implementation pending; source comparison is not hardware acceptance |
+| AUD-034 | Eleven native per-feature admission contracts, bounded read-only slot/snapshot and battery/thermal/UFS observations, exact host declaration controls, early Android mutation refusal and the existing capability GUI callback; five focused native/five sanitizer checks and four Android/Bionic translation units passed | KeyMint/TEE, OTA/super/second Android, Uke EFI execution, trusted health policy, physical writer/fallback and real installed Linux repair remain unavailable. Complete current catalogs, linked Android image and matching guest acceptance are separate gates; this finding remains open |
 | AUD-035 | Authenticated manifest/payload and rollback policy | Pending; production trust remains unconfigured |
 
 ## AUD-024: bind completion to the actual build and service

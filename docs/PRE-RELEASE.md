@@ -1,5 +1,11 @@
 # Experimental Uke recovery
 
+**Publication status — 5 October 2026:** the earlier alpha release has been
+withdrawn. No replacement installable release is currently published. Commands
+below document artifact roles and the historical evaluation procedure; they do
+not authorize installing a new candidate whose build or installer checks are
+incomplete. The current source refuses sideload installation before writing.
+
 Unofficial OrangeFox R12.0 / Android 16 for the `uke` device family: POCO Pad X1
 and Xiaomi Pad 7. **Neither model has been boot-tested.** These are development
 artifacts, not a supported recovery release. Keep a complete backup and the
