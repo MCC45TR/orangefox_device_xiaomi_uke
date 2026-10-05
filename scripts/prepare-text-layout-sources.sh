@@ -39,9 +39,10 @@ for name in harfbuzz fribidi; do
             git -C "$reference" show "$pin:$path" > "$work/git-file"
             cmp "$work/git-file" "$expected/$path"
         done < <(git -C "$reference" ls-tree -r --name-only "$pin" lib | rg '\.(c|h|h\.in)$')
-        cp -- "$expected/lib/fribidi-bidi.c" "$work/fribidi-bidi-original.c"
         patch --directory="$expected" -p1 --batch --fuzz=0 --no-backup-if-mismatch \
             < patches/0031-fribidi-allocation-failure.patch
+        patch --directory="$expected" -p1 --batch --fuzz=0 --no-backup-if-mismatch \
+            < patches/0033-fribidi-explicit-direction-types.patch
     fi
     target="src/upstream/text-layout/$name-$version"
     if [[ -e $target || -L $target ]]; then
@@ -68,7 +69,10 @@ for name in harfbuzz fribidi; do
                 [[ $((8#$(stat -c %a "$target/$path") & 0111)) == $((8#$(stat -c %a "$expected/$path") & 0111)) ]]
                 if ! cmp -s "$expected/$path" "$target/$path"; then
                     [[ $name == fribidi && $path == lib/fribidi-bidi.c ]]
-                    cmp "$work/fribidi-bidi-original.c" "$target/$path"
+                    digest=$(sha256sum "$target/$path" | cut -d' ' -f1)
+                    jq -e --arg name "$name" --arg path "$path" --arg digest "$digest" \
+                        '.libraries[]|select(.name==$name)|.source_predecessors[$path]|index($digest)!=null' \
+                        "$lock" >/dev/null
                     printf '%s\n' "$path" >> "$work/reviewed-updates"
                 fi
             fi

@@ -18,6 +18,7 @@ cp "$component/src/device/xiaomi/uke/text-notices/Unicode-LICENSE.txt" "$device/
 cp "$component/manifests/text-layout.lock.json" "$fixture/manifests/"
 cp "$component/configs/text-layout/"* "$fixture/configs/text-layout/"
 cp "$component/patches/0031-fribidi-allocation-failure.patch" "$fixture/patches/"
+cp "$component/patches/0033-fribidi-explicit-direction-types.patch" "$fixture/patches/"
 for script in check-font-resources prepare-text-layout-sources prepare-android-text-layout; do
     cp "$component/scripts/$script.sh" "$fixture/scripts/"
 done
@@ -128,6 +129,26 @@ done
 cp --reflink=auto "$component/referances/upstream/fribidi-release/fribidi-1.0.17.tar.xz" "$fixture/referances/upstream/fribidi-release/"
 bash "$fixture/scripts/prepare-android-text-layout.sh"
 bash "$fixture/scripts/prepare-android-text-layout.sh"
+# A previously reviewed FriBidi prefix may advance in both active snapshots.
+# Unknown edits in either snapshot must still refuse before replacement.
+fribidi_pin=$(jq -er '.libraries[]|select(.name=="fribidi")|.commit' "$fixture/manifests/text-layout.lock.json")
+git -C "$fixture/referances/upstream/fribidi" show "$fribidi_pin:lib/fribidi-bidi.c" > "$work/fribidi-original.c"
+mkdir -p "$work/fribidi-prefix/lib"
+cp "$work/fribidi-original.c" "$work/fribidi-prefix/lib/fribidi-bidi.c"
+patch --directory="$work/fribidi-prefix" -p1 --batch --fuzz=0 --no-backup-if-mismatch \
+    < "$fixture/patches/0031-fribidi-allocation-failure.patch"
+for predecessor in "$work/fribidi-original.c" "$work/fribidi-prefix/lib/fribidi-bidi.c"; do
+    cp "$predecessor" "$fixture/src/upstream/text-layout/fribidi-1.0.17/lib/fribidi-bidi.c"
+    cp "$predecessor" "$tree/external/ure-fribidi/lib/fribidi-bidi.c"
+    bash "$fixture/scripts/prepare-android-text-layout.sh"
+done
+source="$fixture/src/upstream/text-layout/fribidi-1.0.17/lib/fribidi-bidi.c"
+cp "$source" "$work/fribidi-reviewed.c"
+printf '\n/* Unknown FriBidi source sentinel */\n' >> "$source"
+source_before=$(snapshot "$fixture/src/upstream/text-layout")
+refuse bash "$fixture/scripts/prepare-android-text-layout.sh"
+[[ $(snapshot "$fixture/src/upstream/text-layout") == "$source_before" ]]
+cp "$work/fribidi-reviewed.c" "$source"
 source="$fixture/src/upstream/text-layout/harfbuzz-14.5.1/src/hb-common.cc"
 cp "$source" "$work/original-source"
 printf '\n// Unknown source sentinel\n' >> "$source"

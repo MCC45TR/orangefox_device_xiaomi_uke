@@ -29,11 +29,17 @@ for name in harfbuzz fribidi; do
                     [[ -f $target/$path && ! -L $target/$path ]]
                     [[ $((8#$(stat -c %a "$target/$path") & 0111)) == $((8#$(stat -c %a "$source/$path") & 0111)) ]]
                     if ! cmp -s "$source/$path" "$target/$path"; then
-                        [[ $path == Android.bp ]]
                         digest=$(sha256sum "$target/$path" | cut -d' ' -f1)
-                        jq -e --arg name "$name" --arg digest "$digest" \
-                            '.libraries[]|select(.name==$name)|.adapter_predecessors["Android.bp"]|index($digest)!=null' \
-                            "$component/manifests/text-layout.lock.json" >/dev/null
+                        if [[ $path == Android.bp ]]; then
+                            jq -e --arg name "$name" --arg digest "$digest" \
+                                '.libraries[]|select(.name==$name)|.adapter_predecessors["Android.bp"]|index($digest)!=null' \
+                                "$component/manifests/text-layout.lock.json" >/dev/null
+                        else
+                            [[ $name == fribidi && $path == lib/fribidi-bidi.c ]]
+                            jq -e --arg name "$name" --arg path "$path" --arg digest "$digest" \
+                                '.libraries[]|select(.name==$name)|.source_predecessors[$path]|index($digest)!=null' \
+                                "$component/manifests/text-layout.lock.json" >/dev/null
+                        fi
                         printf '%s\n' "$path" >> "$work/reviewed-updates"
                     fi
                 fi

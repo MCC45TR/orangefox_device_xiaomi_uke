@@ -51,6 +51,7 @@
     "manifests/text-layout.lock.json",
     "patches/0030-multilingual-text-layout.patch",
     "patches/0031-fribidi-allocation-failure.patch",
+    "patches/0033-fribidi-explicit-direction-types.patch",
     "patches/0032-freetype-empty-variation-region.patch",
     "configs/freetype-patches.list",
     "scripts/prepare-reviewed-patches.sh",

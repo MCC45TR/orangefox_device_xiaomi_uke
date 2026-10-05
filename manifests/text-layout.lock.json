@@ -28,8 +28,15 @@
       "source": "src/upstream/text-layout/fribidi-1.0.17",
       "adapter": "configs/text-layout/fribidi-Android.bp",
       "patches": [
-        "patches/0031-fribidi-allocation-failure.patch"
+        "patches/0031-fribidi-allocation-failure.patch",
+        "patches/0033-fribidi-explicit-direction-types.patch"
       ],
+      "source_predecessors": {
+        "lib/fribidi-bidi.c": [
+          "ef2336676ec1f93f7f1f756acee6168ef86a917e619107f1252d20b490a13621",
+          "4356d8cfa60db095bfa988334e0a033dd0e073654d2d6cc3a4da75283453bffb"
+        ]
+      },
       "compiled_api": "bounded bidi types, bracket resolution, embedding levels and line reorder only",
       "release_ucd_inputs": "18.0.0; generated compiled tables remain 14.0.0",
       "adapter_predecessors": {
