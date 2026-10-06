@@ -76,8 +76,51 @@ ccache --print-stats > "$work/warm-cache.stats"
 [[ $(sha256sum "$work/fixture.o" | cut -d' ' -f1) == "$before" ]]
 awk '$1=="direct_cache_hit" || $1=="preprocessed_cache_hit" {hits+=$2} END {exit hits<1}' "$work/warm-cache.stats"
 printf 'Real compile admission: compile=%s, soong=%s, heap=%s; cold/warm object identity and cache hit passed.\n' "$UKE_HOST_JOBS" "$GOMAXPROCS" "$GOMEMLIMIT"
+cat > "$work/oom.cpp" <<'CPP_EOF'
+#include <sys/mman.h>
+#include <unistd.h>
+int main() {
+    alarm(15);
+    constexpr unsigned long size = 96UL * 1024 * 1024;
+    void* mapping = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mapping == MAP_FAILED) return 2;
+    auto* bytes = static_cast<volatile unsigned char*>(mapping);
+    for (unsigned long offset = 0; offset < size; offset += 4096) bytes[offset] = 1;
+    munmap(mapping, size);
+    return 0;
+}
+CPP_EOF
+ccache /usr/bin/c++ -std=c++20 -O2 -Wall -Wextra -Werror "$work/oom.cpp" -o "$work/oom-probe"
 CACHE_JOB_EOF
 bash "$component/scripts/with-host-budget.sh" cache-probe bash "$scratch/cache-job.sh" "$scratch" > "$scratch/service.log" 2>&1
 cat "$scratch/service.log"
+before_failures=$(find "$component/build/host-budget" -maxdepth 1 -type d -name 'failure-probe-*' | sort)
 refuse bash "$component/scripts/with-host-budget.sh" failure-probe bash -c 'exit 7'
-printf 'Actual service limits, post-lock admission, PSI/OOM/cache receipts and nonzero-command refusal passed; small reference-host fixtures only.\n'
+mapfile -t failure_record < <(comm -13 <(printf '%s\n' "$before_failures" | sed '/^$/d') \
+    <(find "$component/build/host-budget" -maxdepth 1 -type d -name 'failure-probe-*' | sort))
+[[ ${#failure_record[@]} == 1 ]]
+jq -e '.schema_version==1 and .launcher_status==7 and .manager_observed and (.manager_properties|contains("Result=exit-code"))
+    and (.manager_properties|contains("ExecMainStatus=7"))' "${failure_record[0]}/service-outcome.json" >/dev/null
+[[ $(cat "${failure_record[0]}/command-status") == 7 ]]
+cat > "$scratch/oom-job.sh" <<'OOM_JOB_EOF'
+set -euo pipefail
+membership=$(awk -F: '$1==0 {print $3}' /proc/self/cgroup)
+unit=${membership##*/}
+[[ $unit == uke-recovery-oom-probe-*.service ]]
+# This negative control only reduces its own admitted envelope. It cannot
+# change an unrelated job, a parent limit or the desktop's memory allowance.
+systemctl --user set-property --runtime "$unit" MemoryMax=32M MemoryHigh=32M MemorySwapMax=0
+cg=/sys/fs/cgroup$membership
+[[ $(cat "$cg/memory.max") == 33554432 && $(cat "$cg/memory.high") == 33554432 && $(cat "$cg/memory.swap.max") == 0 ]]
+printf 'Controlled OOM probe: own maximum/high=32 MiB, swap=0, executable alarm=15 seconds.\n' > /tmp/oom-probe-policy.txt
+exec "$1"
+OOM_JOB_EOF
+before_oom=$(find "$component/build/host-budget" -maxdepth 1 -type d -name 'oom-probe-*' | sort)
+refuse bash "$component/scripts/with-host-budget.sh" oom-probe bash "$scratch/oom-job.sh" "$scratch/oom-probe"
+mapfile -t oom_record < <(comm -13 <(printf '%s\n' "$before_oom" | sed '/^$/d') \
+    <(find "$component/build/host-budget" -maxdepth 1 -type d -name 'oom-probe-*' | sort))
+[[ ${#oom_record[@]} == 1 ]]
+jq -e '.schema_version==1 and .launcher_status!=0 and .manager_observed and (.manager_properties|contains("Result=oom-kill"))' \
+    "${oom_record[0]}/service-outcome.json" >/dev/null
+[[ -f ${oom_record[0]}/oom-probe-policy.txt && ! -f ${oom_record[0]}/command-status ]]
+printf 'Actual service/cache admission, exact nonzero status and external group-OOM outcome passed; the 32 MiB killed fixture cannot supply build or tablet acceptance.\n'
