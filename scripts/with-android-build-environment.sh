@@ -9,6 +9,8 @@ shift 2
 [[ ${UKE_HOST_BUDGET_ACTIVE:-0} == 1 && $# -gt 0 && -d $tree && ! -L $tree && -d $output && ! -L $output ]]
 tree=$(realpath -e -- "$tree")
 output=$(realpath -e -- "$output")
+host_rg=$(realpath -e -- "$(command -v rg)")
+[[ -f $host_rg && -x $host_rg && ! -L $host_rg ]]
 bash "$component/scripts/host-temp-policy.sh" arm64 /tmp /tmp/host-temp-policy.json > /tmp/android-temp-before.json
 [[ $(stat -c '%u %a' "$output") == "$UID 700" ]]
 mkdir -p "$component/build/ccache/android" "$output/ccache" /tmp/uke-build-launchers /tmp/uke-build-home
@@ -18,7 +20,8 @@ bwrap --ro-bind / / --dev-bind /dev /dev --proc /proc --bind /tmp /tmp \
     --ro-bind "$component/scripts/host-ccache.sh" /tmp/uke-build-launchers/host-ccache.sh \
     --ro-bind "$component/scripts/host-temp-policy.sh" /tmp/uke-build-launchers/host-temp-policy.sh \
     --ro-bind "$component/scripts/run-android-build-job.sh" /tmp/uke-build-launchers/run-android-build-job.sh \
-    --clearenv --setenv PATH /usr/bin:/bin --setenv LC_ALL C --setenv LANG C --setenv TZ UTC \
+    --ro-bind "$host_rg" /tmp/uke-build-launchers/rg \
+    --clearenv --setenv PATH /tmp/uke-build-launchers:/usr/bin:/bin --setenv LC_ALL C --setenv LANG C --setenv TZ UTC \
     --setenv HOME /tmp/uke-build-home --setenv USER uke-builder --setenv LOGNAME uke-builder \
     --setenv SOURCE_DATE_EPOCH 1790726400 --setenv BUILD_DATETIME 1790726400 --setenv BUILD_NUMBER uke-r12 \
     --setenv PYTHONDONTWRITEBYTECODE 1 \

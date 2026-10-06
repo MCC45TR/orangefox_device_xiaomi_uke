@@ -46,13 +46,21 @@ build_inputs() {
     : > "$destination/host-runtime.tsv"
     # Upstream host Python is used by AOSP tooling only. Target payloads still
     # must pass the separate recursive no-Python audit. OS closure is not claimed.
-    for command in bash awk bwrap ccache cp cpio c++ dd find git gzip jq ln make mv od perl python3 readelf sed sha256sum sort stat sync tar touch unzip xargs xmllint zip; do
+    for command in bash awk bwrap ccache cp cpio c++ dd find git gzip jq ln make mv od perl python3 readelf rg sed sha256sum sort stat sync tar touch unzip xargs xmllint zip; do
         tool=$(command -v "$command")
         resolved=$(realpath -e -- "$tool")
         [[ -f $resolved && ! -L $resolved ]]
         printf '%s\t%s\n' "$command" "$(build_digest "$resolved")" >> "$destination/host-tools.tsv"
         # Installed trusted ELF host tools only; never ldd an input/target ELF.
         if [[ $(head -c 4 "$resolved" | od -An -tx1 | tr -d ' \n') == 7f454c46 ]]; then
+            readelf --program-headers --wide "$resolved" > "$destination/host-elf.tmp"
+            if ! rg -q '[[:space:]]INTERP[[:space:]]' "$destination/host-elf.tmp"; then
+                # A trusted static tool has no loader or shared-library closure.
+                # A non-interpreted ELF with unresolved NEEDED entries is invalid.
+                readelf --dynamic --wide "$resolved" > "$destination/ldd.tmp"
+                ! rg -q '\(NEEDED\)' "$destination/ldd.tmp"
+                continue
+            fi
             ldd "$resolved" > "$destination/ldd.tmp"
             ! rg -q 'not found' "$destination/ldd.tmp"
             while IFS= read -r runtime; do
@@ -61,7 +69,7 @@ build_inputs() {
             done < <(awk '{for(i=1;i<=NF;i++) if($i~/^\//) print $i}' "$destination/ldd.tmp")
         fi
     done
-    rm -f -- "$destination/ldd.tmp"
+    rm -f -- "$destination/ldd.tmp" "$destination/host-elf.tmp"
     sort -u -o "$destination/host-runtime.tsv" "$destination/host-runtime.tsv"
     [[ ! -f /etc/os-release ]] || cp -- /etc/os-release "$destination/host-os-release"
     if command -v rpm >/dev/null; then rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > "$destination/host-package-versions.tsv"; fi
@@ -80,7 +88,7 @@ build_begin() {
         --argjson jobs "$jobs" --argjson vm "$vm" \
         '{schema_version:1,evidence_class:$class,state:"prepared",output_identity:$identity,publisher_sha256:$publisher,expected_project_count:$count,
           build:{lunch:"twrp_uke-bp2a-eng",targets:(if $vm==1 then ["recoveryimage","uke-btrfs-vm-fixture-soong"] else ["recoveryimage"] end),compile_jobs:$jobs},
-          environment:{path:"/usr/bin:/bin",locale:"C",timezone:"UTC",home:"/tmp/uke-build-home",output:"/mnt/out-public",
+          environment:{path:"/tmp/uke-build-launchers:/usr/bin:/bin",locale:"C",timezone:"UTC",home:"/tmp/uke-build-home",output:"/mnt/out-public",
             source_date_epoch:1790726400,build_datetime:1790726400,build_number:"uke-r12",host_python_write_bytecode:false,
             go_procs:$go_procs,go_heap:$go_heap,go_gc:$go_gc}}' \
         > "$job/prepared.json"

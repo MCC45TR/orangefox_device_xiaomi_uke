@@ -62,6 +62,7 @@ printf 'Host snapshot controls passed: 16 GiB reserve, j16 ceiling, sanitizer co
 cat > "$scratch/cache-job.sh" <<'CACHE_JOB_EOF'
 set -euo pipefail
 work=$1
+[[ $LC_ALL == C && $LANG == C ]]
 mkdir -p "$work/cache"
 export CCACHE_DIR="$work/cache" CCACHE_COMPILERCHECK=content CCACHE_SLOPPINESS= CCACHE_MAXSIZE=64M
 unset CCACHE_DISABLE CCACHE_BASEDIR CCACHE_IGNOREOPTIONS CCACHE_NODIRECT
@@ -92,7 +93,7 @@ int main() {
 CPP_EOF
 ccache /usr/bin/c++ -std=c++20 -O2 -Wall -Wextra -Werror "$work/oom.cpp" -o "$work/oom-probe"
 CACHE_JOB_EOF
-bash "$component/scripts/with-host-budget.sh" cache-probe bash "$scratch/cache-job.sh" "$scratch" > "$scratch/service.log" 2>&1
+LC_ALL=tr_TR.UTF-8 LANG=tr_TR.UTF-8 bash "$component/scripts/with-host-budget.sh" native bash "$scratch/cache-job.sh" "$scratch" > "$scratch/service.log" 2>&1
 cat "$scratch/service.log"
 before_failures=$(find "$component/build/host-budget" -maxdepth 1 -type d -name 'failure-probe-*' | sort)
 refuse bash "$component/scripts/with-host-budget.sh" failure-probe bash -c 'exit 7'

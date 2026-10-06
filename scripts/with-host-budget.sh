@@ -2,6 +2,7 @@
 # Host-only resource isolation. Serialize heavy jobs and keep temporary image
 # fixtures on disk, outside the desktop app's memory cgroup and RAM-backed /tmp.
 set -euo pipefail
+export LC_ALL=C LANG=C
 umask 077
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 label=${1:?Pass a short job label and a command}
@@ -10,7 +11,7 @@ shift
 [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]] || {
     echo 'Nested heavy-job admission refused; the existing service already owns the job lock.' >&2; exit 1;
 }
-for command in systemd-run systemctl bwrap flock taskset ccache jq stat sync; do command -v "$command" >/dev/null; done
+for command in systemd-run systemctl bwrap flock taskset ccache jq rg stat sync; do command -v "$command" >/dev/null; done
 [[ $(stat -fc %T /sys/fs/cgroup) == cgroup2fs ]]
 mkdir -p "$component/build/host-budget" "$component/reports/private"
 chmod 0700 "$component/build/host-budget"
