@@ -7,6 +7,7 @@
 #include "pages.hpp"
 #include "minuitwrp/minui.h"
 #include "../minuitwrp/display-mirror.hpp"
+#include "ure-localization.hpp"
 #include <algorithm>
 #include <atomic>
 #include <charconv>
@@ -27,6 +28,7 @@ struct ManagementSession {
     ure::Value variables, updates{Json::objectValue};
     std::size_t update_bytes=0;
     std::string review_locale;
+    std::map<std::string,ure_locale::Message> messages;
     std::function<void(const std::string&,const ure::Root&,const ure::Value&,const std::string&)> bind_backend_control;
     std::function<void(const ure::Value&)> backend_control_result;
     int run(const std::string& command);
@@ -63,6 +65,9 @@ ure::Value boot_plan,boot_reviewed_selection,boot_journal_selection;
 std::string boot_pending_journal,boot_reviewed_journal;
 std::size_t current_line=0;
 std::string value(const std::string& name) const { return variables.get(name,"").asString(); }
+void display_message(const std::string& variable,const ure_locale::Message& message) {
+    messages[variable]=message; set(variable,message.text());
+}
 void publish(const ure::Value& data) {
     ure::Value view;
     if(data.isObject() && data["operation"]=="stock.restore-images") {
@@ -163,19 +168,19 @@ void review_management(const std::string& kind,ure::Value plan,const ure::Value&
     auto review=managed_plan; review["journal_directory"]=managed_journal; publish(review);
     set("ure_manage_hash",managed_plan["plan_sha256"].asString());
     set("ure_manage_can_apply",kind!="filesystem" || managed_plan["target_identity"]["kind"]=="regular-image" ? "1" : "0");
-    std::string summary;
+    ure_locale::Message summary;
     if(kind=="filesystem") {
-        const auto& request=managed_plan["request"]; summary=request["action"].asString()+" / "+request["filesystem"].asString()+" on "+value("ure_raw_source")+"\n";
-        if(request["action"]=="resize")summary+="Requested filesystem size: "+std::to_string(request["target_bytes"].asUInt64()/1048576)+" MiB\n";
-        summary+="Required journal space: "+std::to_string(managed_plan["estimated_max_journal_bytes"].asUInt64()/1048576)+" MiB\n";
-        summary+="Partition boundaries stay unchanged. "+managed_plan["risk"].asString();
-        if(managed_plan["target_identity"]["kind"]!="regular-image")summary+="\nLive application is blocked by the current storage preflight.";
+        const auto& request=managed_plan["request"]; summary.data(request["action"].asString()).data(" / ").data(request["filesystem"].asString()).prose(" on ").data(value("ure_raw_source")).data("\n");
+        if(request["action"]=="resize")summary.prose("Requested filesystem size: ").data(std::to_string(request["target_bytes"].asUInt64()/1048576)).data(" MiB\n");
+        summary.prose("Required journal space: ").data(std::to_string(managed_plan["estimated_max_journal_bytes"].asUInt64()/1048576)).data(" MiB\n");
+        summary.prose("Partition boundaries stay unchanged. ").prose(managed_plan["risk"].asString());
+        if(managed_plan["target_identity"]["kind"]!="regular-image")summary.prose("\nLive application is blocked by the current storage preflight.");
     } else if(kind=="rescue") {
-        summary="System: "+managed_plan["distribution_family"].asString()+"; action: "+managed_plan["request"]["action"].asString()+"\n";
-        summary+="Timeout: "+std::to_string(managed_plan["request"]["timeout_seconds"].asUInt())+" seconds; automatic connections: "+std::to_string(managed_plan["connections"].size())+"\n";
-        summary+=managed_plan["risk"].asString();
-    } else summary=managed_plan.get("risk",managed_plan.get("coherence","Review the selected read-only snapshot, incremental parent and backup store")).asString();
-    summary+="\nJournal: "+managed_journal; set("ure_manage_summary",summary);
+        summary.prose("System: ").data(managed_plan["distribution_family"].asString()).prose("; action: ").data(managed_plan["request"]["action"].asString()).data("\n");
+        summary.prose("Timeout: ").data(std::to_string(managed_plan["request"]["timeout_seconds"].asUInt())).prose(" seconds; automatic connections: ").data(std::to_string(managed_plan["connections"].size())).data("\n");
+        summary.prose(managed_plan["risk"].asString());
+    } else summary.prose(managed_plan.get("risk",managed_plan.get("coherence","Review the selected read-only snapshot, incremental parent and backup store")).asString());
+    summary.prose("\nJournal: ").data(managed_journal); display_message("ure_manage_summary",summary);
     set("ure_status","Review the selected target, action, required space, warnings and journal before confirming");
 }
 void reviewed_management(const std::string& kind,const ure::Value& selection) {
@@ -264,13 +269,14 @@ ure::Value stock_request() {
     if(request["erase_android_data"].asBool()) { add(0,"metadata","metadata.img"); add(0,"userdata","userdata.img"); }
     return request;
 }
-std::string stock_summary(const ure::Value& plan,const std::string& journal) {
-    std::string text="Declared model: "+plan["request"]["model"].asString()+"; SKU: "+plan["request"]["sku"].asString()+"\nImage workflow; tablet identity and boot acceptance pending.\n";
-    for(const auto& lun:plan["luns"])text+="LUN "+std::to_string(lun["lun"].asUInt())+": "+std::to_string(lun["identity"]["bytes"].asUInt64()/1048576)+" MiB\n";
-    text+="Selected OS payloads: "+std::to_string(plan["request"]["payloads"].size())+"\nRequired journal space: "+std::to_string(plan["estimated_journal_bytes"].asUInt64()/1048576)+" MiB\nJournal: "+journal+"\n";
-    text+="Boot programming policy: "+plan["request"]["boot_payload_layout"].asString()+"\n";
-    for(const auto& row:plan["regions"])if(row["role"]=="payload")text+=row["name"].asString()+": program "+std::to_string(row["bytes"].asUInt64()/1048576)+" MiB; preserve tail "+std::to_string((row["destination_capacity"].asUInt64()-row["bytes"].asUInt64())/1048576)+" MiB\n";
-    for(const auto& warning:plan["warnings"])text+=warning.asString()+"\n";
+ure_locale::Message stock_summary(const ure::Value& plan,const std::string& journal) {
+    ure_locale::Message text;
+    text.prose("Declared model: ").data(plan["request"]["model"].asString()).prose("; SKU: ").data(plan["request"]["sku"].asString()).prose("\nImage workflow; tablet identity and boot acceptance pending.\n");
+    for(const auto& lun:plan["luns"])text.prose("LUN ").data(std::to_string(lun["lun"].asUInt())).data(": ").data(std::to_string(lun["identity"]["bytes"].asUInt64()/1048576)).data(" MiB\n");
+    text.prose("Selected OS payloads: ").data(std::to_string(plan["request"]["payloads"].size())).prose("\nRequired journal space: ").data(std::to_string(plan["estimated_journal_bytes"].asUInt64()/1048576)).prose(" MiB\nJournal: ").data(journal).data("\n");
+    text.prose("Boot programming policy: ").data(plan["request"]["boot_payload_layout"].asString()).data("\n");
+    for(const auto& row:plan["regions"])if(row["role"]=="payload")text.data(row["name"].asString()).prose(": program ").data(std::to_string(row["bytes"].asUInt64()/1048576)).prose(" MiB; preserve tail ").data(std::to_string((row["destination_capacity"].asUInt64()-row["bytes"].asUInt64())/1048576)).data(" MiB\n");
+    for(const auto& warning:plan["warnings"])text.prose(warning.asString()).data("\n");
     return text;
 }
 ure::Value layout_request() {
@@ -385,12 +391,13 @@ public:
         gr_fill(x,y+icon/4,icon,stroke); gr_fill(x,y+icon-stroke,icon,stroke);
         gr_fill(x,y+icon/4,stroke,icon*3/4); gr_fill(x+icon-stroke,y+icon/4,stroke,icon*3/4);
         gr_fill(x,y+icon/8,icon/2,stroke); gr_fill(x,y+icon/8,stroke,icon/8);
-        gr_textEx_scaleW(tx,y,"Files and folders",font_,mRenderX+mRenderW-pad-tx,0,0);
+        const auto localize=[](const std::string& key,const std::string& fallback) { return gui_lookup(key,fallback); };
+        gr_textEx_scaleW(tx,y,ure_locale::translate("Files and folders",localize).c_str(),font_,mRenderX+mRenderW-pad-tx,0,0);
         color(secondary_);
-        gr_textEx_scaleW(tx,y+title_h+size(12),"Example menu description",description_,mRenderX+mRenderW-pad-tx,0,0);
+        gr_textEx_scaleW(tx,y+title_h+size(12),ure_locale::translate("Example menu description",localize).c_str(),description_,mRenderX+mRenderW-pad-tx,0,0);
         color(accent_); gr_fill(x,button_y,mRenderW-pad*2,button_h);
         gr_color(255,255,255,255);
-        gr_textEx_scaleW(x+size(24),button_y+(button_h-title_h)/2,"Sample button",font_,mRenderW-pad*2-size(48),0,0);
+        gr_textEx_scaleW(x+size(24),button_y+(button_h-title_h)/2,ure_locale::translate("Sample button",localize).c_str(),font_,mRenderW-pad*2-size(48),0,0);
         return 0;
     }
 };
@@ -458,7 +465,10 @@ void ure_gui_density(float& scale_w,float& scale_h,int width,int height) {
     }
 }
 bool ure_gui_variable(const std::string& name,std::string& output) {
-    if(name.compare(0,4,"ure_")==0)return false;
+    if(name.compare(0,4,"ure_")==0) {
+        return ure_locale::display_variable(name,DataManager::GetStrValue(name),
+            [](const std::string& key,const std::string& fallback) { return gui_lookup(key,fallback); },output);
+    }
     int width=0,height=0; DataManager::GetValue("ure_canvas_width",width); DataManager::GetValue("ure_canvas_height",height);
     if(width<=0 || height<=0)return false;
     // Density changes control sizes, while the logical viewport changes anchors.
@@ -571,7 +581,7 @@ int ManagementSession::run(const std::string& command) {
             clear_stock_review(); ure::Root parent(value("ure_journal_parent")); pending_stock_plan=ure::stock_job_plan(stock_request());
             reviewed_stock_choices=stock_selection(); pending_stock_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-stock-"+pending_stock_plan["operation_id"].asString())).string();
             set("ure_stock_job_hash",pending_stock_plan["plan_sha256"].asString()); set("ure_stock_job_can_execute","1");
-            set("ure_stock_job_summary",stock_summary(pending_stock_plan,pending_stock_journal)); publish(pending_stock_plan);
+            display_message("ure_stock_job_summary",stock_summary(pending_stock_plan,pending_stock_journal)); publish(pending_stock_plan);
         } else if(command=="stock-job-execute") {
             if(ure::json(stock_selection())!=ure::json(reviewed_stock_choices)) { clear_stock_review(); throw ure::Error("stale-plan","Stock model, SKU, images, source, reset or slot choices changed; review a fresh plan"); }
             ure::require(pending_stock_plan.isObject() && !pending_stock_journal.empty() && pending_stock_plan["plan_sha256"].asString()==value("ure_stock_job_hash"),
@@ -599,9 +609,11 @@ int ManagementSession::run(const std::string& command) {
             auto review=boot_plan; review["journal_directory"]=boot_pending_journal; publish(review);
             set("ure_boot_hash",boot_plan["plan_sha256"].asString());
             set("ure_boot_can_stage",boot_plan["fixture_execute_allowed"].asBool() ? "1" : "0");
-            set("ure_boot_summary","One-time "+value("ure_boot_target")+": EFI option "+boot_plan["selected"]["number"].asString()+
-                " / "+boot_plan["selected"]["description"].asString()+"\nPreserved default: "+boot_plan["fallback"]["number"].asString()+
-                " / "+boot_plan["fallback"]["description"].asString()+"\n"+boot_plan["risk"].asString()+"\nJournal: "+boot_pending_journal);
+            ure_locale::Message summary;
+            summary.prose("One-time ").data(value("ure_boot_target")).prose(": EFI option ").data(boot_plan["selected"]["number"].asString()).data(" / ")
+                .data(boot_plan["selected"]["description"].asString()).prose("\nPreserved default: ").data(boot_plan["fallback"]["number"].asString()).data(" / ")
+                .data(boot_plan["fallback"]["description"].asString()).data("\n").prose(boot_plan["risk"].asString()).prose("\nJournal: ").data(boot_pending_journal);
+            display_message("ure_boot_summary",summary);
         } else if(command=="boot-route-stage-fixture") {
             ure::require(boot_plan.isObject() && !boot_pending_journal.empty() && boot_plan["plan_sha256"].asString()==value("ure_boot_hash"),
                 "review-required","Review the exact one-time request first");
@@ -1336,6 +1348,7 @@ int collect_management_job() {
     if(same && output.isMember("updates")) {
         management_owner.session=std::move(management_owner.running);
         apply_management_updates(output["updates"]);
+        for(const auto& [key,message]:management_owner.session->messages)ure_locale::remember(key,message);
     } else {
         management_owner.session=std::make_shared<ManagementSession>();
         management_owner.running.reset();
