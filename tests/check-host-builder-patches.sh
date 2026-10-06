@@ -12,6 +12,8 @@ for source in soong blueprint; do
 done
 go="$component/src/upstream/orangefox-android16/prebuilts/go/linux-x86/bin/go"
 [[ $(sha256sum "$go" | cut -d' ' -f1) == c4859c0d97fe48a45d348c8ceba892a5c2ca1d7f3e429cf3ea4f2c0dae5cc406 ]]
+cp "$component/tests/blueprint/provider_retention_test.go" "$scratch/blueprint/"
+cp "$component/tests/blueprint/hash_regression_test.go" "$scratch/blueprint/proptools/"
 cat > "$scratch/blueprint/bootstrap/uke_policy_test.go" <<'GO_TEST_EOF'
 package bootstrap
 import ("runtime"; "testing")
@@ -100,18 +102,22 @@ func TestUkeBoundedProviderValidation(t *testing.T) {
     if errs := ctx.VerifyProvidersWereUnchanged(); len(errs) != 0 { t.Fatal(errs) }
     id := providerTestGenerateBuildActionsInfoProvider.id
     for m := range ctx.iterateAllVariants() {
-        m.providers[id].(*providerTestGenerateBuildActionsInfo).Value += " changed"
+        index, found := m.providerIndex(id)
+        if !found { t.Fatal("generated provider was not retained") }
+        m.providers[index].value.(*providerTestGenerateBuildActionsInfo).Value += " changed"
     }
     if errs := ctx.VerifyProvidersWereUnchanged(); len(errs) != 64 {
         t.Fatalf("bounded validation failed to find all changed providers: %v", errs)
     }
     first := ctx.moduleGroupFromName("module-00", nil).moduleByVariantName("")
-    first.providers[id] = make(chan bool)
+    index, found := first.providerIndex(id)
+    if !found { t.Fatal("generated provider was not retained") }
+    first.providers[index].value = make(chan bool)
     errs := ctx.VerifyProvidersWereUnchanged()
     if len(errs) != 64 || !strings.Contains(fmt.Sprint(errs), "no longer hashable") {
         t.Fatalf("unhashable-provider refusal was lost: %v", errs)
     }
-    first.providers[id] = nil
+    first.providers[index].value = nil
     errs = ctx.VerifyProvidersWereUnchanged()
     if len(errs) != 64 || !strings.Contains(fmt.Sprint(errs), "unset somehow") {
         t.Fatalf("unset-provider refusal was lost: %v", errs)
@@ -126,7 +132,7 @@ export GOWORK=off GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
 export GOCACHE="$work/go-cache" GOMAXPROCS=2 GOMEMLIMIT=1024MiB
 cd "$work/blueprint"
 "$go" test -p 2 . ./bootstrap ./microfactory ./proptools
-"$go" test -race -p 2 -run 'TestUke|Test_parallelVisit|TestProviders|TestInvalidProvidersUsage' .
+"$go" test -race -p 2 -run 'TestUke|TestRetention|Test_parallelVisit|TestProviders|TestInvalidProvidersUsage' . ./proptools
 GO_JOB_EOF
 bash "$component/scripts/with-host-budget.sh" soong-probe bash "$scratch/go-job.sh" "$go" "$scratch" > "$scratch/go-test.log" 2>&1
 cat "$scratch/go-test.log"
@@ -140,4 +146,4 @@ for source in soong blueprint; do
     fi
     [[ $(sha256sum "$scratch/$source/$file" | cut -d' ' -f1) == "$before" ]]
 done
-printf 'Exact pinned host stacks, bounded active graph/provider workers, retained mutation checks, dependency/pause regressions, race checks and unknown-edit preservation passed.\n'
+printf 'Exact pinned host stacks, bounded workers, sparse provider/cache/clone compatibility, map mutation checks, dependency/pause regressions, race checks and unknown-edit preservation passed.\n'

@@ -1,2 +1,4 @@
 0029-blueprint-host-parallelism.patch
 0034-blueprint-bounded-graph-workers.patch
+0035-blueprint-sparse-provider-storage.patch
+0036-blueprint-map-value-hash.patch

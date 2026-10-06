@@ -29,8 +29,10 @@ cd "$component"
     printf '%s\0' scripts/host-budget-policy.sh scripts/run-host-budget-job.sh tests/check-host-budget.sh \
         tests/check-host-builder-patches.sh patches/0028-soong-host-parallelism.patch patches/0029-blueprint-host-parallelism.patch \
         patches/0034-blueprint-bounded-graph-workers.patch \
+        patches/0035-blueprint-sparse-provider-storage.patch patches/0036-blueprint-map-value-hash.patch \
+        tests/blueprint/provider_retention_test.go tests/blueprint/hash_regression_test.go \
         configs/soong-patches.list configs/blueprint-patches.list \
-        src/upstream/orangefox-android16/build/blueprint/{context.go,bootstrap/{command.go,bootstrap.go},microfactory/microfactory.go}
+        src/upstream/orangefox-android16/build/blueprint/{context.go,provider.go,module_ctx.go,proptools/hash_provider.go,bootstrap/{command.go,bootstrap.go},microfactory/microfactory.go}
     printf '%s\0' scripts/host-temp-policy.sh scripts/with-android-build-environment.sh scripts/run-android-build-job.sh tests/check-host-temp.sh
     printf '%s\0' scripts/index-build-tree.sh scripts/build-evidence-lib.sh scripts/build-evidence.sh \
         src/host/publish-build-directory.cpp tests/check-build-evidence.sh scripts/audit-recovery-image.sh scripts/package-prerelease.sh scripts/describe-prerelease.sh scripts/archive-release-sources.sh

@@ -1,0 +1,261 @@
+diff --git a/context.go b/context.go
+--- a/context.go
++++ b/context.go
+@@ -391,8 +391,7 @@
+ 	// set during PrepareBuildActions
+ 	actionDefs localBuildActions
+ 
+-	providers                  []interface{}
+-	providerInitialValueHashes []uint64
++	providers []providerValue
+ 
+ 	startedMutator  int
+ 	finishedMutator int
+@@ -1682,7 +1681,6 @@
+ 		newModule.variant = newVariant(origModule, mutator.name, variationName)
+ 		newModule.properties = newProperties
+ 		newModule.providers = slices.Clone(origModule.providers)
+-		newModule.providerInitialValueHashes = slices.Clone(origModule.providerInitialValueHashes)
+ 		newModule.transitionInfos = slices.Clone(origModule.transitionInfos)
+ 
+ 		newModules = append(newModules, newModule)
+@@ -2660,7 +2658,7 @@
+ 		j.AddJSONData(&result.Module)
+ 	}
+ 	for _, p := range m.providers {
+-		if j, ok := p.(JSONDataSupplier); ok {
++		if j, ok := p.value.(JSONDataSupplier); ok {
+ 			j.AddJSONData(&result.Module)
+ 		}
+ 	}
+@@ -2703,7 +2701,7 @@
+ 		actions = append(actions, j.JSONActions()...)
+ 	}
+ 	for _, p := range m.providers {
+-		if j, ok := p.(JSONActionSupplier); ok {
++		if j, ok := p.value.(JSONActionSupplier); ok {
+ 			actions = append(actions, j.JSONActions()...)
+ 		}
+ 	}
+@@ -4191,17 +4189,18 @@
+ 		go func() {
+ 			var errors []error
+ 			for m := range toProcess {
+-				for i, provider := range m.providers {
+-					if provider != nil {
+-						hash, err := proptools.CalculateHash(provider)
++				for _, provider := range m.providers {
++					i := provider.id
++					if provider.value != nil {
++						hash, err := proptools.CalculateHash(provider.value)
+ 						if err != nil {
+ 							errors = append(errors, fmt.Errorf("provider %q on module %q was modified after being set, and no longer hashable afterwards: %s", providerRegistry[i].typ, m.Name(), err.Error()))
+ 							continue
+ 						}
+-						if m.providerInitialValueHashes[i] != hash {
++						if provider.initialHash != hash {
+ 							errors = append(errors, fmt.Errorf("provider %q on module %q was modified after being set", providerRegistry[i].typ, m.Name()))
+ 						}
+-					} else if m.providerInitialValueHashes[i] != 0 {
++					} else if provider.initialHash != 0 {
+ 						// This should be unreachable, because in setProvider we check if the provider has already been set.
+ 						errors = append(errors, fmt.Errorf("provider %q on module %q was unset somehow, this is an internal error", providerRegistry[i].typ, m.Name()))
+ 					}
+@@ -4884,11 +4883,12 @@
+ 
+ func (c *Context) cacheModuleBuildActions(module *moduleInfo) {
+ 	var providers []CachedProvider
+-	for i, p := range module.providers {
+-		if p != nil && providerRegistry[i].mutator == "" {
++	for _, entry := range module.providers {
++		p := entry.value
++		if p != nil && providerRegistry[entry.id].mutator == "" {
+ 			providers = append(providers,
+ 				CachedProvider{
+-					Id:    providerRegistry[i],
++					Id:    providerRegistry[entry.id],
+ 					Value: &p,
+ 				})
+ 		}
+@@ -5193,7 +5193,8 @@
+ 		}(),
+ 		Providers: func() []providerJson {
+ 			result := make([]providerJson, 0, len(module.providers))
+-			for _, p := range module.providers {
++			for _, entry := range module.providers {
++				p := entry.value
+ 				pj := providerJson{}
+ 				include := false
+ 
+diff --git a/context_test.go b/context_test.go
+--- a/context_test.go
++++ b/context_test.go
+@@ -1594,7 +1594,7 @@
+ 	if len(ctx.buildActionsCache) != 1 {
+ 		t.Errorf("build actions are not cached for the incremental module")
+ 	}
+-	cacheKey := calculateHashKey(incInfo, [][]uint64{barInfo.providerInitialValueHashes})
++	cacheKey := calculateHashKey(incInfo, [][]uint64{barInfo.providerInitialValueHashes()})
+ 	cache := ctx.buildActionsCache[cacheKey]
+ 	if cache == nil {
+ 		t.Errorf("failed to find cached build actions for the incremental module")
+@@ -1639,7 +1639,8 @@
+ 		t.Errorf("failed to skip/rerun GenerateBuildActions: %t %t", incRerun, barRerun)
+ 	}
+ 	// Verify that the provider is set correctly for the incremental module
+-	if !reflect.DeepEqual(incInfo.providers[IncrementalTestProviderKey.id], providerValue) {
++	value, ok := ctx.provider(incInfo, &IncrementalTestProviderKey.providerKey)
++	if !ok || !reflect.DeepEqual(value, providerValue) {
+ 		t.Errorf("provider is not set correctly when restoring from cache")
+ 	}
+ }
+@@ -1940,7 +1941,7 @@
+ 
+ 	// Verify that the dedup-* order only strings used by MyIncrementalModule is
+ 	// cached along with its other cached values
+-	cacheKey := calculateHashKey(incInfo, [][]uint64{barInfo.providerInitialValueHashes})
++	cacheKey := calculateHashKey(incInfo, [][]uint64{barInfo.providerInitialValueHashes()})
+ 	cache := ctx.buildActionsCache[cacheKey]
+ 	if cache == nil {
+ 		t.Errorf("failed to find cached build actions for the incremental module")
+diff --git a/module_ctx.go b/module_ctx.go
+--- a/module_ctx.go
++++ b/module_ctx.go
+@@ -720,7 +720,7 @@
+ 		cacheInput.PropertiesHash = hash
+ 		m.VisitDirectDeps(func(module Module) {
+ 			cacheInput.ProvidersHash =
+-				append(cacheInput.ProvidersHash, m.context.moduleInfo[module].providerInitialValueHashes)
++				append(cacheInput.ProvidersHash, m.context.moduleInfo[module].providerInitialValueHashes())
+ 		})
+ 		hash, err = proptools.CalculateHash(&cacheInput)
+ 		if err != nil {
+diff --git a/provider.go b/provider.go
+--- a/provider.go
++++ b/provider.go
+@@ -15,8 +15,10 @@
+ package blueprint
+ 
+ import (
++	"cmp"
+ 	"encoding/gob"
+ 	"fmt"
++	"slices"
+ 
+ 	"github.com/google/blueprint/gobtools"
+ 	"github.com/google/blueprint/proptools"
+@@ -30,13 +32,11 @@
+ // value can for the provider for a module can only be set during GenerateBuildActions for the
+ // module, and the value can only be retrieved after GenerateBuildActions for the module.
+ //
+-// Providers are globally registered during init() and given a unique ID.  The value of a provider
+-// for a module is stored in an []any indexed by the ID.  If the value of a provider has
+-// not been set, the value in the []any will be nil.
+-//
+-// If the storage used by the provider value arrays becomes too large:
+-//  sizeof([]interface) * number of providers * number of modules that have a provider value set
+-// then the storage can be replaced with something like a bitwise trie.
++// Providers are globally registered during init() and given a unique ID. A module
++// retains only the entries that have been set, sorted by ID. Values and their
++// initial hashes share an entry, so unused registry slots do not multiply across
++// module variants. Sorted entries preserve registry order when serializing or
++// inspecting providers.
+ //
+ // The purpose of providers is to provide a serializable checkpoint between modules to enable
+ // Blueprint to skip parts of the analysis phase when inputs haven't changed.  To that end,
+@@ -97,6 +97,32 @@
+ 
+ var providerRegistry []*providerKey
+ 
++type providerValue struct {
++	id          int
++	value       any
++	initialHash uint64
++}
++
++func (m *moduleInfo) providerIndex(id int) (int, bool) {
++	return slices.BinarySearchFunc(m.providers, id, func(p providerValue, id int) int {
++		return cmp.Compare(p.id, id)
++	})
++}
++
++// providerInitialValueHashes preserves the legacy cache-input layout without
++// retaining a full registry-sized hash array on every module. This allocation is
++// needed only when an incremental module computes its dependency cache key.
++func (m *moduleInfo) providerInitialValueHashes() []uint64 {
++	if len(m.providers) == 0 {
++		return nil
++	}
++	hashes := make([]uint64, len(providerRegistry))
++	for _, p := range m.providers {
++		hashes[p.id] = p.initialHash
++	}
++	return hashes
++}
++
+ // NewProvider returns a ProviderKey for the given type.
+ //
+ // The returned ProviderKey can be used to set a value of the ProviderKey's type for a module
+@@ -176,31 +202,24 @@
+ 		}
+ 	}
+ 
+-	if m.providers == nil {
+-		m.providers = make([]any, len(providerRegistry))
+-	}
+-
+-	if m.providers[provider.id] != nil {
++	i, found := m.providerIndex(provider.id)
++	if found && m.providers[i].value != nil {
+ 		panic(fmt.Sprintf("Value of provider %s is already set", provider.typ))
+ 	}
+ 
+-	m.providers[provider.id] = value
+-
+-	containsConfigurableChan := make(chan bool)
+-	go func() {
+-		containsConfigurableChan <- proptools.ContainsConfigurable(value)
+-	}()
+-
+-	if m.providerInitialValueHashes == nil {
+-		m.providerInitialValueHashes = make([]uint64, len(providerRegistry))
++	if !found {
++		m.providers = slices.Insert(m.providers, i, providerValue{id: provider.id})
+ 	}
++	m.providers[i].value = value
+ 	hash, err := proptools.CalculateHash(value)
+ 	if err != nil {
+ 		panic(fmt.Sprintf("Can't set value of provider %s: %s", provider.typ, err.Error()))
+ 	}
+-	m.providerInitialValueHashes[provider.id] = hash
++	m.providers[i].initialHash = hash
+ 
+-	if <-containsConfigurableChan {
++	// Run both validations in the caller. A goroutine and channel per value add
++	// scratch allocations, and a hashing panic would leave the sender blocked.
++	if proptools.ContainsConfigurable(value) {
+ 		panic(fmt.Sprintf("Providers can't contain Configurable objects: %s", provider.typ))
+ 	}
+ }
+@@ -213,8 +232,8 @@
+ // provider(type T)(m *moduleInfo, provider ProviderKey(T)) T
+ func (c *Context) provider(m *moduleInfo, provider *providerKey) (any, bool) {
+ 	validateProvider(c, m, provider)
+-	if len(m.providers) > provider.id {
+-		if p := m.providers[provider.id]; p != nil {
++	if i, found := m.providerIndex(provider.id); found {
++		if p := m.providers[i].value; p != nil {
+ 			return p, true
+ 		}
+ 	}
+@@ -224,8 +243,8 @@
+ 
+ func (c *Context) hasProvider(m *moduleInfo, provider *providerKey) bool {
+ 	validateProvider(c, m, provider)
+-	if len(m.providers) > provider.id {
+-		if p := m.providers[provider.id]; p != nil {
++	if i, found := m.providerIndex(provider.id); found {
++		if p := m.providers[i].value; p != nil {
+ 			return true
+ 		}
+ 	}

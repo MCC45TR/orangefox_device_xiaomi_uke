@@ -1,0 +1,12 @@
+diff --git a/proptools/hash_provider.go b/proptools/hash_provider.go
+--- a/proptools/hash_provider.go
++++ b/proptools/hash_provider.go
+@@ -128,7 +128,7 @@
+ 				return fmt.Errorf("in map: %s", err.Error())
+ 			}
+ 			hasher.Write(recordSeparator)
+-			err = hasher.calculateHash(s.keys[s.indexes[i]])
++			err = hasher.calculateHash(s.values[s.indexes[i]])
+ 			if err != nil {
+ 				return fmt.Errorf("in map: %s", err.Error())
+ 			}
