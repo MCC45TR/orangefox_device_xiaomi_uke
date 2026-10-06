@@ -1,10 +1,20 @@
 # First-device recovery boot scope
 
-The initial target is **POCO Pad X1 with Global OS3.0.303.0.WOZMIXM** and an
-unlocked bootloader. The build uses the matched stock kernel and installed
-boot/vendor_boot/DTBO stack. Source, host and generic VM checks do not establish
-physical boot or a risk-free flash. Preserve the firmware-matched stock recovery
-and the recorded active slot before the first experiment.
+The reference build profile is **POCO Pad X1 with Global
+OS3.0.303.0.WOZMIXM** and an unlocked bootloader. The dedicated recovery image
+has no embedded kernel and relies on the installed boot/vendor_boot/DTBO stack.
+The temporary boot image includes the reference profile's stock kernel. Source,
+host and generic VM checks do not establish physical boot or a risk-free flash.
+Preserve the working recovery and the recorded active slot before an experiment.
+
+The first available tablet inventory was taken in an existing TWRP session after
+the owner installed AxionOS. Its active vendor stack reports
+OS2.0.205.0.VOZMIXM and its running kernel differs from the reference profile.
+Read-only backups of the active boot chain and working TWRP were verified on the
+host. Current vendor module metadata passes the actual-loader host policy tests;
+this does not establish the new recovery's runtime compatibility. Evaluate the
+kernel-less recovery separately. Do not boot the stock-kernel temporary image
+against a changed vendor stack without an independent compatibility review.
 
 The first image retains the dedicated recovery root even if a bootloader sends
 a normal-boot marker. Managed formatting, flashing, writable mounts, OTA, slot
@@ -41,5 +51,7 @@ simultaneous USB-host mouse/keyboard support through the same port.
 Use the dedicated recovery image only for the verified active recovery slot.
 The kernel-containing temporary image is exclusively for `fastboot boot`.
 Do not modify boot, init_boot, vendor_boot, DTBO, vbmeta, userdata or the inactive
-recovery as a workaround. A matched stock image supplies a documented fallback;
-it does not prove the bootloader's exit path or pending BCB clearance.
+recovery as a workaround. A verified copy of the currently working recovery is
+the direct fallback after a custom ROM change. A stock fallback additionally
+requires a matching installed firmware chain. Neither establishes the
+bootloader's exit path or pending BCB clearance.
