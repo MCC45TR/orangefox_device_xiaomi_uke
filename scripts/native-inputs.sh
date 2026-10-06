@@ -28,8 +28,9 @@ cd "$component"
     printf '%s\0' patches/0013-soong-host-memory-policy.patch src/upstream/orangefox-android16/build/soong/ui/build/soong.go
     printf '%s\0' scripts/host-budget-policy.sh scripts/run-host-budget-job.sh tests/check-host-budget.sh \
         tests/check-host-builder-patches.sh patches/0028-soong-host-parallelism.patch patches/0029-blueprint-host-parallelism.patch \
+        patches/0034-blueprint-bounded-graph-workers.patch \
         configs/soong-patches.list configs/blueprint-patches.list \
-        src/upstream/orangefox-android16/build/blueprint/{bootstrap/{command.go,bootstrap.go},microfactory/microfactory.go}
+        src/upstream/orangefox-android16/build/blueprint/{context.go,bootstrap/{command.go,bootstrap.go},microfactory/microfactory.go}
     printf '%s\0' scripts/host-temp-policy.sh scripts/with-android-build-environment.sh scripts/run-android-build-job.sh tests/check-host-temp.sh
     printf '%s\0' scripts/index-build-tree.sh scripts/build-evidence-lib.sh scripts/build-evidence.sh \
         src/host/publish-build-directory.cpp tests/check-build-evidence.sh scripts/audit-recovery-image.sh scripts/package-prerelease.sh scripts/describe-prerelease.sh scripts/archive-release-sources.sh

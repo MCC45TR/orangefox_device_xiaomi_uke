@@ -1,0 +1,54 @@
+diff --git a/context.go b/context.go
+--- a/context.go
++++ b/context.go
+@@ -2280,7 +2280,12 @@ type pauseSpec struct {
+ 
+ type unpause chan struct{}
+ 
+-const parallelVisitLimit = 1000
++// Bound active module scratch to the caller's admitted CPU policy. Paused
++// visitors still yield their slot so dependency waits cannot exhaust the pool.
++// Keep every module and provider check; only their concurrency changes.
++func parallelVisitLimit() int {
++	return min(1000, runtime.GOMAXPROCS(0))
++}
+ 
+ // Calls visit on each module, guaranteeing that visit is not called on a module until visit on all
+ // of its dependencies has finished.  A visit function can write a pauseSpec to the pause channel
+@@ -3097,7 +3102,7 @@ func (c *Context) runMutators(ctx context.Context, config interface{}, mutatorGroup
+ 		}
+ 	}()
+ 
+-	visitErrs := parallelVisit(c.iterateAllVariants(), direction.orderer(), parallelVisitLimit, visit)
++	visitErrs := parallelVisit(c.iterateAllVariants(), direction.orderer(), parallelVisitLimit(), visit)
+ 
+ 	if len(visitErrs) > 0 {
+ 		return nil, visitErrs
+@@ -3219,7 +3224,7 @@ func (c *Context) cloneModules() {
+ 	ch := make(chan update)
+ 	doneCh := make(chan bool)
+ 	go func() {
+-		errs := parallelVisit(c.iterateAllVariants(), unorderedVisitorImpl{}, parallelVisitLimit,
++		errs := parallelVisit(c.iterateAllVariants(), unorderedVisitorImpl{}, parallelVisitLimit(),
+ 			func(m *moduleInfo, pause chan<- pauseSpec) bool {
+ 				origLogicModule := m.logicModule
+ 				m.logicModule, m.properties = c.cloneLogicModule(m)
+@@ -3296,3 +3301,3 @@ func (c *Context) generateModuleBuildActions(config interface{}, liveGlobals *liveT
+ 
+-	visitErrs := parallelVisit(c.iterateAllVariants(), bottomUpVisitor, parallelVisitLimit,
++	visitErrs := parallelVisit(c.iterateAllVariants(), bottomUpVisitor, parallelVisitLimit(),
+ 		func(module *moduleInfo, pause chan<- pauseSpec) bool {
+@@ -4181,7 +4186,7 @@ func (c *Context) VerifyProvidersWereUnchanged() []error {
+ 		}
+ 		close(toProcess)
+ 	}()
+-	for i := 0; i < 1000; i++ {
++	for i := 0; i < parallelVisitLimit(); i++ {
+ 		wg.Add(1)
+ 		go func() {
+ 			var errors []error
+@@ -4863,3 +4868,3 @@ func deduplicateOrderOnlyStrings(c *Context, modules []*moduleInfo) {
+ 
+-	parallelVisit(slices.Values(modules), unorderedVisitorImpl{}, parallelVisitLimit,
++	parallelVisit(slices.Values(modules), unorderedVisitorImpl{}, parallelVisitLimit(),
+ 		func(m *moduleInfo, pause chan<- pauseSpec) bool {
