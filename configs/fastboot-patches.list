@@ -1,2 +1,4 @@
 0021-fastbootd-write-gate.patch
 0025-fastbootd-operation-lifecycle.patch
+0039-preserve-recovery-first-stage-root.patch
+0040-recovery-block-automatic-storage-modules.patch

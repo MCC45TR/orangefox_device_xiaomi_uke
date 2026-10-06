@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+# Narrow proposed physical sysfs path from the exact stock /soc USB node.
+# HIL must confirm readlink -f and the label before accepting role control.
+genfscon sysfs /devices/platform/soc/a600000.ssusb/mode u:object_r:sysfs_uke_usb_role:s0

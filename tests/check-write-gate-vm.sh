@@ -38,6 +38,12 @@ done < "$job/module-dependencies"
 cat > "$root/system/etc/twrp.fstab" <<'FSTAB'
 /data ext4 /dev/vda flags=display=Data;storage;settingsstorage;backup=1;readonly
 /metadata ext4 /dev/vdb flags=display=Metadata;backup=1;readonly
+/misc emmc /dev/vdc flags=backup=0;readonly
+FSTAB
+cat > "$root/system/etc/recovery.fstab" <<'FSTAB'
+/dev/vda /data ext4 ro,noload defaults
+/dev/vdb /metadata ext4 ro,noload defaults
+/dev/vdc /misc emmc defaults defaults
 FSTAB
 cat > "$root/ure-write-gate-init" <<'GUEST'
 #!/system/bin/sh
@@ -122,7 +128,10 @@ for disk in data metadata; do
     [[ -f $job/$disk.img && ! -L $job/$disk.img ]]
     mke2fs -q -t ext4 -F -O '^orphan_file,^metadata_csum_seed' "$job/$disk.img"
 done
-(cd "$job" && sha256sum data.img metadata.img) > "$job/media-before.sha256"
+truncate -s 4M "$job/misc.img"
+[[ -f $job/misc.img && ! -L $job/misc.img ]]
+printf 'boot-recovery\0' | dd of="$job/misc.img" conv=notrunc status=none
+(cd "$job" && sha256sum data.img metadata.img misc.img) > "$job/media-before.sha256"
 (cd "$root" && find . -print0 | LC_ALL=C sort -z | cpio --null -o --format=newc --owner=0:0 --quiet | gzip -n -1) > "$job/initrd.cpio.gz"
 printf '%s\n' "$job" > "$component/build/write-gate-vm/latest-job"
 timeout 540 "$qemu" -machine virt -cpu cortex-a72 -smp 2 -m 2048 -accel tcg \
@@ -131,6 +140,7 @@ timeout 540 "$qemu" -machine virt -cpu cortex-a72 -smp 2 -m 2048 -accel tcg \
     -append 'console=ttyAMA0 rdinit=/ure-write-gate-init panic=1 ure_fixture=1' \
     -drive "if=none,id=data,format=raw,file=$job/data.img" -device virtio-blk-device,drive=data \
     -drive "if=none,id=metadata,format=raw,file=$job/metadata.img" -device virtio-blk-device,drive=metadata \
+    -drive "if=none,id=misc,format=raw,file=$job/misc.img" -device virtio-blk-device,drive=misc \
     -device 'virtio-gpu-device,xres=3200,yres=2136' -device virtio-keyboard-device \
     > "$job/console.log" 2>&1
 rg -q '^URE_WRITE_GATE_VM_EXIT 0\r?$' "$job/console.log"
@@ -145,6 +155,8 @@ for operation in status confirm format repair resize changefs wipe flash sideloa
         all(.[]|select(.event=="result"); .code==$expected)' "$job/$operation.jsonl" >/dev/null
 done
 rg -q 'URE_STORAGE_WRITE_BLOCKED operation=format code=ure-legacy-write-unavailable' "$job/console.log"
+rg -q 'Failed to set BCB message: ure-legacy-write-unavailable' "$job/console.log"
+rg -q 'Clearing BCB' "$job/console.log"
 jq -n --arg runner "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
     --arg kernel "$(sha256sum "$kernel" | cut -d' ' -f1)" \
     --arg shipping "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
@@ -160,10 +172,11 @@ jq -n --arg runner "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
         "ors-script-refused-without-sentinel","ors-format-failure-preserved","ors-wipe-refused","ors-mkdir-refused",
         "ors-slot-mutation-refused","ors-backup-command-refused","ors-source-preserved","recovery-reflash-refused",
         "mtp-write-service-refused","preference-cannot-authorize-format",
-        "inspection-after-refusal","userdata-and-metadata-complete-hashes-unchanged"],
+        "inspection-after-refusal","startup-bcb-update-refused","startup-bcb-clear-refused",
+        "userdata-metadata-and-misc-complete-hashes-unchanged"],
       adapters:{memfd_code_cache:true,synthetic_property_area:true,disposable_fstab:true},
       writable_qemu_attachments:true,guest_filesystem_mounts_read_only:true,geometry:"synthetic",
       nic:false,host_block_attachment:false,physical_device:false,shipping_kernel_test:false,
       unmodified_shipping_gui_test:false,fastboot_usb_hardware_test:false,visual_acceptance:false,complete_feature_acceptance:false}' \
     > "$component/reports/private/write-gate-vm-verification.json"
-echo 'Native recovery write refusals passed in a generic guest; both entire disposable media images remain unchanged.'
+echo 'Native recovery write refusals passed in a generic guest; all three entire disposable media images remain unchanged.'

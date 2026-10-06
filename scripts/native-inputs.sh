@@ -45,6 +45,20 @@ cd "$component"
     printf '%s\0' tests/check-write-gate.sh tests/generate-write-gate-hooks.sh configs/ure/legacy-write-entry-points.tsv \
         patches/0020-shared-recovery-write-gate.patch patches/0021-fastbootd-write-gate.patch src/device/xiaomi/uke/ure-write-gate.hpp \
         src/device/xiaomi/uke/BoardConfig.mk src/device/xiaomi/uke/recovery/root/system/etc/recovery.fstab
+    printf '%s\0' patches/0037-guard-misc-message-writes.patch patches/0038-guard-boot-control-writes.patch \
+        configs/boot-control-patches.list tests/check-write-gate-vm.sh tests/check-misc-write-policy.sh \
+        src/upstream/orangefox-android16/bootable/recovery/bootloader_message/{Android.bp,bootloader_message.cpp,include/bootloader_message/bootloader_message.h} \
+        src/upstream/orangefox-android16/bootable/recovery/install/get_args.cpp \
+        src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/boot_control/{Android.bp,libboot_control.cpp,include/libboot_control/libboot_control.h,include/private/boot_control_definition.h}
+    printf '%s\0' src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/{BootControl.cpp,BootControl.h}
+    printf '%s\0' tests/check-recovery-first-stage.sh patches/0039-preserve-recovery-first-stage-root.patch \
+        src/upstream/orangefox-android16/system/core/init/first_stage_init.cpp \
+        src/upstream/orangefox-android16/system/libbase/include/android-base/unique_fd.h
+    printf '%s\0' tests/check-recovery-module-policy.sh patches/0040-recovery-block-automatic-storage-modules.patch \
+        src/upstream/orangefox-android16/system/core/libmodprobe/{libmodprobe.cpp,libmodprobe_ext.cpp,exthandler.cpp} \
+        src/upstream/orangefox-android16/system/core/libmodprobe/include/{modprobe/modprobe.h,exthandler/exthandler.h}
+    find src/device/xiaomi/uke/recovery/root src/device/xiaomi/uke/sepolicy -type f -print0
+    printf '%s\0' tests/check-recovery-startup.sh
     printf '%s\0' tests/generate-text-decoder.sh patches/0022-bounded-utf8-text.patch \
         src/upstream/orangefox-android16/bootable/recovery/minuitwrp/truetype.cpp \
         src/upstream/orangefox-android16/bootable/recovery/minuitwrp/include/minuitwrp/truetype.hpp

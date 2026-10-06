@@ -28,6 +28,11 @@ cmp "$component/src/device/xiaomi/uke/ure-write-gate.hpp" "$tree/bootable/recove
 cmp "$component/src/device/xiaomi/uke/recoveryctl/libuke/recovery_write_policy.hpp" "$tree/device/xiaomi/uke/recoveryctl/libuke/recovery_write_policy.hpp"
 bash "$component/scripts/prepare-recovery-patches.sh" "$tree/bootable/recovery" check
 bash "$component/scripts/prepare-fastboot-patches.sh" "$tree/system/core" check
+bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/hardware/interfaces" check boot-control
+bash "$component/tests/check-recovery-first-stage.sh"
+bash "$component/tests/check-misc-write-policy.sh"
+bash "$component/tests/check-recovery-module-policy.sh"
+bash "$component/tests/check-recovery-startup.sh"
 # An early queued error is translated after theme loading. A missing fallback
 # can re-enter GUIConsole::Translate_Now through FindString's error logging.
 language="$tree/bootable/recovery/gui/theme/common/languages/en.xml"

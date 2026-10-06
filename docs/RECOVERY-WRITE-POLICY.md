@@ -18,6 +18,10 @@ separate supported host/VM capability.
   Sideload refuses before disconnecting the normal ADB service.
 - Boot-slot switching, AVB/verity patches, recovery injection and post-install
   scripts, including unsuccessful installation cleanup paths.
+- Shared `/misc` writes: startup BCB update/clear, reboot messages, wipe packages,
+  Virtual A/B, Memtag, kernel-command-line and control messages. The generic boot
+  HAL's independent slot-control writer also refuses before writable open.
+  Failed CRC or Virtual A/B initialization remains failed on subsequent queries.
 - Writable mounts and readonly-to-writable transitions; credential/decryption
   entry points; USB mass-storage exposure and the writable MTP service.
 - Managed file commands, GUI raw imaging/shell helpers, external ADB restore,
@@ -43,6 +47,11 @@ deliberately removed Format Data guard must fail both the census and the
 compiled behavioral fixture. This is a regression gate, not proof that a new
 upstream mutation API can be added without review.
 
+Four complete production translation units additionally exercise the misc
+library, boot-control core, HIDL wrapper and startup argument parser. Their host
+controls preserve all 64 KiB of each private fixture, observe zero writable opens,
+retain read-only queries and reject six removed-guard/initialization defects.
+
 The refusal message is present in the base English theme. Early startup can
 queue that message before language resources exist; the later console
 translation must not fall into missing-resource logging while holding its own
@@ -54,7 +63,18 @@ localization draft remains a separate, unfinished change.
 Initial slot observation remains available without a boot-control HAL write.
 Read-only inspection and unmount/namespace cleanup are retained. Fastbootd
 permits `getvar`, RAM-only `download`, `fetch` and explicit reboot/shutdown
-controls; reboot routes may update their normal boot-control message.
+controls. Reboot routes cannot bypass the shared misc writer. A recovery,
+fastboot or sideload reboot requiring a new BCB message can therefore be refused.
+An existing recovery/fastboot message remains intact and can cause reentry after
+a system reboot. A bootloader reboot logs refusal of its message update and
+continues; its physical behavior and stock return still need device validation.
+
+The dedicated recovery's first-stage init retains its packaged root even when
+the bootloader supplies `force_normal_boot=1` in the command line or bootconfig.
+It also refuses recovery hibernation resume before parsing a resume device or
+opening the sysfs resume writer. Compiled controls retain non-recovery behavior,
+cover twenty marker combinations and detect each removed guard. The stock
+Android boot and init_boot images are unchanged by this recovery source change.
 
 Readonly ext3/ext4 mounts retain `noload`, including fallback attempts. F2FS retains
 `norecovery`. An existing writable or uninspectable mount is refused instead of

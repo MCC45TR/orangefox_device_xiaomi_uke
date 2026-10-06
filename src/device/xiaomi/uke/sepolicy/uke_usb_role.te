@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# The stock /soc/ssusb@a600000 driver exports one USB role-control file.
+type sysfs_uke_usb_role, fs_type, sysfs_type;
+
+recovery_only(`
+    allow init sysfs_uke_usb_role:file { getattr open write };
+')

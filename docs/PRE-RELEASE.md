@@ -1,10 +1,13 @@
 # Experimental Uke recovery
 
-**Publication status — 5 October 2026:** the earlier alpha release has been
+**Publication status — 6 October 2026:** the earlier alpha release has been
 withdrawn. No replacement installable release is currently published. Commands
 below document artifact roles and the historical evaluation procedure; they do
 not authorize installing a new candidate whose build or installer checks are
 incomplete. The current source refuses sideload installation before writing.
+The first owner-operated image experiment has a narrower
+[first-device boot scope](FIRST-DEVICE-BOOT.md), including input, charging,
+backlight and bootloader-return limitations.
 
 Unofficial OrangeFox R12.0 / Android 16 for the `uke` device family: POCO Pad X1
 and Xiaomi Pad 7. **Neither model has been boot-tested.** These are development
@@ -121,11 +124,15 @@ physically rehearsed rollback**.
 Included: upstream recovery tools, ADB/sideload/fastbootd configuration, Bash,
 Toybox, ext4/FAT utilities, GPT inspection, native Linux/ESP read-only controls
 and rotation-property controls. Runtime USB, display, touch, rotation, backup
-and OTA compatibility still require device tests. Upstream menus are not all
-protected by the project installer; do not use formatting or repartitioning.
+and OTA compatibility still require device tests. Shared recovery writer
+boundaries now guard managed formatting, flashing, restore, OTA, fastbootd and
+misc/BCB mutation. These managed operations remain unavailable until live
+storage acceptance; an authorized root ADB shell can issue raw writes outside
+that API policy.
 
-Fonts use license-identified AOSP Roboto aliases in this alpha; upstream font
-selection names do not yet select distinct families. Generic FRP, AVB-disable
+Fonts use the reviewed, license-identified font sources and packaged aliases;
+font names are not evidence of complete glyph or physical display acceptance.
+Generic FRP, AVB-disable
 and verity/encryption-edit addon recipes are omitted. Bundled generic addon
 ZIPs are omitted as well: an embedded legacy updater failed the privacy scan.
 Their optional UI actions are not supported in this alpha; use the native

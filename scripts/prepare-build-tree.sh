@@ -121,6 +121,7 @@ copy_changed "$device_source/ure-lifecycle.hpp" "$recovery_source/ure-lifecycle.
 fastboot_source="$tree/system/core"
 [[ $(git -C "$fastboot_source" rev-parse HEAD) == 1efa79514b2f520c20a837c9216ff6b6e7e0dda3 ]]
 bash "$component/scripts/prepare-fastboot-patches.sh" "$fastboot_source"
+bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/hardware/interfaces" apply boot-control
 ntfs_source="$tree/external/ntfs-3g"
 ntfs_patch="$component/patches/0003-build-ntfsresize.patch"
 if git -C "$ntfs_source" apply --reverse --check "$ntfs_patch" 2>/dev/null; then

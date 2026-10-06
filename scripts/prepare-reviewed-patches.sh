@@ -13,6 +13,7 @@ case $kind in
     soong) pin=6dc77879464584ef3f178cae622134ed0bf19e1e; patch_list=soong-patches.list;;
     blueprint) pin=dcb14f2e146f40cf1f212efb220e9aa1f3cfc280; patch_list=blueprint-patches.list;;
     freetype) pin=d968d2541f7158e18ab22680bfa08a538019bf6a; patch_list=freetype-patches.list;;
+    boot-control) pin=bdefb2a8bce20dc15882d4ab668fb628c427e26b; patch_list=boot-control-patches.list;;
     *) echo 'Unknown reviewed component' >&2; exit 1;;
 esac
 [[ $(git -C "$source_path" rev-parse HEAD) == "$pin" ]]

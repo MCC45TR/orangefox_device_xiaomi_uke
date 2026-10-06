@@ -59,11 +59,22 @@ for marker in ure-linux-boot-audit filesystem.manage btrfs.manage linux.rescue p
 done
 strings "$work/root/system/bin/recovery" | rg -F 'boot-route-stage-fixture' >/dev/null
 bash "$component/tests/check-write-gate.sh"
+bash "$component/tests/check-recovery-startup.sh"
+cmp "$component/src/device/xiaomi/uke/recovery/root/init.recovery.qcom.rc" "$work/root/init.recovery.qcom.rc"
+[[ ! -e $work/root/init.recovery.usb.rc ]]
+strings "$work/root/system/bin/init" | rg -F charger_partition >/dev/null
+strings "$work/root/system/bin/init" | rg -F ufs_ffu >/dev/null
 cmp "$tree/bootable/recovery/gui/theme/common/languages/en.xml" "$work/root/twres/languages/en.xml"
 [[ $(xmllint --xpath 'count(/language/resources/string[@name="ure_device_write_blocked"])' "$work/root/twres/languages/en.xml") == 1 ]]
 for binary in recovery fastbootd uke-recovery-install; do
     strings "$work/root/system/bin/$binary" | rg -F 'ure-legacy-write-unavailable' >/dev/null
     cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/$binary" "$work/root/system/bin/$binary"
+done
+for relative in system/lib64/libbootloader_message.so system/bin/init \
+    system/bin/android.hardware.boot@1.0-service system/bin/android.hardware.boot@1.1-service \
+    system/bin/android.hardware.boot@1.2-service; do
+    strings "$work/root/$relative" | rg -F 'ure-legacy-write-unavailable' >/dev/null
+    cmp "$tree/out-public/target/product/uke/recovery/root/$relative" "$work/root/$relative"
 done
 strings "$work/root/system/bin/recovery" | rg -F 'URE_STORAGE_WRITE_BLOCKED' >/dev/null
 cmp "$tree/out-public/target/product/uke/system/lib64/libminuitwrp.so" "$work/root/system/lib64/libminuitwrp.so"
@@ -112,6 +123,7 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
 jq --argjson qemu "$qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
     .validation.source_built_one_shot_boot_and_gui=true | .validation.qemu_user_one_shot_boot_fixtures=$qemu |
     .validation.source_built_shared_legacy_write_policy=true |
+    .validation.source_built_shared_misc_and_boot_control_write_policy=true |
     .validation.real_efi_variable_write=false | .validation.uke_boot_routing_accepted=false' "$report" > "$work/capacity-preflight-audit.json"
 mv -- "$work/capacity-preflight-audit.json" "$report"
 echo 'Final compressed ramdisk audit passed; source, emulation and hardware evidence remain separate.'

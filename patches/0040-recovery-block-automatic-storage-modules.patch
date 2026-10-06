@@ -1,0 +1,39 @@
+From: Uke recovery maintainers
+Subject: [PATCH] libmodprobe: deny automatic storage writers in recovery
+
+The matched Uke stock recovery module list loads charger_partition, whose
+probe schedules raw charger-partition writes, and ufs_ffu, which schedules
+firmware-update work. Deny both before any loader path can insert them.
+Force this denial when the packaged recovery executable is present, even
+when a caller disables OEM blocklists. Preserve normal-boot behavior and
+the stock blocklist. Existing dependency checks skip dependent drivers.
+
+diff --git a/libmodprobe/libmodprobe.cpp b/libmodprobe/libmodprobe.cpp
+--- a/libmodprobe/libmodprobe.cpp
++++ b/libmodprobe/libmodprobe.cpp
+@@ -22,6 +22,7 @@
+ #include <sys/stat.h>
+ #include <sys/syscall.h>
+ #include <sys/wait.h>
++#include <unistd.h>
+ 
+ #include <algorithm>
+ #include <map>
+@@ -401,6 +402,17 @@ Modprobe::Modprobe(const std::vector<std::string>& base_paths, const std::string loa
+         ParseCfg(base_path + "/modules.blocklist", blocklist_callback);
+     }
+ 
++    // Recovery retains its packaged ramdisk. Apply the mandatory denial here
++    // so OEM ramdisk lists and use_blocklist=false cannot admit these drivers.
++    // charger_partition schedules raw partition writes on probe; ufs_ffu
++    // schedules UFS firmware-update work. Also reject their hard dependents.
++    // A normal Android ramdisk does not contain the recovery executable.
++    if (access("/system/bin/recovery", F_OK) == 0) {
++        blocklist_enabled = true;
++        module_blocklist_.emplace("charger_partition");
++        module_blocklist_.emplace("ufs_ffu");
++    }
++
+     ParseKernelCmdlineOptions();
+ }
+ 

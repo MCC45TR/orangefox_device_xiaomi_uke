@@ -1,0 +1,61 @@
+--- a/boot/1.1/default/boot_control/Android.bp
++++ b/boot/1.1/default/boot_control/Android.bp
+@@ -26,6 +26,7 @@
+ cc_defaults {
+     name: "libboot_control_defaults",
+     relative_install_path: "hw",
++    header_libs: ["libuke-recovery-write-policy-headers"],
+ 
+     cflags: [
+         "-D_FILE_OFFSET_BITS=64",
+--- a/boot/1.1/default/boot_control/libboot_control.cpp
++++ b/boot/1.1/default/boot_control/libboot_control.cpp
+@@ -30,6 +30,8 @@
+ #include <android-base/unique_fd.h>
+ #include <bootloader_message/bootloader_message.h>
+ 
++#include <recovery_write_policy.hpp>
++
+ #include "private/boot_control_definition.h"
+ 
+ namespace android {
+@@ -95,6 +97,12 @@
+ }
+ 
+ bool UpdateAndSaveBootloaderControl(const std::string& misc_device, bootloader_control* buffer) {
++  const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++  if (!decision.allowed) {
++    LOG(ERROR) << decision.code;
++    errno = EPERM;
++    return false;
++  }
+   buffer->crc32_le = BootloaderControlLECRC(buffer);
+   android::base::unique_fd fd(open(misc_device.c_str(), O_WRONLY | O_SYNC));
+   if (fd.get() == -1) {
+@@ -221,7 +229,6 @@
+   // Note that since there isn't a module unload function this memory is leaked.
+   // We use `device` below sometimes, so it's not moved out of here.
+   misc_device_ = device;
+-  initialized_ = true;
+ 
+   // Validate the loaded data, otherwise we will destroy it and re-initialize it
+   // with the current information.
+@@ -230,7 +237,9 @@
+     LOG(WARNING) << "Invalid boot control found, expected CRC-32 0x" << std::hex << computed_crc32
+                  << " but found 0x" << std::hex << boot_ctrl.crc32_le << ". Re-initializing.";
+     InitDefaultBootloaderControl(this, &boot_ctrl);
+-    UpdateAndSaveBootloaderControl(device.c_str(), &boot_ctrl);
++    if (!UpdateAndSaveBootloaderControl(device.c_str(), &boot_ctrl)) {
++      return false;
++    }
+   }
+ 
+   if (!InitMiscVirtualAbMessageIfNeeded()) {
+@@ -238,6 +247,7 @@
+   }
+ 
+   num_slots_ = boot_ctrl.nb_slot;
++  initialized_ = true;
+   return true;
+ }
+ 

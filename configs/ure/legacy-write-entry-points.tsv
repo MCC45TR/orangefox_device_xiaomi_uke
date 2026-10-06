@@ -1,5 +1,7 @@
 # Pinned native mutation-entry census: source<TAB>signature prefix<TAB>policy operation.
 # Conditional read paths are also tested by compiling the complete production functions.
+bootable/recovery/bootloader_message/bootloader_message.cpp	bool write_misc_partition(const void* p, size_t size, const std::string& misc_blk_device,	PartitionMetadata
+hardware/interfaces/boot/1.1/default/boot_control/libboot_control.cpp	bool UpdateAndSaveBootloaderControl(const std::string& misc_device, bootloader_control* buffer)	PartitionMetadata
 bootable/recovery/partition.cpp	bool TWPartition::Mount(bool Display_Error)	WritableMount
 bootable/recovery/partition.cpp	bool TWPartition::ReMount_RW(bool Display_Error)	WritableMount
 bootable/recovery/partition.cpp	bool TWPartition::BlkDiscard()	Wipe
