@@ -21,7 +21,7 @@ cd "$component"
     printf '%s\0' tests/check-filesystems.sh tests/check-rescue.sh tests/check-boot-audit.sh tests/check-btrfs-vm.sh \
         tests/generate-management-hooks.sh src/device/xiaomi/uke/device.mk src/device/xiaomi/uke/ure-tools.lock.json src/device/xiaomi/uke/prepare-public-ramdisk.sh \
         scripts/prepare-build-tree.sh scripts/build-public.sh patches/0009-native-boot-audit-codecs.patch \
-        patches/0004-link-native-ure.patch src/upstream/orangefox-android16/bootable/recovery/Android.mk \
+        patches/0004-link-native-ure.patch patches/0041-chain-recovery-packaging-hooks.patch tests/check-recovery-packaging-hooks.sh src/upstream/orangefox-android16/bootable/recovery/Android.mk \
         src/upstream/orangefox-android16/external/zstd/Android.bp
     printf '%s\0' tests/check-layout.sh tests/generate-layout-hooks.sh src/device/xiaomi/uke/maintainer.xml patches/0008-partition-layout-graph.patch
     printf '%s\0' tests/check-partition-job.sh tests/check-partition-job-vm.sh tests/check-sanitizers.sh scripts/with-host-budget.sh scripts/host-ccache.sh

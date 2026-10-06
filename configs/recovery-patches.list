@@ -20,3 +20,4 @@
 0027-join-management-jobs-before-teardown.patch
 0030-multilingual-text-layout.patch
 0037-guard-misc-message-writes.patch
+0041-chain-recovery-packaging-hooks.patch

@@ -53,6 +53,7 @@ UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/ch
 bash tests/check-installer.sh
 bash tests/check-write-gate.sh
 bash tests/check-text-patches.sh
+bash tests/check-recovery-packaging-hooks.sh
 bash tests/check-text-layout-resources.sh
 bash tests/check-stock-boot-programming.sh
 bash tests/check-payload-fixtures.sh
