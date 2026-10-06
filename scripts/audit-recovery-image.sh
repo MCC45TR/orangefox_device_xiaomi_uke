@@ -44,6 +44,9 @@ bash "$component/tests/check-elf-closure.sh" "$work/root"
 xmllint --noout "$work/root/sbin/maintainer.xml" "$work/root/twres/pages/advanced.xml"
 cmp "$component/src/device/xiaomi/uke/maintainer.xml" "$work/root/sbin/maintainer.xml"
 cmp "$component/src/device/xiaomi/uke/ure-gui.cpp" "$tree/bootable/recovery/gui/ure.cpp"
+for header in ure-localization.hpp ure-locale-keys.hpp; do
+    cmp "$component/src/device/xiaomi/uke/$header" "$tree/bootable/recovery/$header"
+done
 while IFS= read -r -d '' source_file; do
     cmp -- "$source_file" "$tree/device/xiaomi/uke/${source_file#"$component/src/device/xiaomi/uke/"}"
 done < <(find "$component/src/device/xiaomi/uke" -type f -print0)

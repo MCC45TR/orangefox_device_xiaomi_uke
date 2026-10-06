@@ -115,6 +115,9 @@ for file in ure-text-layout.hpp ure-text-layout.cpp; do
 done
 copy_changed "$device_source/ure-write-gate.hpp" "$recovery_source/ure-write-gate.hpp"
 copy_changed "$device_source/ure-lifecycle.hpp" "$recovery_source/ure-lifecycle.hpp"
+for file in ure-localization.hpp ure-locale-keys.hpp; do
+  copy_changed "$device_source/$file" "$recovery_source/$file"
+done
 # The native fastbootd policy must come from the same pinned source and exact
 # patch bytes as recovery. An OEM command or a new handler is denied before
 # dispatch; alternate direct calls also encounter the guarded handlers/open.

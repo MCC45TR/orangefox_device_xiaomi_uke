@@ -7,7 +7,7 @@
 #include "pages.hpp"
 #include "minuitwrp/minui.h"
 #include "../minuitwrp/display-mirror.hpp"
-#include "ure-localization.hpp"
+#include "../ure-localization.hpp"
 #include <algorithm>
 #include <atomic>
 #include <charconv>

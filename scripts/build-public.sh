@@ -24,6 +24,9 @@ while IFS= read -r -d '' source_file; do
     fi
 done < <(find "$component/src/device/xiaomi/uke" -type f -print0)
 cmp -- "$component/src/device/xiaomi/uke/ure-gui.cpp" "$tree/bootable/recovery/gui/ure.cpp"
+for header in ure-localization.hpp ure-locale-keys.hpp; do
+    cmp -- "$component/src/device/xiaomi/uke/$header" "$tree/bootable/recovery/$header"
+done
 # OrangeFox captures shell exports during lunch for its vendor packaging script.
 # A make-only FOX_BUILD_BASH value would still let that script copy its prebuilt.
 job_id=$(bash "$component/scripts/build-evidence.sh" begin "$jobs" "$vm_fixture")
