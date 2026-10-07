@@ -124,32 +124,39 @@ qemu=false
 startup_qemu=false
 startup_runner="$component/tests/check-packed-startup-refusals.sh"
 startup_runner_sha256=$(sha256sum "$startup_runner" | cut -d' ' -f1)
+startup_oracle_sha256=$(sha256sum "$component/tests/packed-startup-trace-lib.sh" | cut -d' ' -f1)
 startup_result_sha256=''
 printf 'null\n' > "$work/packed-startup-refusals-summary.json"
 if [[ $mode == --qemu || $mode == --qemu-startup ]]; then
     # The sealed build and canonical packed payload were authenticated above.
     # Execute the same extracted ELFs; retain the helper's separate receipt.
     bash "$startup_runner" "$work/root" "$work/packed-startup-refusals.json"
-    jq -e --arg runner "$startup_runner_sha256" '
+    jq -e --arg runner "$startup_runner_sha256" --arg oracle "$startup_oracle_sha256" '
         .schema_version == 1 and .passed == true and .runner_exit_status == 0 and
-        .runner_sha256 == $runner and .expected_cases == 26 and .completed_cases == 26 and
+        .runner_sha256 == $runner and .boot_lookup_oracle_sha256 == $oracle and
+        .expected_cases == 26 and .completed_cases == 26 and
         .unmodified_packed_binaries == true and .runner_and_fixture_inputs_unchanged == true and
         .fixture.regular_image_unchanged == true and .fixture.missing_image_still_absent == true and
         .isolation.host_dev_exposed == false and .isolation.host_sys_exposed == false and
-        .isolation.network_namespace_isolated == true and .validation.physical_device == false and
+        .isolation.network_namespace_isolated == true and .isolation.trace_and_diagnostics_separate == true and
+        .isolation.trace_integrity_against_target_tampering == false and
+        .execution_environment.production_boot_service_environment_match == false and
+        .execution_environment.ld_library_path == "/payload/system/lib64:/payload/vendor/lib64" and
+        .validation.physical_device == false and
         .validation.complete_hal_safety == false and (.cases | type) == "array" and
         (.cases | length) == 26 and all(.cases[];
             .passed == true and .expected_target_exit_in_trace == true and
             .expected_stderr_diagnostic_seen == true and .no_binder_open_attempt == true and
-            .no_block_path_open_attempt == true and .no_vendor_odm_boot_implementation_access == true and
+            .no_block_path_open_attempt == true and .no_boot_implementation_lookup_attempt == true and
+            .no_vendor_odm_boot_implementation_access == true and
             .no_fixture_input_open_attempt == true)' "$work/packed-startup-refusals.json" >/dev/null
     startup_result_sha256=$(sha256sum "$work/packed-startup-refusals.json" | cut -d' ' -f1)
     # Raw per-case traces and complete receipts remain in the helper's private
     # job. Embed aggregate identities and outcomes without raw diagnostics.
     jq '{schema_version,evidence_class,passed,runner_exit_status,expected_cases,completed_cases,
-        runner_sha256,qemu_sha256,payload_provenance,unmodified_packed_binaries,
+        runner_sha256,boot_lookup_oracle_sha256,qemu_sha256,payload_provenance,unmodified_packed_binaries,
         runner_and_fixture_inputs_unchanged,elf_manifests,input_manifests,fixture,isolation,
-        validation,scope}' "$work/packed-startup-refusals.json" > "$work/packed-startup-refusals-summary.json"
+        execution_environment,validation,scope}' "$work/packed-startup-refusals.json" > "$work/packed-startup-refusals-summary.json"
     startup_qemu=true
 fi
 if [[ $mode == --qemu ]]; then
@@ -170,7 +177,7 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     --arg ramdisk "$(sha256sum "$work/ramdisk.lz4" | cut -d' ' -f1)" \
     --arg cli "$(sha256sum "$work/root/system/bin/uke-recoveryctl" | cut -d' ' -f1)" \
     --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" \
-    --arg startup_runner "$startup_runner_sha256" --arg startup_result "$startup_result_sha256" \
+    --arg startup_runner "$startup_runner_sha256" --arg startup_oracle "$startup_oracle_sha256" --arg startup_result "$startup_result_sha256" \
     --arg audit_mode "${mode:-static}" --argjson startup_qemu "$startup_qemu" \
     --slurpfile startup_refusals "$work/packed-startup-refusals-summary.json" \
     --arg auditor "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
@@ -179,7 +186,7 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     '{schema_version:1,audit_mode:$audit_mode,recovery_image_sha256:$image,localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$ui,
       shipping_ui_identity_basis:"staging inventory; packed modes verified by canonical payload replay",
       extracted_ui_assets_sha256:$extracted_ui,ui_resource_parity:$ui_parity[0],
-      packed_startup_refusals:{runner_sha256:$startup_runner,executed:$startup_qemu,
+      packed_startup_refusals:{runner_sha256:$startup_runner,boot_lookup_oracle_sha256:$startup_oracle,executed:$startup_qemu,
         result_receipt_sha256:(if $startup_qemu then $startup_result else null end),result:$startup_refusals[0]},
       build_completion:$completion[0],compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{localization_source_inventory:true,extracted_gui_resources_match:true,build_completion_payload_match:true,extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
 jq --argjson qemu "$qemu" --argjson startup_qemu "$startup_qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |

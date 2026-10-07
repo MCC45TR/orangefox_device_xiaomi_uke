@@ -53,6 +53,8 @@ UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/ch
 bash tests/check-installer.sh
 bash tests/check-write-gate.sh
 bash tests/check-boot-hal-admission.sh
+startup_trace_scope=$(mktemp -d "$component/build/native-packed-startup-text-XXXXXXXX")
+bash tests/check-packed-startup-trace-oracle.sh "$startup_trace_scope"
 bash tests/check-text-patches.sh
 bash tests/check-recovery-packaging-hooks.sh
 bash tests/check-packed-payload.sh
@@ -94,6 +96,8 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.independent_monitor_scale_and_idle_redraw=true' \
     | jq '.validation.shared_legacy_write_gate=true | .validation.actual_format_data_refuses_before_side_effects=true |
         .validation.host_boot_hal_service_and_client_resolution_refusals=true |
+        .validation.host_boot_implementation_text_oracle_controls=true |
+        .validation.packed_startup_trace_integrity_tested=false |
         .validation.boot_hal_actual_service_managers_tested=false | .validation.boot_hal_packed_artifacts_tested=false |
         .validation.actual_fastbootd_dispatch_and_block_open_refusals=true | .validation.production_installer_refuses_before_open=true |
         .validation.read_only_mounts_preserve_no_replay_options=true' \

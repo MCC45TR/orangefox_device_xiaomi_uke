@@ -17,6 +17,10 @@ fi
 }
 payload=$(realpath -e -- "$1")
 runner=$(realpath -e -- "${BASH_SOURCE[0]}")
+trace_oracle="$(dirname -- "$runner")/packed-startup-trace-lib.sh"
+[[ -f $trace_oracle && ! -L $trace_oracle && $(realpath -e -- "$trace_oracle") == "$trace_oracle" ]]
+source "$trace_oracle"
+boot_lookup_pattern=$(ure_packed_startup_boot_lookup_regex)
 for tool in bwrap qemu-aarch64 timeout readelf sha256sum jq rg find sort head od tr cmp truncate dd stat realpath mktemp mkdir basename dirname cut wc ln; do
     command -v "$tool" >/dev/null
 done
@@ -73,7 +77,7 @@ snapshot_elfs() {
 }
 
 snapshot_inputs() {
-    sha256sum -- "$runner" "$qemu" "$bubblewrap" "$deadline" "$work/fixtures/sentinel.img"
+    sha256sum -- "$runner" "$trace_oracle" "$qemu" "$bubblewrap" "$deadline" "$work/fixtures/sentinel.img"
 }
 
 finish() {
@@ -104,7 +108,7 @@ finish() {
     fi
     [[ $fixture_same == true && $missing_absent == true ]] || status=1
     if jq -n --argjson status "$status" --argjson expected "$expected_cases" \
-        --arg runner "$(digest "$runner")" --arg qemu "$(digest "$qemu")" \
+        --arg runner "$(digest "$runner")" --arg oracle "$(digest "$trace_oracle")" --arg qemu "$(digest "$qemu")" \
         --arg elfs_before "$(digest_if_present "$work/elfs.before.sha256")" \
         --arg elfs_after "$(digest_if_present "$work/elfs.after.sha256")" \
         --arg inputs_before "$(digest_if_present "$work/inputs.before.sha256")" \
@@ -116,7 +120,7 @@ finish() {
         '{schema_version:1,evidence_class:"packed-aarch64-qemu-user-startup-refusals",
           passed:($status==0 and ($cases|length)==$expected and all($cases[];.passed)),
           runner_exit_status:$status,expected_cases:$expected,completed_cases:($cases|length),
-          runner_sha256:$runner,qemu_sha256:$qemu,
+          runner_sha256:$runner,boot_lookup_oracle_sha256:$oracle,qemu_sha256:$qemu,
           payload_provenance:"Caller-authenticated extracted ramdisk; no staging fallback",
           unmodified_packed_binaries:$elfs_same,runner_and_fixture_inputs_unchanged:$inputs_same,
           elf_manifests:{before:"elfs.before.sha256",after:"elfs.after.sha256",
@@ -127,10 +131,14 @@ finish() {
             regular_image_unchanged:$fixture_same,missing_image_still_absent:$missing_absent},
           isolation:{read_only_host_runtime:true,read_only_payload:true,read_only_input_fixture:true,
             synthetic_dev:true,host_dev_exposed:false,host_sys_exposed:false,network_namespace_isolated:true,
-            trace_and_diagnostics_separate:true},
+            trace_and_diagnostics_separate:true,trace_integrity_against_target_tampering:false},
+          execution_environment:{class:"forced-extracted-payload-qemu-user-linker-fixture",
+            ld_library_path:"/payload/system/lib64:/payload/vendor/lib64",
+            production_boot_service_environment_match:false,
+            production_service_library_paths:"Audited separately against packed init definitions"},
           cases:$cases,validation:{fixture:true,emulation:true,physical:false,physical_device:false,hardware:false,
             complete_hal_safety:false,tablet_writes:false},
-          scope:"Startup and boot-client factory refusal only; no physical acceptance or complete HAL safety claim"}' \
+          scope:"Startup and boot-client factory refusal in a forced extracted-payload linker fixture only; no production init environment, physical acceptance or complete HAL safety claim"}' \
         > "$work/result.json"; then
         result_written=true
     else
@@ -209,11 +217,8 @@ sandbox=(
     --setenv HOME /nonexistent --chdir /payload --remount-ro /
 )
 open_call='(open|openat|openat2)\('
-path_call='(open|openat|openat2|access|faccessat|faccessat2|stat|lstat|newfstatat|statx|readlink|readlinkat)\('
 binder_path='"((/payload)?/dev/)?(binder|hwbinder|vndbinder|binderfs)(/|")'
 block_path='"(/payload)?/dev/(block(/|")|sd[a-z][0-9]*"|mmcblk[^"/]*"|nvme[^"/]*"|dm-[0-9]+")'
-vendor_impl='"(/payload)?/(vendor|odm)/([^"/]*/)*(hw(/|")|bootctrl[^"/]*"|android\.hardware\.boot[^"/]*-impl[^"/]*")'
-relative_impl='"(bootctrl[^"/]*|android\.hardware\.boot[^"/]*-impl[^"/]*)"'
 input_path='"((/payload)?/fixtures/)?(sentinel|missing)\.img"'
 
 trace_absent() {
@@ -229,8 +234,9 @@ run_case() {
     local case_dir="$work/cases/$label" status=0 passed=true
     local exit_seen=false code_seen=false binder_absent=true block_absent=true vendor_absent=true input_absent=true
     mkdir -m700 -- "$case_dir"
-    # -D and a dedicated fd prevent QEMU strace lines from being interleaved
-    # with the target's stderr, which must independently contain its refusal.
+    # -D and a dedicated inherited output descriptor separate ordinary QEMU
+    # strace from target stderr. This is not target-proof trace integrity.
+    # The forced fixture library paths differ from the system-only service rc.
     "$deadline" --signal=TERM --kill-after=2s 10s "${sandbox[@]}" \
         "$qemu" -strace -D /proc/self/fd/3 -L /payload \
         -E 'LD_LIBRARY_PATH=/payload/system/lib64:/payload/vendor/lib64' \
@@ -245,7 +251,7 @@ run_case() {
     if ! trace_absent "$open_call.*$block_path" "$case_dir/qemu.strace" "$case_dir/block-open-matches"; then
         block_absent=false; passed=false
     fi
-    if ! trace_absent "$path_call.*($vendor_impl|$relative_impl)" "$case_dir/qemu.strace" "$case_dir/boot-implementation-matches"; then
+    if ! trace_absent "$boot_lookup_pattern" "$case_dir/qemu.strace" "$case_dir/boot-implementation-matches"; then
         vendor_absent=false; passed=false
     fi
     if ! trace_absent "$open_call.*$input_path" "$case_dir/qemu.strace" "$case_dir/fixture-open-matches"; then
@@ -262,6 +268,7 @@ run_case() {
           expected_exit_status:$expected,exit_status:$actual,expected_stderr_diagnostic:$diagnostic,
           expected_target_exit_in_trace:$exit_seen,expected_stderr_diagnostic_seen:$code_seen,
           no_binder_open_attempt:$binder_absent,no_block_path_open_attempt:$block_absent,
+          no_boot_implementation_lookup_attempt:$vendor_absent,
           no_vendor_odm_boot_implementation_access:$vendor_absent,no_fixture_input_open_attempt:$input_absent,
           stdout_sha256:$stdout,stderr_sha256:$stderr,qemu_strace_sha256:$trace,passed:$passed}' \
         -- "$@" >> "$work/cases.jsonl"
