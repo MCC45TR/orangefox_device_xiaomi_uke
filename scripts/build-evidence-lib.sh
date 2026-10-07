@@ -121,6 +121,7 @@ build_seal() {
     cp -- "$job/prepared.json" "$stage/prepared.json"
     if [[ $(jq -er .evidence_class "$job/prepared.json") == android-recovery ]]; then
         [[ -s $job/admitted-policy.json && -s $job/host-temp-admitted.json ]]
+        [[ -f $job/output/host/linux-x86/lib64/libc++.so && ! -L $job/output/host/linux-x86/lib64/libc++.so ]]
         cp -- "$job/admitted-policy.json" "$job/host-temp-admitted.json" "$stage/"
     fi
     printf '%s\n' "$id" > "$job/output/.uke-build-id"

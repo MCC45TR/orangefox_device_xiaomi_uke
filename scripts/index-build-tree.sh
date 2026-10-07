@@ -21,6 +21,19 @@ case $kind in
     products)
         roots=(target/product/uke/recovery.img target/product/uke/recovery/root target/product/uke/system host/linux-x86/bin
             soong/soong.twrp_uke.variables soong/soong.twrp_uke.extra.variables soong/soong.environment.available build-twrp_uke.ninja)
+        [[ ! -d host/linux-x86/lib64 ]] || roots+=(host/linux-x86/lib64)
+        # Match the six prefixes searched by the pinned libcutils fs_config.
+        for partition in system vendor oem odm product system_ext; do
+            for config in files dirs; do
+                path="target/product/uke/$partition/etc/fs_config_$config"
+                if [[ -e $path || -L $path ]]; then
+                    [[ -f $path && ! -L $path && $(realpath -e -- "$path") == "$root/$path" ]] || {
+                        echo 'External or nonregular product filesystem configuration rejected.' >&2; exit 1;
+                    }
+                    [[ $partition == system ]] || roots+=("$path")
+                fi
+            done
+        done
         fixture=soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture
         [[ ! -d $fixture ]] || roots+=("$fixture")
         ;;
@@ -43,7 +56,7 @@ for path in "${roots[@]}"; do [[ -e $path || -L $path ]]; done
 timestamp=-
 [[ $kind != android && $kind != project ]] || timestamp='%T@'
 prunes=(-name .git -o -path './.repo' -o -path './out' -o -path './out-clean' -o -path './out-public')
-[[ $kind != ui ]] || prunes=(-false)
+case $kind in products|payload|ui) prunes=(-false);; esac
 find "${roots[@]}" \( "${prunes[@]}" \) -prune \
     -o \( ! -path . \( -type d -printf '%p\td\t%m\t-\t\0' \
             -o -printf "%p\t%y\t%m\t$timestamp\t%l\0" \) \) | sort -z -S 64M --parallel=1 > "$destination/layout.bin"

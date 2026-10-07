@@ -113,14 +113,18 @@ case $mode in
         [[ $(build_digest "$1") == "$(jq -er .recovery_image_sha256 "$job/receipt/BUILD-COMPLETION.json")" ]]
         work=$(mktemp -d "$component/build/payload-build-verification-XXXXXXXX")
         trap 'rm -rf -- "$work"' EXIT
-        bash "$build_scripts/index-build-tree.sh" "$2" "$work/payload" payload
-        diff -qr -- "$job/receipt/payload" "$work/payload" >/dev/null
+        # Bind every input to the packaging conversion before replaying it.
+        # mkbootfs deliberately changes staging modes through Android fs_config.
+        bash "$build_scripts/index-build-tree.sh" "$android/out-public" "$work/products" products
+        diff -qr -- "$job/receipt/products" "$work/products" >/dev/null
+        bash "$build_scripts/check-packed-payload.sh" "$android/out-public" "$1" "$2" "$work/packed"
         jq -cn --arg receipt "$(build_digest "$job/receipt/SHA256SUMS")" \
             --arg completed "$(build_digest "$job/receipt/BUILD-COMPLETION.json")" \
             --arg service "$(build_digest "$job/SERVICE-COMPLETION.json")" \
             --arg image "$(build_digest "$1")" \
             '{schema_version:1,evidence_class:"android-recovery",receipt_index_sha256:$receipt,build_completion_sha256:$completed,
-              service_completion_sha256:$service,recovery_image_sha256:$image,extracted_payload_matches:true,physical_device:false}' > "$3"
+              service_completion_sha256:$service,recovery_image_sha256:$image,extracted_payload_matches:true,
+              packaging_inputs_match:true,canonical_cpio_matches:true,canonical_payload_modes_and_links_match:true,physical_device:false}' > "$3"
         ;;
     export)
         [[ $# == 1 ]]

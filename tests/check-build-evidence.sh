@@ -58,7 +58,7 @@ refuse() {
 }
 compile() {
     local output=$1
-    mkdir -p "$output/target/product/uke/recovery/root/system/bin" "$output/target/product/uke/system/lib64" "$output/host/linux-x86/bin" "$output/soong"
+    mkdir -p "$output/target/product/uke/recovery/root/system/bin" "$output/target/product/uke/system/lib64" "$output/host/linux-x86/bin" "$output/host/linux-x86/lib64" "$output/soong"
     "$compiler" --target=aarch64-linux-android10000 -nostdlib -static -fuse-ld=lld -Wl,-e,_start \
         "$android/source/fixture.cpp" -o "$output/target/product/uke/recovery/root/system/bin/recovery"
     for binary in fastbootd uke-recoveryctl uke-recovery-install; do
@@ -66,6 +66,9 @@ compile() {
     done
     cp "$output/target/product/uke/recovery/root/system/bin/recovery" "$output/target/product/uke/system/lib64/fixture.so"
     cp /usr/bin/true "$output/host/linux-x86/bin/fixture-host-tool"
+    cp /usr/bin/true "$output/host/linux-x86/lib64/fixture-host-runtime.so"
+    mkdir -p "$output/target/product/uke/vendor/etc"
+    printf 'Fixture filesystem configuration\n' > "$output/target/product/uke/vendor/etc/fs_config_files"
     printf 'Fixture image for receipt mechanics; not an Android boot image.\n' > "$output/target/product/uke/recovery.img"
     printf '{"fixture":true}\n' > "$output/soong/soong.twrp_uke.variables"
     printf '{"fixture":true}\n' > "$output/soong/soong.twrp_uke.extra.variables"
@@ -94,6 +97,14 @@ refuse entry seal "$job"
 refuse entry production-class "$job"
 refuse entry verify "$job"
 entry publish "$job"
+entry verify "$job"
+printf 'Changed packaging runtime\n' > "$android/out-public/host/linux-x86/lib64/fixture-host-runtime.so"
+refuse entry verify "$job"
+cp /usr/bin/true "$android/out-public/host/linux-x86/lib64/fixture-host-runtime.so"
+entry verify "$job"
+printf 'Changed sibling filesystem configuration\n' > "$android/out-public/target/product/uke/vendor/etc/fs_config_files"
+refuse entry verify "$job"
+printf 'Fixture filesystem configuration\n' > "$android/out-public/target/product/uke/vendor/etc/fs_config_files"
 entry verify "$job"
 printf '#define VALUE 31\n' > "$android/source/value.hpp"
 refuse entry verify "$job"
