@@ -2,12 +2,12 @@
 # Extract and audit the actual header-v4 LZ4 ramdisk, never only staging files.
 set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-image=$(realpath -- "${1:?Usage: audit-recovery-image.sh IMAGE REPORT_JSON [--qemu]}")
+image=$(realpath -- "${1:?Usage: audit-recovery-image.sh IMAGE REPORT_JSON [--qemu|--qemu-startup]}")
 report=${2:?Missing output report}
 source "$component/scripts/release-policy-lib.sh"
 release_output_mutable "$component" "$report"
 mode=${3:-}
-[[ -z $mode || $mode == --qemu ]]
+[[ -z $mode || $mode == --qemu || $mode == --qemu-startup ]]
 tree="$component/src/upstream/orangefox-android16"
 bash "$component/scripts/build-evidence.sh" verify
 lz4="$tree/out-public/host/linux-x86/bin/lz4"
@@ -72,16 +72,29 @@ strings "$work/root/system/bin/init" | rg -F charger_partition >/dev/null
 strings "$work/root/system/bin/init" | rg -F ufs_ffu >/dev/null
 cmp "$tree/bootable/recovery/gui/theme/common/languages/en.xml" "$work/root/twres/languages/en.xml"
 [[ $(xmllint --xpath 'count(/language/resources/string[@name="ure_device_write_blocked"])' "$work/root/twres/languages/en.xml") == 1 ]]
-for binary in recovery fastbootd uke-recovery-install; do
+for binary in recovery fastbootd; do
     strings "$work/root/system/bin/$binary" | rg -F 'ure-legacy-write-unavailable' >/dev/null
     cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/$binary" "$work/root/system/bin/$binary"
 done
-for relative in system/lib64/libbootloader_message.so system/bin/init \
-    system/bin/android.hardware.boot@1.0-service system/bin/android.hardware.boot@1.1-service \
-    system/bin/android.hardware.boot@1.2-service; do
+strings "$work/root/system/bin/uke-recovery-install" | rg -F 'installer-durability-unavailable:' >/dev/null
+cmp "$tree/out-public/target/product/uke/recovery/root/system/bin/uke-recovery-install" "$work/root/system/bin/uke-recovery-install"
+for relative in system/lib64/libbootloader_message.so system/bin/init; do
     strings "$work/root/$relative" | rg -F 'ure-legacy-write-unavailable' >/dev/null
     cmp "$tree/out-public/target/product/uke/recovery/root/$relative" "$work/root/$relative"
 done
+for version in 1.0 1.1 1.2; do
+    binary="android.hardware.boot@$version-service"
+    strings "$work/root/system/bin/$binary" | rg -F 'ure-legacy-write-unavailable' >/dev/null
+    # This recovery product resolves TARGET_COPY_OUT_VENDOR to system/vendor.
+    # OrangeFox copies these actual vendor variants into its system/bin.
+    cmp "$tree/out-public/target/product/uke/system/vendor/bin/hw/$binary" "$work/root/system/bin/$binary"
+    rc="system/etc/init/$binary.rc"
+    cmp "$tree/bootable/recovery/etc/init/$binary.rc" "$work/root/$rc"
+    [[ $(rg -c '^    setenv LD_LIBRARY_PATH ' "$work/root/$rc") == 1 ]]
+    rg -x '    setenv LD_LIBRARY_PATH /system/lib64:/system/lib' "$work/root/$rc" >/dev/null
+done
+strings "$work/root/system/lib64/libboot_control_client.so" | rg -F 'ure-legacy-write-unavailable' >/dev/null
+cmp "$tree/out-public/target/product/uke/system/lib64/libboot_control_client.so" "$work/root/system/lib64/libboot_control_client.so"
 strings "$work/root/system/bin/recovery" | rg -F 'URE_STORAGE_WRITE_BLOCKED' >/dev/null
 cmp "$tree/out-public/target/product/uke/system/lib64/libminuitwrp.so" "$work/root/system/lib64/libminuitwrp.so"
 for symbol in gr_ttf_setLocale gr_ttf_inspectLayout hb_shape_full fribidi_reorder_line; do
@@ -108,7 +121,40 @@ for tool in uke-recoveryctl uke-recovery-install recovery fastbootd dropbear wim
 done
 [[ ! -e $work/root/system/bin/uke-btrfs-vm-fixture && $(readlink "$work/root/system/bin/resize.f2fs") == fsck.f2fs ]]
 qemu=false
+startup_qemu=false
+startup_runner="$component/tests/check-packed-startup-refusals.sh"
+startup_runner_sha256=$(sha256sum "$startup_runner" | cut -d' ' -f1)
+startup_result_sha256=''
+printf 'null\n' > "$work/packed-startup-refusals-summary.json"
+if [[ $mode == --qemu || $mode == --qemu-startup ]]; then
+    # The sealed build and canonical packed payload were authenticated above.
+    # Execute the same extracted ELFs; retain the helper's separate receipt.
+    bash "$startup_runner" "$work/root" "$work/packed-startup-refusals.json"
+    jq -e --arg runner "$startup_runner_sha256" '
+        .schema_version == 1 and .passed == true and .runner_exit_status == 0 and
+        .runner_sha256 == $runner and .expected_cases == 26 and .completed_cases == 26 and
+        .unmodified_packed_binaries == true and .runner_and_fixture_inputs_unchanged == true and
+        .fixture.regular_image_unchanged == true and .fixture.missing_image_still_absent == true and
+        .isolation.host_dev_exposed == false and .isolation.host_sys_exposed == false and
+        .isolation.network_namespace_isolated == true and .validation.physical_device == false and
+        .validation.complete_hal_safety == false and (.cases | type) == "array" and
+        (.cases | length) == 26 and all(.cases[];
+            .passed == true and .expected_target_exit_in_trace == true and
+            .expected_stderr_diagnostic_seen == true and .no_binder_open_attempt == true and
+            .no_block_path_open_attempt == true and .no_vendor_odm_boot_implementation_access == true and
+            .no_fixture_input_open_attempt == true)' "$work/packed-startup-refusals.json" >/dev/null
+    startup_result_sha256=$(sha256sum "$work/packed-startup-refusals.json" | cut -d' ' -f1)
+    # Raw per-case traces and complete receipts remain in the helper's private
+    # job. Embed aggregate identities and outcomes without raw diagnostics.
+    jq '{schema_version,evidence_class,passed,runner_exit_status,expected_cases,completed_cases,
+        runner_sha256,qemu_sha256,payload_provenance,unmodified_packed_binaries,
+        runner_and_fixture_inputs_unchanged,elf_manifests,input_manifests,fixture,isolation,
+        validation,scope}' "$work/packed-startup-refusals.json" > "$work/packed-startup-refusals-summary.json"
+    startup_qemu=true
+fi
 if [[ $mode == --qemu ]]; then
+    # Positive mutation fixtures require their own accepted execution backend.
+    # A startup-only run must never claim that broader functional coverage.
     if [[ ${URE_AUDIT_TRACE:-0} == 1 ]]; then
         bash -x "$component/tests/check-aarch64.sh" "$work/root"
     else
@@ -124,17 +170,28 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     --arg ramdisk "$(sha256sum "$work/ramdisk.lz4" | cut -d' ' -f1)" \
     --arg cli "$(sha256sum "$work/root/system/bin/uke-recoveryctl" | cut -d' ' -f1)" \
     --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" \
-    --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" \
+    --arg startup_runner "$startup_runner_sha256" --arg startup_result "$startup_result_sha256" \
+    --arg audit_mode "${mode:-static}" --argjson startup_qemu "$startup_qemu" \
+    --slurpfile startup_refusals "$work/packed-startup-refusals-summary.json" \
+    --arg auditor "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
     --argjson bytes "$bytes" --argjson qemu "$qemu" \
     --slurpfile completion "$work/compile-evidence.json" \
-    '{schema_version:1,recovery_image_sha256:$image,localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$ui,
+    '{schema_version:1,audit_mode:$audit_mode,recovery_image_sha256:$image,localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$ui,
       shipping_ui_identity_basis:"staging inventory; packed modes verified by canonical payload replay",
       extracted_ui_assets_sha256:$extracted_ui,ui_resource_parity:$ui_parity[0],
+      packed_startup_refusals:{runner_sha256:$startup_runner,executed:$startup_qemu,
+        result_receipt_sha256:(if $startup_qemu then $startup_result else null end),result:$startup_refusals[0]},
       build_completion:$completion[0],compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{localization_source_inventory:true,extracted_gui_resources_match:true,build_completion_payload_match:true,extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
-jq --argjson qemu "$qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
+jq --argjson qemu "$qemu" --argjson startup_qemu "$startup_qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
     .validation.source_built_one_shot_boot_and_gui=true | .validation.qemu_user_one_shot_boot_fixtures=$qemu |
     .validation.source_built_shared_legacy_write_policy=true |
     .validation.source_built_shared_misc_and_boot_control_write_policy=true |
+    .validation.source_built_installer_durability_refusal=true |
+    .validation.source_built_boot_service_pre_resolution_refusal=true |
+    .validation.source_built_boot_control_client_pre_resolution_refusal=true |
+    .validation.source_system_only_boot_service_library_paths=true |
+    .validation.qemu_user_packed_startup_refusals=$startup_qemu |
+    .validation.boot_control_functional=false | .validation.external_installed_boot_hal_accepted=false |
     .validation.real_efi_variable_write=false | .validation.uke_boot_routing_accepted=false' "$report" > "$work/capacity-preflight-audit.json"
 mv -- "$work/capacity-preflight-audit.json" "$report"
 echo 'Final compressed ramdisk audit passed; source, emulation and hardware evidence remain separate.'

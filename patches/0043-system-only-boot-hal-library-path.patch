@@ -1,0 +1,35 @@
+diff --git a/etc/init/android.hardware.boot@1.0-service.rc b/etc/init/android.hardware.boot@1.0-service.rc
+index 3050d9b..3d79932 100644
+--- a/etc/init/android.hardware.boot@1.0-service.rc
++++ b/etc/init/android.hardware.boot@1.0-service.rc
+@@ -1,6 +1,6 @@
+ service boot-hal-1-0 /system/bin/android.hardware.boot@1.0-service
+     user root
+     group root
+-    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib
++    setenv LD_LIBRARY_PATH /system/lib64:/system/lib
+     disabled
+     seclabel u:r:recovery:s0
+diff --git a/etc/init/android.hardware.boot@1.1-service.rc b/etc/init/android.hardware.boot@1.1-service.rc
+index c929d14..9aa6f3c 100644
+--- a/etc/init/android.hardware.boot@1.1-service.rc
++++ b/etc/init/android.hardware.boot@1.1-service.rc
+@@ -1,5 +1,6 @@
+ service boot-hal-1-1 /system/bin/android.hardware.boot@1.1-service
+     user root
+     group root
++    setenv LD_LIBRARY_PATH /system/lib64:/system/lib
+     disabled
+     seclabel u:r:recovery:s0
+diff --git a/etc/init/android.hardware.boot@1.2-service.rc b/etc/init/android.hardware.boot@1.2-service.rc
+index f9874f4..6e552cb 100644
+--- a/etc/init/android.hardware.boot@1.2-service.rc
++++ b/etc/init/android.hardware.boot@1.2-service.rc
+@@ -4,6 +4,6 @@ service boot-hal-1-2 /system/bin/android.hardware.boot@1.2-service
+     interface android.hardware.boot@1.2::IBootControl default
+     user root
+     group root
+-    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib:/sbin
++    setenv LD_LIBRARY_PATH /system/lib64:/system/lib
+     disabled
+     seclabel u:r:recovery:s0

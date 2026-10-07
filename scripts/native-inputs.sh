@@ -53,6 +53,13 @@ cd "$component"
         src/upstream/orangefox-android16/bootable/recovery/install/get_args.cpp \
         src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/boot_control/{Android.bp,libboot_control.cpp,include/libboot_control/libboot_control.h,include/private/boot_control_definition.h}
     printf '%s\0' src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/{BootControl.cpp,BootControl.h}
+    printf '%s\0' patches/0042-refuse-unaccepted-boot-hal-resolution.patch patches/0043-system-only-boot-hal-library-path.patch \
+        tests/check-boot-hal-admission.sh tests/check-packed-startup-refusals.sh \
+        src/upstream/orangefox-android16/hardware/interfaces/boot/{1.0,1.1,1.2}/default/{Android.bp,service.cpp} \
+        src/upstream/orangefox-android16/hardware/interfaces/boot/aidl/client/{Android.bp,BootControlClient.cpp} \
+        src/upstream/orangefox-android16/system/extras/bootctl/{Android.bp,bootctl.cpp} \
+        src/upstream/orangefox-android16/bootable/recovery/etc/init/android.hardware.boot@{1.0,1.1,1.2}-service.rc \
+        src/upstream/orangefox-android16/bootable/recovery/prebuilt/Android.mk
     printf '%s\0' tests/check-recovery-first-stage.sh patches/0039-preserve-recovery-first-stage-root.patch \
         src/upstream/orangefox-android16/system/core/init/first_stage_init.cpp \
         src/upstream/orangefox-android16/system/libbase/include/android-base/unique_fd.h

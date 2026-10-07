@@ -21,3 +21,4 @@
 0030-multilingual-text-layout.patch
 0037-guard-misc-message-writes.patch
 0041-chain-recovery-packaging-hooks.patch
+0043-system-only-boot-hal-library-path.patch

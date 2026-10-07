@@ -1,0 +1,146 @@
+diff --git a/boot/1.0/default/Android.bp b/boot/1.0/default/Android.bp
+index b7d2ec8..16868b2 100644
+--- a/boot/1.0/default/Android.bp
++++ b/boot/1.0/default/Android.bp
+@@ -28,6 +28,7 @@ cc_library_shared {
+ cc_binary {
+     name: "android.hardware.boot@1.0-service",
+     defaults: ["hidl_defaults"],
++    header_libs: ["libuke-recovery-write-policy-headers"],
+     relative_install_path: "hw",
+     vendor: true,
+     init_rc: ["android.hardware.boot@1.0-service.rc"],
+diff --git a/boot/1.0/default/service.cpp b/boot/1.0/default/service.cpp
+index f3996ef..73a5578 100644
+--- a/boot/1.0/default/service.cpp
++++ b/boot/1.0/default/service.cpp
+@@ -17,10 +17,18 @@
+ 
+ #include <android/hardware/boot/1.0/IBootControl.h>
+ #include <hidl/LegacySupport.h>
++#include <recovery_write_policy.hpp>
++#include <cstdio>
+ 
+ using ::android::hardware::boot::V1_0::IBootControl;
+ using android::hardware::defaultPassthroughServiceImplementation;
+ 
+ int main (int /* argc */, char * /* argv */ []) {
++    // This recovery source product must not resolve an installed Android HAL.
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) {
++        std::fprintf(stderr, "%s\n", decision.code);
++        return 1;
++    }
+     return defaultPassthroughServiceImplementation<IBootControl>();
+ }
+diff --git a/boot/1.1/default/Android.bp b/boot/1.1/default/Android.bp
+index e7a8d6e..c40b4f7 100644
+--- a/boot/1.1/default/Android.bp
++++ b/boot/1.1/default/Android.bp
+@@ -37,6 +37,7 @@ cc_library_shared {
+ cc_binary {
+     name: "android.hardware.boot@1.1-service",
+     defaults: ["hidl_defaults"],
++    header_libs: ["libuke-recovery-write-policy-headers"],
+     relative_install_path: "hw",
+     vendor: true,
+     init_rc: ["android.hardware.boot@1.1-service.rc"],
+diff --git a/boot/1.1/default/service.cpp b/boot/1.1/default/service.cpp
+index 89251b5..df2c1a5 100644
+--- a/boot/1.1/default/service.cpp
++++ b/boot/1.1/default/service.cpp
+@@ -17,11 +17,19 @@
+ 
+ #include <android/hardware/boot/1.1/IBootControl.h>
+ #include <hidl/LegacySupport.h>
++#include <recovery_write_policy.hpp>
++#include <cstdio>
+ 
+ using android::hardware::defaultPassthroughServiceImplementation;
+ using IBootControl_V1_0 = android::hardware::boot::V1_0::IBootControl;
+ using IBootControl_V1_1 = android::hardware::boot::V1_1::IBootControl;
+ 
+ int main(int /* argc */, char* /* argv */[]) {
++    // This recovery source product must not resolve an installed Android HAL.
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) {
++        std::fprintf(stderr, "%s\n", decision.code);
++        return 1;
++    }
+     return defaultPassthroughServiceImplementation<IBootControl_V1_0, IBootControl_V1_1>();
+ }
+diff --git a/boot/1.2/default/Android.bp b/boot/1.2/default/Android.bp
+index f1e9c34..ec8b54c 100644
+--- a/boot/1.2/default/Android.bp
++++ b/boot/1.2/default/Android.bp
+@@ -38,6 +38,7 @@ cc_library_shared {
+ cc_binary {
+     name: "android.hardware.boot@1.2-service",
+     defaults: ["hidl_defaults"],
++    header_libs: ["libuke-recovery-write-policy-headers"],
+     relative_install_path: "hw",
+     vendor: true,
+     init_rc: ["android.hardware.boot@1.2-service.rc"],
+diff --git a/boot/1.2/default/service.cpp b/boot/1.2/default/service.cpp
+index 3053957..5359768 100644
+--- a/boot/1.2/default/service.cpp
++++ b/boot/1.2/default/service.cpp
+@@ -17,11 +17,19 @@
+ 
+ #include <android/hardware/boot/1.2/IBootControl.h>
+ #include <hidl/LegacySupport.h>
++#include <recovery_write_policy.hpp>
++#include <cstdio>
+ 
+ using android::hardware::defaultPassthroughServiceImplementation;
+ using IBootControl_V1_0 = android::hardware::boot::V1_0::IBootControl;
+ using IBootControl_V1_2 = android::hardware::boot::V1_2::IBootControl;
+ 
+ int main(int /* argc */, char* /* argv */[]) {
++    // This recovery source product must not resolve an installed Android HAL.
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) {
++        std::fprintf(stderr, "%s\n", decision.code);
++        return 1;
++    }
+     return defaultPassthroughServiceImplementation<IBootControl_V1_0, IBootControl_V1_2>();
+ }
+diff --git a/boot/aidl/client/Android.bp b/boot/aidl/client/Android.bp
+index db4a7ea..4b99f67 100644
+--- a/boot/aidl/client/Android.bp
++++ b/boot/aidl/client/Android.bp
+@@ -11,6 +11,7 @@ package {
+ 
+ cc_library {
+     name: "libboot_control_client",
++    header_libs: ["libuke-recovery-write-policy-headers"],
+     srcs: [
+         "BootControlClient.cpp"
+     ],
+diff --git a/boot/aidl/client/BootControlClient.cpp b/boot/aidl/client/BootControlClient.cpp
+index 7aab5b4..beb95dd 100644
+--- a/boot/aidl/client/BootControlClient.cpp
++++ b/boot/aidl/client/BootControlClient.cpp
+@@ -15,6 +15,8 @@
+  */
+ 
+ #include <BootControlClient.h>
++#include <recovery_write_policy.hpp>
++#include <cstdio>
+ 
+ #include <aidl/android/hardware/boot/IBootControl.h>
+ #include <android-base/logging.h>
+@@ -403,6 +405,13 @@ class BootControlClientHIDL final : public BootControlClient {
+ };
+ 
+ std::unique_ptr<BootControlClient> BootControlClient::WaitForService() {
++    // Even a read query can make an external HAL initialize persistent metadata.
++    const auto decision = ure::legacy_write_decision(ure::LegacyWrite::PartitionMetadata);
++    if (!decision.allowed) {
++        LOG(ERROR) << decision.code;
++        std::fprintf(stderr, "%s\n", decision.code);
++        return nullptr;
++    }
+     const auto instance_name =
+             std::string(::aidl::android::hardware::boot::IBootControl::descriptor) + "/default";
+     if (AServiceManager_isDeclared(instance_name.c_str())) {
