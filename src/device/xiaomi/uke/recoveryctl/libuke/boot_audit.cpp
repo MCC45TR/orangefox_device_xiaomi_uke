@@ -30,6 +30,9 @@ extern "C" {
 namespace ure {
 namespace {
 constexpr std::size_t asset_limit=96*1024*1024;
+// The ARM64 boot header describes the memory reservation, including BSS;
+// this is separate from the bounded serialized asset that we inspect.
+constexpr std::uint64_t arm64_memory_limit=512ULL*1024*1024;
 std::uint64_t integer(std::string_view bytes,std::size_t at,unsigned size,bool big=false) {
     require(size<=8 && at<=bytes.size() && size<=bytes.size()-at,"invalid-binary","Binary integer exceeds its container");
     std::uint64_t value=0;
@@ -219,8 +222,11 @@ Value initrd(std::string_view bytes,unsigned depth=0,std::size_t limit=asset_lim
 Value kernel(std::string_view bytes) {
     Value out;
     if(bytes.size()>=64 && integer(bytes,56,4)==0x644d5241) {
-        const auto size=integer(bytes,16,8); require(size==0 || size<=bytes.size(),"invalid-kernel","ARM64 Image is truncated");
+        const auto size=integer(bytes,16,8);
+        require(size==0 || (size>=64 && size<=arm64_memory_limit),"invalid-kernel","ARM64 Image memory declaration is outside the inspection limit");
         out["format"]="arm64-Image"; out["architecture"]="aarch64"; out["declared_image_bytes"]=Json::UInt64(size);
+        out["declared_memory_bytes"]=Json::UInt64(size); out["stored_image_bytes"]=Json::UInt64(bytes.size());
+        out["declared_memory_exceeds_stored_bytes"]=size>bytes.size();
     } else if(bytes.size()>0x206 && bytes.substr(0x202,4)=="HdrS") { out["format"]="x86-bzImage"; out["architecture"]="x86_64"; }
     else throw Error("unrecognized-kernel","Unrecognized kernel header; an existing filename is insufficient");
     out["header_valid"]=true; out["embedded_version_validated"]=false; return out;
@@ -257,7 +263,15 @@ Value asset(const Root& root,const std::string& path,const std::string& kind) {
     Value out; out["path"]=path; out["valid"]=false;
     try { auto fd=root.open_resolved(path,O_RDONLY|O_NONBLOCK); struct stat before{},after{};
         require(::fstat(fd.get(),&before)==0 && S_ISREG(before.st_mode) && before.st_size>0 && static_cast<std::uint64_t>(before.st_size)<=asset_limit,"invalid-asset","Asset is not a bounded regular file");
-        const auto data=storage_read(fd.get(),0,static_cast<std::size_t>(before.st_size));
+        // Keep the shared storage primitive's 4 MiB read bound. Kernel and
+        // UKI assets can be larger, so fill their separately bounded buffer
+        // through exact positional chunks on this same open descriptor.
+        const auto size=static_cast<std::size_t>(before.st_size);
+        std::string data; data.reserve(size);
+        for(std::size_t position=0;position<size;) {
+            const auto chunk=std::min(size-position,std::size_t(4*1024*1024));
+            data+=storage_read(fd.get(),position,chunk); position+=chunk;
+        }
         out["metadata"]=kind=="kernel" ? kernel(decoded(data,asset_limit)) : kind=="initrd" ? initrd(data) : kind=="dtb" ? dtb(data) : kind=="uki" ? pe(data) : elf(decoded(data,32*1024*1024));
         out["sha256"]=sha256(data); out["bytes"]=Json::UInt64(data.size());
         require(::fstat(fd.get(),&after)==0 && before.st_size==after.st_size && before.st_mtim.tv_sec==after.st_mtim.tv_sec && before.st_mtim.tv_nsec==after.st_mtim.tv_nsec &&

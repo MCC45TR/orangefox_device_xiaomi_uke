@@ -82,6 +82,32 @@ int main() {
         reject([&] { root.read_resolved("etc/escape"); },"path-unavailable");
         auto audit=ure::linux_boot_audit(root,&esp); check(audit["error_count"].asUInt()==0 && audit["kernels"][0]["module_metadata_checked"].asUInt()==1,"Valid native assets were rejected");
         check(audit["boot_validated"]==false && audit["physical_test_record"]==false,"Metadata audit claimed hardware success");
+        auto bss_image=image; le(bss_image,16,4096,8); write(tree/"boot/vmlinuz-1",bss_image);
+        audit=ure::linux_boot_audit(root,&esp);
+        check(audit["error_count"].asUInt()==0 && audit["kernels"][0]["image"]["metadata"]["declared_memory_bytes"].asUInt64()==4096 &&
+            audit["kernels"][0]["image"]["metadata"]["stored_image_bytes"].asUInt64()==64 &&
+            audit["kernels"][0]["image"]["metadata"]["declared_memory_exceeds_stored_bytes"]==true,
+            "Valid ARM64 BSS memory reservation was mistaken for a truncated file");
+        write(esp_path/"EFI/Linux/bss.efi",uki(bss_image));
+        check(ure::linux_boot_audit(root,&esp)["ukis"][0]["metadata"]["kernel"]["declared_memory_bytes"].asUInt64()==4096,
+            "UKI kernel inspection did not preserve ARM64 memory semantics");
+        ure::fs::remove(esp_path/"EFI/Linux/bss.efi");
+        for(const auto invalid_size:{std::uint64_t(32),std::uint64_t(512ULL*1024*1024+1),UINT64_MAX}) {
+            auto invalid=image; le(invalid,16,invalid_size,8); write(tree/"boot/vmlinuz-1",invalid);
+            check(finding(ure::linux_boot_audit(root),"invalid-kernel-image"),"Unsafe ARM64 memory declaration passed");
+        }
+        auto legacy=image; le(legacy,16,0,8); write(tree/"boot/vmlinuz-1",legacy);
+        check(ure::linux_boot_audit(root)["kernels"][0]["image"]["valid"]==true,"Legacy zero ARM64 memory declaration was rejected");
+        write(tree/"boot/vmlinuz-1",image.substr(0,63));
+        check(finding(ure::linux_boot_audit(root),"invalid-kernel-image"),"Truncated ARM64 header was accepted");
+        auto large_image=image; large_image.resize(4*1024*1024+65,'\0');
+        le(large_image,16,8*1024*1024,8); write(tree/"boot/vmlinuz-1",large_image);
+        audit=ure::linux_boot_audit(root,&esp);
+        check(audit["kernels"][0]["image"]["valid"]==true &&
+            audit["kernels"][0]["image"]["bytes"].asUInt64()==large_image.size() &&
+            audit["kernels"][0]["image"]["metadata"]["declared_memory_bytes"].asUInt64()==8*1024*1024,
+            "Asset inspection incorrectly inherited the storage primitive's per-read limit");
+        write(tree/"boot/vmlinuz-1",image);
         write(tree/"usr/lib/modules/1/kernel/test.ko",module("2")); check(finding(ure::linux_boot_audit(root),"module-vermagic-mismatch"),"Wrong kernel module release passed");
         write(tree/"usr/lib/modules/1/kernel/test.ko",module("1")); write(tree/"boot/initramfs-1.img",archive("2"));
         check(finding(ure::linux_boot_audit(root),"initramfs-version-mismatch"),"Wrong initramfs release passed");
