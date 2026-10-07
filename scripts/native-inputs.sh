@@ -37,6 +37,7 @@ cd "$component"
     printf '%s\0' scripts/index-build-tree.sh scripts/build-evidence-lib.sh scripts/build-evidence.sh \
         src/host/publish-build-directory.cpp tests/check-build-evidence.sh scripts/audit-recovery-image.sh scripts/package-prerelease.sh scripts/describe-prerelease.sh scripts/archive-release-sources.sh
     printf '%s\0' scripts/check-packed-payload.sh tests/check-packed-payload.sh
+    printf '%s\0' scripts/check-ui-resource-parity.sh tests/check-ui-resource-parity.sh
     printf '%s\0' configs/release-policy.json scripts/release-policy-lib.sh scripts/release-policy.sh \
         scripts/native-test-catalog.sh scripts/check-package-repeat.sh tests/check-release-policy.sh
     printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
@@ -77,6 +78,8 @@ cd "$component"
     printf '%s\0' tests/check-partition-capabilities.sh
     printf '%s\0' tests/check-platform.sh tests/check-platform-arm64.sh
     printf '%s\0' tests/check-functional-vm.sh tests/vm/functional-init.sh
+    printf '%s\0' tests/prepare-gui-vm.sh tests/check-gui-vm.sh tests/gui-vm-control.sh \
+        tests/vm/{gui-ashmem.cpp,gui-properties.cpp,gui-property-info.cpp,lp-dump.cpp}
     printf '%s\0' tests/check-populated-filesystems.sh
     printf '%s\0' tests/with-rescue-cgroup.sh patches/0026-owned-management-jobs.patch patches/0027-join-management-jobs-before-teardown.patch
     find src/upstream/orangefox-android16/external/freetype/{src,include,builds/unix} -type f -print0

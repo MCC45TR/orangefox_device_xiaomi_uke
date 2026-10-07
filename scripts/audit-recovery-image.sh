@@ -36,7 +36,10 @@ bash "$component/scripts/build-evidence.sh" payload "$image" "$work/root" "$work
 bash "$component/scripts/localization-evidence.sh" source > "$work/localization.json"
 bash "$component/scripts/localization-evidence.sh" ui "$work/root" > "$work/extracted-ui.json"
 bash "$component/scripts/localization-evidence.sh" ui "$tree/out-public/target/product/uke/recovery/root" > "$work/staged-ui.json"
-cmp "$work/extracted-ui.json" "$work/staged-ui.json"
+bash "$component/scripts/check-ui-resource-parity.sh" \
+    "$tree/out-public/target/product/uke/recovery/root" "$work/root" "$work/ui-comparison" > "$work/ui-comparison.json"
+cmp "$work/extracted-ui.json" "$work/ui-comparison/extracted-ui.json"
+cmp "$work/staged-ui.json" "$work/ui-comparison/staged-ui.json"
 bash "$component/scripts/check-font-resources.sh" "$work/root"
 bash "$component/tests/check-payload.sh" "$work/root"
 bash "$component/tests/check-nested-payloads.sh" "$work/root"
@@ -115,14 +118,19 @@ if [[ $mode == --qemu ]]; then
 fi
 jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
     --arg localization "$(sha256sum "$work/localization.json" | cut -d' ' -f1)" \
-    --arg ui "$(sha256sum "$work/extracted-ui.json" | cut -d' ' -f1)" \
+    --arg ui "$(sha256sum "$work/staged-ui.json" | cut -d' ' -f1)" \
+    --arg extracted_ui "$(sha256sum "$work/extracted-ui.json" | cut -d' ' -f1)" \
+    --slurpfile ui_parity "$work/ui-comparison.json" \
     --arg ramdisk "$(sha256sum "$work/ramdisk.lz4" | cut -d' ' -f1)" \
     --arg cli "$(sha256sum "$work/root/system/bin/uke-recoveryctl" | cut -d' ' -f1)" \
     --arg runner "$(sha256sum "$component/tests/check-aarch64.sh" | cut -d' ' -f1)" \
     --arg auditor "$(sha256sum "$component/scripts/audit-recovery-image.sh" | cut -d' ' -f1)" \
     --argjson bytes "$bytes" --argjson qemu "$qemu" \
     --slurpfile completion "$work/compile-evidence.json" \
-    '{schema_version:1,recovery_image_sha256:$image,localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$ui,build_completion:$completion[0],compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{localization_source_inventory:true,extracted_gui_resources_match:true,build_completion_payload_match:true,extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
+    '{schema_version:1,recovery_image_sha256:$image,localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$ui,
+      shipping_ui_identity_basis:"staging inventory; packed modes verified by canonical payload replay",
+      extracted_ui_assets_sha256:$extracted_ui,ui_resource_parity:$ui_parity[0],
+      build_completion:$completion[0],compressed_ramdisk:{bytes:$bytes,sha256:$ramdisk},native_cli_sha256:$cli,aarch64_runner_sha256:$runner,auditor_sha256:$auditor,validation:{localization_source_inventory:true,extracted_gui_resources_match:true,build_completion_payload_match:true,extracted_ramdisk:true,payload_privacy:true,no_python_payload:true,recursive_zip_scan:true,elf_dependency_closure:true,gui_xml:true,tool_manifest:true,staged_target_binaries_match:true,source_built_layout_renderer_and_pages:true,source_built_mirror_renderer_and_exports:true,source_built_native_management_pages:true,source_built_combined_partition_job:true,source_built_six_lun_stock_job:true,qemu_user_six_lun_stock_job:$qemu,source_built_f2fs_format_and_resize_tools:true,vm_test_binary_excluded:true,qemu_user_fixtures:$qemu,physical_device:false,gui_rendering:false,hardware_rollback:false}}' > "$report"
 jq --argjson qemu "$qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
     .validation.source_built_one_shot_boot_and_gui=true | .validation.qemu_user_one_shot_boot_fixtures=$qemu |
     .validation.source_built_shared_legacy_write_policy=true |
