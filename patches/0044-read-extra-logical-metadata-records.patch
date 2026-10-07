@@ -1,0 +1,35 @@
+diff --git a/fs_mgr/liblp/reader.cpp b/fs_mgr/liblp/reader.cpp
+index 24ccc0f..e9346f2 100644
+--- a/fs_mgr/liblp/reader.cpp
++++ b/fs_mgr/liblp/reader.cpp
+@@ -396,6 +396,30 @@ std::unique_ptr<LpMetadata> ReadBackupMetadata(int fd, const LpMetadataGeometry&
+ namespace {
+ 
+ bool AdjustMetadataForSlot(LpMetadata* metadata, uint32_t slot_number) {
++    // Virtual A/B can reserve more metadata records than physical boot
++    // slots. Extra records are readable when names are already explicit;
++    // never invent an A/B suffix for an ambiguous extra record.
++    if (slot_number > 1) {
++        for (const auto& partition : metadata->partitions) {
++            if (partition.attributes & LP_PARTITION_ATTR_SLOT_SUFFIXED) {
++                LERROR << "Extra metadata record requires an unknown partition slot suffix.";
++                return false;
++            }
++        }
++        for (const auto& device : metadata->block_devices) {
++            if (device.flags & LP_BLOCK_DEVICE_SLOT_SUFFIXED) {
++                LERROR << "Extra metadata record requires an unknown block-device slot suffix.";
++                return false;
++            }
++        }
++        for (const auto& group : metadata->groups) {
++            if (group.flags & LP_GROUP_SLOT_SUFFIXED) {
++                LERROR << "Extra metadata record requires an unknown group slot suffix.";
++                return false;
++            }
++        }
++        return true;
++    }
+     std::string slot_suffix = SlotSuffixForSlotNumber(slot_number);
+     for (auto& partition : metadata->partitions) {
+         if (!(partition.attributes & LP_PARTITION_ATTR_SLOT_SUFFIXED)) {
