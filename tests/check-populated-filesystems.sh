@@ -3,6 +3,7 @@
 set -euo pipefail
 umask 077
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source "$component/tests/f2fs-metadata-oracle-lib.sh"
 binary=${UKE_RECOVERYCTL_BINARY:-$component/build/ure-host/uke-recoveryctl}
 mkdir -p "$component/build/filesystem-data-fixtures"
 fixture=$(mktemp -d "$component/build/filesystem-data-fixtures/run-XXXXXX")
@@ -194,7 +195,9 @@ other_oracle() {
                 done
                 mv lost_found/payload.bin payload.bin
                 mv lost_found/details.txt details.txt
-                rg '^i_(mode|uid|gid|links|size) ' inode-*.log | sed "s|^inode-[0-9]*.log:||" > metadata
+                # Dump traversal and rg's multi-file scheduling need not retain
+                # inode order. Bind all five fields to the on-disk filename.
+                ure_f2fs_fixture_metadata inode-*.log > metadata
             )
             fsck.f2fs --dry-run "$image" > "$output/check.log" 2>&1
             # Pinned on-disk superblock: UUID at 108, UTF-16 label at 124.

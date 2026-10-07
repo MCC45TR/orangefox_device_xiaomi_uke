@@ -21,6 +21,7 @@ cmake -S src/device/xiaomi/uke/recoveryctl -B build/ure-host -G Ninja \
 cmake --build build/ure-host -j"$jobs"
 bash scripts/native-test-catalog.sh build/ure-host > reports/private/native-test-catalog.json
 ctest --test-dir build/ure-host --output-on-failure
+bash tests/check-f2fs-metadata-oracle.sh
 # Shell fixtures must share one persistent coordinator across their separate
 # CLI invocations, just as all GUI/CLI calls do during one recovery session.
 operation_scope=$(mktemp -d "$component/build/native-cli-operations-XXXXXX")
@@ -99,6 +100,7 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.host_boot_hal_service_and_client_resolution_refusals=true |
         .validation.host_boot_implementation_text_oracle_controls=true |
         .validation.host_extra_logical_metadata_reader_controls=true |
+        .validation.filename_bound_f2fs_metadata_oracle_controls=true |
         .validation.packed_startup_trace_integrity_tested=false |
         .validation.boot_hal_actual_service_managers_tested=false | .validation.boot_hal_packed_artifacts_tested=false |
         .validation.actual_fastbootd_dispatch_and_block_open_refusals=true | .validation.production_installer_refuses_before_open=true |

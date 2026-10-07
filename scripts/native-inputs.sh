@@ -54,7 +54,7 @@ cd "$component"
         src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/boot_control/{Android.bp,libboot_control.cpp,include/libboot_control/libboot_control.h,include/private/boot_control_definition.h}
     printf '%s\0' src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/{BootControl.cpp,BootControl.h}
     printf '%s\0' patches/0042-refuse-unaccepted-boot-hal-resolution.patch patches/0043-system-only-boot-hal-library-path.patch \
-        patches/0044-read-extra-logical-metadata-records.patch tests/check-lp-record-reader.sh \
+        patches/0044-read-extra-logical-metadata-records.patch tests/check-lp-record-reader.sh tests/f2fs-metadata-oracle-lib.sh tests/check-f2fs-metadata-oracle.sh \
         tests/check-boot-hal-admission.sh tests/check-packed-startup-refusals.sh \
         tests/packed-startup-trace-lib.sh tests/check-packed-startup-trace-oracle.sh \
         src/upstream/orangefox-android16/hardware/interfaces/boot/{1.0,1.1,1.2}/default/{Android.bp,service.cpp} \
