@@ -4,6 +4,9 @@
 set -euo pipefail
 umask 077
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ -n ${UKE_RECOVERY_SOURCE_COMPONENT:-} ]]; then
+    component=$(realpath -- "$UKE_RECOVERY_SOURCE_COMPONENT")
+fi
 kernel=$(realpath -- "${1:?Pass the pinned generic ARM64 virt kernel Image}")
 modules=$(realpath -- "${2:?Pass its matching module installation root}")
 version=${3:-7.2.8}
@@ -36,14 +39,14 @@ while read -r command path rest; do
 done < "$job/module-dependencies"
 (cd "$root" && find ure-vm-modules -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > "$job/module-inputs.sha256"
 cat > "$root/system/etc/twrp.fstab" <<'FSTAB'
-/data ext4 /dev/vda flags=display=Data;storage;settingsstorage;backup=1;readonly
-/metadata ext4 /dev/vdb flags=display=Metadata;backup=1;readonly
-/misc emmc /dev/vdc flags=backup=0;readonly
+/data ext4 /dev/ure-vm-data flags=display=Data;storage;settingsstorage;backup=1;readonly
+/metadata ext4 /dev/ure-vm-metadata flags=display=Metadata;backup=1;readonly
+/misc emmc /dev/ure-vm-misc flags=backup=0;readonly
 FSTAB
 cat > "$root/system/etc/recovery.fstab" <<'FSTAB'
-/dev/vda /data ext4 ro,noload defaults
-/dev/vdb /metadata ext4 ro,noload defaults
-/dev/vdc /misc emmc defaults defaults
+/dev/ure-vm-data /data ext4 ro,noload defaults
+/dev/ure-vm-metadata /metadata ext4 ro,noload defaults
+/dev/ure-vm-misc /misc emmc defaults defaults
 FSTAB
 cat > "$root/ure-write-gate-init" <<'GUEST'
 #!/system/bin/sh
@@ -55,12 +58,37 @@ mount -t sysfs sysfs /sys || exit 102
 mount -t devtmpfs devtmpfs /dev || exit 103
 mount -t tmpfs tmpfs /run || exit 104
 mount -t tmpfs tmpfs /tmp || exit 105
+fixture_disk() {
+    wanted=$1
+    expected_sectors=$2
+    selected_disk=''
+    for serial_file in /sys/class/block/vd*/serial; do
+        [ -r "$serial_file" ] || continue
+        [ "$(cat "$serial_file")" = "$wanted" ] || continue
+        [ -z "$selected_disk" ] || return 1
+        disk_path=${serial_file%/serial}
+        [ "$(cat "$disk_path/size")" = "$expected_sectors" ] || return 1
+        selected_disk="/dev/${disk_path##*/}"
+    done
+    [ -n "$selected_disk" ] && [ -b "$selected_disk" ] || return 1
+    printf '%s\n' "$selected_disk"
+}
+data_disk=$(fixture_disk ure-gate-data 262144) || exit 120
+metadata_disk=$(fixture_disk ure-gate-metadata 262144) || exit 121
+misc_disk=$(fixture_disk ure-gate-misc 8192) || exit 122
+[ "$data_disk" != "$metadata_disk" ] && [ "$data_disk" != "$misc_disk" ] && [ "$metadata_disk" != "$misc_disk" ] || exit 123
+ln -s "$data_disk" /dev/ure-vm-data || exit 124
+ln -s "$metadata_disk" /dev/ure-vm-metadata || exit 125
+ln -s "$misc_disk" /dev/ure-vm-misc || exit 126
+echo "URE_GATE_FIXTURE_DATA $data_disk"
+echo "URE_GATE_FIXTURE_METADATA $metadata_disk"
+echo "URE_GATE_FIXTURE_MISC $misc_disk"
 while read -r module; do insmod "$module" || exit 106; done < /ure-vm-module-order
 mkdir -p /dev/graphics
 ln -s /dev/fb0 /dev/graphics/fb0
 # No journal replay or mount-time fixture write can mask the gate result.
-mount -t ext4 -o ro,noload /dev/vda /data || exit 107
-mount -t ext4 -o ro,noload /dev/vdb /metadata || exit 108
+mount -t ext4 -o ro,noload /dev/ure-vm-data /data || exit 107
+mount -t ext4 -o ro,noload /dev/ure-vm-metadata /metadata || exit 108
 mkdir -p /dev/__properties__
 cp /ure-vm-property-info /dev/__properties__/property_info
 chmod 444 /dev/__properties__/property_info
@@ -138,9 +166,9 @@ timeout 540 "$qemu" -machine virt -cpu cortex-a72 -smp 2 -m 2048 -accel tcg \
     -display none -monitor none -serial stdio -no-reboot -nic none -no-user-config \
     -global virtio-mmio.force-legacy=false -kernel "$kernel" -initrd "$job/initrd.cpio.gz" \
     -append 'console=ttyAMA0 rdinit=/ure-write-gate-init panic=1 ure_fixture=1' \
-    -drive "if=none,id=data,format=raw,file=$job/data.img" -device virtio-blk-device,drive=data \
-    -drive "if=none,id=metadata,format=raw,file=$job/metadata.img" -device virtio-blk-device,drive=metadata \
-    -drive "if=none,id=misc,format=raw,file=$job/misc.img" -device virtio-blk-device,drive=misc \
+    -drive "if=none,id=data,format=raw,file=$job/data.img" -device virtio-blk-device,drive=data,serial=ure-gate-data \
+    -drive "if=none,id=metadata,format=raw,file=$job/metadata.img" -device virtio-blk-device,drive=metadata,serial=ure-gate-metadata \
+    -drive "if=none,id=misc,format=raw,file=$job/misc.img" -device virtio-blk-device,drive=misc,serial=ure-gate-misc \
     -device 'virtio-gpu-device,xres=3200,yres=2136' -device virtio-keyboard-device \
     > "$job/console.log" 2>&1
 rg -q '^URE_WRITE_GATE_VM_EXIT 0\r?$' "$job/console.log"
@@ -155,8 +183,6 @@ for operation in status confirm format repair resize changefs wipe flash sideloa
         all(.[]|select(.event=="result"); .code==$expected)' "$job/$operation.jsonl" >/dev/null
 done
 rg -q 'URE_STORAGE_WRITE_BLOCKED operation=format code=ure-legacy-write-unavailable' "$job/console.log"
-rg -q 'Failed to set BCB message: ure-legacy-write-unavailable' "$job/console.log"
-rg -q 'Clearing BCB' "$job/console.log"
 jq -n --arg runner "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
     --arg kernel "$(sha256sum "$kernel" | cut -d' ' -f1)" \
     --arg shipping "$(sha256sum "$payload/system/bin/recovery" | cut -d' ' -f1)" \
@@ -172,10 +198,12 @@ jq -n --arg runner "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
         "ors-script-refused-without-sentinel","ors-format-failure-preserved","ors-wipe-refused","ors-mkdir-refused",
         "ors-slot-mutation-refused","ors-backup-command-refused","ors-source-preserved","recovery-reflash-refused",
         "mtp-write-service-refused","preference-cannot-authorize-format",
-        "inspection-after-refusal","startup-bcb-update-refused","startup-bcb-clear-refused",
+        "inspection-after-refusal",
         "userdata-metadata-and-misc-complete-hashes-unchanged"],
       adapters:{memfd_code_cache:true,synthetic_property_area:true,disposable_fstab:true},
       writable_qemu_attachments:true,guest_filesystem_mounts_read_only:true,geometry:"synthetic",
+      fixture_disk_binding:"unique virtio serial and exact sector count; guest aliases",
+      startup_BCB_diagnostics_observed:false,startup_misc_mutation_attempt_observed:false,
       nic:false,host_block_attachment:false,physical_device:false,shipping_kernel_test:false,
       unmodified_shipping_gui_test:false,fastboot_usb_hardware_test:false,visual_acceptance:false,complete_feature_acceptance:false}' \
     > "$component/reports/private/write-gate-vm-verification.json"

@@ -16,8 +16,28 @@ qmp() {
 case $action in
  capture)
   name=${3:?name}; [[ $name =~ ^[a-z][a-z0-9-]{0,60}$ ]]
+  [[ -f $job/orientation-fixture.json && ! -L $job/orientation-fixture.json ]] || {
+    printf 'Orientation-aware capture requires the per-job VM orientation fixture.\n' >&2; exit 1;
+  }
+  rotation=$(jq -er '.rotation_property.value|select(.==0 or .==90 or .==180 or .==270)' "$job/orientation-fixture.json")
+  review_rotation=$(((360-rotation)%360))
   qmp "$(jq -cn --arg path "$job/$name.ppm" '{execute:"screendump",arguments:{filename:$path}}')"
-  magick "$job/$name.ppm" -rotate 90 "$job/$name.png"
+  read -r raw_width raw_height < <(magick identify -format '%w %h\n' "$job/$name.ppm")
+  [[ $raw_width =~ ^[1-9][0-9]{2,3}$ && $raw_height =~ ^[1-9][0-9]{2,3}$ ]]
+  jq -e --argjson width "$raw_width" --argjson height "$raw_height" \
+    '.raw_framebuffer_requested.width==$width and .raw_framebuffer_requested.height==$height' \
+    "$job/orientation-fixture.json" >/dev/null
+  magick "$job/$name.ppm" "$job/$name-raw.png"
+  magick "$job/$name-raw.png" -rotate "$review_rotation" "$job/$name.png"
+  jq -n --argjson width "$raw_width" --argjson height "$raw_height" \
+    --argjson review_rotation "$review_rotation" --slurpfile orientation "$job/orientation-fixture.json" \
+    --arg raw "$(sha256sum "$job/$name-raw.png"|cut -d' ' -f1)" \
+    --arg review "$(sha256sum "$job/$name.png"|cut -d' ' -f1)" \
+    '{schema_version:1,evidence_class:"adapted-generic-gui-vm-capture",
+      raw_capture:{width:$width,height:$height,sha256:$raw},review_image_sha256:$review,
+      review_clockwise_rotation_degrees:$review_rotation,orientation_fixture:$orientation[0],
+      logical_dimensions_runtime_measured:false,visual_inspection:false,physical_device:false}' \
+    > "$job/$name.capture.json"
   ;;
  click)
   x=${3:?x}; y=${4:?y}; [[ $x =~ ^[0-9]{1,4}$ && $y =~ ^[0-9]{1,4}$ ]]

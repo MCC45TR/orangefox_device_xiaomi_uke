@@ -11,10 +11,21 @@ page=${4:-ure_display}
 [[ $version =~ ^[a-zA-Z0-9._+-]+$ ]]
 width=${UKE_GUI_VM_WIDTH:-2560}
 height=${UKE_GUI_VM_HEIGHT:-1600}
+rotation=${UKE_GUI_VM_ROTATION:-0}
 scale=${UKE_GUI_VM_SCALE:-75}
 seconds=${UKE_GUI_VM_SECONDS:-240}
 [[ $width =~ ^[1-9][0-9]{2,3}$ && $height =~ ^[1-9][0-9]{2,3}$ && $scale =~ ^[0-9]{2,3}$ && $seconds =~ ^[0-9]{2,3}$ ]]
 ((width>=1080 && width<=3840 && height>=1080 && height<=3840 && scale>=50 && scale<=100 && seconds>=90 && seconds<=900))
+[[ $rotation == 0 || $rotation == 90 || $rotation == 180 || $rotation == 270 ]]
+logical_width=$width
+logical_height=$height
+if [[ $rotation == 90 || $rotation == 270 ]]; then
+    logical_width=$height
+    logical_height=$width
+fi
+logical_orientation=portrait
+((logical_width<=logical_height)) || logical_orientation=landscape
+review_rotation=$(((360-rotation)%360))
 qemu=${UKE_QEMU_SYSTEM_AARCH64:-$(type -P qemu-system-aarch64 || true)}
 [[ -f $kernel && ! -L $kernel && -d $modules/lib/modules/$version && -x $qemu ]]
 payload="$component/src/upstream/orangefox-android16/out-public/target/product/uke/recovery/root"
@@ -24,6 +35,15 @@ rg -q -- "<page name=\"$page\">" "$payload/sbin/maintainer.xml" "$payload/twres/
 mkdir -p "$component/build/gui-vm" "$component/reports/private"
 job=$(mktemp -d "$component/build/gui-vm/job-XXXXXX")
 root="$job/root"
+jq -n --argjson width "$width" --argjson height "$height" --argjson rotation "$rotation" \
+    --argjson logical_width "$logical_width" --argjson logical_height "$logical_height" \
+    --arg orientation "$logical_orientation" --argjson review_rotation "$review_rotation" \
+    '{schema_version:1,vm_only:true,rotation_property:{name:"persist.twrp.rotation",value:$rotation},
+      raw_framebuffer_requested:{width:$width,height:$height},
+      logical_canvas_expected:{width:$logical_width,height:$logical_height,orientation:$orientation,
+        basis:"minuitwrp rotation contract before any overscan; source-derived, not runtime-measured"},
+      review_clockwise_rotation_degrees:$review_rotation,physical_orientation_accepted:false}' \
+    > "$job/orientation-fixture.json"
 bash "$component/scripts/build-evidence.sh" export "$job/BUILD-COMPLETION.json"
 bash "$component/scripts/localization-evidence.sh" source > "$job/localization-inputs.json"
 bash "$component/scripts/localization-evidence.sh" ui "$payload" > "$job/shipping-ui-inputs.json"
@@ -58,6 +78,7 @@ jq -n --argjson scale "$scale" '{schema:1,format:"ure-display-settings",scale_pe
 chmod 600 "$root/mnt/uke-settings/display.json"
 bash "$component/scripts/localization-evidence.sh" ui "$root" > "$job/overlay-ui-inputs.json"
 printf '%s\n' "$((seconds/2))" > "$root/ure-vm-attempts"
+printf '%s\n' "$rotation" > "$root/ure-vm-rotation"
 cat > "$root/ure-gui-vm-init" <<'GUEST'
 #!/system/bin/sh
 export PATH=/system/bin
@@ -76,7 +97,7 @@ mount -t ext4 /dev/vdb /cache || exit 108
 mkdir -p /dev/__properties__
 cp /ure-vm-property-info /dev/__properties__/property_info
 chmod 444 /dev/__properties__/property_info
-/system/bin/uke-vm-properties || exit 109
+/system/bin/uke-vm-properties "$(cat /ure-vm-rotation)" || exit 109
 /system/bin/recovery-vm &
 recovery_pid=$!
 echo "URE_GUI_PROCESS $recovery_pid"
@@ -118,6 +139,10 @@ timeout "$((seconds+120))" "$qemu" -machine virt -cpu cortex-a72 -m 2048 -accel 
     -device "virtio-gpu-device,xres=$width,yres=$height" -device virtio-keyboard-device -device virtio-mouse-device \
     -qmp "unix:$job/qmp.sock,server=on,wait=off" > "$job/console.log" 2>&1
 rg -q '^URE_GUI_EXIT 0\r?$' "$job/console.log"
+rg -q "^URE_VM_ROTATION_PROPERTY $rotation\\r?$" "$job/console.log"
+# The virtual display mode is a raw scanout dimension, independent of the
+# logical canvas used by the theme after minuitwrp applies the property.
+rg -q "^(width: $width, height: $height|framebuffer: [0-9]+ \\($width x $height\\))\\r?$" "$job/console.log"
 rg -q "Set page: '$page'" "$job/console.log"
 if rg -q 'Scudo ERROR|Fatal signal|Kernel panic' "$job/console.log"; then exit 1; fi
 cmp <(bash "$component/scripts/localization-evidence.sh" source) "$job/localization-inputs.json"
@@ -135,15 +160,21 @@ jq -n --arg kernel "$(sha256sum "$kernel" | cut -d' ' -f1)" \
     --arg properties "$(sha256sum "$root/system/bin/uke-vm-properties" | cut -d' ' -f1)" \
     --arg trie "$(sha256sum "$root/ure-vm-property-info" | cut -d' ' -f1)" \
     --arg theme "$(sha256sum "$root/sbin/maintainer.xml" | cut -d' ' -f1)" \
+    --slurpfile orientation "$job/orientation-fixture.json" \
+    --arg orientation_fixture "$(sha256sum "$job/orientation-fixture.json" | cut -d' ' -f1)" \
     --argjson width "$width" --argjson height "$height" --argjson scale "$scale" \
     --arg settings "$(sha256sum "$root/mnt/uke-settings/display.json" | cut -d' ' -f1)" \
     '{schema_version:1,validation_kind:"qemu-system-adapted-orangefox-gui",process_smoke_passed:true,page:$page,
-      framebuffer:{width:$width,height:$height},initial_scale_percent:$scale,settings_fixture_sha256:$settings,
+      framebuffer:{width:$width,height:$height,coordinate_space:"raw scanout"},
+      orientation:{fixture:$orientation[0],fixture_sha256:$orientation_fixture,
+        rotation_property_readback_confirmed:true,raw_mode_console_confirmed:true,
+        logical_dimensions_runtime_measured:false},
+      initial_scale_percent:$scale,settings_fixture_sha256:$settings,
       localization_inputs_sha256:$localization,shipping_ui_assets_sha256:$assets,overlay_ui_assets_sha256:$overlay_assets,
       build_completion_receipt_index_sha256:$completion,
       kernel_sha256:$kernel,runner_sha256:$runner,shipping_recovery_sha256:$shipping,adapted_recovery_sha256:$adapted,
       property_helper_sha256:$properties,property_trie_sha256:$trie,overlay_theme_sha256:$theme,console_sha256:$log,
-      adapters:{memfd_code_cache:true,synthetic_property_area:true,disposable_fstab:true,page_redirect:true},
+      adapters:{memfd_code_cache:true,synthetic_property_area:true,vm_rotation_property:true,disposable_fstab:true,page_redirect:true},
       nic:false,host_block_attachment:false,physical_device:false,shipping_kernel_test:false,
       unmodified_shipping_gui_test:false,visual_review:false,complete_feature_acceptance:false}' \
     > "$job/verification.json"
