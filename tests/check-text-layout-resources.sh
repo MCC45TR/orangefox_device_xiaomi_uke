@@ -129,6 +129,37 @@ done
 cp --reflink=auto "$component/referances/upstream/fribidi-release/fribidi-1.0.17.tar.xz" "$fixture/referances/upstream/fribidi-release/"
 bash "$fixture/scripts/prepare-android-text-layout.sh"
 bash "$fixture/scripts/prepare-android-text-layout.sh"
+# Exercise the complete recursive content and metadata validation, including
+# entries outside the Android compilation list and substitutions that must
+# refuse without following or reading a FIFO.
+hb_source="$fixture/src/upstream/text-layout/harfbuzz-14.5.1"
+deep_source=$(find "$hb_source/test/subset/data/expected" -type f -print -quit)
+[[ -n $deep_source && -f $deep_source && ! -L $deep_source ]]
+cp -p -- "$deep_source" "$work/deep-original"
+printf '\nUnreviewed deep source bytes\n' >> "$deep_source"
+source_before=$(snapshot "$fixture/src/upstream/text-layout")
+refuse bash "$fixture/scripts/prepare-android-text-layout.sh"
+[[ $(snapshot "$fixture/src/upstream/text-layout") == "$source_before" ]]
+cp -p -- "$work/deep-original" "$deep_source"
+source_link=$(find "$hb_source" -type l -print -quit)
+[[ -n $source_link && -L $source_link ]]
+original_link=$(readlink "$source_link")
+rm -- "$source_link"
+ln -s unreviewed-target "$source_link"
+source_before=$(snapshot "$fixture/src/upstream/text-layout")
+refuse bash "$fixture/scripts/prepare-android-text-layout.sh"
+[[ -L $source_link && $(readlink "$source_link") == unreviewed-target &&
+   $(snapshot "$fixture/src/upstream/text-layout") == "$source_before" ]]
+rm -- "$source_link"
+ln -s "$original_link" "$source_link"
+rm -- "$deep_source"
+mkfifo "$deep_source"
+source_before=$(snapshot "$fixture/src/upstream/text-layout")
+refuse bash "$fixture/scripts/prepare-android-text-layout.sh"
+[[ -p $deep_source && $(snapshot "$fixture/src/upstream/text-layout") == "$source_before" ]]
+rm -- "$deep_source"
+cp -p -- "$work/deep-original" "$deep_source"
+bash "$fixture/scripts/prepare-android-text-layout.sh"
 # A previously reviewed FriBidi prefix may advance in both active snapshots.
 # Unknown edits in either snapshot must still refuse before replacement.
 fribidi_pin=$(jq -er '.libraries[]|select(.name=="fribidi")|.commit' "$fixture/manifests/text-layout.lock.json")

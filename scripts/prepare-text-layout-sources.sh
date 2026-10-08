@@ -9,6 +9,33 @@ lock=manifests/text-layout.lock.json
 mkdir -p build
 work=$(mktemp -d build/text-layout-sources-XXXXXX)
 trap 'rm -rf -- "$work"' EXIT
+tree_metadata() {
+    local directory=$1 adapters=$2 library=$3 path kind mode link executable
+    # One find traversal replaces two stat processes for every source file.
+    # Shell quoting keeps each path/link record unambiguous before sorting.
+    find "$directory" -mindepth 1 -printf '%P\0%y\0%m\0%l\0' |
+        while IFS= read -r -d '' path && IFS= read -r -d '' kind &&
+              IFS= read -r -d '' mode && IFS= read -r -d '' link; do
+            if [[ $adapters == yes ]]; then
+                case "$library:$path" in
+                    harfbuzz:.uke-linux-owned|harfbuzz:Android.bp|harfbuzz:Unicode-LICENSE.txt|\
+                    fribidi:.uke-linux-owned|fribidi:Android.bp|fribidi:config.h|fribidi:fribidi-config.h|fribidi:fribidi-custom.h) continue;;
+                esac
+            fi
+            executable=0
+            if [[ $kind == f ]]; then executable=$((8#$mode & 0111)); fi
+            printf '%q %s %03o %q\n' "$path" "$kind" "$executable" "$link"
+        done | sort
+}
+same_source_content() {
+    local expected=$1 target=$2 path
+    # Compare complete subtrees in native diff. Only exact root-level adapter
+    # additions were excluded by the member/metadata manifests above; similarly
+    # named nested upstream files remain part of every recursive comparison.
+    while IFS= read -r -d '' path; do
+        diff -qr --no-dereference -- "$expected/$path" "$target/$path" > "$work/content-differences" || return 1
+    done < <(find "$expected" -mindepth 1 -maxdepth 1 -printf '%P\0')
+}
 for name in harfbuzz fribidi; do
     pin=$(jq -er --arg name "$name" '.libraries[]|select(.name==$name)|.commit' "$lock")
     reference="referances/upstream/$name"
@@ -57,7 +84,19 @@ for name in harfbuzz fribidi; do
             sed '/^\.uke-linux-owned$/d; /^Android\.bp$/d; /^config\.h$/d; /^fribidi-config\.h$/d; /^fribidi-custom\.h$/d' "$work/all-members" > "$work/actual-members"
         fi
         cmp "$work/expected-members" "$work/actual-members"
+        tree_metadata "$expected" no "$name" > "$work/expected-metadata"
+        tree_metadata "$target" yes "$name" > "$work/actual-metadata"
+        cmp "$work/expected-metadata" "$work/actual-metadata"
+        expected_root=$(realpath -e "$expected")
+        while IFS= read -r -d '' path; do
+            resolved=$(realpath -e "$expected/$path")
+            [[ $resolved == "$expected_root/"* && -f $resolved ]]
+        done < <(find "$expected" -mindepth 1 -type l -printf '%P\0')
         : > "$work/reviewed-updates"
+        if ! same_source_content "$expected" "$target"; then
+        [[ $name == fribidi ]] || { echo 'Unreviewed HarfBuzz source changes refuse staging.' >&2; exit 1; }
+        # Only FriBidi has a reviewed source predecessor. This small fallback
+        # validates every byte before advancing that one permitted source file.
         while IFS= read -r path; do
             if [[ -L $expected/$path ]]; then
                 [[ -L $target/$path && $(readlink "$expected/$path") == "$(readlink "$target/$path")" ]]
@@ -66,7 +105,6 @@ for name in harfbuzz fribidi; do
             elif [[ -d $expected/$path ]]; then [[ -d $target/$path && ! -L $target/$path ]];
             else
                 [[ -f $target/$path && ! -L $target/$path ]]
-                [[ $((8#$(stat -c %a "$target/$path") & 0111)) == $((8#$(stat -c %a "$expected/$path") & 0111)) ]]
                 if ! cmp -s "$expected/$path" "$target/$path"; then
                     [[ $name == fribidi && $path == lib/fribidi-bidi.c ]]
                     digest=$(sha256sum "$target/$path" | cut -d' ' -f1)
@@ -77,6 +115,7 @@ for name in harfbuzz fribidi; do
                 fi
             fi
         done < "$work/expected-members"
+        fi
         while IFS= read -r path; do cp -- "$expected/$path" "$target/$path"; done < "$work/reviewed-updates"
     else
         mkdir -p "${target%/*}"
