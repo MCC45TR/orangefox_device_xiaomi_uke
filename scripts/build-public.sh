@@ -7,6 +7,12 @@ if [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
 fi
 tree="$component/src/upstream/orangefox-android16"
 jobs=${1:-16}
+if (( $# > 0 )); then shift; fi
+cache_seed=
+if (( $# > 0 )); then
+    [[ $# == 2 && $1 == --cache-seed && $2 =~ ^job-[a-zA-Z0-9]{12}$ ]] || exit 2
+    cache_seed=$2
+fi
 [[ $jobs =~ ^([1-9]|1[0-6])$ ]] || exit 2
 ceiling=${UKE_HOST_JOBS:?The host budget runner must supply compile admission}
 [[ $ceiling =~ ^([1-9]|1[0-6])$ ]] || exit 2
@@ -29,10 +35,10 @@ for header in ure-localization.hpp ure-locale-keys.hpp; do
 done
 # OrangeFox captures shell exports during lunch for its vendor packaging script.
 # A make-only FOX_BUILD_BASH value would still let that script copy its prebuilt.
-job_id=$(bash "$component/scripts/build-evidence.sh" begin "$jobs" "$vm_fixture")
+job_id=$(bash "$component/scripts/build-evidence.sh" begin "$jobs" "$vm_fixture" "${cache_seed:-fresh}")
 job="$component/build/android-builds/$job_id"
 bash "$component/scripts/with-android-build-environment.sh" "$tree" "$job/output" \
     bash -c 'source build/envsetup.sh >/dev/null && lunch twrp_uke-bp2a-eng >/dev/null && targets=(recoveryimage) && if [[ $2 == 1 ]]; then targets+=(uke-btrfs-vm-fixture-soong); fi && m "${targets[@]}" -j"$1"' bash "$jobs" "$vm_fixture" \
     > "$job/build.log" 2>&1
 bash "$component/scripts/build-evidence.sh" seal "$job_id"
-echo 'Fresh recovery compilation sealed; the owned service must still accept completion and publish the output.'
+echo 'Recovery compilation sealed; the owned service must still accept completion and publish the output.'

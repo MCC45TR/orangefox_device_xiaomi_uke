@@ -1,8 +1,11 @@
 # Recovery build completion evidence
 
-Every new recovery build starts with a fresh private output directory. Existing
-outputs stay available until the new job is accepted; they are never adopted as
-fresh build evidence. Compiler cache is shared separately with content checks.
+Every new recovery build owns a separate private output directory. It starts
+empty by default. An explicit `--cache-seed job-ID` may copy intermediates from
+an earlier unsealed project job using mandatory filesystem reflinks. Existing
+outputs stay available until the new job is accepted. Seeded output is recorded
+as `fresh_output=false` and `cache_seeded=true`; the producer is never adopted
+as successful build evidence. Compiler cache remains separate.
 The preserved public alpha and its historical manifest are unchanged.
 
 ## What the receipt binds
@@ -29,14 +32,25 @@ used only by upstream AOSP tools, as documented in [host tools](HOST-TOOLS.md).
 This is **not a complete hermetic host OS closure**. It does not establish
 binary reproducibility or defend against a compromised host account.
 
-Compilation sees readonly sources, a fresh writable output mounted at the
+Compilation sees readonly sources, its owned writable output mounted at the
 neutral `/mnt/out-public` path, and the admitted disk scratch. The launcher
 clears inherited environment settings and supplies fixed locale, timezone,
 home, user, build date/number, cache and admitted Go runtime settings. Upstream
 host Python cannot write bytecode into the readonly source tree. Source and
 tool snapshots are repeated after the successful command; any difference
 prevents sealing. Failed or interrupted jobs retain diagnostics and cannot be
-resealed or reused as a new build.
+resealed. Their intermediates may supply an explicitly bound cache to a new job.
+
+Cache admission checks producer ownership, output identity, source lock and
+revision list, host tools/runtime, lunch, build targets and firmware profiles.
+It indexes every cached file by content and records modes, timestamps and
+symlink targets before and after copying; producer changes reject the seed.
+Copied content and layout must match. Installed recovery, root and partition
+payloads, final images, packaging timestamps and stale build identity are
+removed from the new copy; Soong and Make object intermediates are retained.
+Ninja must reinstall and repack those outputs. The producer is preserved, and
+the new receipt binds its cache provenance alongside the new before/after
+source evidence. Cache reuse does not establish binary reproducibility.
 
 The sealed receipt maps these inputs to the actual recovery image, complete
 staged recovery payload, installed product files, generated Soong configuration
@@ -82,6 +96,8 @@ production trust root, which remain AUD-035 work.
 ```sh
 bash scripts/prepare-build-tree.sh global-os3.0.303.0
 bash scripts/build-public.sh 16
+# Optional: seed a new job from an explicitly selected unsealed project job.
+bash scripts/build-public.sh 16 --cache-seed job-XXXXXXXXXXXX
 bash scripts/build-evidence.sh verify
 bash scripts/build-evidence.sh export artifacts/NEW-CANDIDATE/BUILD-COMPLETION.json
 ```
@@ -103,7 +119,10 @@ changed-header rebuild with a different ELF hash, preserved prior output,
 repeated atomic exchanges, actual SIGKILL and compiler failure. Negative cases
 cover unrebuilt headers/timestamps, real ignored inputs, modes, revisions,
 toolchain/ELF substitution, escaping links, receipt corruption, missing service
-acknowledgment, OOM metadata and wrong evidence class. Those synthetic outputs
+acknowledgment, OOM metadata and wrong evidence class. Cache controls exercise
+real reflinks, consumer isolation, installed-payload invalidation, a rebuilt
+receipt, and rejected foreign lunch, indirect producer, corrupted input index,
+completed producer and stale sealing attempts. Those synthetic outputs
 cannot be accepted as an Android recovery build.
 
 Actual project-pin and source-tree index controls verify the current host inputs;

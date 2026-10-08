@@ -35,7 +35,7 @@ current_job() {
 }
 case $mode in
     begin)
-        [[ ${UKE_HOST_BUDGET_ACTIVE:-0} == 1 && $# == 2 ]]
+        [[ ${UKE_HOST_BUDGET_ACTIVE:-0} == 1 && ( $# == 2 || $# == 3 ) ]]
         jq -e '.mode=="arm64" and .admitted' /tmp/admitted-policy.json >/dev/null
         prepare_publisher
         for kind in soong blueprint; do bash "$build_scripts/prepare-reviewed-patches.sh" "$android/build/$kind" check "$kind"; done
@@ -46,7 +46,10 @@ case $mode in
         # Reserve an unguessable job name without exposing an old output to begin.
         reserved=$(mktemp -d "$component/build/android-builds/job-XXXXXXXXXXXX")
         rmdir "$reserved"
-        build_begin "$component" "$android" "$reserved" android-recovery 399 "$1" "$2"
+        seed=${3:-fresh}
+        [[ $seed == fresh || $seed =~ ^job-[a-zA-Z0-9]{12}$ ]]
+        if [[ $seed != fresh ]]; then seed="$component/build/android-builds/$seed"; else seed=; fi
+        build_begin "$component" "$android" "$reserved" android-recovery 399 "$1" "$2" "$seed"
         cp -- /tmp/admitted-policy.json /tmp/host-temp-admitted.json "$reserved/"
         printf '%s\n' "${reserved##*/}"
         ;;
@@ -99,7 +102,7 @@ case $mode in
         work=$(mktemp -d "$component/build/build-verification-XXXXXXXX")
         trap 'rm -rf -- "$work"' EXIT
         build_verify "$component" "$android" "$job" "$android/out-public" android-recovery "$work"
-        printf '%s\n' 'Fresh build inputs, service completion and output content match the sealed receipt.'
+        printf '%s\n' 'Current build inputs, service completion and output content match the sealed receipt.'
         ;;
     payload)
         [[ $# == 3 ]]
@@ -141,7 +144,7 @@ case $mode in
             --arg revisions "$(build_digest "$job/receipt/inputs/revisions.tsv")" \
             --arg tools "$(build_digest "$job/receipt/inputs/host-tools.tsv")" \
             --arg runtime "$(build_digest "$job/receipt/inputs/host-runtime.tsv")" \
-            'del(.job_id,.output_identity) | .receipt_index_sha256=$receipt |
+            'del(.job_id,.output_identity,.output_origin.seed.producer_job_id,.output_origin.seed.producer_output_identity) | .receipt_index_sha256=$receipt |
              .inputs={project_file_manifest_sha256:$project_files,android_file_manifest_sha256:$android_files,
                       android_revisions_sha256:$revisions,host_executable_manifest_sha256:$tools,host_direct_runtime_manifest_sha256:$runtime,
                       localization:$localization[0],localization_inputs_sha256:$localization_sha} |

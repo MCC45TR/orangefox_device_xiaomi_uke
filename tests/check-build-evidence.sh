@@ -37,6 +37,7 @@ build_publisher=$publisher
 source "$component/scripts/build-evidence-lib.sh"
 case $mode in
     begin) build_begin "$project" "$android" "$job" host-fixture 1 2 0;;
+    seed) build_begin "$project" "$android" "$job" host-fixture 1 2 0 "$7";;
     seal) build_seal "$project" "$android" "$job";;
     publish)
         build_publish "$job" "$android/out-public" host-fixture
@@ -184,6 +185,71 @@ entry publish "$next"
 entry verify "$next"
 printf 'Actual changed-header rebuild produced a different ARM64 ELF; atomic promotion preserved the complete old output.\n'
 
+# An interrupted producer may supply cache objects, never a successful build
+# claim or an installed payload. Every consumer owns a different CoW output.
+mkdir -p "$project/build/android-builds"
+producer="$project/build/android-builds/job-CacheSeed001"
+consumer="$project/build/android-builds/job-CacheSeed002"
+entry begin "$producer"
+compile "$producer/output"
+mkdir -p "$producer/output/target/product/uke/obj/EXECUTABLES/fixture" "$producer/output/soong/.intermediates/fixture"
+cp "$producer/output/target/product/uke/recovery/root/system/bin/recovery" "$producer/output/target/product/uke/obj/EXECUTABLES/fixture/object"
+printf 'cached-object\n' > "$producer/output/soong/.intermediates/fixture/object"
+printf 'stale-final-image\n' > "$producer/output/target/product/uke/boot.img"
+printf 'stale-build-identity\n' > "$producer/output/.uke-build-id"
+source_digest=$(sha256sum "$producer/output/target/product/uke/obj/EXECUTABLES/fixture/object" | cut -d' ' -f1)
+entry seed "$consumer" "$producer"
+[[ ! -e $consumer/output/target/product/uke/recovery && ! -e $consumer/output/target/product/uke/system &&
+   ! -e $consumer/output/target/product/uke/boot.img && ! -e $consumer/output/.uke-build-id &&
+   -f $consumer/output/target/product/uke/obj/EXECUTABLES/fixture/object && -f $consumer/output/soong/.intermediates/fixture/object ]]
+[[ $(stat -c '%d:%i' "$producer/output/target/product/uke/obj/EXECUTABLES/fixture/object") != \
+   "$(stat -c '%d:%i' "$consumer/output/target/product/uke/obj/EXECUTABLES/fixture/object")" ]]
+printf 'changed-consumer-object\n' >> "$consumer/output/target/product/uke/obj/EXECUTABLES/fixture/object"
+[[ $(sha256sum "$producer/output/target/product/uke/obj/EXECUTABLES/fixture/object" | cut -d' ' -f1) == "$source_digest" ]]
+refuse entry seal "$consumer"
+[[ ! -e $consumer/receipt ]]
+# Failed admission remains forensic; a new consumer owns the accepted rebuild.
+consumer="$project/build/android-builds/job-CacheSeed008"
+entry seed "$consumer" "$producer"
+compile "$consumer/output"
+entry seal "$consumer"
+jq -e '.validation.fresh_output==false and .validation.cache_seeded==true and .output_origin.seed.producer_success_claimed==false' \
+    "$consumer/receipt/BUILD-COMPLETION.json" >/dev/null
+entry publish "$consumer"
+entry verify "$consumer"
+refuse entry production-class "$consumer"
+refuse entry seed "$project/build/android-builds/job-CacheSeed003" "$consumer"
+ln -s "$producer" "$project/build/android-builds/job-CacheSeed004"
+refuse entry seed "$project/build/android-builds/job-CacheSeed005" "$project/build/android-builds/job-CacheSeed004"
+cp "$producer/prepared.json" "$scratch/producer-prepared.json"
+jq '.build.lunch="foreign-device"' "$scratch/producer-prepared.json" > "$producer/prepared.json"
+refuse entry seed "$project/build/android-builds/job-CacheSeed006" "$producer"
+cp "$scratch/producer-prepared.json" "$producer/prepared.json"
+mkdir -p "$project/build/android-builds/nested" "$scratch/external-product"
+ln -s "$producer" "$project/build/android-builds/nested/job-CacheSeed009"
+refuse entry seed "$project/build/android-builds/job-CacheSeed010" "$project/build/android-builds/nested/job-CacheSeed009"
+printf 'external-product-must-survive\n' > "$scratch/external-product/sentinel"
+mv "$producer/output/target/product/uke" "$producer/output/target/product/uke-saved"
+ln -s "$scratch/external-product" "$producer/output/target/product/uke"
+refuse entry seed "$project/build/android-builds/job-CacheSeed011" "$producer"
+[[ $(cat "$scratch/external-product/sentinel") == external-product-must-survive ]]
+unlink "$producer/output/target/product/uke"
+mv "$producer/output/target/product/uke-saved" "$producer/output/target/product/uke"
+unlink "$producer/output/.uke-build-id"
+ln -s "$scratch/never-create-this-id" "$producer/output/.uke-build-id"
+ln -s "$scratch/never-create-this-image" "$producer/output/target/product/uke/dangling.img"
+clean_seed="$project/build/android-builds/job-CacheSeed012"
+entry seed "$clean_seed" "$producer"
+[[ ! -e $clean_seed/output/.uke-build-id && ! -L $clean_seed/output/.uke-build-id &&
+   ! -e $clean_seed/output/target/product/uke/dangling.img && ! -L $clean_seed/output/target/product/uke/dangling.img &&
+   ! -e $scratch/never-create-this-id && ! -e $scratch/never-create-this-image ]]
+printf 'corrupt-input-index\n' >> "$producer/inputs-before/android/files.sha256"
+refuse entry seed "$project/build/android-builds/job-CacheSeed007" "$producer"
+printf 'Reflink cache consumer rebuilt installed payloads, retained intermediates and bound producer provenance; stale sealing, foreign lunch, symlink and nested producers, external product parents, completed producer and corrupted source-index controls refused; dangling IDs/images removed without following links.\n'
+
+# The existing interrupted-job tests retain their accepted output expectation.
+entry verify "$consumer"
+
 # Interrupt an actual child compiler invocation and prove no receipt/promotion.
 interrupted="$scratch/job-interrupted"
 entry begin "$interrupted"
@@ -195,7 +261,7 @@ wait "$interrupted_pid" || status=$?
 [[ $status == 137 && -s $interrupted/output/partial-elf && -f $interrupted/compiler-finished && ! -e $interrupted/receipt ]]
 refuse entry publish "$interrupted"
 refuse entry begin "$interrupted"
-entry verify "$next"
+entry verify "$consumer"
 
 failed="$scratch/job-compiler-failed"
 entry begin "$failed"
@@ -204,7 +270,7 @@ refuse "$compiler" --target=aarch64-linux-android10000 -nostdlib -static -fuse-l
 [[ ! -e $failed/receipt && ! -e $failed/output/rejected-elf ]]
 refuse entry seal "$failed"
 refuse entry publish "$failed"
-entry verify "$next"
+entry verify "$consumer"
 
 mkdir -m 0700 "$scratch/atomic-a" "$scratch/atomic-b"
 printf 'a\n' > "$scratch/atomic-a/marker"

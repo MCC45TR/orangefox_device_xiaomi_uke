@@ -8,6 +8,12 @@ scratch=$(mktemp -d "$component/build/recovery-packaging-hooks-XXXXXX")
 awk '/^LOCAL_MODULE := file_contexts_text$/ {copy=1} copy {print} copy && /^include \$\(BUILD_PHONY_PACKAGE\)$/ {exit}' \
     "$source_path/Android.mk" > "$scratch/production-hook.mk"
 [[ -s $scratch/production-hook.mk ]]
+ncurses="$component/src/upstream/orangefox-android16/external/libncurses"
+awk '/name: "libncurses-terminfo-x-xterm_recovery"/ {copy=1} copy {print} copy && /^}/ {exit}' \
+    "$ncurses/Android.bp" > "$scratch/declared-terminfo-module.bp"
+rg -q 'srcs: \["lib/terminfo/x/xterm\*"\]' "$scratch/declared-terminfo-module.bp"
+rg -q 'recovery: true' "$scratch/declared-terminfo-module.bp"
+[[ -s $ncurses/lib/terminfo/x/xterm-256color ]]
 cases=0
 run_case() {
     local nano=$1 terminfo=$2 vendor=$3 fault=$4
@@ -57,10 +63,10 @@ EOF
         if [[ $nano == 1 ]]; then
             cmp "$trial/product/system/etc/nano/nanorc" "$trial/product/recovery/root/system/etc/nano/nanorc"
         fi
-        if [[ $terminfo == 1 ]]; then
-            cmp "$trial/external/libncurses/lib/terminfo/x/xterm-256color" "$trial/product/recovery/root/system/etc/terminfo/x/xterm-256color"
-            [[ ! -e $trial/product/recovery/root/system/etc/terminfo/sentinel ]]
-        fi
+        # The ncurses Soong modules own terminal entries. The unrelated
+        # file-context hook must leave concurrently installed entries intact.
+        [[ $(cat "$trial/product/recovery/root/system/etc/terminfo/sentinel") == retained-before-hook ]]
+        [[ ! -e $trial/product/recovery/root/system/etc/terminfo/x/xterm-256color ]]
         if [[ $vendor == 1 ]]; then [[ -d $trial/product/root/vendor && ! -L $trial/product/root/vendor ]]; fi
     else
         [[ $fault != none ]] || { cat "$trial/result.log" >&2; exit 1; }
@@ -75,4 +81,17 @@ for nano in 0 1; do
     done
 done
 for fault in text binary nano; do run_case 1 1 1 "$fault"; done
+! rg -q 'cp.*libncurses/lib/terminfo|rm.*terminfo' "$scratch/production-hook.mk"
+# Exercise a real concurrent installer: the hook may run beside a terminfo
+# target, but must neither remove its directory nor substitute source files.
+trial="$scratch/case-1-1-0-none"
+mkdir -p "$trial/product/recovery/root/system/etc/terminfo/x"
+(
+    for ((i=0;i<100;i++)); do
+        printf 'declared-install-target\n' > "$trial/product/recovery/root/system/etc/terminfo/x/xterm-256color"
+    done
+) & installer=$!
+for ((i=0;i<10;i++)); do make --no-print-directory -C "$trial" >> "$trial/result.log" 2>&1; done
+wait "$installer"
+[[ $(cat "$trial/product/recovery/root/system/etc/terminfo/x/xterm-256color") == declared-install-target ]]
 printf 'Production recovery packaging hook: %d cases passed; fixture retained privately.\n' "$cases"

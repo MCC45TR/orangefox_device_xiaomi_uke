@@ -47,7 +47,7 @@ The actual production inner mount recipe wrote a 64 MiB incompressible regular f
 
 ## Compiler cache and validation
 
-Android and native C++ caches are separate below the ignored build tree and capped at 10 GB each. `host-ccache.sh` checks compiler content and clears permissive time/path sloppiness. Ccache does not cache Go graph generation, linking, packaging, tests or VM execution. Record counters rather than assume a warm build has eliminated memory pressure. Each Android job has a fresh output; its cache is a separate bind and the existing accepted output stays available until the [build-completion gate](BUILD-COMPLETION.md) publishes a new one.
+Android and native C++ caches are separate below the ignored build tree and capped at 10 GB each. `host-ccache.sh` checks compiler content and clears permissive time/path sloppiness. Ccache does not cache Go graph generation, linking, packaging, tests or VM execution. Record counters rather than assume a warm build has eliminated memory pressure. Each Android job owns a separate output. It starts empty unless an explicit, compatible unsealed project job supplies a provenance-bound reflink cache; installed payloads and images are invalidated before rebuilding. Reflinks avoid duplicating unchanged file extents, but changed objects, full content indexing and charged file cache still need disk and memory headroom. The existing accepted output stays available until the [build-completion gate](BUILD-COMPLETION.md) publishes the new one.
 
 ```sh
 CCACHE_MAXSIZE=10G ccache --dir build/ccache/android --show-stats
