@@ -49,7 +49,7 @@ sources=(build/soong build/blueprint bootable/recovery vendor/recovery vendor/tw
     external/lzma external/magisk-prebuilt external/libncurses
     external/lz4 external/zlib external/zstd external/boringssl
     external/toybox external/selinux external/roboto-fonts external/noto-fonts external/freetype bionic system/core system/extras
-    system/libbase system/libziparchive system/update_engine external/ntfs-3g external/jsoncpp external/libdrm)
+    system/libbase system/libziparchive system/update_engine system/vold external/ntfs-3g external/jsoncpp external/libdrm)
 verify_reviewed_patch() {
     local source_path=$1; shift
     local index="$source_work/verification-index" file expected actual
@@ -76,10 +76,15 @@ for path in "${sources[@]}"; do
                 cmp "$tree/$path/gui/ure.cpp" "$component/src/device/xiaomi/uke/ure-gui.cpp"
                 cmp "$tree/$path/ure-write-gate.hpp" "$component/src/device/xiaomi/uke/ure-write-gate.hpp"
                 cmp "$tree/$path/ure-lifecycle.hpp" "$component/src/device/xiaomi/uke/ure-lifecycle.hpp"
+                cmp "$tree/$path/ure-readonly-fstab-import.hpp" "$component/src/device/xiaomi/uke/ure-readonly-fstab-import.hpp"
+                cmp "$tree/$path/ure-telemetry.hpp" "$component/src/device/xiaomi/uke/ure-telemetry.hpp"
+                cmp "$tree/$path/ure-clock.hpp" "$component/src/device/xiaomi/uke/ure-clock.hpp"
+                cmp "$tree/$path/ure-theme.hpp" "$component/src/device/xiaomi/uke/ure-theme.hpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp ure-text-layout.hpp ure-text-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
                 done;;
             system/core) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check fastboot;;
+            system/vold) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check vold;;
             external/ntfs-3g) verify_reviewed_patch "$tree/$path" 0003-build-ntfsresize.patch;;
             external/zstd) verify_reviewed_patch "$tree/$path" 0009-native-boot-audit-codecs.patch;;
             external/freetype) bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/$path" check freetype;;

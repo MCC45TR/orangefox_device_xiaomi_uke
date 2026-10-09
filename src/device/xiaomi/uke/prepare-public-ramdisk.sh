@@ -9,6 +9,9 @@ phase=${2:?Missing callback phase}
     echo 'Refusing an unexpected ramdisk staging path' >&2; exit 1;
 }
 [[ -f $payload/system/bin/uke-recoveryctl && -f $payload/system/bin/uke-recovery-install ]]
+# The shell entry point uses the native setup parser and reviewed transactions.
+# It never embeds donor offsets or passes user input to a shell evaluator.
+ln -sf uke-recoveryctl "$payload/system/bin/partition"
 # An incremental relink target can retain yesterday's renderer while the GUI
 # executable already imports today's APIs. Install the exact source-built
 # renderer and fail packaging if its monitor entry points are missing.

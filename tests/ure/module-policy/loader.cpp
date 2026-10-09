@@ -138,11 +138,12 @@ extern "C" long __wrap_syscall(long number, ...) {
 }
 
 int main(int argc, char** argv) {
-    Require(argc == 3, "usage: fixture SYNTHETIC_DIR STOCK_FIXTURE_DIR");
+    Require(argc == 3 || (argc == 4 && std::string(argv[3]) == "marker-absent"),
+            "usage: fixture SYNTHETIC_DIR STOCK_FIXTURE_DIR [marker-absent]");
     android::base::SetMinimumLogSeverity(android::base::FATAL);
     const fs::path synthetic(argv[1]);
     Synthetic(synthetic);
-    recovery_present = true;
+    recovery_present = argc != 4;
     for (bool use_oem_blocklist : {false, true}) {
         Modprobe loader({synthetic.string()}, "modules.load.recovery", use_oem_blocklist);
         Require(loader.IsBlocklisted("charger-partition.ko"), "canonical denial absent");
@@ -180,14 +181,23 @@ int main(int argc, char** argv) {
     recovery_present = false;
     ResetAttempts();
     Modprobe normal({synthetic.string()}, "modules.load.recovery", false);
+#if defined(__ANDROID_RECOVERY__)
+    Require(normal.IsBlocklisted("charger_partition") && normal.IsBlocklisted("ufs_ffu"),
+            "missing executable marker disabled the recovery-build denial");
+    Require(!normal.LoadWithAliases("of:charger0", true) &&
+            !normal.LoadWithAliases("of:ufs0", true),
+            "missing executable marker admitted a denied alias");
+    NoDeniedAttempts();
+#else
     Require(!normal.IsBlocklisted("charger_partition") && !normal.IsBlocklisted("ufs_ffu"),
             "normal boot policy changed");
     Require(normal.LoadWithAliases("of:charger0", true) && normal.LoadWithAliases("of:ufs0", true),
             "normal alias behavior changed");
     Require(attempts.count("charger_partition.ko") && attempts.count("ufs_ffu.ko"),
             "normal mock insertion was not exercised");
+#endif
     Require(external_handler_attempts == 0, "unexpected external handler request");
     std::cout << "PASS: actual parser/loader/extension; direct, aliases, hard/soft dependencies, "
                  "sequential/parallel, missing OEM list, explicit bypass, exact stock dependency "
-                 "graph, and normal-boot behavior. Module syscalls were mocked.\n";
+                 "graph, and build-variant policy. Module syscalls were mocked.\n";
 }

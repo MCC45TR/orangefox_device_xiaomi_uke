@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Prepare the ignored OrangeFox checkout from a verified stock firmware profile.
 set -euo pipefail
+for tool_name in rg jq git sha256sum tar gzip sed awk cmp cp mkdir; do
+    command -v "$tool_name" >/dev/null || {
+        printf 'Required host tool is unavailable: %s\n' "$tool_name" >&2
+        exit 127
+    }
+done
 
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 profile=${1:?Usage: prepare-build-tree.sh PROFILE_ID}
@@ -21,6 +27,7 @@ entry=$(jq -ce --arg id "$profile" '.profiles[] | select(.id==$id and .download_
 soong_source="$tree/build/soong"
 bash "$component/scripts/prepare-reviewed-patches.sh" "$soong_source" apply soong
 bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/build/blueprint" apply blueprint
+bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/system/vold" apply vold
 bash "$component/scripts/prepare-android-text-layout.sh"
 bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/external/freetype" apply freetype
 [[ -f $vendor_directory_patch ]] || { echo 'Recovery vendor directory patch is missing' >&2; exit 1; }
@@ -115,6 +122,10 @@ for file in ure-text-layout.hpp ure-text-layout.cpp; do
 done
 copy_changed "$device_source/ure-write-gate.hpp" "$recovery_source/ure-write-gate.hpp"
 copy_changed "$device_source/ure-lifecycle.hpp" "$recovery_source/ure-lifecycle.hpp"
+copy_changed "$device_source/ure-readonly-fstab-import.hpp" "$recovery_source/ure-readonly-fstab-import.hpp"
+copy_changed "$device_source/ure-telemetry.hpp" "$recovery_source/ure-telemetry.hpp"
+copy_changed "$device_source/ure-clock.hpp" "$recovery_source/ure-clock.hpp"
+copy_changed "$device_source/ure-theme.hpp" "$recovery_source/ure-theme.hpp"
 for file in ure-localization.hpp ure-locale-keys.hpp; do
   copy_changed "$device_source/$file" "$recovery_source/$file"
 done

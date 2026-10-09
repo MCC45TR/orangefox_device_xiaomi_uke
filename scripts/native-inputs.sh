@@ -20,10 +20,12 @@ cd "$component"
     printf '%s\0' tests/check-tree-backup.sh
     printf '%s\0' tests/check-filesystems.sh tests/check-rescue.sh tests/check-boot-audit.sh tests/check-btrfs-vm.sh \
         tests/generate-management-hooks.sh src/device/xiaomi/uke/device.mk src/device/xiaomi/uke/ure-tools.lock.json src/device/xiaomi/uke/prepare-public-ramdisk.sh \
-        scripts/prepare-build-tree.sh scripts/build-public.sh patches/0009-native-boot-audit-codecs.patch \
+        scripts/prepare-build-tree.sh scripts/prepare-text-layout-sources.sh tests/check-host-prerequisites.sh scripts/build-public.sh patches/0009-native-boot-audit-codecs.patch \
         patches/0004-link-native-ure.patch patches/0041-chain-recovery-packaging-hooks.patch tests/check-recovery-packaging-hooks.sh src/upstream/orangefox-android16/bootable/recovery/Android.mk \
-        src/upstream/orangefox-android16/external/zstd/Android.bp
-    printf '%s\0' tests/check-layout.sh tests/generate-layout-hooks.sh src/device/xiaomi/uke/maintainer.xml patches/0008-partition-layout-graph.patch
+        src/upstream/orangefox-android16/external/zstd/Android.bp src/upstream/orangefox-android16/external/libncurses/Android.bp
+    printf '%s\0' tests/check-layout.sh tests/check-dualboot-vm.sh tests/check-formatter-handoff-vm.sh \
+        tests/vm/formatter-handoff.cpp tests/vm/strip-debug-module.sh \
+        tests/generate-layout-hooks.sh src/device/xiaomi/uke/maintainer.xml patches/0008-partition-layout-graph.patch
     printf '%s\0' tests/check-partition-job.sh tests/check-partition-job-vm.sh tests/check-sanitizers.sh scripts/with-host-budget.sh scripts/host-ccache.sh
     printf '%s\0' patches/0013-soong-host-memory-policy.patch src/upstream/orangefox-android16/build/soong/ui/build/soong.go
     printf '%s\0' scripts/host-budget-policy.sh scripts/run-host-budget-job.sh tests/check-host-budget.sh \
@@ -54,7 +56,9 @@ cd "$component"
         src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/boot_control/{Android.bp,libboot_control.cpp,include/libboot_control/libboot_control.h,include/private/boot_control_definition.h}
     printf '%s\0' src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/{BootControl.cpp,BootControl.h}
     printf '%s\0' patches/0042-refuse-unaccepted-boot-hal-resolution.patch patches/0043-system-only-boot-hal-library-path.patch \
-        patches/0044-read-extra-logical-metadata-records.patch tests/check-lp-record-reader.sh tests/f2fs-metadata-oracle-lib.sh tests/check-f2fs-metadata-oracle.sh \
+        patches/0044-read-extra-logical-metadata-records.patch patches/0045-use-declared-terminfo-install-targets.patch \
+        patches/0046-dualboot-recovery-only-reboot.patch patches/0047-dualboot-fastbootd-recovery-only-reboot.patch \
+        tests/check-lp-record-reader.sh tests/f2fs-metadata-oracle-lib.sh tests/check-f2fs-metadata-oracle.sh \
         tests/check-boot-hal-admission.sh tests/check-packed-startup-refusals.sh \
         tests/packed-startup-trace-lib.sh tests/check-packed-startup-trace-oracle.sh \
         src/upstream/orangefox-android16/hardware/interfaces/boot/{1.0,1.1,1.2}/default/{Android.bp,service.cpp} \
@@ -62,12 +66,41 @@ cd "$component"
         src/upstream/orangefox-android16/system/extras/bootctl/{Android.bp,bootctl.cpp} \
         src/upstream/orangefox-android16/bootable/recovery/etc/init/android.hardware.boot@{1.0,1.1,1.2}-service.rc \
         src/upstream/orangefox-android16/bootable/recovery/prebuilt/Android.mk
-    printf '%s\0' tests/check-recovery-first-stage.sh patches/0039-preserve-recovery-first-stage-root.patch \
+    printf '%s\0' tests/check-recovery-first-stage.sh tests/check-recovery-first-stage-cmdline.sh patches/0039-preserve-recovery-first-stage-root.patch \
         src/upstream/orangefox-android16/system/core/init/first_stage_init.cpp \
         src/upstream/orangefox-android16/system/libbase/include/android-base/unique_fd.h
     printf '%s\0' tests/check-recovery-module-policy.sh patches/0040-recovery-block-automatic-storage-modules.patch \
         src/upstream/orangefox-android16/system/core/libmodprobe/{libmodprobe.cpp,libmodprobe_ext.cpp,exthandler.cpp} \
         src/upstream/orangefox-android16/system/core/libmodprobe/include/{modprobe/modprobe.h,exthandler/exthandler.h}
+    printf '%s\0' src/device/xiaomi/uke/ure-readonly-fstab-import.hpp patches/0048-readonly-vendor-fstab-import.patch \
+        tests/check-readonly-fstab-import.sh src/upstream/orangefox-android16/bootable/recovery/partitionmanager.cpp \
+        src/upstream/orangefox-android16/bootable/recovery/ure-readonly-fstab-import.hpp
+    printf '%s\0' patches/0049-serialize-fox-command-admission.patch tests/check-fox-command-admission.sh \
+        src/upstream/orangefox-android16/bootable/recovery/fox_fifo/fox_remote_state.cpp
+    printf '%s\0' configs/vold-patches.list patches/0050-vold-optional-key-upgrade.patch tests/check-vold-key-upgrade.sh \
+        src/upstream/orangefox-android16/system/vold/KeyStorage.cpp src/upstream/orangefox-android16/system/vold/Keystore.h
+    printf '%s\0' patches/0051-preserve-tracking-id-touch-release.patch tests/check-touch-release.sh \
+        tests/ure/touch_release.cpp tests/ure/fixtures/touch-four-contacts.events \
+        src/upstream/orangefox-android16/bootable/recovery/minuitwrp/events.cpp
+    printf '%s\0' patches/0052-isolate-touch-device-parser-state.patch tests/check-touch-device-state.sh \
+        patches/0053-bounded-uke-battery-cpu-telemetry.patch patches/0058-propagate-uke-telemetry-build-flags.patch \
+        src/device/xiaomi/uke/ure-telemetry.hpp tests/check-telemetry.sh \
+        src/upstream/orangefox-android16/bootable/recovery/{ure-telemetry.hpp,data.cpp,gui/battery.cpp,gui/libfoxui_defaults.go,orangefox_soong.mk} \
+        src/upstream/orangefox-android16/vendor/twrp/config/BoardConfigSoong.mk \
+        patches/0054-bound-synthetic-password-records.patch tests/check-fbe-parser.sh \
+        src/upstream/orangefox-android16/system/vold/{Decrypt.cpp,ure-fbe-parser.hpp,ure-fbe-gcm.hpp} \
+        patches/0055-authenticate-synthetic-password-gcm.patch tests/check-fbe-gcm.sh
+    printf '%s\0' patches/0059-bound-existing-protector-weaver-reads.patch tests/check-weaver.sh \
+        src/upstream/orangefox-android16/system/vold/{Weaver1.cpp,Weaver1.h,ure-weaver-policy.hpp}
+    printf '%s\0' patches/0060-use-parent-paths-for-gui-support-headers.patch \
+        patches/0057-read-validated-uke-rtc-offset.patch src/device/xiaomi/uke/ure-clock.hpp tests/check-clock.sh \
+        src/upstream/orangefox-android16/bootable/recovery/ure-clock.hpp \
+        patches/0056-native-session-theme-application.patch src/device/xiaomi/uke/ure-theme.hpp \
+        src/upstream/orangefox-android16/bootable/recovery/ure-theme.hpp tests/check-native-theme.sh tests/check-reviewed-additions.sh \
+        src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi/pages/{customization.xml,templates/templates.xml}
+    find src/device/xiaomi/uke/clock-sync -type f -print0
+    printf '%s\0' tests/check-clock-mount.sh tests/check-clock-mount-vm.sh
+    find src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi/themes/{styles,sed} -type f -print0
     find src/device/xiaomi/uke/recovery/root src/device/xiaomi/uke/sepolicy -type f -print0
     printf '%s\0' tests/check-recovery-startup.sh
     printf '%s\0' tests/generate-text-decoder.sh patches/0022-bounded-utf8-text.patch \

@@ -54,6 +54,21 @@ UKE_RECOVERYCTL_BINARY="$component/build/ure-host/uke-recoveryctl" bash tests/ch
 bash tests/check-installer.sh
 bash tests/check-write-gate.sh
 bash tests/check-boot-hal-admission.sh
+bash tests/check-recovery-first-stage-cmdline.sh
+bash tests/check-readonly-fstab-import.sh
+bash tests/check-fox-command-admission.sh
+bash tests/check-vold-key-upgrade.sh
+bash tests/check-touch-release.sh
+bash tests/check-touch-device-state.sh
+bash tests/check-telemetry.sh
+bash tests/check-fbe-parser.sh
+bash tests/check-fbe-gcm.sh
+bash tests/check-weaver.sh
+bash tests/check-clock.sh
+bash tests/check-clock-mount.sh
+bash tests/check-native-theme.sh
+bash tests/check-reviewed-additions.sh
+bash tests/check-host-prerequisites.sh
 bash tests/check-lp-record-reader.sh
 startup_trace_scope=$(mktemp -d "$component/build/native-packed-startup-text-XXXXXXXX")
 bash tests/check-packed-startup-trace-oracle.sh "$startup_trace_scope"
@@ -122,5 +137,11 @@ jq -n --arg inputs "$(sha256sum reports/private/native-test-inputs.sha256 | cut 
         .validation.rescue_owner_bound_cancel=true | .validation.rescue_admission_refusal_and_retained_cleanup=true |
         .validation.rescue_gui_latency=false | .validation.shipping_rescue_resource_backend_accepted=false |
         .validation.rescue_external_restart_recovery=false' \
+    | jq '.validation.per_device_touch_parser_and_release=true | .validation.bounded_telemetry_and_actual_gui_paths=true |
+        .validation.bounded_fbe_record_and_kdf_controls=true | .validation.authenticated_fbe_gcm_and_cleanup=true |
+        .validation.weaver_config_buffer_reply_and_retry_delay_controls=true |
+        .validation.validated_rtc_offset_controls=true | .validation.private_rtc_mount_policy_controls=true | .validation.native_session_theme_controls=true |
+        .validation.reviewed_added_source_files=true | .validation.physical_fbe_access=false |
+        .validation.persistent_settings_accepted=false | .validation.fresh_image_touch_startup_accepted=false' \
     > reports/private/native-verification.json
 echo 'Native host fixture gates passed and recorded against exact source inputs.'

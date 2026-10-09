@@ -41,6 +41,7 @@ case $mode in
         for kind in soong blueprint; do bash "$build_scripts/prepare-reviewed-patches.sh" "$android/build/$kind" check "$kind"; done
         bash "$build_scripts/prepare-reviewed-patches.sh" "$android/bootable/recovery" check recovery
         bash "$build_scripts/prepare-reviewed-patches.sh" "$android/system/core" check fastboot
+        bash "$build_scripts/prepare-reviewed-patches.sh" "$android/system/vold" check vold
         mkdir -p "$component/build/android-builds"
         chmod 0700 "$component/build/android-builds"
         # Reserve an unguessable job name without exposing an old output to begin.

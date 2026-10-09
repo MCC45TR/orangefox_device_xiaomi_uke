@@ -2,6 +2,7 @@
 # Accept only an exact reviewed prefix, then stage the complete reviewed stack.
 # Overlapping patches must not weaken earlier context checks or admit local edits.
 set -euo pipefail
+export LC_ALL=C LANG=C
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 source_path=${1:?Pinned active source is required}
 mode=${2:-apply}
@@ -14,6 +15,7 @@ case $kind in
     blueprint) pin=dcb14f2e146f40cf1f212efb220e9aa1f3cfc280; patch_list=blueprint-patches.list;;
     freetype) pin=d968d2541f7158e18ab22680bfa08a538019bf6a; patch_list=freetype-patches.list;;
     boot-control) pin=bdefb2a8bce20dc15882d4ab668fb628c427e26b; patch_list=boot-control-patches.list;;
+    vold) pin=953de9608eb78380b3c4e39e801c2bc0af7dbddc; patch_list=vold-patches.list;;
     *) echo 'Unknown reviewed component' >&2; exit 1;;
 esac
 [[ $(git -C "$source_path" rev-parse HEAD) == "$pin" ]]
@@ -24,9 +26,18 @@ index="$scratch/index"
 GIT_INDEX_FILE="$index" git -C "$source_path" read-tree HEAD
 matches_index() {
     cmp -s <(GIT_INDEX_FILE="$index" git -C "$source_path" diff --cached --name-only HEAD) \
-        <(git -C "$source_path" diff --name-only HEAD) || return 1
+        <({
+            git -C "$source_path" diff --name-only HEAD
+            # A reviewed patch may add a file that is intentionally not staged
+            # in the active checkout. Admit only additions named by this exact
+            # prefix; unrelated untracked files are not a source receipt.
+            while IFS= read -r added; do
+                [[ ! -e $source_path/$added ]] || printf '%s\n' "$added"
+            done < <(GIT_INDEX_FILE="$index" git -C "$source_path" diff --cached --diff-filter=A --name-only HEAD)
+        } | LC_ALL=C sort -u) || return 1
     local path
     while IFS= read -r path; do
+        [[ -f $source_path/$path && ! -L $source_path/$path ]] || return 1
         cmp -s <(GIT_INDEX_FILE="$index" git -C "$source_path" show ":$path") "$source_path/$path" || return 1
     done < <(GIT_INDEX_FILE="$index" git -C "$source_path" diff --cached --name-only HEAD)
 }

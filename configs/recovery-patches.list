@@ -23,3 +23,13 @@
 0041-chain-recovery-packaging-hooks.patch
 0043-system-only-boot-hal-library-path.patch
 0045-use-declared-terminfo-install-targets.patch
+0046-dualboot-recovery-only-reboot.patch
+0048-readonly-vendor-fstab-import.patch
+0049-serialize-fox-command-admission.patch
+0051-preserve-tracking-id-touch-release.patch
+0052-isolate-touch-device-parser-state.patch
+0053-bounded-uke-battery-cpu-telemetry.patch
+0058-propagate-uke-telemetry-build-flags.patch
+0057-read-validated-uke-rtc-offset.patch
+0056-native-session-theme-application.patch
+0060-use-parent-paths-for-gui-support-headers.patch

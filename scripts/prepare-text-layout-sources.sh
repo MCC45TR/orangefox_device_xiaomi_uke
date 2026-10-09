@@ -2,6 +2,12 @@
 # Stage immutable shaping sources; never execute reference build scripts.
 set -euo pipefail
 export LC_ALL=C
+for tool_name in rg jq git tar sha256sum cut find diff sort sed patch realpath cmp readlink cp mkdir; do
+    command -v "$tool_name" >/dev/null || {
+        printf 'Required host tool is unavailable: %s\n' "$tool_name" >&2
+        exit 127
+    }
+done
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$component"
 lock=manifests/text-layout.lock.json
