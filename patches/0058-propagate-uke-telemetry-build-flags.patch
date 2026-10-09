@@ -1,0 +1,35 @@
+--- a/Android.mk
++++ b/Android.mk
+@@ -277,6 +277,9 @@
+ ifeq ($(TW_NO_REBOOT_RECOVERY), true)
+     LOCAL_CFLAGS += -DTW_NO_REBOOT_RECOVERY
+ endif
++ifeq ($(TW_UKE_BOUNDED_TELEMETRY), true)
++    LOCAL_CFLAGS += -DTW_UKE_BOUNDED_TELEMETRY
++endif
+ ifeq ($(TW_NO_BATT_PERCENT), true)
+     LOCAL_CFLAGS += -DTW_NO_BATT_PERCENT
+ endif
+--- a/orangefox_soong.mk
++++ b/orangefox_soong.mk
+@@ -20,5 +20,6 @@
+ 
+ # additional soong variables
+ EXPORT_TO_SOONG += \
+-   OF_LANDSCAPE_MODE
++   OF_LANDSCAPE_MODE \
++   TW_UKE_BOUNDED_TELEMETRY
+ #
+--- a/gui/libfoxui_defaults.go
++++ b/gui/libfoxui_defaults.go
+@@ -273,6 +273,10 @@
+ func globalFlags(ctx android.BaseContext) []string {
+ 	var cflags []string
+ 
++	if getMakeVars(ctx, "TW_UKE_BOUNDED_TELEMETRY") == "true" {
++		cflags = append(cflags, "-DTW_UKE_BOUNDED_TELEMETRY")
++	}
++
+ 
+ 	if getMakeVars(ctx, "AB_OTA_UPDATER") == "true" {
+ 		cflags = append(cflags, "-DAB_OTA_UPDATER=1")

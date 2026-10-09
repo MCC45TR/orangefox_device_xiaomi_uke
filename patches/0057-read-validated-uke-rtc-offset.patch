@@ -1,0 +1,64 @@
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -22,6 +22,9 @@
+ 
+ #include "ure-write-gate.hpp"
+ #include "ure-lifecycle.hpp"
++#ifdef TW_UKE_RTC_OFFSET
++#include "ure-clock.hpp"
++#endif
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -1665,6 +1668,19 @@
+ #endif
+ }
+ 
++#ifdef TW_UKE_RTC_OFFSET
++void TWFunc::Fixup_Time_On_Boot(const string& time_paths)
++{
++	(void)time_paths;
++	static std::mutex lock;
++	static bool fixed = false;
++	const std::lock_guard<std::mutex> guard(lock);
++	if (fixed) return;
++	const auto state = ure::clock::apply();
++	fixed = state == ure::clock::State::observed || state == ure::clock::State::applied;
++	DataManager::SetValue("ure_clock_available", fixed ? "1" : "0");
++}
++#else
+ #ifndef OF_USE_LEGACY_TIME_FIXUP
+ void TWFunc::Fixup_Time_On_Boot(const string& time_paths)
+ {
+@@ -2044,6 +2060,7 @@
+ #endif
+ }
+ #endif // ifdef OF_USE_LEGACY_TIME_FIXUP
++#endif // TW_UKE_RTC_OFFSET
+ 
+ std::vector < std::string > TWFunc::Split_String(const std::string & str,
+ 						 const std::
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -565,6 +565,9 @@
+ 	// Function to monitor battery in the background
+ 	auto monitorBatteryInBackground = [&]() {
+ 		while (true) {
++#ifdef TW_UKE_RTC_OFFSET
++			TWFunc::Fixup_Time_On_Boot();
++#endif
+ #ifdef TW_UKE_BOUNDED_TELEMETRY
+ 			const auto sample = ure::telemetry::observe_battery();
+ 			// Every observation replaces the prior state, including failures.
+--- a/Android.mk
++++ b/Android.mk
+@@ -277,6 +277,9 @@
+ ifeq ($(TW_NO_REBOOT_RECOVERY), true)
+     LOCAL_CFLAGS += -DTW_NO_REBOOT_RECOVERY
+ endif
++ifeq ($(TW_UKE_RTC_OFFSET), true)
++    LOCAL_CFLAGS += -DTW_UKE_RTC_OFFSET
++endif
+ ifeq ($(TW_UKE_BOUNDED_TELEMETRY), true)
+     LOCAL_CFLAGS += -DTW_UKE_BOUNDED_TELEMETRY
+ endif

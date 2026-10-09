@@ -1,0 +1,265 @@
+--- a/Android.mk
++++ b/Android.mk
+@@ -277,6 +277,9 @@
+ ifeq ($(TW_NO_REBOOT_RECOVERY), true)
+     LOCAL_CFLAGS += -DTW_NO_REBOOT_RECOVERY
+ endif
++ifeq ($(TW_UKE_NATIVE_THEME), true)
++    LOCAL_CFLAGS += -DTW_UKE_NATIVE_THEME
++endif
+ ifeq ($(TW_UKE_RTC_OFFSET), true)
+     LOCAL_CFLAGS += -DTW_UKE_RTC_OFFSET
+ endif
+--- a/data.cpp
++++ b/data.cpp
+@@ -735,6 +735,9 @@
+ 
+ void DataManager::SetDefaultValues()
+ {
++#ifdef TW_UKE_NATIVE_THEME
++  mConst.SetValue("ure_native_theme", "1");
++#endif
+   string str, path;
+ 
+   mConst.SetConst();
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -78,6 +78,9 @@
+ 
+ #include "rapidxml.hpp"
+ #include "objects.hpp"
++#ifdef TW_UKE_NATIVE_THEME
++#include "ure-theme.hpp"
++#endif
+ #include "pages.hpp"
+ #include "tw_atomic.hpp"
+ 
+@@ -324,6 +327,9 @@
+       ADD_ACTION(batch);
+       ADD_ACTION(generatedigests);
+       ADD_ACTION(ftls); //ftls (foxtools) - silent cmd
++#ifdef TW_UKE_NATIVE_THEME
++      ADD_ACTION(uretheme);
++#endif
+    }
+ 
+   // First, get the action
+@@ -1954,6 +1960,30 @@
+   return 0;
+ }
+ 
++#ifdef TW_UKE_NATIVE_THEME
++int GUIAction::uretheme(std::string arg)
++{
++    (void)arg;
++    if (DataManager::GetIntValue("update_fonts") || DataManager::GetIntValue("update_navbar")) {
++        gui_err("Theme font/navigation changes require an accepted settings storage path.");
++        return 1;
++    }
++    ure::theme::Overlay overlay;
++    if (!DataManager::GetIntValue("remove_theme") && !ure::theme::prepare(
++            DataManager::GetStrValue("theme_style_tmp"), DataManager::GetStrValue("theme_accent_tmp"),
++            DataManager::GetStrValue("theme_accent_light_tmp"), DataManager::GetStrValue("theme_accent_dark_tmp"),
++            DataManager::GetStrValue("theme_style_act_tmp") == "Default", overlay)) {
++        gui_err("Unable to apply the selected packaged theme.");
++        return 1;
++    }
++    ure::theme::commit(std::move(overlay));
++    DataManager::SetValue("needs_repack", 0);
++    DataManager::SetValue("remove_theme", 0);
++    PageManager::RequestUreThemeReload();
++    return 0;
++}
++#endif
++
+ int GUIAction::ftls(std::string arg)
+ {
+   if (!ure_legacy_write_guard(ure::LegacyWrite::Script)) return 1;
+--- a/gui/libfoxui_defaults.go
++++ b/gui/libfoxui_defaults.go
+@@ -273,6 +273,9 @@
+ func globalFlags(ctx android.BaseContext) []string {
+ 	var cflags []string
+ 
++	if getMakeVars(ctx, "TW_UKE_NATIVE_THEME") == "true" {
++		cflags = append(cflags, "-DTW_UKE_NATIVE_THEME")
++	}
+ 	if getMakeVars(ctx, "TW_UKE_BOUNDED_TELEMETRY") == "true" {
+ 		cflags = append(cflags, "-DTW_UKE_BOUNDED_TELEMETRY")
+ 	}
+--- a/gui/objects.hpp
++++ b/gui/objects.hpp
+@@ -656,6 +656,9 @@
+ 	int reflashtwrp(std::string arg);
+ 	int fixabrecoverybootloop(std::string arg);
+ 	int ftls(std::string arg);
++#ifdef TW_UKE_NATIVE_THEME
++	int uretheme(std::string arg);
++#endif
+ 
+ 	int enableadb(std::string arg);
+ 	int enablefastboot(std::string arg);
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -59,6 +59,10 @@
+ #include "minuitwrp/truetype.hpp"
+ 
+ #include "rapidxml.hpp"
++#ifdef TW_UKE_NATIVE_THEME
++#include "ure-theme.hpp"
++static std::atomic<bool> ure_native_theme_reload{false};
++#endif
+ #include "objects.hpp"
+ #include "blanktimer.hpp"
+ 
+@@ -1766,6 +1770,9 @@
+ 	char* buffer = NULL;
+ 
+ 	if (!package) {
++#ifdef TW_UKE_NATIVE_THEME
++        if (ure::theme::buffer(filename, DataManager::GetStrValue("fox_theme_path"), &buffer)) return buffer;
++#endif
+ 		// We can try to load the XML directly...
+ 		LOGINFO("PageManager::LoadFileToBuffer loading filename: '%s' directly\n", filename.c_str());
+ 		struct stat st;
+@@ -2084,6 +2091,24 @@
+ 	if (!mReloadTheme.exchange(false))
+ 		return 0;
+ 
++#ifdef TW_UKE_NATIVE_THEME
++    if (ure_native_theme_reload.exchange(false)) {
++        const std::string previous_start = mStartPage;
++        mStartPage = "ext_custom_theme";
++        ret_val = ReloadPackage("OrangeFox", TWRES "ui.xml");
++        if (ret_val != 0) {
++            ure::theme::rollback();
++            ret_val = ReloadPackage("OrangeFox", TWRES "ui.xml");
++        }
++        mStartPage = previous_start;
++        if (DataManager::GetStrValue("tw_language") != "en") LoadLanguage(DataManager::GetStrValue("tw_language"));
++        DataManager::SetValue("pass_open", isPassOpen);
++        gui_forceRender();
++        gui_changePage("ext_custom_theme");
++        return ret_val;
++    }
++#endif
++
+ 	if (ure_reload_theme.exchange(false)) {
+ 		int previous = DataManager::GetIntValue("ure_ui_scale_applied");
+ 		const std::string previous_start = mStartPage;
+@@ -2149,6 +2174,13 @@
+ 	mReloadTheme = true;
+ }
+ 
++#ifdef TW_UKE_NATIVE_THEME
++void PageManager::RequestUreThemeReload() {
++    ure_native_theme_reload = true;
++    mReloadTheme = true;
++}
++#endif
++
+ void PageManager::RequestUreReload() {
+ 	// Defer resource destruction to the render thread. Density changes must
+ 	// not flush settings, mount userdata or write calibration storage.
+--- a/gui/pages.hpp
++++ b/gui/pages.hpp
+@@ -218,6 +218,9 @@
+ 	static int RunReload();
+ 	static void RequestReload();
+ 	static void RequestUreReload();
++#ifdef TW_UKE_NATIVE_THEME
++	static void RequestUreThemeReload();
++#endif
+ 	static void SetStartPage(const std::string& page_name);
+ 
+ 	// Used for actions and pages
+--- a/gui/theme/portrait_hdpi/pages/customization.xml
++++ b/gui/theme/portrait_hdpi/pages/customization.xml
+@@ -1883,9 +1883,14 @@
+ 		</page>
+ 
+ 		<page name="apply_changes">
++            <action>
++                <condition var1="ure_native_theme" var2="1"/>
++                <action function="uretheme"/>
++            </action>
+ 			<template name="dialog_body"/>
+ 			
+ 			<action>
++                <condition var1="ure_native_theme" op="!=" var2="1"/>
+ 				<action function="ftls">
+ 					#Remove theme
+ 					if [[ '%remove_theme%' = '1' ]] || [[ '%theme_style_tmp%' = 'Cream' &amp;&amp; '%theme_accent_tmp%' = 'Orange' &amp;&amp; '%theme_font_tmp%' = 'Roboto' &amp;&amp; '%theme_sec_font_tmp%' = 'GoogleSans' &amp;&amp; '%theme_font_size_tmp%' = 'n' ]]; then
+--- a/gui/theme/portrait_hdpi/pages/templates/templates.xml
++++ b/gui/theme/portrait_hdpi/pages/templates/templates.xml
+@@ -367,13 +367,15 @@
+ 			</image>
+ 
+ 			<text style="text_body1">
++                <condition var1="ure_native_theme" op="!=" var2="1"/>
+ 				<condition var1="needs_repack" var2="1"/>
+ 				<condition var1="fileexists" op="!=" var2="%fox_settings_path%"/>
+ 				<placement x="%snackbar_text_x%" y="%snackbar_text_y%"/>
+-				<text>{@cant_access_data}</text>
++                <text>{@cant_access_data}</text>
+ 			</text>
+ 
+ 			<text style="text_body1">
++                <condition var1="ure_native_theme" op="!=" var2="1"/>
+ 				<condition var1="fileexists" var2="%fox_settings_path%"/>
+ 				<condition var1="needs_repack" var2="1"/>
+ 				<condition var1="remove_theme" op="!=" var2="1"/>
+@@ -382,6 +384,7 @@
+ 			</text>
+ 			
+ 			<text style="text_body1">
++                <condition var1="ure_native_theme" op="!=" var2="1"/>
+ 				<condition var1="fileexists" var2="%fox_settings_path%"/>
+ 				<condition var1="needs_repack" var2="1"/>
+ 				<condition var1="remove_theme" var2="1"/>
+@@ -390,6 +393,7 @@
+ 			</text>
+ 			
+ 			<button style="btn_dlg_hl">
++                <condition var1="ure_native_theme" op="!=" var2="1"/>
+ 				<condition var1="fileexists" var2="%fox_settings_path%"/>
+ 				<condition var1="needs_repack" var2="1"/>
+ 				<condition var1="remove_theme" op="!=" var2="1"/>
+@@ -400,6 +404,7 @@
+ 			</button>
+ 			
+ 			<button style="btn_dlg_hl">
++                <condition var1="ure_native_theme" op="!=" var2="1"/>
+ 				<condition var1="fileexists" var2="%fox_settings_path%"/>
+ 				<condition var1="needs_repack" var2="1"/>
+ 				<condition var1="remove_theme" var2="1"/>
+@@ -428,6 +433,19 @@
+ 				<action function="set">theme_style_tmp=%theme_style%</action>
+ 				<action function="overlay">apply_changes</action>
+ 			</button>
++            <button style="btn_dlg_hl">
++                <condition var1="ure_native_theme" var2="1"/>
++                <condition var1="needs_repack" var2="1"/>
++                <placement x="%snackbar_button_x%" y="%snackbar_button_y%"/>
++                <text>{@apply_btn}</text>
++                <action function="uretheme"/>
++            </button>
++            <text style="text_body1">
++                <condition var1="ure_native_theme" var2="1"/>
++                <condition var1="needs_repack" var2="1"/>
++                <placement x="%snackbar_text_x%" y="%snackbar_text_y%"/>
++                <text>{@ure_theme_session_only=Applies to this session; saving requires unlocked storage.}</text>
++            </text>
+ 		</template>
+ 		
+ 		<template name="t_system">
+--- a/orangefox_soong.mk
++++ b/orangefox_soong.mk
+@@ -21,5 +21,6 @@
+ # additional soong variables
+ EXPORT_TO_SOONG += \
+    OF_LANDSCAPE_MODE \
+-   TW_UKE_BOUNDED_TELEMETRY
++   TW_UKE_BOUNDED_TELEMETRY \
++   TW_UKE_NATIVE_THEME
+ #

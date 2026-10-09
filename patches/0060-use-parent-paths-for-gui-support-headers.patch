@@ -1,0 +1,22 @@
+From: Uke recovery maintainers
+Subject: [PATCH] gui: resolve recovery support headers from the parent directory
+
+The Soong GUI target does not search the recovery root for quoted headers.
+Use explicit parent paths, as the existing GUI recovery integrations do.
+Host fragment tests alone did not exercise this Android include boundary.
+
+--- a/gui/battery.cpp
++++ b/gui/battery.cpp
+@@ -49 +49 @@
+-#include "ure-telemetry.hpp"
++#include "../ure-telemetry.hpp"
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -82 +82 @@
+-#include "ure-theme.hpp"
++#include "../ure-theme.hpp"
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -63 +63 @@
+-#include "ure-theme.hpp"
++#include "../ure-theme.hpp"

@@ -1,0 +1,163 @@
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -30,6 +30,9 @@
+ #include <thread>
+ #include <chrono>
+ #include "recovery_utils/battery_utils.h"
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++#include "ure-telemetry.hpp"
++#endif
+ #include "gui/twmsg.h"
+ #include "cutils/properties.h"
+ 
+@@ -553,13 +556,23 @@
+ 	// Load up all the resources
+ 	gui_loadResources();
+ 
++#ifndef TW_UKE_BOUNDED_TELEMETRY
+ 	std::string value;
+ 	static char charging = ' ';
+ 	static int lastVal = -1;
++#endif
+ 
+ 	// Function to monitor battery in the background
+ 	auto monitorBatteryInBackground = [&]() {
+ 		while (true) {
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++			const auto sample = ure::telemetry::observe_battery();
++			// Every observation replaces the prior state, including failures.
++			DataManager::SetValue("ure_battery_available", sample.available() ? "1" : "0");
++			DataManager::SetValue("tw_battery_charge", ure::telemetry::battery_text(sample, true));
++			DataManager::SetValue("tw_battery", ure::telemetry::battery_text(sample, false));
++			DataManager::SetValue("charging_now", sample.charging() ? "1" : "0");
++#else
+ #ifdef TW_USE_LEGACY_BATTERY_SERVICES
+ 			char cap_s[4];
+ #ifdef TW_CUSTOM_BATTERY_PATH
+@@ -606,6 +619,7 @@
+ 			DataManager::SetValue("tw_battery_charge", value + "%" + charging);
+ 			DataManager::SetValue("tw_battery", value);
+ 			DataManager::SetValue("charging_now", (charging == '+') ? "1" : "0");
++#endif // TW_UKE_BOUNDED_TELEMETRY
+ 
+ 			// Check usb_otg status
+ 			PartitionManager.Check_UsbOtg_Status();
+--- a/data.cpp
++++ b/data.cpp
+@@ -30,6 +30,9 @@
+ #include <private/android_filesystem_config.h>
+ #include "variables.h"
+ #include "data.hpp"
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++#include "ure-telemetry.hpp"
++#endif
+ #include "partitions.hpp"
+ #include "twrp-functions.hpp"
+ #ifndef TW_NO_SCREEN_TIMEOUT
+@@ -1035,7 +1038,14 @@
+ #else
+   mConst.SetValue(TW_NO_BATTERY_PERCENT, "0");
+ #endif
+-#ifdef TW_NO_CPU_TEMP
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++  // Keep the observer enabled when providers register after GUI startup.
++  mConst.SetValue("tw_no_cpu_temp", "0");
++  mData.SetValue("tw_battery", "--");
++  mData.SetValue("tw_battery_charge", "--");
++  mData.SetValue("ure_battery_available", "0");
++  mData.SetValue("charging_now", "0");
++#elif defined(TW_NO_CPU_TEMP)
+   printf("TW_NO_CPU_TEMP := true\n");
+   mConst.SetValue("tw_no_cpu_temp", "1");
+ #else
+@@ -1558,8 +1568,17 @@
+ 		value = tmp;
+ 		return 0;
+ 	}
+-	else if (varName == "tw_cpu_temp")
++	else if (varName == "tw_cpu_temp"
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++		|| varName == "ure_cpu_temp_available"
++#endif
++	)
+ 	{
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++		const auto sample = ure::telemetry::cpu_snapshot();
++		value = varName == "ure_cpu_temp_available" ? (sample.available() ? "1" : "0") : ure::telemetry::temperature_text(sample);
++		return 0;
++#else
+ 		int tw_no_cpu_temp;
+ 		GetValue("tw_no_cpu_temp", tw_no_cpu_temp);
+ 		if (tw_no_cpu_temp == 1) return -1;
+@@ -1591,6 +1610,7 @@
+ 		}
+ 		value = TWFunc::to_string(convert_temp);
+ 		return 0;
++#endif // TW_UKE_BOUNDED_TELEMETRY
+ 	}
+ 	return -1;
+ }
+@@ -1857,4 +1877,3 @@
+     }
+ }
+ #endif
+-
+--- a/gui/battery.cpp
++++ b/gui/battery.cpp
+@@ -45,6 +45,9 @@
+ 
+ #include "rapidxml.hpp"
+ #include "objects.hpp"
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++#include "ure-telemetry.hpp"
++#endif
+ 
+ GUIBattery::GUIBattery(xml_node<>* node)
+ 	: GUIObject(node)
+@@ -132,6 +135,12 @@
+ 	int mBatteryPercent = DataManager::GetIntValue("tw_battery");
+ 	int mBatteryCharge = DataManager::GetIntValue("charging_now");
+ 	int mBatteryIcon = DataManager::GetIntValue("enable_battery");
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++	const std::string capacity = DataManager::GetStrValue("tw_battery");
++	const bool available = DataManager::GetIntValue("ure_battery_available") == 1 &&
++		ure::telemetry::capacity_value(capacity, mBatteryPercent);
++	if (!available) { mBatteryPercent = 0; mBatteryCharge = 0; }
++#endif
+ 	ImageResource* finalImage;
+ 
+ 	if (mBatteryPercent > 15 || mBatteryCharge == 1)
+@@ -141,10 +150,17 @@
+ 
+ 	mBatteryPercentStr = mBatteryIcon == 0 ? DataManager::GetStrValue("tw_battery_charge") :
+ 											 DataManager::GetStrValue("tw_battery") + "%" ;
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++	if (!available) mBatteryPercentStr = "--";
++#endif
+ 	
+ 	int textW = twrpTruetype::gr_ttf_measureEx(mBatteryPercentStr.c_str(), fontResource);
+ 	
+-	if (mBatteryIcon == 1) {
++	if (mBatteryIcon == 1
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++		&& available
++#endif
++	) {
+ 		int iconRealX = textW + mPadding + mRenderW;
+ 
+ 		if (mStateMode) {
+@@ -157,8 +173,14 @@
+ 			else 				           finalImage = mImg5  ;
+ 		} else {
+ 			finalImage = (mBatteryPercent > 15 || mBatteryCharge == 1) ? mImg : mLowImg;
++#ifdef TW_UKE_BOUNDED_TELEMETRY
++			const int height = ure::telemetry::fill_height(mDH, mBatteryPercent);
++			if (height > 0 && mDW > 0)
++				gr_fill(mDX - iconRealX, mDY+mDH-height, mDW + 1, height);
++#else
+ 			int height = mDH * mBatteryPercent / 100;
+ 			gr_fill(mDX - iconRealX, mDY+mDH-height, mDW + 1, height + 1);
++#endif
+ 		}
+ 
+ 		if (!finalImage || !finalImage->GetResource())

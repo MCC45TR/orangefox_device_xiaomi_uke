@@ -26,6 +26,13 @@ BOARD_USES_GENERIC_KERNEL_IMAGE := true
 BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE := true
 BOARD_RAMDISK_USE_LZ4 := true
 
+# Dedicated kernel-less recovery omits INTERNAL_KERNEL_CMDLINE. Pass both
+# safeguards through its own header while retaining all common mkbootimg args.
+# rdinit selects the reviewed loader even if init_boot provides /init; the
+# kernel blacklist also covers loaders that bypass libmodprobe. Header presence
+# alone does not establish that a particular bootloader honors these arguments.
+BOARD_RECOVERY_MKBOOTIMG_ARGS = $(BOARD_MKBOOTIMG_ARGS) --cmdline "rdinit=/system/bin/init module_blacklist=charger_partition,ufs_ffu"
+
 AB_OTA_UPDATER := true
 AB_OTA_PARTITIONS := \
     boot \
@@ -103,3 +110,6 @@ TW_DEFAULT_LANGUAGE := en
 TW_EXCLUDE_DEFAULT_USB_INIT := true
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy
 TW_INPUT_BLACKLIST := hbtp_vm
+TW_UKE_BOUNDED_TELEMETRY := true
+TW_UKE_RTC_OFFSET := true
+TW_UKE_NATIVE_THEME := true

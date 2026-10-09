@@ -26,6 +26,9 @@ OF_FLASHLIGHT_ENABLE := 0
 # FBE access remains off for the first build profile. It will be enabled only
 # after firmware-matched KeyMint/TEE evidence and a read-only device test.
 OF_SKIP_FBE_DECRYPTION := 1
+# Persist contains device calibration. Settings and password backups must use
+# accepted user storage; never use the OEM persist fallback for either.
+OF_DEVICE_WITHOUT_PERSIST := 1
 OF_MAINTAINER := MCC45TR
 
 # Compile Bash from the locked source instead of shipping the vendor prebuilt,

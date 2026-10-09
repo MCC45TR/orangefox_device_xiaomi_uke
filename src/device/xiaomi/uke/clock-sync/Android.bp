@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Standalone recovery process: its mount namespace cannot affect the GUI.
+cc_binary {
+    name: "uke-clock-sync",
+    recovery: true,
+    static_executable: true,
+    stl: "libc++_static",
+    cpp_std: "c++20",
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    srcs: ["clock-sync.cpp"],
+    include_dirs: ["device/xiaomi/uke"],
+}

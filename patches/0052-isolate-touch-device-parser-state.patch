@@ -1,0 +1,89 @@
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -108,6 +108,15 @@
+     struct input_absinfo xi, yi;
+ };
+ 
++struct touch_state {
++    int downX = -1, downY = -1;
++    int discard = 0;
++    int last_virt_key = 0;
++    int lastWasSynReport = 0;
++    int touchReleaseOnNextSynReport = 0;
++    int use_tracking_id_negative_as_touch_release = 0;
++};
++
+ struct ev {
+     struct pollfd *fd;
+ 
+@@ -121,6 +130,7 @@
+ 
+     struct position p, mt_p;
+     int down;
++    struct touch_state vk;
+ };
+ 
+ static struct pollfd ev_fds[MAX_DEVICES];
+@@ -401,7 +411,8 @@
+             if(strncmp(de->d_name,"event",5)) continue;
+             fd = openat(dirfd(dir), de->d_name, O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOFOLLOW);
+             if(fd < 0) continue;
+-			memset(&evs[ev_count], 0, sizeof(evs[ev_count]));
++			// Include parser defaults when a device or an fd slot is reused.
++			evs[ev_count] = {};
+ 
+ 			ev_fds[ev_count].fd = fd;
+             ev_fds[ev_count].events = POLLIN;
+@@ -491,20 +502,21 @@
+ /* Returns non-zero when the event should be consumed */
+ static int vk_modify(struct ev *e, struct input_event *ev)
+ {
+-    static int downX = -1, downY = -1;
+-    static int discard = 0;
+-    static int last_virt_key = 0;
+-    static int lastWasSynReport = 0;
+-    static int touchReleaseOnNextSynReport = 0;
+-	static int use_tracking_id_negative_as_touch_release = 0; // On some devices, type: 3  code: 39  value: -1, aka EV_ABS ABS_MT_TRACKING_ID -1 indicates a true touch release
++    // Each evdev stream owns its coordinates, virtual key and release protocol.
++    int& downX = e->vk.downX;
++    int& downY = e->vk.downY;
++    int& discard = e->vk.discard;
++    int& last_virt_key = e->vk.last_virt_key;
++    int& lastWasSynReport = e->vk.lastWasSynReport;
++    int& touchReleaseOnNextSynReport = e->vk.touchReleaseOnNextSynReport;
++    int& use_tracking_id_negative_as_touch_release = e->vk.use_tracking_id_negative_as_touch_release;
+     int i;
+     int x, y;
+ 
+     if (ev->type == EV_SYN && ev->code == SYN_DROPPED) {
+         e->p.synced = e->mt_p.synced = 0;
+         e->down = DOWN_NOT;
+-        downX = downY = -1;
+-        discard = last_virt_key = lastWasSynReport = touchReleaseOnNextSynReport = 0;
++        e->vk = {};
+         rescan_input = true;
+         return 0;
+     }
+@@ -732,6 +744,13 @@
+     {
+         // Reset the value
+         touchReleaseOnNextSynReport = 0;
++        lastWasSynReport = 0;
++        e->p.synced = e->mt_p.synced = 0;
++
++        // Idle pens and empty touch slots can report release metadata. Only
++        // this device's emitted contact or virtual key may produce an up edge.
++        if (downX == -1 && !discard)
++            return 1;
+ 
+         // We are a finger-up state
+         if (!discard)
+@@ -739,7 +758,7 @@
+             // Report the key up
+             ev->type = EV_ABS;
+             ev->code = 0;
+-            ev->value = (downX << 16) | downY;
++            ev->value = (static_cast<unsigned>(downX) << 16) | static_cast<unsigned>(downY);
+         }
+         downX = -1;
+         downY = -1;

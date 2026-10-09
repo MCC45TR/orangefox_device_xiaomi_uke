@@ -42,3 +42,18 @@ on early-fs && property:ro.boot.usbcontroller=a600000.dwc3
 on early-fs
     mkdir /dev/block/bootdevice 0755 root root
     symlink /dev/block/by-name /dev/block/bootdevice/by-name
+
+# Derive UTC from the installed RTC counter and ATS_TOD offset. The helper
+# verifies the Uke persist geometry, creates its own private mount namespace,
+# reads ext4 without journal replay and changes only CLOCK_REALTIME.
+service uke-clock-sync /system/bin/uke-clock-sync
+    class core
+    user root
+    group root
+    capabilities SYS_ADMIN SYS_TIME DAC_READ_SEARCH
+    seclabel u:r:recovery:s0
+    disabled
+    oneshot
+
+on boot
+    start uke-clock-sync

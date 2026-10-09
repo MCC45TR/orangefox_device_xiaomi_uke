@@ -16,6 +16,7 @@ PRODUCT_USE_DYNAMIC_PARTITIONS := true
 PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
 
 PRODUCT_PACKAGES += \
+    uke-clock-sync \
     uke-recoveryctl \
     uke-recovery-install \
     bootctl \
