@@ -371,16 +371,16 @@ int main() {
         const auto disk=work.path/"device-model.img"; fixture(disk); auto plan=preview(disk);
         ure::device_plan(plan); (void)ure::untouched_ranges(plan);
         const auto commands=ure::dualboot_device_commands(plan); check(commands.size()==5,"Missing selected formatter command");
-        auto esp_row=plan["gpt"]["layout"]["rows"][1]; esp_row["bytes"]=Json::UInt64(300*mib); ure::formatter_row(esp_row);
+        auto esp_row=plan["gpt"]["layout"]["rows"][1]; esp_row["bytes"]=Json::UInt64(512*mib); ure::formatter_row(esp_row);
         check(ure::format_arguments(esp_row,"/proc/self/fd/99")==std::vector<std::string>{"-F","32","-s","1","-n","ESP","/proc/self/fd/99"},
             "Live ESP preview omits native-sector cluster sizing");
-        for(const auto bytes:{64*mib,256*mib,300*mib-4096}) {
+        for(const auto bytes:{64*mib,256*mib,488*mib}) {
             esp_row["bytes"]=Json::UInt64(bytes); reject([&]{ure::formatter_row(esp_row);},"unsupported-live-filesystem");
         }
         std::string bpb(512,'\0'); put(bpb,11,4096,2); put(bpb,13,1,1); put(bpb,14,32,2); put(bpb,16,2,1);
-        put(bpb,32,300*mib/4096,4); put(bpb,36,75,4); put(bpb,44,2,4); put(bpb,510,0xaa55,2); bpb.replace(82,8,"FAT32   ");
-        ure::esp_bpb_policy(bpb,300*mib);
-        reject([&]{ure::esp_bpb_policy(std::string_view(bpb).substr(0,511),300*mib);},"dualboot-esp-readback");
+        put(bpb,32,512*mib/4096,4); put(bpb,36,128,4); put(bpb,44,2,4); put(bpb,510,0xaa55,2); bpb.replace(82,8,"FAT32   ");
+        ure::esp_bpb_policy(bpb,512*mib);
+        reject([&]{ure::esp_bpb_policy(std::string_view(bpb).substr(0,511),512*mib);},"dualboot-esp-readback");
         for(unsigned variant=0;variant<14;++variant) {
             auto bad_bpb=bpb;
             if(variant==0)put(bad_bpb,11,512,2);
@@ -388,16 +388,16 @@ int main() {
             if(variant==2)put(bad_bpb,13,3,1);
             if(variant==3)put(bad_bpb,13,2,1);
             if(variant==4)put(bad_bpb,16,0,1);
-            if(variant==5)put(bad_bpb,32,300*mib/4096+1,4);
+            if(variant==5)put(bad_bpb,32,512*mib/4096+1,4);
             if(variant==6)put(bad_bpb,36,1,4);
             if(variant==7)put(bad_bpb,44,1,4);
-            if(variant==8)put(bad_bpb,44,300*mib/4096,4);
+            if(variant==8)put(bad_bpb,44,512*mib/4096,4);
             if(variant==9)put(bad_bpb,17,1,2);
             if(variant==10)put(bad_bpb,22,1,2);
             if(variant==11)put(bad_bpb,42,1,2);
             if(variant==12)put(bad_bpb,510,0,2);
             if(variant==13)bad_bpb.replace(82,8,"FAT16   ");
-            reject([&]{ure::esp_bpb_policy(bad_bpb,300*mib);},"dualboot-esp-readback");
+            reject([&]{ure::esp_bpb_policy(bad_bpb,512*mib);},"dualboot-esp-readback");
         }
         reject([&]{ure::esp_bpb_policy(bpb,256*mib);},"dualboot-esp-readback");
         const auto ntfs_arguments=ure::format_arguments(plan["gpt"]["layout"]["rows"][4],"/proc/self/fd/99");

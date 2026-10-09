@@ -67,7 +67,7 @@ finish() {
     toybox reboot -p -f
 }
 if [ ! -f /media/plan.json ]; then
-    printf '5\n1\next4\next4\n64 MiB\n64 MiB\n64 MiB\n64 MiB\n' |
+    printf '5\n1\next4\next4\n512 MiB\n64 MiB\n64 MiB\n64 MiB\n' |
         "$ctl" dualboot setup --image /media/disk.img --sector-size 4096 --profile vm-fixture --output /media/shell-plan.json > /media/shell-preview.txt || fail 108
     grep -q 'linux_boot' /media/shell-preview.txt || fail 109
     grep -q 'No application journal was selected' /media/shell-preview.txt || fail 110

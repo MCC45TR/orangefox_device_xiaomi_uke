@@ -11,7 +11,10 @@
 #include <unistd.h>
 
 namespace {
-constexpr std::uint64_t mib=1048576,capacity=512*mib;
+#ifndef URE_PARTITION_FIXTURE_CAPACITY_MIB
+#define URE_PARTITION_FIXTURE_CAPACITY_MIB 512
+#endif
+constexpr std::uint64_t mib=1048576,capacity=URE_PARTITION_FIXTURE_CAPACITY_MIB*mib;
 void check(bool value,const std::string& message) { if(!value)throw std::runtime_error(message); }
 template<class F> void reject(F action,const std::string& code) {
     try { action(); } catch(const ure::Error& e) { check(e.code==code,"Unexpected refusal "+e.code+", wanted "+code); return; } throw std::runtime_error("Expected refusal "+code);

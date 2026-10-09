@@ -43,6 +43,8 @@ void validate(const Value& plan) {
         plan["gpt"]["layout"]["pool"]["source"]=="ORIGINAL_USERDATA_ONLY" && plan["writes_other_partition_payloads"]==false,
         "invalid-dualboot-plan","Dualboot setup is restricted to original userdata and necessary GPT metadata");
     const auto canonical=dualboot_layout_request(plan["request"]);
+    for(const auto& row:plan["gpt"]["layout"]["rows"])if(row["role"]=="esp" && row["enabled"]==true)
+        require(row["bytes"].isUInt64() && row["bytes"].asUInt64()>=512000000ULL,"esp-too-small","An ESP requires at least 512 MB after alignment; 512 MiB is recommended");
     auto normalized=plan["gpt"]["layout"]["request"];
     require(normalized["record_edits"].isArray() && normalized["record_edits"].empty(),"invalid-dualboot-plan","Setup does not accept other GPT record edits");
     normalized.removeMember("record_edits");
@@ -58,11 +60,14 @@ void validate(const Value& plan) {
 }
 void dualboot_validate_plan(const Value& plan) { validate(plan); }
 Value dualboot_layout_request(const Value& input) {
-    fields(input,{"schema","format","linux_enabled","windows_enabled","separate_linux_boot","userdata_policy","userdata_filesystem","esp","linux_boot","linux","windows"});
+    fields(input,{"schema","format","linux_enabled","windows_enabled","esp_enabled","separate_linux_boot","userdata_policy","userdata_filesystem","esp","linux_boot","linux","windows"});
     require(input["schema"]==1 && input["format"]=="uke-dualboot-request","invalid-dualboot-request","Select version 1 dualboot settings");
     for(const auto* name:{"linux_enabled","windows_enabled","separate_linux_boot"})
         require(input[name].isBool(),"invalid-dualboot-selection","Linux, Windows and separate boot choices must be explicit booleans");
     const bool linux_selected=input["linux_enabled"].asBool(),windows=input["windows_enabled"].asBool(),boot=input["separate_linux_boot"].asBool();
+    require(!input.isMember("esp_enabled") || input["esp_enabled"].isBool(),"invalid-dualboot-selection","ESP selection must be an explicit boolean");
+    const bool esp=input.get("esp_enabled",true).asBool();
+    require(!windows || esp,"windows-requires-esp","Windows requires an ESP; select ESP or disable Windows");
     require(linux_selected || windows,"no-dualboot-system","Select Linux, Windows or both");
     require(!boot || linux_selected,"linux-boot-without-linux","A separate Linux boot partition requires Linux");
     require(input["userdata_policy"]=="preserve" || input["userdata_policy"]=="recreate","invalid-userdata-policy","Explicitly choose userdata shrink or erase and recreate");
@@ -71,7 +76,7 @@ Value dualboot_layout_request(const Value& input) {
     request["mode"]=input["userdata_policy"]=="recreate" ? "advanced" : "standard"; request["userdata_policy"]=input["userdata_policy"];
     request["rows"]=Value(Json::arrayValue);
     Value data; data["role"]="userdata"; data["size"]=""; data["unit"]="remaining"; data["filesystem"]=input["userdata_filesystem"]; request["rows"].append(data);
-    request["rows"].append(allocation(input,"esp",true,"fat32"));
+    request["rows"].append(allocation(input,"esp",esp,"fat32"));
     if(boot)request["rows"].append(allocation(input,"linux_boot",true,"ext4"));
     else require(!input.isMember("linux_boot"),"disabled-dualboot-allocation","Do not supply separate boot sizes when it is disabled");
     request["rows"].append(allocation(input,"linux",linux_selected,"ext4",true));
@@ -84,6 +89,8 @@ Value dualboot_plan(const Root& system,const StorageTarget& target,const Value& 
         "unsupported-live-dualboot-policy","Live setup supports explicit F2FS userdata erase and recreate only; preserve/shrink and ext4 userdata are available only for regular images");
     const auto image_job=image ? partition_job_plan(system,target,request,profile) : Value();
     const auto gpt=image ? image_job["gpt"] : gpt_layout_plan(target,request,profile,&system); const auto& layout=gpt["layout"];
+    for(const auto& row:layout["rows"])if(row["role"]=="esp" && row["enabled"]==true)
+        require(row["bytes"].asUInt64()>=512000000ULL,"esp-too-small","An ESP requires at least 512 MB (default: 512 MiB) after alignment");
     const auto capabilities=filesystem_capabilities();
     for(const auto& row:layout["rows"])if(row["enabled"]==true) {
         require(row["bytes"].asUInt64()>=32*mib,"unsupported-filesystem-size","Every selected partition and remaining userdata needs at least 32 MiB");
@@ -137,6 +144,7 @@ Value dualboot_plan(const Root& system,const StorageTarget& target,const Value& 
     plan["warnings"]=layout["warnings"];
     plan["warnings"].append("The selected OS sizes use the original userdata capacity. Userdata receives the aligned remainder; no other partition supplies space.");
     plan["warnings"].append("A partition layout does not install an OS or a bootloader. Physical device acceptance remains separate from source, image and VM tests.");
+    if(!input.get("esp_enabled",true).asBool())plan["warnings"].append("No ESP will be created. Linux needs an existing compatible ESP or a separately configured non-UEFI boot route.");
     if(image)plan["warnings"].append("The image executor needs up to three original-userdata copies plus 64 MiB in a private journal.");
     else {
         plan["warnings"].append("Live application supports explicit F2FS userdata erase and recreate only. The installed encryption map must already be opened and idle; F2FS metadata must already be mounted read-only with norecovery. Setup never opens encryption or changes metadata.");
@@ -228,6 +236,8 @@ int dualboot_shell(const std::vector<std::string>& args,std::istream& input,std:
     const bool linux_selected=choice!="3",windows=choice=="3" || choice=="4" || choice=="5",boot=choice=="2" || choice=="5";
     Value settings; settings["schema"]=1; settings["format"]="uke-dualboot-request";
     settings["linux_enabled"]=linux_selected; settings["windows_enabled"]=windows; settings["separate_linux_boot"]=boot;
+    const auto esp=windows ? "yes" : read("Create ESP [yes/no; required for new UEFI boot files]: ");
+    require(esp=="yes" || esp=="no","invalid-dualboot-selection","Choose yes or no for ESP"); settings["esp_enabled"]=esp=="yes";
     output<<"1. Erase and recreate userdata (all Android user files are lost)\n";
     if(image)output<<"2. Preserve supported unencrypted userdata by offline shrink\n";
     else output<<"Live setup requires F2FS erase and recreate. Preserve/shrink is unavailable.\n";
@@ -242,7 +252,10 @@ int dualboot_shell(const std::vector<std::string>& args,std::istream& input,std:
         require(static_cast<bool>(fields>>amount>>unit) && !(fields>>extra),"invalid-layout-size","Enter a decimal size followed by MB, MiB, GB, GiB or %");
         Value allocation; allocation["size"]=amount; allocation["unit"]=unit; settings[role]=allocation;
     };
-    size("esp"); if(boot)size("linux_boot"); if(linux_selected) { size("linux"); settings["linux"]["filesystem"]=linuxfs; } if(windows)size("windows");
+    if(esp=="yes")size("esp");
+    if(boot)size("linux_boot");
+    if(linux_selected) { size("linux"); settings["linux"]["filesystem"]=linuxfs; }
+    if(windows)size("windows");
     const auto profile=options.contains("--profile") ? options.at("--profile") : "uke-userdata-layout-v1";
     const auto plan=dualboot_plan(system,selected,settings,profile);
     const fs::path destination=options.contains("--output") ? fs::path(options.at("--output")) : fs::path("/tmp")/("uke-dualboot-"+plan["operation_id"].asString()+".json");

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Reuse disposable GPT/filesystem fixture construction, not a second executor.
 #define main existing_partition_job_test_main
+#define URE_PARTITION_FIXTURE_CAPACITY_MIB 1024
 #include "partition_job.cpp"
 #undef main
 
 namespace {
 ure::Value settings(bool linux_selected,bool windows,bool boot) {
-    auto input=ure::parse_json(R"({"schema":1,"format":"uke-dualboot-request","linux_enabled":true,"windows_enabled":true,"separate_linux_boot":true,"userdata_policy":"recreate","userdata_filesystem":"ext4","esp":{"size":"64","unit":"MiB"},"linux_boot":{"size":"64","unit":"MiB"},"linux":{"size":"64","unit":"MiB","filesystem":"ext4"},"windows":{"size":"64","unit":"MiB"}})");
+    auto input=ure::parse_json(R"({"schema":1,"format":"uke-dualboot-request","linux_enabled":true,"windows_enabled":true,"esp_enabled":true,"separate_linux_boot":true,"userdata_policy":"recreate","userdata_filesystem":"ext4","esp":{"size":"512","unit":"MiB"},"linux_boot":{"size":"64","unit":"MiB"},"linux":{"size":"64","unit":"MiB","filesystem":"ext4"},"windows":{"size":"64","unit":"MiB"}})");
     input["linux_enabled"]=linux_selected; input["windows_enabled"]=windows; input["separate_linux_boot"]=boot;
     if(!linux_selected)input.removeMember("linux");
     if(!windows)input.removeMember("windows");
@@ -51,7 +52,16 @@ int main(int argc,char* argv[]) {
         bad=settings(false,true,true); reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"linux-boot-without-linux");
         bad=settings(true,false,false); bad["windows"]=settings(true,true,false)["windows"]; reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"disabled-dualboot-allocation");
         bad=settings(true,true,true); bad["esp"]["size"]="100"; bad["esp"]["unit"]="%"; reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"insufficient-layout-space");
-        bad=settings(true,false,false); bad["esp"]["size"]="1"; reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"unsupported-filesystem-size");
+        bad=settings(true,false,false); bad["esp"]["size"]="128"; reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"esp-too-small");
+        bad=settings(false,true,false); bad["esp_enabled"]=false; bad.removeMember("esp");
+        reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"windows-requires-esp");
+        for(bool boot:{false,true}) {
+            auto without=settings(true,false,boot); without["esp_enabled"]=false; without.removeMember("esp");
+            const auto plan=ure::dualboot_plan(system,source,without,"fixture");
+            check(enabled_order(plan["gpt"]["layout"])==(boot ? "userdata,linux_boot,linux" : "userdata,linux"),"Optional ESP changed the Linux layout");
+            without["esp"]=settings(true,false,false)["esp"];
+            reject([&]{ure::dualboot_plan(system,source,without,"fixture");},"disabled-dualboot-allocation");
+        }
         bad=settings(true,false,false); bad["esp"]["size"]="1;reboot"; reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"invalid-layout-size");
         bad=settings(true,false,false); bad["record_edits"]=ure::Value(Json::arrayValue); reject([&]{ure::dualboot_plan(system,source,bad,"fixture");},"invalid-dualboot-request");
         for(const auto* unit:{"MB","MiB","GB","GiB","%"}) {
@@ -65,7 +75,7 @@ int main(int argc,char* argv[]) {
             changed["data_loss"]=false; changed["confirmation_phrase"]="PRESERVE USERDATA";
             changed.removeMember("plan_sha256"); changed["plan_sha256"]=ure::sha256(ure::json(changed));
             reject([&]{ure::dualboot_preview(changed);},"invalid-dualboot-plan");
-            std::istringstream input("5\n1\next4\next4\n64 MiB\n64 MiB\n64 MiB\n64 MiB\n");
+            std::istringstream input("5\n1\next4\next4\n512 MiB\n64 MiB\n64 MiB\n64 MiB\n");
             std::ostringstream preview;
             const auto saved=work.path/"shell-plan.json";
             check(ure::dualboot_shell({"--image",disk.string(),"--sector-size","4096","--profile","fixture","--output",saved.string()},input,preview)==0,"Shell preview failed");

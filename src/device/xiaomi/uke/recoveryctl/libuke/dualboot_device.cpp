@@ -76,10 +76,10 @@ void formatter_row(const Value& row) {
     require(role=="userdata" || role=="esp" || role=="linux_boot" || role=="linux" || role=="windows","invalid-dualboot-plan","Unknown bounded formatter role");
     if(row["enabled"]==false)return;
     require(size<=live_maximum && size%4096==0 &&
-        ((role=="userdata" && type=="f2fs" && size>=4096*live_mib) || (role=="esp" && type=="fat32" && size>=300*live_mib) ||
+        ((role=="userdata" && type=="f2fs" && size>=4096*live_mib) || (role=="esp" && type=="fat32" && size>=512000000ULL) ||
         (role=="linux_boot" && type=="ext4" && size>=256*live_mib) || (role=="linux" && ((type=="ext4" && size>=32*live_mib) ||
         (type=="btrfs" && size>=256*live_mib) || (type=="f2fs" && size>=512*live_mib))) || (role=="windows" && type=="ntfs" && size>=32*live_mib)),
-        "unsupported-live-filesystem","Live 4 KiB storage requires F2FS userdata and an ESP of at least 300 MiB; selected filesystems must meet their formatter minimum");
+        "unsupported-live-filesystem","Live 4 KiB storage requires F2FS userdata and an ESP of at least 512 MB; selected filesystems must meet their formatter minimum");
 }
 void esp_bpb_policy(std::string_view header,std::uint64_t capacity) {
     require(header.size()==512,"dualboot-esp-readback","A complete FAT32 boot sector is required");
@@ -87,7 +87,7 @@ void esp_bpb_policy(std::string_view header,std::uint64_t capacity) {
         std::uint64_t out=0; for(unsigned i=0;i<count;++i)out|=std::uint64_t(static_cast<unsigned char>(header[offset+i]))<<(8*i); return out;
     };
     const auto sector=field(11,2),cluster=field(13,1),reserved=field(14,2),fats=field(16,1),total=field(32,4),fat_sectors=field(36,4),root=field(44,4);
-    require(sector==4096 && capacity>=300*live_mib && total>0 && total<=capacity/sector && cluster>0 && cluster<=128 &&
+    require(sector==4096 && capacity>=512000000ULL && total>0 && total<=capacity/sector && cluster>0 && cluster<=128 &&
         (cluster&(cluster-1))==0 && reserved>0 && (fats==1 || fats==2) && fat_sectors>0 &&
         field(17,2)==0 && field(19,2)==0 && field(22,2)==0 && field(42,2)==0 && field(510,2)==0xaa55 &&
         header.substr(82,8)=="FAT32   " && reserved+fats*fat_sectors<total,
@@ -135,7 +135,9 @@ void device_plan(const Value& plan) {
             "invalid-dualboot-plan","Userdata must retain its original start, entry, GUID and attributes"); }
         ++enabled; at+=size;
     }
-    require(!old_data.isNull() && roles.contains("esp") && enabled>=3,"invalid-dualboot-plan","Userdata, ESP and at least one OS are required");
+    require(!old_data.isNull() && roles.contains("esp") && enabled>=2 &&
+        (!plan["request"]["windows_enabled"].asBool() || plan["request"].get("esp_enabled",true).asBool()),
+        "invalid-dualboot-plan","Userdata and at least one OS are required; Windows also requires ESP");
     for(const auto& record:layout["protected_records"]) {
         bool present=false; for(const auto& next:gpt["desired_table"]["partitions"])if(next["index"]==record["index"]) { require(!present && json(next)==json(record),"protected-record-changed","An OEM GPT record changed"); present=true; }
         if(!present)for(const auto& next:gpt["desired_table"]["reserved_records"])if(next["index"]==record["index"]) { require(!present && json(next)==json(record),"protected-record-changed","An OEM reservation changed"); present=true; }
