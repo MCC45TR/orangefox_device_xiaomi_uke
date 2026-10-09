@@ -4,7 +4,7 @@ set -euo pipefail
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 output=${1:?Generated C++ output is required}
 {
-    printf '%s\n' '#include "management-hooks.h"' '#include "gui_job.hpp"' '#include "operation_lease.hpp"' '#include "lifecycle_policy.hpp"'
+    printf '%s\n' '#include "management-hooks.h"' '#include "gui_job.hpp"' '#include "operation_lease.hpp"' '#include "lifecycle_policy.hpp"' '#include "recovery_services.hpp"'
     awk '/^namespace \{/ { copying=1 } /^class UreScalePreview / { exit } copying { print }' "$component/src/device/xiaomi/uke/ure-gui.cpp"
     awk '/^\/\/ URE management callbacks:/ { copying=1 } copying { print }' "$component/src/device/xiaomi/uke/ure-gui.cpp"
 } > "$output"

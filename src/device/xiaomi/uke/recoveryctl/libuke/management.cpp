@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
 #include "operation_lease.hpp"
+#include "recovery_services.hpp"
 #include <algorithm>
 #include <charconv>
 #include <fcntl.h>
@@ -42,6 +43,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(args.size()<2)return false;
     const auto& command=args[0]; const auto& op=args[1];
     if(command=="operation")return op=="status";
+    if(command=="services")return op=="status";
     if(command=="platform")return true;
     if(command=="android")return op=="capabilities" || op=="preflight" || op=="fbe-open" || op=="slot-set" ||
         op=="snapshot-merge" || op=="super-apply" || op=="ota-install" || op=="second-install";
@@ -61,6 +63,10 @@ bool management_command(const std::vector<std::string>& args) {
 Value management_dispatch(std::vector<std::string> args) {
     Options options(std::move(args)); const auto& words=options.words; require(words.size()>=2,"invalid-options","A management operation is required");
     const auto command=words[0],operation=words[1];
+    if(command=="services" && operation=="status") {
+        positional(options,2); options.allow({"--system-root"});
+        Root system(options.get("--system-root","/")); return recovery_services_status(system);
+    }
     if(command=="platform" || command=="android") {
         if(operation=="capabilities" || operation=="preflight") {
             positional(options,2); options.allow({"--system-root","--profile"});
@@ -156,7 +162,7 @@ Value management_dispatch(std::vector<std::string> args) {
     if(command=="dualboot") {
         if(operation=="template") {
             positional(options,2); options.allow({});
-            return parse_json(R"({"schema":1,"format":"uke-dualboot-request","linux_enabled":true,"windows_enabled":false,"separate_linux_boot":false,"userdata_policy":"recreate","userdata_filesystem":"f2fs","esp":{"size":"512","unit":"MiB"},"linux":{"size":"64","unit":"GiB","filesystem":"ext4"}})");
+            return parse_json(R"({"schema":1,"format":"uke-dualboot-request","linux_enabled":true,"windows_enabled":false,"esp_enabled":true,"separate_linux_boot":false,"userdata_policy":"recreate","userdata_filesystem":"f2fs","esp":{"size":"512","unit":"MiB"},"linux":{"size":"64","unit":"GiB","filesystem":"ext4"}})");
         }
         if(operation=="preview") {
             positional(options,3); options.allow({}); Value result; result["text"]=dualboot_preview(json_file(words[2])); return result;

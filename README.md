@@ -19,7 +19,7 @@ The **Extra** menu groups the added tools by task, with matching icons and short
 | Area | Current source capabilities | Details |
 |---|---|---|
 | Tablet interface | Preview and apply interface sizes from 50–100%; preset and custom selections; portrait/landscape layout; independently configured monitor scale, resolution and refresh rate; USB mouse and keyboard integration | [Display settings](docs/DISPLAY-SCALING.md) |
-| Partition planning | Graphical ESP/Linux/Windows/userdata layouts; GB, GiB, MiB or percentage input; before/after review; standard and advanced policies; combined filesystem and GPT image transactions with readback and rollback | [Partition manager](docs/PARTITION-MANAGER.md) |
+| Partition planning | Dualboot wizard with Linux/Windows checkboxes, optional Linux-only ESP, optional separate Linux boot, ext4/Btrfs/F2FS selection and proportional review; MB, GB, MiB, GiB or percentage input; combined filesystem and GPT image transactions with readback and rollback | [Dualboot setup](docs/DUALBOOT-SETUP.md), [partition manager](docs/PARTITION-MANAGER.md) |
 | Stock-layout recovery | Coordinated GPT and selected stock-image restoration across six UFS LUN images, with pinned firmware inputs, protected ranges and interruption recovery | [Stock restoration](docs/STOCK-IMAGE-RESTORE.md) |
 | Backups | Verified raw-image and chunked backups; host-assisted transfer over ADB; Linux and home directory backups preserving sparse files, hardlinks, extended attributes and ACLs; resumable capture and verified restore | [Linux/home backups](docs/TREE-BACKUP.md), [native API](docs/URE-NATIVE.md) |
 | Filesystems and Btrfs | Staged format, check, repair and supported resize operations on filesystem images; native Btrfs subvolume, snapshot, full/incremental send, scrub, balance and rollback tools | [Filesystems](docs/FILESYSTEM-MANAGER.md), [Btrfs](docs/BTRFS-MANAGER.md) |
@@ -76,3 +76,9 @@ For a useful [issue report](https://github.com/MCC45TR/orangefox_device_xiaomi_u
 Repository-level material uses the [MIT license](LICENSE). The native recovery library includes an [Apache 2.0 license](src/device/xiaomi/uke/recoveryctl/LICENSE-APACHE); upstream OrangeFox, Android and other imported components retain their own licenses and attribution. Icon licensing is recorded with the [interface assets](src/device/xiaomi/uke/ui-icons/LICENSE).
 
 This project is unofficial and is not an endorsed OrangeFox release.
+
+## Software FMEA
+
+See [the software FMEA](FMEA.md) for storage, interruption, crypto, boot routing,
+input and diagnostic-export risks, existing controls and evidence required for
+closure. The assessment keeps packed-image and physical acceptance separate.

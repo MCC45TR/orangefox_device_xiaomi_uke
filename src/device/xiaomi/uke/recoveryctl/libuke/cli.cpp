@@ -133,7 +133,7 @@ static Value usage() {
         "gpt stock-plan INPUTS --image IMAGE --lun 0..5 --profile PROFILE [--identity-backup ORIGINAL_GPT] --output PLAN",
         "report --output REPORT.json", "crypto detect|info --image IMAGE", "btrfs capabilities|subvolumes|usage|scrub-status|balance-status|device-stats --root ROOT",
         "wim info|verify --image IMAGE", "ntfs info --image IMAGE", "btrfs check --image IMAGE",
-        "android info|slots|super", "network status", "help"
+        "android info|slots|super", "services status [--system-root ROOT] (read-only decryption readiness, thermal observations and automatic-display policy)", "network status", "help"
     })result["commands"].append(command);
     result["notes"]="Commands emit versioned JSON. Runtime dependencies and device acceptance remain separate.";
     return result;

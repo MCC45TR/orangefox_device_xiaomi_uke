@@ -26,6 +26,10 @@ for percent in 50 55 60 65 70 75 80 85 90 95 100; do
     [[ $(xmllint --xpath "count(//page[@name='ure_monitor_scale']//listitem[text()='$percent' and not(action)])" "$xml") == 1 ]]
 done
 [[ $(xmllint --xpath 'count(//page[@name="ure_display" or @name="ure_display_options"]/urescalepreview)' "$xml") == 2 ]]
+[[ $(xmllint --xpath 'count(//page[@name="ure_dualboot"]//listbox[@style="ure_choices"]/listitem[data/@variable])' "$xml") == 4 ]]
+[[ $(xmllint --xpath 'count(//page[@name="ure_dualboot"]//listbox[@style="ure_choices"]/listitem[action[@function="uremanager" and text()="db-choice-changed"]])' "$xml") == 4 ]]
+[[ $(xmllint --xpath 'count(//page[@name="ure_dualboot_review"]//urepartitionmap)' "$xml") == 1 ]]
+[[ $(xmllint --xpath 'count(//page[@name="ure_dualboot_confirm"]//listitem[condition[@var1="ure_db_confirmation" and @var2="ERASE USERDATA"]]/action[@function="uremanager" and text()="db-apply"])' "$xml") == 1 ]]
 # Stock pages instantiate their footer before the late maintainer include.
 # Their images must already exist in the shared resource set at that point.
 images="$component/src/upstream/orangefox-android16/bootable/recovery/gui/theme/portrait_hdpi/resources/images.xml"

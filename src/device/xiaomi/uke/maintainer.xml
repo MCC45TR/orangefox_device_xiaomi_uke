@@ -45,6 +45,30 @@
     </style>
   </styles>
   <variables>
+    <variable name="ure_db_linux" value="1"/>
+    <variable name="ure_db_windows" value="0"/>
+    <variable name="ure_db_esp" value="1"/>
+    <variable name="ure_db_boot" value="0"/>
+    <variable name="ure_db_linux_label" value="Selected"/>
+    <variable name="ure_db_windows_label" value="Not selected"/>
+    <variable name="ure_db_esp_label" value="Selected"/>
+    <variable name="ure_db_boot_label" value="Not selected"/>
+    <variable name="ure_db_userdata_fs" value="f2fs"/>
+    <variable name="ure_db_linux_fs" value="ext4"/>
+    <variable name="ure_db_edit_role" value="linux"/>
+    <variable name="ure_db_hash" value=""/>
+    <variable name="ure_db_can_apply" value="0"/>
+    <variable name="ure_db_erase_ack" value="0"/>
+    <variable name="ure_db_confirmation" value=""/>
+    <variable name="ure_db_summary" value="Choose systems and sizes, then review the proposed layout."/>
+    <variable name="ure_db_esp_size" value="512"/>
+    <variable name="ure_db_esp_unit" value="MiB"/>
+    <variable name="ure_db_linux_boot_size" value="1"/>
+    <variable name="ure_db_linux_boot_unit" value="GiB"/>
+    <variable name="ure_db_linux_size" value="64"/>
+    <variable name="ure_db_linux_unit" value="GiB"/>
+    <variable name="ure_db_windows_size" value="64"/>
+    <variable name="ure_db_windows_unit" value="GiB"/>
     <variable name="scale_apply_y" value="%row_nav_y%-168"/>
     <variable name="scale_scroll_h" value="%scroll_nav_h%-168"/>
     <variable name="scale_status_y" value="%ab_h%+24"/>
@@ -1098,6 +1122,102 @@
         <action function="page">ure_btrfs_backup</action>
       </action>
     </page>
+    <page name="ure_dualboot">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Dualboot setup</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="96"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>1. Choose systems</text></textbox>
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="160"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>New partitions use only the current userdata area. Android apps, accounts and internal files will be erased. Other partition contents stay outside this operation.</text></textbox>
+        <listbox style="ure_choices"><placement x="0" y="0" w="%screen_w%" h="880"/>
+          <listitem name="Linux" description="Tap to select Linux; ext4 is recommended for the first installation."><data variable="ure_db_linux"/><action function="uremanager">db-choice-changed</action></listitem>
+          <listitem name="Windows" description="Selecting Windows also requires an ESP."><data variable="ure_db_windows"/><action function="uremanager">db-choice-changed</action></listitem>
+          <listitem name="Create ESP" description="Optional for Linux; required for Windows. Default 512 MiB, minimum 512 MB."><data variable="ure_db_esp"/><action function="uremanager">db-choice-changed</action></listitem>
+          <listitem name="Separate Linux boot" description="Optional ext4 boot partition before the Linux root."><data variable="ure_db_boot"/><action function="uremanager">db-choice-changed</action></listitem>
+        </listbox>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="272"/>
+          <listitem name="Next: sizes and filesystem" description="Choose capacities, a backup journal and the Linux filesystem."><icon res="ure_size_icon"/><action function="page">ure_dualboot_sizes</action></listitem>
+        </listbox>
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="144"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>Creating partitions does not install an OS or bootloader. Without a new ESP, Linux needs an existing ESP or another configured boot route.</text></textbox>
+      </scroll><template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_group_storage</action></action>
+    </page>
+    <page name="ure_dualboot_sizes">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Dualboot sizes</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="96"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>2. Sizes and filesystem</text></textbox>        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="144"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>ESP needs at least 512 MB after alignment; 512 MiB is the default. Percentages use original userdata capacity. Remaining space stays with Android.</text></textbox>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="2288"/>
+          <listitem name="Use this tablet's userdata" description="Discover the userdata parent for read-only planning."><icon res="ure_storage_icon"/><action function="uremanager">db-discover</action></listitem>
+          <listitem name="ESP: %ure_db_esp_size% %ure_db_esp_unit%" description="Edit the capacity; Android userdata receives the aligned remainder."><condition var1="ure_db_esp" var2="1"/><icon res="ure_boot_icon"/><action function="uremanager">db-edit-esp_size</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="ESP size unit" description="Choose MB, MiB, GB, GiB or a percentage of original userdata."><condition var1="ure_db_esp" var2="1"/><icon res="ure_size_icon"/><action function="set">ure_db_edit_role=esp</action><action function="page">ure_dualboot_units</action></listitem>
+          <listitem name="Linux boot: %ure_db_linux_boot_size% %ure_db_linux_boot_unit%" description="Edit the capacity; Android userdata receives the aligned remainder."><condition var1="ure_db_boot" var2="1"/><icon res="ure_kernel_icon"/><action function="uremanager">db-edit-linux_boot_size</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Linux boot size unit" description="Choose MB, MiB, GB, GiB or a percentage of original userdata."><condition var1="ure_db_boot" var2="1"/><icon res="ure_size_icon"/><action function="set">ure_db_edit_role=linux_boot</action><action function="page">ure_dualboot_units</action></listitem>
+          <listitem name="Linux: %ure_db_linux_size% %ure_db_linux_unit%" description="Edit the capacity; Android userdata receives the aligned remainder."><condition var1="ure_db_linux" var2="1"/><icon res="ure_linux_icon"/><action function="uremanager">db-edit-linux_size</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Linux size unit" description="Choose MB, MiB, GB, GiB or a percentage of original userdata."><condition var1="ure_db_linux" var2="1"/><icon res="ure_size_icon"/><action function="set">ure_db_edit_role=linux</action><action function="page">ure_dualboot_units</action></listitem>
+          <listitem name="Windows: %ure_db_windows_size% %ure_db_windows_unit%" description="Edit the capacity; Android userdata receives the aligned remainder."><condition var1="ure_db_windows" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">db-edit-windows_size</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Windows size unit" description="Choose MB, MiB, GB, GiB or a percentage of original userdata."><condition var1="ure_db_windows" var2="1"/><icon res="ure_size_icon"/><action function="set">ure_db_edit_role=windows</action><action function="page">ure_dualboot_units</action></listitem>
+          <listitem name="Linux filesystem: %ure_db_linux_fs%" description="ext4 is recommended. Btrfs and F2FS need available tools and kernel support."><condition var1="ure_db_linux" var2="1"/><icon res="ure_database_icon"/><action function="page">ure_dualboot_filesystems</action></listitem>
+          <listitem name="Backup and journal directory" description="Required before Apply; tablet operations require external USB storage."><icon res="ure_backup_icon"/><action function="uremanager">db-edit-journal</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="Review proposed layout" description="Calculate the map and check data loss, tools and device prerequisites."><icon res="ure_check_icon"/><action function="uremanager">db-preview</action><action function="page">ure_dualboot_review</action></listitem>
+          <listitem name="Disposable image for testing" description="Explicit image-only test target; never select a PC disk."><icon res="ure_tools_icon"/><action function="uremanager">db-edit-image</action><action function="page">ure_management_input</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_dualboot</action></action>
+    </page>
+    <page name="ure_dualboot_units">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Partition size unit</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="880"/>
+          <listitem name="MB" description="Decimal megabytes: 1,000,000 bytes."><icon res="ure_size_icon"/><action function="uremanager">db-unit-MB</action><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="MiB" description="Binary mebibytes: 1,048,576 bytes."><icon res="ure_size_icon"/><action function="uremanager">db-unit-MiB</action><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="GB" description="Decimal gigabytes: 1,000,000,000 bytes."><icon res="ure_size_icon"/><action function="uremanager">db-unit-GB</action><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="GiB" description="Binary gibibytes: 1,073,741,824 bytes."><icon res="ure_size_icon"/><action function="uremanager">db-unit-GiB</action><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="%" description="Percentage of the original userdata capacity."><icon res="ure_size_icon"/><action function="uremanager">db-unit-%</action><action function="page">ure_dualboot_sizes</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_dualboot_sizes</action></action>
+    </page>
+    <page name="ure_dualboot_filesystems">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Linux filesystem</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="528"/>
+          <listitem name="ext4 (recommended)" description="The default for a straightforward first Linux installation."><icon res="ure_database_icon"/><action function="uremanager">db-fs-ext4</action><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="Btrfs" description="Snapshots and subvolumes; needs tools and compatible kernel support."><icon res="ure_database_icon"/><action function="uremanager">db-fs-btrfs</action><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="F2FS" description="Flash-oriented filesystem; needs compatible installed-kernel support."><icon res="ure_database_icon"/><action function="uremanager">db-fs-f2fs</action><action function="page">ure_dualboot_sizes</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_dualboot_sizes</action></action>
+    </page>
+    <page name="ure_dualboot_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Review dualboot layout</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="96"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>3. Review before applying</text></textbox>
+        <urepartitionmap><placement x="%gl_text_x%" y="0" w="%input_w%" h="96"/></urepartitionmap>
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="128"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>Purple: Android userdata. Gold: ESP. Teal: Linux boot. Green: Linux. Blue: Windows. The bar shows the original userdata area.</text></textbox>
+        <textbox><placement x="%gl_text_x%" y="0" w="%input_w%" h="1400"/><font resource="ure_description"/><color foreground="%text%" background="%background%"/><text>%ure_db_summary%</text></textbox>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="528"/>
+          <listitem name="Adjust systems and sizes" description="Changing any selection invalidates the previous approval."><icon res="ure_size_icon"/><action function="page">ure_dualboot_sizes</action></listitem>
+          <listitem name="Continue to data-loss confirmation" description="Available only after the target and required checks pass."><condition var1="ure_db_can_apply" var2="1"/><icon res="ure_check_icon"/><action function="page">ure_dualboot_confirm</action></listitem>
+          <listitem name="View complete plan" description="Inspect the exact native operations and sealed target details."><icon res="ure_tools_icon"/><action function="page">ure_output</action></listitem>
+        </listbox>
+      </scroll><template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_dualboot_sizes</action></action>
+    </page>
+    <page name="ure_dualboot_confirm">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Erase Android userdata?</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_2_y%"/><text>All internal files, apps and accounts will be lost.</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row2_1_y%"/><text>Type ERASE USERDATA to acknowledge data loss.</text></text>
+      <input><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_db_confirmation%</text><data name="ure_db_confirmation"/><restrict minlen="0" maxlen="32"/></input>
+      <listbox style="ure_menu"><placement x="0" y="%row4_1_y%" w="%screen_w%" h="352"/>
+          <listitem name="Apply reviewed partition layout" description="Erases userdata and applies only the unchanged reviewed plan."><condition var1="ure_db_can_apply" var2="1"/><condition var1="ure_db_confirmation" var2="ERASE USERDATA"/><icon res="ure_check_icon"/><action function="set">ure_db_erase_ack=1</action><action function="uremanager">db-apply</action><action function="page">ure_result</action></listitem>
+          <listitem name="Cancel" description="Return without applying the layout."><icon res="ure_rollback_icon"/><action function="uremanager">db-clear</action><action function="page">ure_dualboot</action></listitem>
+      </listbox><template name="gestures_key"/>
+      <action><touch key="back"/><action function="page">ure_dualboot_review</action></action>
+    </page>
     <page name="ure_layout">
       <template name="base_ex"/>
       <text style="text_ab_title">
@@ -1942,7 +2062,11 @@
           <text>Plan and maintain</text>
         </text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="720"/>
+          <placement x="0" y="0" w="%screen_w%" h="1168"/>
+          <listitem name="Dualboot setup" description="Choose Linux/Windows, optional ESP, sizes and a reviewed userdata-only layout">
+            <icon res="ure_size_icon"/>
+            <action function="page">ure_dualboot</action>
+          </listitem>
           <listitem name="Partition layout" description="Review ESP, Linux, Windows and userdata allocations">
             <icon res="ure_size_icon"/>
             <action function="page">ure_layout</action>
@@ -1954,6 +2078,10 @@
           <listitem name="Partition table recovery" description="GPT backups, image repair and interrupted jobs">
             <icon res="ure_rollback_icon"/>
             <action function="page">ure_gpt_select</action>
+          </listitem>
+          <listitem name="Encrypted storage" description="Inspect Android and Linux unlock requirements without requesting a password">
+            <icon res="ure_database_icon"/>
+            <action function="page">ure_encrypted_storage</action>
           </listitem>
         </listbox>
       </scroll>
@@ -2712,7 +2840,10 @@
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Automatic brightness: unavailable in this recovery build</text></text>
         <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Sensor support needs verification on the installed firmware.</text></text>
         <listbox style="ure_menu">
-          <placement x="0" y="0" w="%screen_w%" h="272"/>
+          <placement x="0" y="0" w="%screen_w%" h="496"/>
+          <listitem name="Inspect sensors and display readiness" description="Read thermal observations and check automatic-display prerequisites">
+            <icon res="ure_diagnostics_icon"/><action function="uremanager">services-status</action><action function="page">ure_output</action>
+          </listitem>
           <listitem name="Manual brightness and screen timeout" description="Use the existing OrangeFox screen settings">
             <icon res="ure_display_icon"/><action function="page">ext_screen</action>
           </listitem>
@@ -2720,6 +2851,29 @@
       </scroll>
       <template name="navbar"/><template name="gestures"/>
       <action><touch key="back"/><action function="page">ure_group_display</action></action>
+    </page>
+    <page name="ure_encrypted_storage">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>Encrypted storage</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Android: matching KeyMint, TEE and fscrypt support is required.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Linux: a verified read-only LUKS mapping and cleanup owner are required.</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>Unlock is unavailable until the matching provider passes acceptance.</text></text>
+        <listbox style="ure_menu">
+          <placement x="0" y="0" w="%screen_w%" h="720"/>
+          <listitem name="Inspect unlock readiness" description="Check packaged tools and provider requirements without reading a password">
+            <icon res="ure_check_icon"/><action function="uremanager">services-status</action><action function="page">ure_output</action>
+          </listitem>
+          <listitem name="Inspect storage identities" description="Read partition capacities and mounts before choosing an encrypted target">
+            <icon res="ure_storage_icon"/><action function="uremanager">storage</action><action function="page">ure_output</action>
+          </listitem>
+          <listitem name="Dualboot setup" description="Recreating encrypted userdata erases Android files and app data">
+            <icon res="ure_size_icon"/><action function="page">ure_dualboot</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_group_storage</action></action>
     </page>
     <page name="ure_monitor_modes">
       <template name="base_ex"/>

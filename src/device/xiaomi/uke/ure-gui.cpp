@@ -18,6 +18,7 @@
 #include "gui_job.hpp"
 #include "operation_lease.hpp"
 #include "lifecycle_policy.hpp"
+#include "recovery_services.hpp"
 #include <set>
 #include <thread>
 #include <unistd.h>
@@ -55,6 +56,8 @@ std::string pending_restore_journal,pending_restore_backup,reviewed_restore_jour
 std::string reviewed_stream_journal;
 ure::Value pending_tree;
 ure::Value reviewed_layout_request;
+ure::Value dualboot_plan,dualboot_selection;
+std::string dualboot_journal;
 std::string reviewed_partition_journal;
 ure::Value reviewed_partition_selection;
 std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
@@ -232,6 +235,33 @@ void clear_gpt_review() {
     for(const auto* name:{"ure_gpt_plan_hash","ure_gpt_journal_hash","ure_gpt_can_execute","ure_gpt_can_rollback","ure_gpt_can_resume",
         "ure_partition_journal_hash","ure_partition_can_resume","ure_partition_can_rollback","ure_partition_can_cancel"})set(name,"");
 }
+void dualboot_clear() {
+    dualboot_plan={}; dualboot_selection={}; dualboot_journal.clear();
+    set("ure_db_hash",""); set("ure_db_can_apply","0"); set("ure_db_erase_ack","0");
+    set("ure_db_confirmation",""); set("ure_layout_graph","");
+    set("ure_db_summary","Review the selected systems and sizes before applying.");
+}
+ure::Value dualboot_request() {
+    ure::Value request; request["schema"]=1; request["format"]="uke-dualboot-request";
+    request["linux_enabled"]=choice("ure_db_linux"); request["windows_enabled"]=choice("ure_db_windows");
+    request["esp_enabled"]=choice("ure_db_esp"); request["separate_linux_boot"]=choice("ure_db_boot");
+    request["userdata_policy"]="recreate"; request["userdata_filesystem"]=value("ure_db_userdata_fs");
+    for(const auto* role:{"esp","linux_boot","linux","windows"}) {
+        const bool enabled=std::string_view(role)=="esp" ? request["esp_enabled"].asBool() :
+            std::string_view(role)=="linux_boot" ? request["separate_linux_boot"].asBool() :
+            std::string_view(role)=="linux" ? request["linux_enabled"].asBool() : request["windows_enabled"].asBool();
+        if(!enabled)continue;
+        const auto prefix="ure_db_"+std::string(role)+"_";
+        request[role]["size"]=value(prefix+"size"); request[role]["unit"]=value(prefix+"unit");
+        if(std::string_view(role)=="linux")request[role]["filesystem"]=value("ure_db_linux_fs");
+    }
+    return request;
+}
+ure::Value dualboot_choices() {
+    ure::Value selection; selection["request"]=dualboot_request();
+    for(const auto* key:{"ure_gpt_kind","ure_gpt_source","ure_gpt_sector","ure_journal_parent"})selection[key]=value(key);
+    return selection;
+}
 ure::Value partition_selection() {
     ure::Value selected; for(const auto* key:{"ure_gpt_kind","ure_gpt_source","ure_gpt_sector","ure_partition_journal"})selected[key]=value(key); return selected;
 }
@@ -301,6 +331,7 @@ void clear_stream_review() {
     for(const auto* name:{"ure_stream_journal_hash","ure_stream_can_rollback","ure_stream_can_finish","ure_stream_can_cancel"})set(name,"");
 }
 void invalidate_reviews() {
+    dualboot_clear();
     pending_plan={}; pending_backup={}; pending_gpt_plan={}; pending_stock_plan={}; pending_restore_plan={}; pending_tree={}; managed_plan={}; boot_plan={};
     reviewed_filesystem_journal.clear(); reviewed_gpt_journal.clear(); reviewed_stock_journal.clear(); reviewed_restore_journal.clear(); reviewed_stream_journal.clear();
     reviewed_partition_journal.clear(); boot_reviewed_journal.clear();
@@ -427,6 +458,7 @@ public:
             const auto name=segment["role"].asString();
             if(name=="esp")gr_color(210,160,64,255);
             else if(name=="linux")gr_color(80,172,116,255);
+            else if(name=="linux_boot")gr_color(64,164,176,255);
             else if(name=="windows")gr_color(76,140,216,255);
             else if(name=="userdata")gr_color(164,116,208,255);
             else gr_color(96,96,96,255);
@@ -573,7 +605,8 @@ int ManagementSession::run(const std::string& command) {
             const auto saved=ure::display_settings_save(value("ure_scale_directory"),ure::display_scale_parse(value("ure_ui_scale_applied")));
             set("ure_scale_status",saved["volatile_filesystem"]==true ?
                 "Saved on volatile storage; this setting will be lost on reboot" : "Saved and read back; load this directory after mounting it on future boots");
-        } else if(command=="capabilities")publish(ure::capabilities(system));
+        } else if(command=="services-status")publish(ure::recovery_services_status(system));
+        else if(command=="capabilities")publish(ure::capabilities(system));
         else if(command=="storage")publish(ure::storage_graph(system));
         else if(command=="diagnose")publish(ure::diagnose(system,"all"));
         else if(command=="stock-choice-changed")clear_stock_review();
@@ -634,6 +667,88 @@ int ManagementSession::run(const std::string& command) {
                 ure::json(boot_context_selection())==ure::json(boot_journal_selection),"review-required","Inspect the selected journal and its exact ESP/variable store first");
             auto esp=os_root("ure_boot_esp"),variables=os_root("ure_boot_variables");
             publish(ure::boot_route_action(esp,variables,boot_reviewed_journal,command.substr(13),value("ure_boot_journal_hash"))); boot_clear_review();
+        } else if(command=="db-clear") {
+            dualboot_clear();
+        } else if(command.rfind("db-fs-",0)==0) {
+            const auto fs=command.substr(6); ure::require(fs=="ext4" || fs=="btrfs" || fs=="f2fs","invalid-layout-filesystem","Choose ext4, Btrfs or F2FS");
+            dualboot_clear(); set("ure_db_linux_fs",fs);
+        } else if(command.rfind("db-unit-",0)==0) {
+            const auto unit=command.substr(8),role=value("ure_db_edit_role");
+            ure::require((unit=="MB" || unit=="MiB" || unit=="GB" || unit=="GiB" || unit=="%") &&
+                (role=="esp" || role=="linux_boot" || role=="linux" || role=="windows"),"invalid-layout-unit","Choose a supported partition and size unit");
+            dualboot_clear(); set("ure_db_"+role+"_unit",unit);
+        } else if(command=="db-discover") {
+            dualboot_clear();
+#ifndef __ANDROID__
+            throw ure::Error("fixture-only-command","Host GUI tests must explicitly select a disposable disk image");
+#else
+            const auto graph=ure::storage_graph(system); std::string selected; unsigned count=0;
+            for(const auto& object:graph["objects"])if(object["partition"]==true && object["label"]=="userdata") {
+                ++count; selected="sysfs:"+object["parent_lun_sysfs"].asString();
+            }
+            ure::require(count==1 && selected!="sysfs:","ambiguous-userdata","Exactly one measured userdata parent is required");
+            set("ure_gpt_kind","live"); set("ure_gpt_source",selected);
+            set("ure_status","Tablet userdata selected for read-only planning; application needs all device checks");
+#endif
+        } else if(command=="db-choice-changed") {
+            dualboot_clear();
+            for(const auto* name:{"linux","windows","esp","boot"}) {
+                const auto key="ure_db_"+std::string(name);
+                ure::require(value(key)=="0" || value(key)=="1","invalid-choice","Select a valid dualboot checkbox value");
+            }
+            if(choice("ure_db_windows"))set("ure_db_esp","1");
+            if(!choice("ure_db_linux"))set("ure_db_boot","0");
+        } else if(command.rfind("db-toggle-",0)==0) {
+            const auto field=command.substr(10);
+            ure::require(field=="linux" || field=="windows" || field=="esp" || field=="boot","invalid-choice","Unknown dualboot choice");
+            dualboot_clear(); const auto key="ure_db_"+field;
+            if(field=="esp")ure::require(!choice("ure_db_windows"),"windows-requires-esp","Disable Windows before making ESP optional");
+            if(field=="boot")ure::require(choice("ure_db_linux"),"linux-boot-without-linux","Select Linux before enabling separate boot");
+            set(key,choice(key) ? "0" : "1");
+            if(field=="windows" && choice(key))set("ure_db_esp","1");
+            if(field=="linux" && !choice(key))set("ure_db_boot","0");
+            for(const auto* name:{"linux","windows","esp","boot"})set("ure_db_"+std::string(name)+"_label",choice("ure_db_"+std::string(name)) ? "Selected" : "Not selected");
+        } else if(command.rfind("db-edit-",0)==0) {
+            const auto field=command.substr(8);
+            ure::require(field=="esp_size" || field=="linux_boot_size" || field=="linux_size" || field=="windows_size" ||
+                field=="image" || field=="journal","invalid-field","Unknown dualboot editor field");
+            dualboot_clear();
+            edited_management_field=field=="image" ? "ure_gpt_source" : field=="journal" ? "ure_journal_parent" : "ure_db_"+field;
+            if(field=="image")set("ure_gpt_kind","image");
+            set("ure_form_field",edited_management_field); set("ure_form_value",value(edited_management_field)); set("ure_form_back","ure_dualboot_sizes");
+        } else if(command=="db-preview") {
+            dualboot_clear(); const auto choices=dualboot_choices(); auto target=gpt_target(system);
+            auto plan=ure::dualboot_plan(system,target,choices["request"],"global-os3.0.303.0");
+            const auto& layout=plan["gpt"]["layout"]; ure::Value graph;
+            graph["format"]=layout["format"]; graph["pool"]["bytes"]=layout["pool"]["bytes"]; graph["rows"]=ure::Value(Json::arrayValue);
+            for(const auto& row:layout["rows"]) { ure::Value part; for(const auto* key:{"role","pool_offset","bytes"})part[key]=row[key]; graph["rows"].append(part); }
+            auto summary=ure::dualboot_preview(plan);
+            bool allowed=target.identity["kind"]=="regular-image";
+            if(!allowed) {
+                const auto checks=ure::dualboot_device_preflight(system,target,plan); allowed=checks["eligible"]==true;
+                summary+="\nDevice checks:\n";
+                for(const auto& check:checks["checks"])if(check["passed"]!=true)
+                    summary+="- "+check["check"].asString()+": "+check.get("reason","Unavailable").asString()+"\n";
+            }
+            if(!value("ure_journal_parent").empty()) {
+                ure::Root parent(value("ure_journal_parent"));
+                dualboot_journal=(ure::fs::path(value("ure_journal_parent"))/("ure-dualboot-"+plan["operation_id"].asString())).string();
+            } else { allowed=false; summary+="\nSelect a backup/journal directory before applying.\n"; }
+            dualboot_plan=plan; dualboot_selection=choices;
+            set("ure_db_hash",plan["plan_sha256"].asString()); set("ure_db_can_apply",allowed ? "1" : "0");
+            set("ure_db_summary",summary); set("ure_layout_graph",ure::json(graph)); publish(plan);
+            set("ure_status",allowed ? "Review all sizes and data loss; no change has been applied" : "Preview ready; application is blocked by the listed prerequisites");
+        } else if(command=="db-apply") {
+            ure::require(dualboot_plan.isObject() && !dualboot_journal.empty() && value("ure_db_can_apply")=="1" &&
+                ure::json(dualboot_selection)==ure::json(dualboot_choices()) && value("ure_db_hash")==dualboot_plan["plan_sha256"].asString(),
+                "review-required","Recalculate and review the unchanged target, sizes and journal first");
+            ure::require(choice("ure_db_erase_ack") && value("ure_db_confirmation")=="ERASE USERDATA","confirmation-required","Acknowledge data loss and type ERASE USERDATA");
+            auto target=gpt_target(system);
+            const auto result=target.identity["kind"]=="regular-image" ?
+                [&]{ auto writer=gpt_target(system,true); return ure::dualboot_image_execute(system,writer,dualboot_plan,dualboot_journal,value("ure_db_hash"),"ERASE USERDATA"); }() :
+                ure::dualboot_device_execute(system,dualboot_plan,dualboot_journal,value("ure_db_hash"),"ERASE USERDATA");
+            set("ure_partition_journal",dualboot_journal); publish(result); dualboot_clear();
+            set("ure_status","Partition operation finished; inspect its journal before further installation");
         } else if(command.rfind("manage-edit-",0)==0) {
             const auto field=command.substr(12);
             static const std::set<std::string> allowed{"ure_esp","ure_journal_parent","ure_fs_size","ure_fs_label","ure_rescue_command","ure_rescue_kernel","ure_rescue_timeout",
@@ -649,6 +764,7 @@ int ManagementSession::run(const std::string& command) {
             ure::require(!edited_management_field.empty() && field==edited_management_field && value("ure_form_value").size()<=4096,"invalid-field","Invalid management field selection");
             // The editable field is selected exclusively by manage-edit-* above.
             set(field,value("ure_form_value")); set("ure_manage_hash",""); set("ure_manage_can_apply","0");
+            dualboot_clear();
             boot_clear_review();
             edited_management_field.clear();
         } else if(command=="linux-audit") {
@@ -1148,6 +1264,9 @@ struct GuiManagementOwner {
 GuiManagementOwner management_owner;
 ure::Value management_inputs() {
     static constexpr const char* keys[]={
+    "ure_db_linux","ure_db_windows","ure_db_esp","ure_db_boot","ure_db_userdata_fs","ure_db_linux_fs",
+    "ure_db_esp_size","ure_db_esp_unit","ure_db_linux_size","ure_db_linux_unit","ure_db_linux_boot_size","ure_db_linux_boot_unit",
+    "ure_db_windows_size","ure_db_windows_unit","ure_db_hash","ure_db_can_apply","ure_db_erase_ack","ure_db_confirmation","ure_db_edit_role",
     "tw_language",
     "ure_backup_dir",
     "ure_backup_hash",

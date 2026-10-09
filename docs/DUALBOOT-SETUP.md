@@ -1,8 +1,10 @@
-# Uke dualboot shell setup
+# Uke dualboot setup
 
 `partition` is a native alias of `uke-recoveryctl dualboot setup` in the recovery
-ramdisk. It provides an interactive preview and explicit application flow. The
-dedicated GUI wizard remains a separate interface task.
+ramdisk. It provides an interactive preview and explicit application flow.
+**Extra → Storage and partitions → Dualboot setup** provides the same native
+planner through an OrangeFox wizard, with system checkboxes, capacity and unit
+selectors, a proportional partition map and a separate data-loss confirmation.
 
 All OS allocations come from the **original userdata extent**. Setup preserves
 the userdata start, GPT entry and partition GUID, every other partition record
@@ -12,14 +14,19 @@ are never used.
 
 | Selection | Physical order within original userdata |
 |---|---|
-| Linux | userdata → ESP → Linux |
-| Linux with separate boot | userdata → ESP → linux_boot → Linux |
+| Linux | userdata → optional ESP → Linux |
+| Linux with separate boot | userdata → optional ESP → linux_boot → Linux |
 | Windows | userdata → ESP → Windows |
 | Linux and Windows | userdata → ESP → Linux → Windows |
 | Both with separate Linux boot | userdata → ESP → linux_boot → Linux → Windows |
 
 ESP uses FAT32, separate Linux boot uses ext4, and Windows uses NTFS. Linux
-accepts ext4, Btrfs or F2FS. Sizes accept decimal MB/GB, binary MiB/GiB, and a
+accepts ext4, Btrfs or F2FS; ext4 is the recommended default. Windows requires
+an ESP. A Linux-only layout can omit it, provided an existing compatible ESP or
+another configured boot route is available. A new ESP defaults to **512 MiB**
+and must contain at least **512 MB (512,000,000 bytes)** after alignment.
+The optional JSON field `esp_enabled` defaults to true for older requests;
+a disabled ESP must not specify a capacity. Sizes accept decimal MB/GB, binary MiB/GiB, and a
 percentage of the original userdata capacity. Userdata receives the aligned
 remainder. Alignment and filesystem minimums are checked before confirmation.
 Creating partitions does not install either OS or configure its bootloader.
@@ -35,6 +42,16 @@ Application requires `APPLY`, the full plan digest, and the exact data policy
 phrase. Erase mode requires `ERASE USERDATA`. Ending input, cancelling or
 providing the wrong consent prevents application. A changed target or GPT
 invalidates the plan.
+
+The graphical wizard always uses explicit userdata erase/recreation. It shows
+the data-loss warning before planning and requires `ERASE USERDATA` on a
+separate confirmation screen before applying the exact reviewed plan. Changing
+a checkbox, capacity, unit, filesystem, target or journal invalidates approval.
+It does not offer a misleading encrypted-data shrink option. The Linux-only
+no-ESP layout still protects every partition outside the original userdata pool.
+Device discovery is read-only; host execution requires an explicitly selected
+disposable regular image. A blocked device preview explains its prerequisites
+and does not display an application button.
 
 ## Regular-image execution
 
@@ -99,7 +116,7 @@ formatting does not use its mounted-volume force override. These checks work
 with the cooperating runtime lease and lifecycle quarantine; they do not claim
 continuous kernel exclusion against privileged external writers.
 
-Live Uke setup requires an ESP of at least **300 MiB** on its 4 KiB sectors;
+Live Uke setup uses the same **512 MB minimum** when a new ESP is selected;
 512 MiB remains the default. Formatting explicitly selects one native sector
 per cluster; the pinned tool's automatic choice can produce too few FAT32 data
 clusters on 4 KiB storage despite returning success. Its FAT32 boot sector,
@@ -140,7 +157,9 @@ with the packaged ARM64 F2FS, ext4, FAT32 and NTFS formatters and read-only
 checkers. It creates one regular-file-backed 4 KiB-sector guest disk, checks
 every surrounding sentinel byte, verifies checker SHA-256 stability and tests
 foreign claims, extra opens, changed identity and mounted-volume refusals.
-The 300 MiB FAT32 view also preserves the entire unused tail. Optional Btrfs
+The earlier 300 MiB standalone FAT32 formatter view also preserves the entire
+unused tail. That formatter result predates the new 512 MB setup policy and
+does not authorize a smaller ESP through the current wizard. Optional Btrfs
 tools are tested only when packaged; their absence is an explicit skip.
 
 ```sh
