@@ -1,0 +1,41 @@
+--- a/data.cpp
++++ b/data.cpp
+@@ -30,6 +30,7 @@
+ #include <private/android_filesystem_config.h>
+ #include "variables.h"
+ #include "data.hpp"
++#include "ure-device-identity.hpp"
+ #ifdef TW_UKE_BOUNDED_TELEMETRY
+ #include "ure-telemetry.hpp"
+ #endif
+@@ -1280,6 +1281,11 @@
+   // let the device name in the "About" menu show the canonical value, rather than the one determined at build time
+   mData.SetValue(FOX_COMPATIBILITY_DEVICE, str.c_str());
+ 
++  // Public descriptions remain separate from the canonical assert target.
++  mConst.SetValue("ure_device_display_name", ure_identity::device_name);
++  mConst.SetValue("ure_device_codename", ure_identity::codename);
++  mConst.SetValue("ure_soc_display_name", ure_identity::soc_name);
++
+   // End of the OrangeFox variables
+ 
+   mPersist.SetValue(TW_INSTALL_REBOOT_VAR, "0");
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -1016,8 +1016,14 @@
+ 
+ 			<text>
+ 				<font resource="orangefont" color="%text%"/>
+-				<placement x="%about_txt_x%" y="%about_txt4_y%"/>
+-				<text>{@abt_device}: %fox_compatibility_fox_device%</text>
++				<placement x="%col1_x%" y="%about_txt4_y%"/>
++				<text>{@abt_device}: %ure_device_display_name% (%ure_device_codename%)</text>
++			</text>
++
++			<text>
++				<font resource="caption" color="%text%"/>
++				<placement x="%col1_x%" y="%about_txt4_y%+50"/>
++				<text>%ure_soc_display_name%</text>
+ 			</text>
+ 			
+ 			<!-- Yan's Card -->

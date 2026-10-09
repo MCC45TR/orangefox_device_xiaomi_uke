@@ -6,8 +6,8 @@ PRODUCT_RELEASE_NAME := uke
 PRODUCT_DEVICE := uke
 PRODUCT_NAME := twrp_uke
 PRODUCT_BRAND := Xiaomi
-# Both commercial models use the Uke recovery target; release metadata records
-# the exact validated model and firmware profile.
-PRODUCT_MODEL := Uke Recovery
+# Commercial display identity; the compatibility target remains exactly uke.
+# Neither this shared name nor ro.soc.* authorizes model-specific storage writes.
+PRODUCT_MODEL := Xiaomi Pad 7 / POCO Pad X1
 PRODUCT_MANUFACTURER := Xiaomi
 TARGET_OTA_ASSERT_DEVICE := uke

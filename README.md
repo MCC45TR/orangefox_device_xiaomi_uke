@@ -52,11 +52,10 @@ validation requirements.
 
 | Planned asset | Purpose |
 |---|---|
-| `OrangeFox-uke-fastboot-boot.img` | Temporary boot candidate; never flash this image |
 | `OrangeFox-uke-recovery.img` | Dedicated recovery image; not a temporary-boot image |
-| `orangefox.zip` | ADB sideload installer, once its dedicated installation path is accepted |
+| `orangefox.zip` | Recovery Install ZIP and ADB sideload, once the dedicated installer is accepted |
 
-The replacement is intended to contain these three downloadable files, with
+The replacement is intended to contain exactly these two downloadable files, with
 checksums and validation scope in its release notes. Global
 **OS3.0.303.0.WOZMIXM** is the current source profile; that declaration does not
 accept a physical unit. The present ZIP installer refuses before writing, so it

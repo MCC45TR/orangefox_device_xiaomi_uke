@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Stable source identities for the native host fixture gate.
 set -euo pipefail
+export LC_ALL=C LANG=C
 component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$component"
 {
     find src/device/xiaomi/uke/recoveryctl tests/ure -type f -print0
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
+    printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \
+        patches/0061-describe-uke-device-and-soc.patch
     printf '%s\0' scripts/native-inputs.sh tests/run-native.sh tests/check-ure.sh \
         tests/check-recoveryctl.sh tests/check-installer.sh tests/check-payload.sh \
         tests/check-nested-payloads.sh tests/check-payload-fixtures.sh tests/check-backup.sh tests/check-storage-backup.sh tests/check-restore.sh tests/check-stream-restore.sh tests/check-gpt.sh tests/check-stock-gpt.sh tests/check-partition-map.sh scripts/receive-backup.sh scripts/restore-from-host.sh

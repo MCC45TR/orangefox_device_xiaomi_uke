@@ -1,5 +1,15 @@
 # Uke OrangeFox device profile
 
+The recovery identifies itself as **Xiaomi Pad 7 / POCO Pad X1**, with the
+compatibility codename **`uke`**. Both products use the **Snapdragon 7+ Gen 3
+Mobile Platform**; Android's technical SoC identifier remains **`SM7675`**.
+The long processor name appears separately in About and JSON diagnostics.
+These build declarations describe the target family and do not identify the
+installed firmware, commercial SKU or physical unit for storage admission.
+
+Product references: [Xiaomi Pad 7 specifications](https://www.mi.com/my/product/xiaomi-pad-7/specs/)
+and [POCO Pad X1 specifications](https://www.mi.com/tr/product/poco-pad-x1/specs/).
+
 This is the first source-owned recovery profile for POCO Pad X1 and Xiaomi Pad
 7 (`uke`). It is
 deliberately limited to properties measured from stock firmware. The profile

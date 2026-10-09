@@ -1,10 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "../../ure-device-identity.hpp"
 #include <algorithm>
 #include <map>
 #include <sstream>
 
 namespace ure {
+static Value declared_identity() {
+    Value result;
+    result["device_name"]=ure_identity::device_name;
+    result["codename"]=ure_identity::codename;
+    result["soc_name"]=ure_identity::soc_name;
+    result["soc_model"]=ure_identity::soc_model;
+    result["soc_manufacturer"]=ure_identity::soc_manufacturer;
+    result["origin"]="recovery-build-declaration";
+    result["hardware_verified"]=false;
+    return result;
+}
 static std::string read_optional(const Root& root, const std::string& path, std::size_t limit=65536) {
     try { return root.read(path,limit); } catch(const Error&) { return {}; }
 }
@@ -33,6 +45,7 @@ Value diagnose(const Root& system, const std::string& scope) {
     Value output; output["scope"]=scope; output["read_only"]=true; output["timestamp_utc"]=utc();
     output["monotonic_ms"]=Json::UInt64(monotonic_ms()); output["observations"]=Value(Json::objectValue);
     auto& data=output["observations"];
+    if(scope=="all" || scope=="recovery" || scope=="android")data["recovery_identity"]=declared_identity();
     if(scope=="all" || scope=="kernel" || scope=="recovery" || scope=="boot") {
         data["kernel_release"]=read_optional(system,"proc/sys/kernel/osrelease");
         data["modules"]=redact(read_optional(system,"proc/modules"));
@@ -69,7 +82,7 @@ Value diagnose(const Root& system, const std::string& scope) {
         for(;std::getline(lines,line);) {
             const auto equal=line.find('='); if(equal==line.npos)continue;
             const auto key=line.substr(0,equal);
-            if(key=="ro.product.device" || key=="ro.product.model" || key=="ro.build.version.release" || key=="ro.boot.slot_suffix" || key=="ro.boot.flash.locked" || key=="ro.boot.vbmeta.device_state")data["android"][key]=line.substr(equal+1);
+            if(key=="ro.product.device" || key=="ro.product.model" || key=="ro.soc.manufacturer" || key=="ro.soc.model" || key=="ro.ure.soc.name" || key=="ro.build.version.release" || key=="ro.boot.slot_suffix" || key=="ro.boot.flash.locked" || key=="ro.boot.vbmeta.device_state")data["android"][key]=line.substr(equal+1);
         }
         data["android"]["fbe_state"]="BLOCKED: installed-firmware KeyMint/TEE trust not accepted";
     }
@@ -89,6 +102,7 @@ Value public_report(const Root& system) {
     result["filesystems"]=source["filesystems"]; result["tainted"]=source["tainted"];
     result["pstore_record_count"]=source["pstore"].size(); result["pstore_cleared"]=false;
     result["android"]=source["android"];
+    result["recovery_identity"]=source["recovery_identity"];
     for(const auto* category:{"drm","backlight","framebuffers","input","usb_udc","usb_role","interfaces","power_supplies","thermal"})result["class_counts"][category]=source[category].size();
     result["storage"]=Value(Json::arrayValue);
     for(const auto& object:source["storage"]["objects"]) {
@@ -102,6 +116,7 @@ Value public_report(const Root& system) {
 Value capabilities(const Root& system) {
     const auto filesystems=read_optional(system,"proc/filesystems");
     Value result; result["schema"]=1; result["physical_test_record"]=false; result["capabilities"]=Value(Json::arrayValue);
+    result["recovery_identity"]=declared_identity();
     struct Entry { const char* id; const char* name; const char* tool; const char* filesystem; const char* state; };
     static const std::vector<Entry> entries{
         {"URE-C01","Storage Graph and JSON API","","","SOURCE_PRESENT"},

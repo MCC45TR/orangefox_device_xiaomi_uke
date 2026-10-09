@@ -33,3 +33,4 @@
 0057-read-validated-uke-rtc-offset.patch
 0056-native-session-theme-application.patch
 0060-use-parent-paths-for-gui-support-headers.patch
+0061-describe-uke-device-and-soc.patch

@@ -80,6 +80,7 @@ for path in "${sources[@]}"; do
                 cmp "$tree/$path/ure-telemetry.hpp" "$component/src/device/xiaomi/uke/ure-telemetry.hpp"
                 cmp "$tree/$path/ure-clock.hpp" "$component/src/device/xiaomi/uke/ure-clock.hpp"
                 cmp "$tree/$path/ure-theme.hpp" "$component/src/device/xiaomi/uke/ure-theme.hpp"
+                cmp "$tree/$path/ure-device-identity.hpp" "$component/src/device/xiaomi/uke/ure-device-identity.hpp"
                 for file in display-mirror.hpp display-mirror.cpp display-mirror-layout.cpp ure-text-layout.hpp ure-text-layout.cpp; do
                     cmp "$tree/$path/minuitwrp/$file" "$component/src/device/xiaomi/uke/$file"
                 done;;

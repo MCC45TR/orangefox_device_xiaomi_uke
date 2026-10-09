@@ -126,6 +126,7 @@ copy_changed "$device_source/ure-readonly-fstab-import.hpp" "$recovery_source/ur
 copy_changed "$device_source/ure-telemetry.hpp" "$recovery_source/ure-telemetry.hpp"
 copy_changed "$device_source/ure-clock.hpp" "$recovery_source/ure-clock.hpp"
 copy_changed "$device_source/ure-theme.hpp" "$recovery_source/ure-theme.hpp"
+copy_changed "$device_source/ure-device-identity.hpp" "$recovery_source/ure-device-identity.hpp"
 for file in ure-localization.hpp ure-locale-keys.hpp; do
   copy_changed "$device_source/$file" "$recovery_source/$file"
 done

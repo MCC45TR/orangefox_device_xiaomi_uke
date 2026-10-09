@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Public product descriptions, not installed-firmware or hardware attestation.
+# Preserve SM7675 as the technical SoC identifier used by Android tooling.
+ro.soc.manufacturer=Qualcomm
+ro.soc.model=SM7675
+ro.ure.soc.name=Snapdragon 7+ Gen 3 Mobile Platform
