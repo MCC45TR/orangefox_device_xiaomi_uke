@@ -367,8 +367,8 @@ Mapping mapping(const std::string &name) {
     m.fd = open_path(source, O_RDONLY | O_NONBLOCK);
     struct stat s{};
     require(::fstat(m.fd.get(), &s) == 0 && S_ISBLK(s.st_mode), Code::mapping_identity);
-    m.major = ::major(s.st_rdev);
-    m.minor = ::minor(s.st_rdev);
+    m.major = major(s.st_rdev);
+    m.minor = minor(s.st_rdev);
     linear_table(m.major, m.minor, name);
     std::vector<unsigned char> bytes(2048);
     require(::pread(m.fd.get(), bytes.data(), bytes.size(), 0) ==

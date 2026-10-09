@@ -11,7 +11,7 @@ struct Backing {
     std::uint64_t start = 0, length = 0;
 };
 inline std::optional<std::vector<Backing>> linear_reply(std::span<const unsigned char> bytes,
-                                                        unsigned major, unsigned minor,
+                                                        unsigned expected_major, unsigned expected_minor,
                                                         std::string_view name) {
     if (bytes.size() < sizeof(dm_ioctl) || bytes.size() > 65536)
         return {};
@@ -21,8 +21,8 @@ inline std::optional<std::vector<Backing>> linear_reply(std::span<const unsigned
         (io.flags & (DM_BUFFER_FULL_FLAG | DM_SUSPEND_FLAG | DM_INACTIVE_PRESENT_FLAG)) ||
         io.target_count == 0 || io.target_count > 64 || io.data_size > bytes.size() ||
         io.data_start < sizeof(io) || io.data_start % alignof(dm_target_spec) != 0 ||
-        io.data_start >= io.data_size || major != ::major(static_cast<dev_t>(io.dev)) ||
-        minor != ::minor(static_cast<dev_t>(io.dev)) || !std::memchr(io.name, 0, sizeof(io.name)) ||
+        io.data_start >= io.data_size || expected_major != major(static_cast<dev_t>(io.dev)) ||
+        expected_minor != minor(static_cast<dev_t>(io.dev)) || !std::memchr(io.name, 0, sizeof(io.name)) ||
         std::string_view(io.name) != name)
         return {};
     std::vector<Backing> result;
