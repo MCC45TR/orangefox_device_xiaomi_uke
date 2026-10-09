@@ -6,6 +6,12 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$component"
 {
     find src/device/xiaomi/uke/recoveryctl tests/ure -type f -print0
+    find src/device/xiaomi/uke/touch tests/touch-session -type f -print0
+    printf '%s\0' src/device/xiaomi/uke/ure-touch.hpp tests/check-touch-session.sh scripts/check-touch-payload.sh \
+        patches/0062-own-the-uke-touch-session.patch \
+        src/upstream/orangefox-android16/bootable/recovery/gui/Android.bp
+    find src/upstream/orangefox-android16/bootable/recovery/touch -type f -print0
+    printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/ure-touch.hpp
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \
         patches/0061-describe-uke-device-and-soc.patch

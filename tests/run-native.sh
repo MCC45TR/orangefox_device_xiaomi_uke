@@ -85,6 +85,7 @@ bash tests/check-localization-keys.sh native
 bash tests/check-gui-language.sh native
 bash tests/check-localization-review.sh native
 bash tests/check-platform.sh native
+bash tests/check-touch-session.sh
 [[ ! -f $URE_OPERATION_COORDINATOR/owner.json ]]
 cmp <(bash scripts/native-inputs.sh) "$initial_inputs"
 cp -- "$initial_inputs" reports/private/native-test-inputs.sha256

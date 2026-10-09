@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+cc_binary {
+    name: "uke-touch-supervisor",
+    recovery: true,
+    stl: "libc++_static",
+    cpp_std: "c++20",
+    cppflags: ["-fexceptions"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    srcs: ["touch-supervisor.cpp"],
+    shared_libs: ["libcrypto"],
+}

@@ -34,3 +34,4 @@
 0056-native-session-theme-application.patch
 0060-use-parent-paths-for-gui-support-headers.patch
 0061-describe-uke-device-and-soc.patch
+0062-own-the-uke-touch-session.patch

@@ -1,0 +1,131 @@
+--- a/gui/gui.cpp
++++ b/gui/gui.cpp
+@@ -20,6 +20,7 @@
+ */
+ 
+ #include <linux/input.h>
++#include "../ure-touch.hpp"
+ #include <limits.h>
+ #include <pthread.h>
+ #include <stdarg.h>
+@@ -759,6 +760,15 @@
+ 	} while (1);
+ }
+ 
++static void touch_page_flip(bool complete_page_frame)
++{
++	flip();
++	if (complete_page_frame) {
++		ure_touch_resources_ready(gGuiInitialized != 0);
++		ure_touch_start_once_after_frame(!blankTimer.isScreenOff());
++	}
++}
++
+ static int runPages(const char *page_name, const int stop_on_page_done)
+ {
+ 	DataManager::SetValue("tw_page_done", 0);
+@@ -834,6 +844,14 @@
+ 		// their immutable selections and never update widgets or DataManager.
+ 		extern void ure_gui_poll_jobs();
+ 		ure_gui_poll_jobs();
++		ure_touch_poll_status();
++		const auto touch_status = ure_touch_collected_status();
++		const std::string touch_state = std::to_string(static_cast<unsigned>(touch_status.state));
++		const std::string touch_code = std::to_string(static_cast<unsigned>(touch_status.code));
++		if (DataManager::GetStrValue("ure_touch_state") != touch_state)
++			DataManager::SetValue("ure_touch_state", touch_state);
++		if (DataManager::GetStrValue("ure_touch_code") != touch_code)
++			DataManager::SetValue("ure_touch_code", touch_code);
+ 		// Poll while idle too: connecting a monitor must not require a tablet
+ 		// touch. The DRM sink bounds connector probes and framebuffer updates.
+ 		if (gr_external_update())
+@@ -871,7 +889,7 @@
+ 			}
+ 
+ 			if (ret > 0)
+-				flip();
++				touch_page_flip(ret > 1);
+ #else
+ 			if (ret > 1)
+ 			{
+@@ -882,14 +900,14 @@
+ 				clock_gettime(CLOCK_MONOTONIC, &end);
+ 				render_t = TWFunc::timespec_diff_ms(start, end);
+ 
+-				flip();
++				touch_page_flip(true);
+ 				clock_gettime(CLOCK_MONOTONIC, &start);
+ 				flip_t = TWFunc::timespec_diff_ms(end, start);
+ 
+ 				LOGINFO("Render(): %u ms, flip(): %u ms, total: %u ms\n", render_t, flip_t, render_t+flip_t);
+ 			}
+ 			else if (ret > 0)
+-				flip();
++				touch_page_flip(ret > 1);
+ #endif
+ 		}
+ 		else
+@@ -899,7 +917,7 @@
+ 			if (!Fox_Channel::CapturePendingFrameIfNeeded() &&
+ 			    !Fox_Screen_Stream::CaptureRenderedFrameIfDue())
+ 				Fox_Screen_Service::CaptureRenderedFrameIfWanted();
+-			flip();
++			touch_page_flip(true);
+ 			input_timeout_ms = 0;
+ 		}
+ 
+@@ -1033,7 +1051,10 @@
+ 
+ extern "C" int gui_init(void)
+ {
+-	gr_init();
++	const int graphics_result = gr_init();
++	ure_touch_graphics_ready(graphics_result == 0, false);
++	if (graphics_result != 0)
++		return graphics_result;
+ 	TWFunc::Set_Brightness(DataManager::GetStrValue("tw_brightness"));
+ 
+ #ifdef TW_SCREEN_BLANK_ON_BOOT
+@@ -1057,6 +1078,7 @@
+ 	usleep(TW_DELAY_TOUCH_INIT_MS);
+ #endif
+ 	ev_init();
++	ure_touch_graphics_ready(graphics_result == 0, true);
+ 	return 0;
+ }
+ 
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -33,6 +33,7 @@
+ #ifdef TW_UKE_BOUNDED_TELEMETRY
+ #include "ure-telemetry.hpp"
+ #endif
++#include "ure-touch.hpp"
+ #include "gui/twmsg.h"
+ #include "cutils/properties.h"
+ 
+@@ -375,6 +376,7 @@
+ }
+ 
+ static void reboot() {
++	ure_touch_stop();
+ 	gui_msg(Msg("rebooting=Rebooting..."));
+ 	TWFunc::Update_Log_File();
+ 	string Reboot_Arg;
+@@ -665,6 +667,7 @@
+ 
+ 	// End management admission and join owned supervisors before disposing
+ 	// application resources. Returning from a GUI page alone is not cleanup.
++	ure_touch_stop();
+ 	extern void ure_gui_shutdown_jobs();
+ 	ure_gui_shutdown_jobs();
+ 
+--- a/gui/Android.bp
++++ b/gui/Android.bp
+@@ -64,5 +64,6 @@
+         "action.cpp",
+         "ure.cpp",
++        "../touch/touch-gui-session.cpp",
+         "console.cpp",
+         "fill.cpp",
+         "button.cpp",

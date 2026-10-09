@@ -17,6 +17,7 @@ PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
 
 PRODUCT_PACKAGES += \
     uke-clock-sync \
+    uke-touch-supervisor \
     uke-recoveryctl \
     uke-recovery-install \
     bootctl \

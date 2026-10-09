@@ -33,6 +33,7 @@ mkdir "$work/root"
 bwrap --ro-bind / / --bind "$work/root" /mnt --chdir /mnt \
     cpio -idm --quiet --no-absolute-filenames < "$work/ramdisk.cpio"
 bash "$component/scripts/build-evidence.sh" payload "$image" "$work/root" "$work/compile-evidence.json"
+bash "$component/scripts/check-touch-payload.sh" "$work/root" "$work/touch-payload.json"
 bash "$component/scripts/localization-evidence.sh" source > "$work/localization.json"
 bash "$component/scripts/localization-evidence.sh" ui "$work/root" > "$work/extracted-ui.json"
 bash "$component/scripts/localization-evidence.sh" ui "$tree/out-public/target/product/uke/recovery/root" > "$work/staged-ui.json"

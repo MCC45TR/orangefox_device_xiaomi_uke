@@ -127,6 +127,11 @@ copy_changed "$device_source/ure-telemetry.hpp" "$recovery_source/ure-telemetry.
 copy_changed "$device_source/ure-clock.hpp" "$recovery_source/ure-clock.hpp"
 copy_changed "$device_source/ure-theme.hpp" "$recovery_source/ure-theme.hpp"
 copy_changed "$device_source/ure-device-identity.hpp" "$recovery_source/ure-device-identity.hpp"
+copy_changed "$device_source/ure-touch.hpp" "$recovery_source/ure-touch.hpp"
+mkdir -p "$recovery_source/touch"
+for file in touch-policy.hpp touch-gui-session.hpp touch-gui-session.cpp; do
+  copy_changed "$device_source/touch/$file" "$recovery_source/touch/$file"
+done
 for file in ure-localization.hpp ure-locale-keys.hpp; do
   copy_changed "$device_source/$file" "$recovery_source/$file"
 done

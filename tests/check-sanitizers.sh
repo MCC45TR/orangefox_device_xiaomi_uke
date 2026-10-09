@@ -38,6 +38,7 @@ bash tests/check-fox-command-admission.sh
 bash tests/check-vold-key-upgrade.sh
 bash tests/check-touch-release.sh
 bash tests/check-touch-device-state.sh
+bash tests/check-touch-session.sh
 bash tests/check-telemetry.sh
 bash tests/check-fbe-parser.sh
 bash tests/check-fbe-gcm.sh

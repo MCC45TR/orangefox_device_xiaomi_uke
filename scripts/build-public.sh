@@ -30,8 +30,11 @@ while IFS= read -r -d '' source_file; do
     fi
 done < <(find "$component/src/device/xiaomi/uke" -type f -print0)
 cmp -- "$component/src/device/xiaomi/uke/ure-gui.cpp" "$tree/bootable/recovery/gui/ure.cpp"
-for header in ure-localization.hpp ure-locale-keys.hpp ure-write-gate.hpp ure-lifecycle.hpp ure-readonly-fstab-import.hpp ure-telemetry.hpp ure-clock.hpp ure-theme.hpp ure-device-identity.hpp; do
+for header in ure-localization.hpp ure-locale-keys.hpp ure-write-gate.hpp ure-lifecycle.hpp ure-readonly-fstab-import.hpp ure-telemetry.hpp ure-clock.hpp ure-theme.hpp ure-device-identity.hpp ure-touch.hpp; do
     cmp -- "$component/src/device/xiaomi/uke/$header" "$tree/bootable/recovery/$header"
+done
+for source in touch-gui-session.cpp touch-gui-session.hpp touch-policy.hpp; do
+    cmp -- "$component/src/device/xiaomi/uke/touch/$source" "$tree/bootable/recovery/touch/$source"
 done
 # OrangeFox captures shell exports during lunch for its vendor packaging script.
 # A make-only FOX_BUILD_BASH value would still let that script copy its prebuilt.
