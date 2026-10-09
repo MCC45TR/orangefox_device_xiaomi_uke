@@ -8,6 +8,13 @@ implementation and acceptance requirements. It is not a completed manager.
 
 ## Current foundation
 
+The [Uke dualboot shell](DUALBOOT-SETUP.md) provides five OS layouts, optional
+separate Linux boot, explicit units and a reviewed command/size preview. It
+allocates only within original userdata. Host five-role filesystem transactions
+and complete rollback are tested. The narrow live F2FS recreation implementation
+still has closed profile prerequisites and no physical acceptance; it does not
+enable general OrangeFox writes or six-LUN restoration on the tablet.
+
 The shared native library already inspects both GPT copies, CRCs, GUIDs,
 partition ranges, overlaps, alignment and protective MBR. Private GPT backups
 carry the selected target/profile, raw regions, partition-table JSON and hashes.

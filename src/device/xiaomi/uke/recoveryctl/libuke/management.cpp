@@ -48,6 +48,7 @@ bool management_command(const std::vector<std::string>& args) {
     if(command=="backup")return op=="tree-recover";
     if(command=="installer")return op.starts_with("image-");
     if(command=="filesystem")return op=="capabilities" || op=="plan" || op=="execute" || op=="inspect-journal" || op=="resume" || op=="rollback" || op=="cancel";
+    if(command=="dualboot")return true;
     if(command=="partition")return op=="capabilities" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="stock")return op=="image-inspect" || op=="job-plan" || op=="job-execute" || op=="job-inspect" || op=="job-resume" || op=="job-rollback" || op=="job-cancel";
     if(command=="storage")return op=="preflight" || op=="profile-status" || op=="profile-compare-fixture";
@@ -151,6 +152,49 @@ Value management_dispatch(std::vector<std::string> args) {
         options.allow({"--confirm"}); const auto action=operation.substr(4);
         require(action!="inspect" || !options.has("--confirm"),"invalid-options","Read-only stock journal inspection does not accept confirmation");
         return stock_job_recover(words[2],action,action=="inspect" ? "" : options.need("--confirm"));
+    }
+    if(command=="dualboot") {
+        if(operation=="template") {
+            positional(options,2); options.allow({});
+            return parse_json(R"({"schema":1,"format":"uke-dualboot-request","linux_enabled":true,"windows_enabled":false,"separate_linux_boot":false,"userdata_policy":"recreate","userdata_filesystem":"f2fs","esp":{"size":"512","unit":"MiB"},"linux":{"size":"64","unit":"GiB","filesystem":"ext4"}})");
+        }
+        if(operation=="preview") {
+            positional(options,3); options.allow({}); Value result; result["text"]=dualboot_preview(json_file(words[2])); return result;
+        }
+        Root system(options.get("--system-root","/"));
+        if(operation=="plan") {
+            positional(options,3); options.allow({"--system-root","--image","--object","--sector-size","--profile","--output"});
+            require(options.has("--image")!=options.has("--object"),"invalid-options","Select one regular image or stable live LUN identity");
+            require(!options.has("--object") || !options.has("--sector-size"),"invalid-options","Live sector size comes from the kernel");
+            auto selected=options.has("--object") ? storage_select(system,options.need("--object"),false) : target(options,system);
+            const auto plan=dualboot_plan(system,selected,json_file(words[2]),options.need("--profile"));
+            save_json(options.need("--output"),plan); return plan;
+        }
+        if(operation=="execute") {
+            positional(options,3); options.allow({"--system-root","--image","--object","--sector-size","--journal","--confirm","--data-policy"});
+            require(options.has("--image")!=options.has("--object"),"invalid-options","Select one image or the reviewed live LUN identity");
+            if(options.has("--object")) {
+                require(!options.has("--sector-size"),"invalid-options","Live sector size comes from the kernel");
+                const auto plan=json_file(words[2]);
+                require(plan["target_identity"]["stable_id"]==options.need("--object"),"stale-device","The selected object differs from the reviewed live plan");
+                return dualboot_device_execute(system,plan,options.need("--journal"),options.need("--confirm"),options.need("--data-policy"));
+            }
+            auto selected=target(options,system,true);
+            return dualboot_image_execute(system,selected,json_file(words[2]),options.need("--journal"),options.need("--confirm"),options.need("--data-policy"));
+        }
+        if(operation=="preflight") {
+            positional(options,3); options.allow({"--system-root","--object"}); const auto plan=json_file(words[2]);
+            require(plan["target_identity"]["stable_id"]==options.need("--object"),"stale-device","The selected object differs from the reviewed live plan");
+            auto selected=storage_select(system,options.need("--object"),false); return dualboot_device_preflight(system,selected,plan);
+        }
+        if(operation=="device-inspect" || operation=="device-restore-gpt") {
+            positional(options,3); options.allow({"--system-root","--confirm","--data-policy"});
+            const bool inspect=operation=="device-inspect";
+            require(!inspect || (!options.has("--confirm") && !options.has("--data-policy")),"invalid-options","Read-only journal inspection does not accept write consent");
+            return dualboot_device_recover(system,words[2],inspect ? "inspect" : "restore-gpt",
+                inspect ? "" : options.need("--confirm"),inspect ? "" : options.need("--data-policy"));
+        }
+        throw Error("invalid-options","Select dualboot template, plan, preview, preflight, execute, device-inspect or device-restore-gpt");
     }
     if(command=="partition") {
         if(operation=="capabilities") { positional(options,2); options.allow({}); return partition_capabilities(); }

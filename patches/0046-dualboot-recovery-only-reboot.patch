@@ -1,0 +1,35 @@
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -1093,8 +1093,19 @@
+ // reboot: Reboot the system. Return -1 on error, no return on success
+ int TWFunc::tw_reboot(RebootCommand command)
+ {
+ 	ure::LegacyLifecycleGuard lifecycle("reboot", nullptr, true);
+ 	if (!ure_legacy_lifecycle_guard(lifecycle)) return -1;
++	const auto dualboot = ure::dualboot_quarantine_state();
++	if (dualboot != ure::DualbootQuarantineState::Clear) {
++		// The writer has already synchronized its bounded views and durable
++		// journal. Old partition nodes must never reach normal log, settings,
++		// deactivation, script or mount callbacks after a GPT change.
++		if (command != rb_recovery ||
++			(dualboot != ure::DualbootQuarantineState::Committed &&
++			 dualboot != ure::DualbootQuarantineState::GptRestored)) return -1;
++		sync();
++		return property_set(ANDROID_RB_PROPERTY, "reboot,recovery");
++	}
+ 	DataManager::Flush();
+ 	Update_Log_File();
+ 
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -709,6 +709,10 @@
+ 
+ int GUIAction::reboot(std::string arg)
+ {
++  if (ure::dualboot_quarantine_state() != ure::DualbootQuarantineState::Clear && arg != "recovery") {
++    gui_err("ure_lifecycle_blocked=An active or interrupted operation must finish or be recovered before unmounting or restarting.");
++    return 1;
++  }
+   if (!ure::stage_legacy_reboot()) {
+     gui_err("ure_lifecycle_blocked=An active or interrupted operation must finish or be recovered before unmounting or restarting.");
+     return 1;

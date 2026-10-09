@@ -241,7 +241,7 @@ static Value partition_layout(const Header& header, std::uint32_t sector) {
         // zero type GUID, a nonzero unique GUID and vendor attribute bit 60.
         // Preserve and expose its range separately. Other nonzero unused
         // records remain invalid rather than silently becoming free space.
-        const bool reserved=unused && sector==4096 && (header.count==32 || header.count==96) && name.first=="last_parti" &&
+        const bool reserved=unused && sector==4096 && (header.count==32 || header.count==64 || header.count==96 || header.count==128) && name.first=="last_parti" &&
             name.second && le64(p+48)==(1ULL<<60) && last==header.last;
         item["range_valid"]=range; valid=valid && range && (!unused || reserved);
         if(range) { item["bytes"]=Json::UInt64((last-first+1)*sector); ranges.emplace_back(first,last); }
@@ -260,16 +260,21 @@ Value gpt_inspect(int fd, std::uint32_t sector) {
     Value output; output["bytes"]=Json::UInt64(bytes); output["sector_bytes"]=sector; output["read_only"]=true;
     const auto mbr=read_at(fd,0,512);
     unsigned protective_entries=0, other_entries=0;
-    bool protective_geometry=true;
+    bool protective_geometry=true, saturated_geometry=true;
     for(unsigned i=0;i<4;++i) {
         const auto* p=mbr.data()+446+i*16;
         if(p[4]==0xee) {
             ++protective_entries;
             protective_geometry=protective_geometry && p[0]==0 && le32(p+8)==1 &&
                 le32(p+12)==std::min<std::uint64_t>(sectors-1,UINT32_MAX);
+            saturated_geometry=saturated_geometry && p[0]==0 && le32(p+8)==1 && le32(p+12)==UINT32_MAX;
         } else if(std::any_of(p,p+16,[](unsigned char b){return b!=0;}))++other_entries;
     }
-    output["protective_mbr_valid"]=mbr[510]==0x55 && mbr[511]==0xaa && protective_entries==1 && other_entries==0 && protective_geometry;
+    const bool protective_structure=mbr[510]==0x55 && mbr[511]==0xaa && protective_entries==1 && other_entries==0;
+    const bool standard_mbr=protective_structure && protective_geometry;
+    output["protective_mbr_valid"]=standard_mbr;
+    output["protective_mbr_classification"]=standard_mbr ? "STANDARD" : "INVALID";
+    output["protective_mbr_oem_saturated_candidate"]=protective_structure && sector==4096 && saturated_geometry && !standard_mbr;
     output["hybrid_mbr"]=other_entries!=0;
     Header primary,backup;
     try { primary=read_header(fd,1,sector,sectors); output["primary"]=primary.data; }
@@ -288,6 +293,15 @@ Value gpt_inspect(int fd, std::uint32_t sector) {
     output["reserved_records"]=(primary.valid ? primary_layout : backup_layout)["reserved_records"]; output["layout_valid"]=true;
     const bool matching=primary.valid && backup.valid && primary.entries==backup.entries && primary.count==backup.count &&
         primary.entry_size==backup.entry_size && primary.data["disk_guid"]==backup.data["disk_guid"] && primary.first==backup.first && primary.last==backup.last;
+    // Uke OEM 4 KiB LUNs use a saturated legacy protective length even when
+    // the disk is smaller than UINT32_MAX logical sectors. Accept that exact
+    // convention only with two independently valid, agreeing GPT copies. This
+    // classification never repairs or normalizes the original MBR bytes.
+    const bool oem_saturated=matching && output["protective_mbr_oem_saturated_candidate"]==true;
+    if(oem_saturated) {
+        output["protective_mbr_valid"]=true;
+        output["protective_mbr_classification"]="OEM_SATURATED_4K";
+    }
     output["copies_match"]=matching; output["healthy"]=matching && output["protective_mbr_valid"].asBool();
     output["state"]=output["healthy"].asBool() ? "HEALTHY" : "INSPECTION_REQUIRED";
     output["read_only"]=true;

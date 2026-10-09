@@ -23,9 +23,16 @@ void* lifecycle_acquire(const char* action,bool adopt_staged_reboot) noexcept {
         if(adopt_staged_reboot) {
             require(std::string_view(action)=="reboot","invalid-lifecycle-action","Only reboot consumes the staged reboot reservation");
             std::lock_guard<std::mutex> held(reboot_mutex);
-            if(staged_reboot) { staged_reboot->verify(); return staged_reboot.release(); }
+            if(staged_reboot) {
+                auto candidate=std::move(staged_reboot);
+                candidate->verify();
+                require(dualboot_quarantine_permits(action),"dualboot-quarantined","The dualboot checkpoint does not permit this lifecycle transition");
+                return candidate.release();
+            }
         }
-        return new Token(LifecycleLease::acquire(action));
+        auto candidate=std::make_unique<Token>(LifecycleLease::acquire(action));
+        require(dualboot_quarantine_permits(action),"dualboot-quarantined","The dualboot checkpoint does not permit this lifecycle transition");
+        return candidate.release();
     } catch(const Error& error) { refused(error.code.c_str()); }
     catch(...) { refused("lifecycle-unavailable"); }
     return nullptr;
@@ -39,8 +46,11 @@ void lifecycle_release(void* token) noexcept { delete static_cast<Token*>(token)
 bool lifecycle_stage_reboot() noexcept {
     try {
         std::lock_guard<std::mutex> held(reboot_mutex);
-        if(staged_reboot) { staged_reboot->verify(); return true; }
-        staged_reboot=std::make_unique<Token>(LifecycleLease::acquire("reboot")); return true;
+        auto candidate=std::move(staged_reboot);
+        if(!candidate)candidate=std::make_unique<Token>(LifecycleLease::acquire("reboot"));
+        candidate->verify();
+        require(dualboot_quarantine_permits("reboot"),"dualboot-quarantined","The dualboot checkpoint does not permit reboot");
+        staged_reboot=std::move(candidate); return true;
     } catch(const Error& error) { refused(error.code.c_str()); } catch(...) { refused("lifecycle-unavailable"); }
     return false;
 }

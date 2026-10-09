@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "libuke/uke.h"
+#include "libuke/lifecycle_policy.hpp"
 #ifdef __ANDROID__
 #include <sys/system_properties.h>
 #endif
@@ -120,6 +121,8 @@ std::optional<std::string> mounted_source(std::string_view mountpoint) {
 }
 
 void mount_read_only(const Partition& item, const Target& selected) {
+    ure::LegacyLifecycleGuard lifecycle("mount");
+    if (!lifecycle.active()) throw std::runtime_error("An active or interrupted operation prevents mounting old partition nodes");
     const fs::path device = fs::path("/dev/block") / item.device;
     struct stat info{};
     if (stat(device.c_str(), &info) != 0 || !S_ISBLK(info.st_mode))
@@ -132,6 +135,7 @@ void mount_read_only(const Partition& item, const Target& selected) {
     if (mounted_source(selected.mountpoint))
         throw std::runtime_error("Mount point is already occupied");
     constexpr unsigned long flags = MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC;
+    if (!lifecycle.active()) throw std::runtime_error("Partition lifecycle ownership changed before mount");
     if (mount(device.c_str(), selected.mountpoint, selected.filesystem, flags,
               selected.options) != 0)
         throw std::runtime_error(std::string("Read-only mount failed: ") + std::strerror(errno));
@@ -148,9 +152,16 @@ int usage() {
 } // namespace
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) return usage();
     try {
+        if (fs::path(argv[0]).filename()=="partition") {
+            return ure::dualboot_shell(std::vector<std::string>(argv+1,argv+argc),std::cin,std::cout);
+        }
+        if (argc < 2) return usage();
         const std::string_view command = argv[1];
+        if ((command == "partition" && argc == 2) ||
+            (command == "dualboot" && argc >= 3 && std::string_view(argv[2]) == "setup")) {
+            return ure::dualboot_shell(std::vector<std::string>(argv + (command == "partition" ? 2 : 3), argv + argc), std::cin, std::cout);
+        }
         if (command != "list" && command != "plan-mount" && command != "mount-ro" &&
             command != "unmount" && command != "rotation") {
             return ure::dispatch(std::vector<std::string>(argv + 1, argv + argc));
@@ -172,6 +183,8 @@ int main(int argc, char* argv[]) {
             mount_read_only(item, selected);
             std::cout << selected.mountpoint << " mounted read-only\n";
         } else if (command == "unmount" && argc == 4) {
+            ure::LegacyLifecycleGuard lifecycle("unmount");
+            if (!lifecycle.active()) throw std::runtime_error("An active or interrupted operation prevents unmounting old partition nodes");
             const auto selected = target(argv[2]);
             const auto item = select(inventory("/sys/class/block"), selected, argv[3]);
             struct stat mountpoint_info{};
@@ -180,6 +193,7 @@ int main(int argc, char* argv[]) {
             const auto source = mounted_source(selected.mountpoint);
             if (!source || *source != (fs::path("/dev/block") / item.device).string())
                 throw std::runtime_error("Mount source does not match requested PARTUUID");
+            if (!lifecycle.active()) throw std::runtime_error("Partition lifecycle ownership changed before unmount");
             if (umount(selected.mountpoint) != 0)
                 throw std::runtime_error(std::string("Unmount failed: ") + std::strerror(errno));
         } else if (command == "rotation" && argc == 3) {

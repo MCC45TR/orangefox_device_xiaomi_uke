@@ -125,6 +125,20 @@ Value partition_map(const StorageTarget& target, const Root* system = nullptr);
 std::uint64_t layout_size_bytes(const std::string& amount, const std::string& unit, std::uint64_t pool);
 Value partition_layout(const StorageTarget& target, const Value& request, const std::string& profile, const Root* system = nullptr);
 Value partition_capabilities();
+Value dualboot_layout_request(const Value& input);
+Value dualboot_plan(const Root& system, const StorageTarget& target, const Value& input, const std::string& profile);
+std::string dualboot_preview(const Value& plan);
+int dualboot_shell(const std::vector<std::string>& args, std::istream& input, std::ostream& output);
+void dualboot_validate_plan(const Value& plan);
+Value dualboot_device_commands(const Value& plan);
+Value dualboot_device_preflight(const Root& system, const StorageTarget& target, const Value& plan);
+Value dualboot_device_execute(const Root& system, const Value& plan, const fs::path& journal,
+    const std::string& confirmation, const std::string& data_policy);
+Value dualboot_device_recover(const Root& system, const fs::path& journal, const std::string& action,
+    const std::string& confirmation, const std::string& data_policy);
+Value partition_job_execute_reviewed(const Root& system, StorageTarget& target, const Value& plan,
+    const fs::path& directory, const std::string& confirmation, const Value& setup);
+Value dualboot_image_execute(const Root& system, StorageTarget& target, const Value& plan, const fs::path& journal, const std::string& confirmation, const std::string& data_policy);
 Value partition_live_blockers();
 Value partition_layout_bar(const Value& layout, unsigned width);
 std::string partition_layout_text(const Value& layout);
@@ -160,6 +174,7 @@ Value platform_compare_fixture(const Value& contract, const Value& observation);
 void platform_require_live_action(std::string_view feature);
 Value filesystem_capabilities();
 Value filesystem_operation_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
+Value filesystem_format_command(const std::string& type, const std::string& label, const std::string& destination);
 // Prepare and independently check a private replacement. Never write the source.
 Value filesystem_prepare(const Root& system, StorageTarget& source, const Value& plan,
                          const fs::path& directory, const std::string& confirmation, OperationLease* parent = nullptr);

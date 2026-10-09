@@ -162,12 +162,9 @@ void prepare_image(const Root& system,StorageTarget& target,const Root& store,co
     std::vector<std::string> args; const auto tool=plan["tool"].asString();
     if(action=="format") {
         const auto label=request.get("label","URE").asString();
-        if(type=="ext4")args={"-q","-F","-t","ext4","-L",label,fd};
-        else if(type=="vfat")args={"-F","32","-n",label,fd};
-        else if(type=="exfat")args={"-L",label,fd};
-        else if(type=="ntfs")args={"-F","-Q","-L",label,fd};
-        else if(type=="f2fs")args={"-f","-l",label,fd};
-        else if(type=="btrfs")args={"-f","-L",label,fd};
+        const auto command=filesystem_format_command(type,label,fd);
+        require(command["tool"]==tool,"changed-filesystem-tool","The selected formatter changed after review");
+        for(const auto& argument:command["argv"])args.push_back(argument.asString());
     } else if(action=="repair") {
         if(type=="ext4")args={"-f","-p",fd};
         else if(type=="vfat" || type=="exfat")args={"-a",fd};
@@ -257,6 +254,19 @@ Value transformed(const Root& system,StorageTarget& target,const Root& store,con
     return application;
 }
 } // namespace
+Value filesystem_format_command(const std::string& type,const std::string& label,const std::string& destination) {
+    require(identifier(label) && label.size()<=11,"invalid-label","Use an ASCII filesystem label of at most 11 characters");
+    std::vector<std::string> args;
+    if(type=="ext4")args={"-q","-F","-t","ext4","-L",label,destination};
+    else if(type=="vfat")args={"-F","32","-n",label,destination};
+    else if(type=="exfat")args={"-L",label,destination};
+    else if(type=="ntfs")args={"-F","-Q","-L",label,destination};
+    else if(type=="f2fs")args={"-f","-l",label,destination};
+    else if(type=="btrfs")args={"-f","-L",label,destination};
+    Value command; command["tool"]=formatter(type); command["argv"]=Value(Json::arrayValue);
+    for(const auto& argument:args)command["argv"].append(argument);
+    return command;
+}
 Value filesystem_capabilities() {
     Value out; out["schema"]=1; out["filesystems"]=Value(Json::arrayValue);
     for(const auto* type:{"ext4","f2fs","vfat","exfat","ntfs","btrfs"}) {

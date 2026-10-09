@@ -13,15 +13,16 @@ namespace {
 constexpr std::uint64_t mib=1048576, precision=1000000;
 __extension__ typedef unsigned __int128 Wide;
 struct Role { const char* id; const char* label; const char* type; std::vector<std::string> filesystems; };
-const std::array<Role,4> roles{{
+const std::array<Role,5> roles{{
     {"esp","uke_esp","c12a7328-f81f-11d2-ba4b-00a0c93ec93b",{"fat32"}},
+    {"linux_boot","uke_linux_boot","0fc63daf-8483-4772-8e79-3d69d8477de4",{"ext4"}},
     {"linux","uke_linux","0fc63daf-8483-4772-8e79-3d69d8477de4",{"ext4","btrfs","f2fs"}},
     {"windows","uke_windows","ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",{"ntfs"}},
     {"userdata","userdata","",{"ext4","f2fs"}}
 }};
 const Role& role(const std::string& id) {
     const auto it=std::find_if(roles.begin(),roles.end(),[&](const Role& r) { return id==r.id; });
-    require(it!=roles.end(),"invalid-layout-role","Select ESP, Linux, Windows or userdata"); return *it;
+    require(it!=roles.end(),"invalid-layout-role","Select ESP, optional Linux boot, Linux, Windows or userdata"); return *it;
 }
 bool userdata(const Value& part) { return part["label"]=="userdata"; }
 void keys(const Value& value,const std::set<std::string>& allowed) {
@@ -122,8 +123,8 @@ Value partition_capabilities() {
 std::uint64_t layout_size_bytes(const std::string& amount,const std::string& unit,std::uint64_t pool) {
     require(pool<=INT64_MAX,"invalid-size","Layout pool exceeds supported storage offsets"); const auto quantity=decimal(amount);
     if(unit=="%") { require(quantity<=100*precision,"invalid-layout-percent","Percentage must be between zero and 100"); return scaled(pool,quantity,100*precision); }
-    const auto factor=unit=="GB" ? 1000000000ULL : unit=="GiB" ? 1073741824ULL : unit=="MiB" ? mib : 0;
-    require(factor>0,"invalid-layout-unit","Select GB, GiB, MiB or %"); return scaled(quantity,factor,precision);
+    const auto factor=unit=="GB" ? 1000000000ULL : unit=="GiB" ? 1073741824ULL : unit=="MB" ? 1000000ULL : unit=="MiB" ? mib : 0;
+    require(factor>0,"invalid-layout-unit","Select MB, MiB, GB, GiB or %"); return scaled(quantity,factor,precision);
 }
 Value partition_layout(const StorageTarget& target,const Value& input,const std::string& profile,const Root* system) {
     require(identifier(profile),"invalid-profile","Select a firmware profile"); storage_revalidate(target,system);
@@ -131,8 +132,8 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     const auto sector=target.identity["logical_sector_bytes"].asUInt(); const auto table=gpt_inspect(target.descriptor.get(),sector);
     require(table["healthy"]==true,"unhealthy-layout-source","Two valid agreeing GPT copies are required before layout design");
     keys(input,{"schema","format","mode","placement","userdata_policy","rows","record_edits"});
-    require(input["schema"]==1 && input["format"]=="ure-layout-request" && input["rows"].isArray() && input["rows"].size()==roles.size(),
-        "invalid-layout-request","Explicitly specify all four roles; zero size disables a new OS role");
+    require(input["schema"]==1 && input["format"]=="ure-layout-request" && input["rows"].isArray() && (input["rows"].size()==4 || input["rows"].size()==5),
+        "invalid-layout-request","Explicitly specify ESP, Linux, Windows and userdata, with an optional Linux boot row; zero size disables a new OS role");
     for(const auto* field:{"mode","placement","userdata_policy"})require(!input.isMember(field) || input[field].isString(),"invalid-layout-request","Layout options must be strings");
     const auto mode=input.get("mode","standard").asString(),placement=input.get("placement","after_userdata").asString(),policy=input.get("userdata_policy","preserve").asString();
     require(mode=="standard" || mode=="advanced","invalid-layout-mode","Select standard or advanced mode"); const bool advanced=mode=="advanced";
@@ -168,17 +169,23 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
         require(requested.at(role_id)==0 || allocated.at(role_id)>0,"layout-size-too-small","An enabled role needs at least 1 MiB after alignment");
         require(allocated.at(role_id)<=pool-used,"insufficient-layout-space","Requested allocations exceed the original userdata capacity"); used+=allocated.at(role_id);
     }
-    require(selected.size()==roles.size(),"invalid-layout-request","All four roles must be selected once");
+    require(selected.size()==input["rows"].size() && selected.contains("esp") && selected.contains("linux") && selected.contains("windows") && selected.contains("userdata"),
+        "invalid-layout-request","ESP, Linux, Windows and userdata must be selected once, with optional Linux boot");
+    const bool has_linux_boot=selected.contains("linux_boot");
+    require(!has_linux_boot || allocated.at("linux_boot")==0 || allocated.at("linux")>0,"linux-boot-without-root","A separate Linux boot partition requires an enabled Linux root");
     if(remainder) { requested["userdata"]=pool-used; allocated["userdata"]=pool-used; }
     require(allocated.at("userdata")>0,"userdata-required","Userdata cannot be deleted by this layout workflow");
-    for(const auto& part:protected_parts)for(const auto& r:roles)if(r.id!=std::string("userdata") && part["label"]==r.label && allocated.at(r.id)>0)
+    for(const auto& part:protected_parts)for(const auto& r:roles)if(r.id!=std::string("userdata") && selected.contains(r.id) && part["label"]==r.label && allocated.at(r.id)>0)
         throw Error("existing-os-partition","An existing OS partition is protected. This workflow creates new roles only from userdata; back up and select a separate migration workflow");
     // A request that leaves every OS role disabled must not trim userdata merely
     // because its existing end is not MiB aligned.
-    const bool preserve_full=remainder && allocated.at("esp")==0 && allocated.at("linux")==0 && allocated.at("windows")==0;
+    const bool preserve_full=remainder && allocated.at("esp")==0 && allocated.at("linux")==0 && allocated.at("windows")==0 && (!has_linux_boot || allocated.at("linux_boot")==0);
     const auto end=preserve_full ? raw_end : finish,graph_pool=end-start;
     if(preserve_full) { requested["userdata"]=graph_pool; allocated["userdata"]=graph_pool; }
-    std::array<std::string,4> order=placement=="after_userdata" ? std::array<std::string,4>{"userdata","esp","linux","windows"} : std::array<std::string,4>{"esp","linux","windows","userdata"};
+    std::vector<std::string> order=placement=="after_userdata" ? std::vector<std::string>{"userdata","esp"} : std::vector<std::string>{"esp"};
+    if(has_linux_boot)order.push_back("linux_boot");
+    order.push_back("linux"); order.push_back("windows");
+    if(placement=="before_userdata")order.push_back("userdata");
     request["mode"]=mode; request["placement"]=placement; request["userdata_policy"]=policy; request["rows"]=Value(Json::arrayValue);
     std::uint64_t cursor=start;
     for(const auto& role_id:order) {
@@ -214,7 +221,31 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
         } else { require(!row.isMember("partuuid"),"invalid-layout-guid","Disabled roles do not accept a GUID"); result["payload_work_required"]=!old.isNull(); }
         request["rows"].append(row); rows.append(result);
     }
-    const auto count=table["primary"]["entry_count"].asUInt();
+    const auto original_count=table["primary"]["entry_count"].asUInt(),entry_size=table["primary"]["entry_size"].asUInt();
+    auto count=original_count;
+    unsigned additions=0,free_slots=0;
+    for(const auto& row:rows)if(row["enabled"]==true && row["previous"].isNull())++additions;
+    for(unsigned slot=1;slot<=count;++slot)if(!occupied.contains(slot))++free_slots;
+    unsigned reserved_capacity=count;
+    if(additions>free_slots) {
+        // Extend only the declared record count within the existing bounded
+        // metadata reservation. Neither table locations nor usable LBAs move.
+        // Synthetic sparse holes are never evidence for a live disk: the same
+        // zero checks read the retained target descriptor at planning time.
+        const auto metadata=gpt_regions(target.descriptor.get(),sector); std::uint64_t reserved_bytes=UINT64_MAX;
+        for(const auto& range:metadata)if(range.name=="primary_table" || range.name=="backup_table")reserved_bytes=std::min<std::uint64_t>(reserved_bytes,range.bytes.size());
+        require(reserved_bytes!=UINT64_MAX && reserved_bytes/entry_size<=4096,"layout-table-expansion-unavailable","GPT metadata reserve cannot be bounded");
+        reserved_capacity=static_cast<unsigned>(reserved_bytes/entry_size);
+        const auto needed=count+additions-free_slots;
+        const auto expanded=(needed+31U)/32U*32U;
+        require(expanded>count && expanded<=reserved_capacity,"layout-table-full","New roles exceed the existing GPT metadata reservation");
+        for(const auto& range:metadata)if(range.name=="primary_table" || range.name=="backup_table") {
+            const auto begin=static_cast<std::size_t>(count)*entry_size,end=static_cast<std::size_t>(expanded)*entry_size;
+            require(end<=range.bytes.size() && std::all_of(range.bytes.begin()+static_cast<std::ptrdiff_t>(begin),range.bytes.begin()+static_cast<std::ptrdiff_t>(end),[](char byte){return byte==0;}),
+                "layout-table-reserve-not-empty","Undeclared GPT records are not zero in both existing table reservations");
+        }
+        count=expanded;
+    }
     for(auto& row:rows)if(row["enabled"]==true) {
         unsigned slot=row["previous"].isNull() ? 0 : row["previous"]["index"].asUInt();
         if(slot==0) { for(unsigned candidate=1;candidate<=count;++candidate)if(!occupied.contains(candidate)) { slot=candidate; break; }
@@ -244,6 +275,11 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     Value out; out["schema"]=1; out["format"]="ure-partition-layout"; out["firmware_profile"]=profile; out["target_identity"]=target.identity;
     out["current_table_sha256"]=sha256(json(table)); out["request"]=request; out["rows"]=rows; out["protected_records"]=protected_parts;
     out["advanced_record_edits"]=edits; out["mode"]=mode; out["placement"]=placement; out["userdata_policy"]=policy;
+    out["gpt_entry_table"]["original_count"]=original_count; out["gpt_entry_table"]["proposed_count"]=count;
+    out["gpt_entry_table"]["entry_size"]=entry_size; out["gpt_entry_table"]["expanded"]=count!=original_count;
+    out["gpt_entry_table"]["table_locations_unchanged"]=true; out["gpt_entry_table"]["usable_lbas_unchanged"]=true;
+    out["gpt_entry_table"]["extension_zero_verified_both_copies"]=count!=original_count;
+    out["gpt_entry_table"]["reserved_capacity_checked_on_expansion"]=reserved_capacity;
     out["pool"]["source"]="ORIGINAL_USERDATA_ONLY"; out["pool"]["offset"]=Json::UInt64(start); out["pool"]["bytes"]=Json::UInt64(graph_pool); out["pool"]["end_offset"]=Json::UInt64(end);
     out["pool"]["original_bytes"]=original["bytes"]; out["pool"]["original_start_lba"]=original["start_lba"]; out["pool"]["original_end_lba"]=original["end_lba"];
     out["pool"]["start_padding_bytes"]=Json::UInt64(0); out["pool"]["end_padding_bytes"]=Json::UInt64(raw_end-end);
@@ -254,7 +290,7 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     out["required_live_checks"]=Value(Json::arrayValue);
     for(const auto* check:{"DEVICE_AND_FIRMWARE_IDENTITY","VERIFIED_OFF_DEVICE_DATA_AND_GPT_BACKUPS","UFS_LUN_OWNERSHIP_AND_EXCLUSIVE_ACCESS","INSTALLED_ANDROID_FBE_TRUST","VIRTUAL_AB_MERGE_AND_SUPER_STATE","FILESYSTEM_SIZE_AND_SUPPORTED_SHRINK_OR_RECREATE","NEW_FILESYSTEM_FORMAT_AND_READBACK","STOCK_RECOVERY_ROUTE"})out["required_live_checks"].append(check);
     out["warnings"]=Value(Json::arrayValue);
-    out["warnings"].append("GB uses 1,000,000,000 bytes; GiB uses 1,073,741,824 bytes; MiB uses 1,048,576 bytes. Allocations round down to whole MiB.");
+    out["warnings"].append("MB uses 1,000,000 bytes; MiB uses 1,048,576 bytes; GB uses 1,000,000,000 bytes; GiB uses 1,073,741,824 bytes. Allocations round down to whole MiB.");
     out["warnings"].append("Percentages use only the aligned original userdata extent. Free GPT gaps and all other partition ranges are excluded.");
     out["warnings"].append("Standard mode preserves userdata start, slot, type and GUID. New ESP/Linux/Windows partitions use only the tail released by a verified shrink.");
     if(policy=="recreate")out["warnings"].append("DATA LOSS: erase/recreate destroys Android userdata. Placement before userdata changes its start; it does not solve encryption or preserve existing encrypted data.");
@@ -266,7 +302,7 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     out["layout_sha256"]=seal(out,"layout_sha256"); storage_revalidate(target,system); return out;
 }
 Value partition_layout_bar(const Value& layout,unsigned width) {
-    require(width>0 && width<=32768 && layout["format"]=="ure-partition-layout" && layout["pool"]["bytes"].isUInt64() && layout["rows"].isArray() && layout["rows"].size()==4,
+    require(width>0 && width<=32768 && layout["format"]=="ure-partition-layout" && layout["pool"]["bytes"].isUInt64() && layout["rows"].isArray() && (layout["rows"].size()==4 || layout["rows"].size()==5),
         "invalid-layout-bar","Invalid bounded layout graph"); const auto pool=layout["pool"]["bytes"].asUInt64(); require(pool>0 && pool<=INT64_MAX,"invalid-layout-bar","Invalid graph capacity");
     Value out(Json::arrayValue); std::uint64_t cursor=0;
     for(const auto& row:layout["rows"]) {
@@ -298,7 +334,7 @@ std::vector<StorageRange> gpt_layout_regions(const StorageTarget& target,const V
     source=partition_layout(target,request,profile,system); source["manifest_sha256"]=source["layout_sha256"];
     auto ranges=gpt_regions(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt());
     const auto table=gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt());
-    const auto count=table["primary"]["entry_count"].asUInt(),entry_size=table["primary"]["entry_size"].asUInt();
+    const auto count=source["gpt_entry_table"]["proposed_count"].asUInt(),entry_size=table["primary"]["entry_size"].asUInt();
     const auto table_size=static_cast<std::size_t>(count)*entry_size; std::string entries;
     for(const auto& range:ranges)if(range.name=="primary_table")entries=range.bytes;
     require(entries.size()>=table_size,"invalid-layout","GPT table buffer is truncated");
@@ -320,7 +356,7 @@ std::vector<StorageRange> gpt_layout_regions(const StorageTarget& target,const V
         if(range.name=="primary_table" || range.name=="backup_table") {
             require(range.bytes.size()==entries.size(),"invalid-layout","GPT table geometry differs"); range.bytes.replace(0,table_size,entries,0,table_size);
         } else if(range.name=="primary_header" || range.name=="backup_header") {
-            put(range.bytes,88,sum,4); put(range.bytes,16,0,4); put(range.bytes,16,crc(std::string_view(range.bytes).substr(0,92)),4);
+            put(range.bytes,80,count,4); put(range.bytes,88,sum,4); put(range.bytes,16,0,4); put(range.bytes,16,crc(std::string_view(range.bytes).substr(0,92)),4);
         }
     }
     return ranges;

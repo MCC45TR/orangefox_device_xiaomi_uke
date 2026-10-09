@@ -141,7 +141,7 @@ void check_plan(const Value& plan) {
     const auto sector=plan["target_identity"]["logical_sector_bytes"].asUInt();
     require(gpt["operation"]=="gpt.layout" && gpt["plan_sha256"]==seal(gpt,"plan_sha256") && json(gpt["target_identity"])==json(plan["target_identity"]) &&
         gpt["firmware_profile"]==plan["firmware_profile"] && gpt["current_table"]["healthy"]==true && gpt["desired_table"]["healthy"]==true &&
-        layout["format"]=="ure-partition-layout" && layout["pool"]["source"]=="ORIGINAL_USERDATA_ONLY" && layout["rows"].isArray() && layout["rows"].size()==4 &&
+        layout["format"]=="ure-partition-layout" && layout["pool"]["source"]=="ORIGINAL_USERDATA_ONLY" && layout["rows"].isArray() && (layout["rows"].size()==4 || layout["rows"].size()==5) &&
         (sector==512 || sector==4096) && capacity<=INT64_MAX,"invalid-partition-plan","Partition job source table or scope is invalid");
     const auto start=layout["pool"]["offset"].asUInt64(),bytes=layout["pool"]["original_bytes"].asUInt64();
     require(bytes>=32*mib && bytes<=maximum && start<=capacity && bytes<=capacity-start && start%mib==0,"invalid-partition-plan","Invalid original userdata geometry");
@@ -151,7 +151,7 @@ void check_plan(const Value& plan) {
     std::set<std::string> roles; std::uint64_t cursor=start;
     for(const auto& row:layout["rows"]) {
         const auto role=row["role"].asString(); const auto size=row["bytes"].asUInt64();
-        require((role=="esp" || role=="linux" || role=="windows" || role=="userdata") && roles.insert(role).second && number(row["offset"],cursor) &&
+        require((role=="esp" || role=="linux_boot" || role=="linux" || role=="windows" || role=="userdata") && roles.insert(role).second && number(row["offset"],cursor) &&
             size<=start+bytes-cursor && (row["enabled"]==true)==(size!=0),"invalid-partition-plan","Partition roles overlap or escape original userdata");
         if(size)require(size>=32*mib && number(row["start_lba"],cursor/sector) && number(row["end_lba"],(cursor+size)/sector-1),"invalid-partition-plan","Partition geometry differs from its row");
         cursor+=size;
@@ -214,7 +214,7 @@ void prepare(const Root& system,StorageTarget& target,const Root& store,const fs
         auto seed=storage_image(path/(shrinking ? "userdata-before.img" : seed_name),512);
         Value request; request["schema"]=1; request["action"]=shrinking ? "resize" : "format"; request["filesystem"]=type;
         if(shrinking)request["target_bytes"]=Json::UInt64(bytes);
-        else { request["erase_confirmed"]=true; request["label"]=role=="userdata" ? "USERDATA" : "URE_"+role; }
+        else { request["erase_confirmed"]=true; request["label"]=role=="userdata" ? "USERDATA" : role=="linux_boot" ? "URE_BOOT" : "URE_"+role; }
         const auto fs_plan=filesystem_operation_plan(system,seed,request,plan["firmware_profile"].asString());
         filesystem_prepare(system,seed,fs_plan,path/("stage-"+role),fs_plan["plan_sha256"].asString(),&parent);
         auto prepared=store.open("stage-"+role+"/working.img",O_RDWR); require(::ftruncate(prepared.get(),static_cast<off_t>(bytes))==0,"io-error","Cannot set final filesystem capacity"); sync(prepared.get());
@@ -384,7 +384,11 @@ Value partition_job_plan(const Root& system,const StorageTarget& target,const Va
     plan["warnings"].append("Real tablet writes remain blocked. Recreated userdata has no verified Android FBE policy or boot compatibility; an image test is not tablet acceptance.");
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,&system); return plan;
 }
-Value partition_job_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation) {
+static Value execute_reviewed(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Value& setup) {
+    if(!setup.isNull()) {
+        dualboot_validate_plan(setup);
+        require(json(setup["image_job"])==json(plan),"invalid-dualboot-plan","The durable setup preview must contain this exact filesystem job");
+    }
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the complete partition job hash");
     require(json(target.identity)==json(plan["target_identity"]),"stale-device","Partition job selection changed after review"); storage_revalidate(target,&system); storage_write_gate(target);
     ManagedOperation operation(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
@@ -398,6 +402,7 @@ Value partition_job_execute(const Root& system,StorageTarget& target,const Value
     auto store=private_directory(directory,true); auto lock=journal_lock(store);
     operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
     store.save_record("plan.json",plan);
+    if(!setup.isNull())store.save_record("dualboot-plan.json",setup);
     Value state; state["schema"]=1; state["plan_sha256"]=plan["plan_sha256"]; state["direction"]="apply"; state["state"]="STAGING"; state["verified"]=false; store.save_record("state.json",state);
     struct statvfs space{};
     require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize && space.f_bavail>plan["estimated_journal_bytes"].asUInt64()/space.f_frsize,
@@ -411,6 +416,12 @@ Value partition_job_execute(const Root& system,StorageTarget& target,const Value
         // Once an application manifest exists, inspect owns the decision about
         // what was written. Do not overwrite its durable active-write intent.
         if(!store.exists("application.json")) { try { phase(store,state,"FAILED_SAFE"); } catch(...) {} } throw; }
+}
+Value partition_job_execute(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation) {
+    return execute_reviewed(system,target,plan,directory,confirmation,Value());
+}
+Value partition_job_execute_reviewed(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Value& setup) {
+    return execute_reviewed(system,target,plan,directory,confirmation,setup);
 }
 Value partition_job_recover(const Root& system,StorageTarget& target,const fs::path& path,const std::string& operation,const std::string& confirmation) {
     require(operation=="inspect" || operation=="resume" || operation=="rollback" || operation=="cancel","unsupported-partition-operation","Select inspect, resume, rollback or cancel");

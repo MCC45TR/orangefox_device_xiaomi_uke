@@ -38,7 +38,10 @@ Metrics run(GUIAction& action,const std::string& command,bool change_selection=f
         result.status_ms=std::max(result.status_ms,ure::monotonic_ms()-before); ++result.samples;
         const auto status=ure::parse_json(value("ure_job_status"));
         check(status["job_id"]==id && status["backend_cleanup_verified"]==false,"Job status lost its ID or invented backend cleanup");
-        if(status["state"]=="RUNNING" && ure::monotonic_ms()-start>=20)observed_native=true;
+        // RUNNING is published before the callback's own cancellable admission
+        // checkpoint. Observe its phase rather than guessing with elapsed time:
+        // a descheduled worker may remain before that checkpoint for >20 ms.
+        if(status["state"]=="RUNNING" && status["phase"]=="native-operation")observed_native=true;
         if(observed_native && !cancelled && status["active"]==true) {
             if(change_selection)DataManager::SetValue("ure_raw_source","/changed-selection-must-not-be-opened");
             const auto before_cancel=ure::monotonic_ms(); check(action.uremanager("job-cancel")==0,"Actual callback could not acknowledge its owned stop request");
@@ -51,7 +54,9 @@ Metrics run(GUIAction& action,const std::string& command,bool change_selection=f
         if(status["result_pending"]==true) {
             static_cast<void>(action.uremanager("job-collect"));
             const auto completion=ure::parse_json(value("ure_job_result"));
-            check(completion["ready"]==true && completion["output"]["exit_code"].asInt()==0,"Actual native job failed: "+value("ure_job_result"));
+            check(completion["ready"]==true && completion["state"]=="RETURNED" &&
+                completion["output"]["exit_code"].isInt() && completion["output"]["exit_code"].asInt()==0,
+                "Actual native job failed: "+value("ure_job_result"));
             check(completion["apply_to_current_view"]==!change_selection,"An old selection was applied or a matching selection was discarded");
             check(completion["cancel_requested"]==cancelled,"The exact job lost its advisory request");
             const auto once=value("ure_job_result"); check(action.uremanager("job-collect")==0 && value("ure_job_result")==once,"A completion was applied twice");
@@ -61,7 +66,10 @@ Metrics run(GUIAction& action,const std::string& command,bool change_selection=f
     }
     check(result.elapsed_ms>0 && result.samples>1,"Actual job did not finish under continued status sampling");
     check(result.admission_ms<250 && result.status_ms<250 && result.cancel_ms<250,"Actual job held a GUI state lock through native I/O");
-    if(require_native_started)check(observed_native && cancelled && result.samples>=5,"The fixture was too short to measure running native work and stop acknowledgement");
+    if(require_native_started)check(observed_native && cancelled && result.samples>=5,
+        "The "+command+" fixture did not expose running work: admission_ms="+std::to_string(result.admission_ms)+
+        " elapsed_ms="+std::to_string(result.elapsed_ms)+" samples="+std::to_string(result.samples)+
+        " completion="+value("ure_job_result"));
     std::cout<<"METRIC command="<<command<<" admission_ms="<<result.admission_ms<<" max_status_ms="<<result.status_ms<<
         " cancel_ack_ms="<<result.cancel_ms<<" samples="<<result.samples<<" elapsed_ms="<<result.elapsed_ms<<
         " cooperative_ack_only=true actual_gui_frames=false physical_device=false\n";

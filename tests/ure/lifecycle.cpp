@@ -3,7 +3,10 @@
 #include "operation_lease.hpp"
 #include <array>
 #include <csignal>
+#include <cstdio>
+#include <fcntl.h>
 #include <iostream>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 namespace {
@@ -55,6 +58,104 @@ void permitted(const ure::OperationBinding& binding) {
     for(const auto handler:std::array{ShutDownHandler,RebootHandler,RebootBootloaderHandler,RebootFastbootHandler,RebootRecoveryHandler})
         check(handler(&fastboot,{}),"Idle fastbootd lifecycle refused");
 }
+#ifdef __ANDROID__
+#ifndef URE_HOST_POLICY_FIXTURE
+#error Android lifecycle callback tests require an explicit host policy fixture.
+#endif
+struct QuarantineFixture {
+    std::string base,quarantine,phase,previous;
+    bool had_previous=false;
+    QuarantineFixture() {
+        std::array<char,80> name{}; std::strcpy(name.data(),"/tmp/ure-lifecycle-quarantine-XXXXXX");
+        check(::mkdtemp(name.data())!=nullptr,"Cannot create private lifecycle quarantine fixture");
+        base=name.data(); quarantine=base+"/quarantine"; phase=quarantine+"/phase";
+        if(const auto* selected=::getenv("URE_DUALBOOT_QUARANTINE")) { previous=selected; had_previous=true; }
+        check(::setenv("URE_DUALBOOT_QUARANTINE",quarantine.c_str(),1)==0,"Cannot select lifecycle quarantine fixture");
+    }
+    void directory() const { check(::mkdir(quarantine.c_str(),0700)==0 || errno==EEXIST,"Cannot create private quarantine directory"); }
+    void publish(const char* bytes) const {
+        directory(); const int fd=::open(phase.c_str(),O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC|O_NOFOLLOW,0600);
+        check(fd>=0,"Cannot create lifecycle quarantine phase");
+        const auto length=std::strlen(bytes); std::size_t done=0;
+        while(done<length) {
+            const auto count=::write(fd,bytes+done,length-done);
+            if(count<0 && errno==EINTR)continue;
+            check(count>0,"Cannot write lifecycle quarantine phase"); done+=static_cast<std::size_t>(count);
+        }
+        check(::fsync(fd)==0 && ::close(fd)==0,"Cannot synchronize lifecycle quarantine phase");
+    }
+    void publish(ure::DualbootQuarantineState state) const {
+        const auto* marker=ure::dualboot_quarantine_marker(state); check(marker!=nullptr,"Invalid lifecycle quarantine state"); publish(marker);
+    }
+    void clear() const {
+        check(::unlink(phase.c_str())==0 || errno==ENOENT,"Cannot remove lifecycle quarantine phase");
+        check(::rmdir(quarantine.c_str())==0 || errno==ENOENT,"Cannot remove lifecycle quarantine directory");
+    }
+    ~QuarantineFixture() {
+        ::unlink(phase.c_str()); ::rmdir(quarantine.c_str()); ::rmdir(base.c_str());
+        if(had_previous)::setenv("URE_DUALBOOT_QUARANTINE",previous.c_str(),1); else ::unsetenv("URE_DUALBOOT_QUARANTINE");
+    }
+};
+void no_callback_effects(const char* context) {
+    // TWPartition::UnMount first probes its mounted state. That read-only
+    // observation is not an effect; the guard must precede every callback.
+    check(LifecycleProbe::effects.empty() && LifecycleProbe::unmounts.empty() &&
+        LifecycleProbe::data_reads==0,context);
+}
+void quarantine_denied(bool terminal) {
+    LifecycleProbe::reset(); TWPartition data; PartitionManager.Partitions={&data}; GUIAction gui; FastbootDevice fastboot;
+    check(!data.UnMount(false),"Quarantine permitted direct partition unmount");
+    check(!PartitionManager.UnMount_By_Path("/data",false),"Quarantine permitted manager unmount");
+    check(ensure_path_unmounted("/data")==-1,"Quarantine permitted fs_mgr unmount");
+    for(const auto* command:{"system","bootloader","poweroff","download","edl","fastboot","unknown"})
+        check(gui.reboot(command)==1,"Quarantine scheduled a non-recovery GUI reboot");
+    for(const auto command:std::array{rb_current,rb_system,rb_poweroff,rb_bootloader,rb_download,rb_edl,rb_fastboot})
+        check(TWFunc::tw_reboot(command)==-1,"Quarantine permitted a non-recovery direct reboot");
+    for(const auto handler:std::array{ShutDownHandler,RebootHandler,RebootBootloaderHandler,RebootFastbootHandler})
+        check(!handler(&fastboot,{}),"Quarantine permitted a non-recovery fastbootd transition");
+    if(!terminal) {
+        check(gui.reboot("recovery")==1,"Unsafe quarantine scheduled recovery reboot");
+        check(TWFunc::tw_reboot(rb_recovery)==-1,"Unsafe quarantine permitted direct recovery reboot");
+        check(!RebootRecoveryHandler(&fastboot,{}),"Unsafe quarantine permitted fastbootd recovery reboot");
+    }
+    no_callback_effects("Quarantine refusal reached a settings, script, property, mount or reboot callback");
+    PartitionManager.Partitions.clear();
+}
+void quarantine_callbacks() {
+    QuarantineFixture fixture;
+    fixture.publish(ure::DualbootQuarantineState::Pending); quarantine_denied(false);
+    fixture.publish("URE-DUALBOOT-QUARANTINE-V1\nUNKNOWN\n"); quarantine_denied(false);
+    fixture.clear(); fixture.directory(); quarantine_denied(false); fixture.clear();
+    for(const auto state:std::array{ure::DualbootQuarantineState::Committed,ure::DualbootQuarantineState::GptRestored}) {
+        fixture.publish(state); quarantine_denied(true);
+        LifecycleProbe::reset(); GUIAction gui;
+        check(gui.reboot("recovery")==0,"Terminal quarantine refused GUI recovery handoff");
+        const std::vector<std::string> gui_effects{"sync.callback","data.set:tw_gui_done","data.set:tw_reboot_arg"};
+        check(LifecycleProbe::effects==gui_effects && LifecycleProbe::values["tw_reboot_arg"]=="recovery" &&
+            LifecycleProbe::values["tw_gui_done"]=="1" && LifecycleProbe::unmounts.empty(),"GUI recovery handoff produced unexpected effects");
+        LifecycleProbe::reset();
+        check(TWFunc::tw_reboot(rb_recovery)==0,"Terminal quarantine refused queued recovery reboot");
+        const std::vector<std::string> recovery_effects{"sync.callback","property.callback:sys.powerctl=reboot,recovery"};
+        check(LifecycleProbe::effects==recovery_effects && LifecycleProbe::unmounts.empty() &&
+            LifecycleProbe::probes==0 && LifecycleProbe::data_reads==0,"Queued recovery reboot reached old settings, log, script or mount callbacks");
+        LifecycleProbe::reset();
+        check(TWFunc::tw_reboot(rb_recovery)==0 && LifecycleProbe::effects==recovery_effects,
+            "Direct recovery reboot failed its minimal terminal-quarantine path");
+        LifecycleProbe::reset(); FastbootDevice fastboot;
+        check(RebootRecoveryHandler(&fastboot,{}),"Terminal quarantine refused fastbootd recovery reboot");
+        const std::vector<std::string> fastboot_effects{"fastboot.status.callback","property.callback:sys.powerctl=reboot,recovery","fastboot.close.callback","pause.callback"};
+        check(LifecycleProbe::effects==fastboot_effects && LifecycleProbe::unmounts.empty() &&
+            LifecycleProbe::probes==0 && LifecycleProbe::data_reads==0,"Fastbootd recovery reboot produced unexpected effects");
+    }
+    fixture.publish(ure::DualbootQuarantineState::Committed); LifecycleProbe::reset(); GUIAction gui;
+    check(gui.reboot("recovery")==0,"Cannot stage terminal recovery handoff recheck");
+    fixture.publish(ure::DualbootQuarantineState::Pending); LifecycleProbe::reset();
+    check(TWFunc::tw_reboot(rb_recovery)==-1,"Queued recovery reboot ignored a later pending marker");
+    no_callback_effects("Invalidated recovery handoff reached an effect callback");
+    fixture.clear(); auto writer=ure::runtime_lifecycle_acquire(false);
+    check(writer.valid(),"Quarantine callback refusal or reboot handoff leaked runtime ownership");
+}
+#endif
 }
 void gui_err(const char* message) { LifecycleProbe::errors.emplace_back(message); }
 int main() {
@@ -75,6 +176,7 @@ int main() {
         reject([&]{ure::OperationLease::acquire(binding);},"ownership-unavailable");
         check(ure::operation_lease_status()["available"]==false,"Android policy exposed a host coordinator");
         permitted(binding);
+        quarantine_callbacks();
 #else
         {
             auto operation=ure::OperationLease::acquire(binding); blocked(); operation.checkpoint("fixture-running"); blocked();
@@ -94,7 +196,11 @@ int main() {
             child_check([&]{ure::LegacyLifecycleGuard inherited("unmount",&parent); check(!inherited.active(),"Child borrowed an inherited parent token");});
         }
 #endif
-        std::cout<<"PASS complete production lifecycle callbacks: pre-effect refusal, retained exact owner, explicit nested unmount, staged GUI reboot handoff, direct/fastbootd transitions and compile-time Android admission boundary; all mount/reboot effects mocked\n";
+        std::cout<<"PASS complete production lifecycle callbacks: pre-effect refusal, retained exact owner, explicit nested unmount, staged GUI reboot handoff, direct/fastbootd transitions and compile-time Android admission boundary";
+#ifdef __ANDROID__
+        std::cout<<", pending/malformed quarantine refusal and recovery-only terminal callbacks";
+#endif
+        std::cout<<"; all mount/reboot effects mocked\n";
         return 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

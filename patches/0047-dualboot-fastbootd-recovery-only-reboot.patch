@@ -1,0 +1,29 @@
+--- a/fastboot/device/commands.cpp
++++ b/fastboot/device/commands.cpp
+@@ -402,6 +402,8 @@
+ bool RebootHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
+     ure::LegacyLifecycleGuard lifecycle("reboot");
+     if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
++    if (ure::dualboot_quarantine_state() != ure::DualbootQuarantineState::Clear)
++        return device->WriteFail("Only recovery reboot is available after dualboot partition changes");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,from_fastboot");
+     device->CloseDevice();
+@@ -412,6 +414,8 @@
+ bool RebootBootloaderHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
+     ure::LegacyLifecycleGuard lifecycle("reboot");
+     if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
++    if (ure::dualboot_quarantine_state() != ure::DualbootQuarantineState::Clear)
++        return device->WriteFail("Only recovery reboot is available after dualboot partition changes");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting bootloader");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,bootloader");
+     device->CloseDevice();
+@@ -422,6 +426,8 @@
+ bool RebootFastbootHandler(FastbootDevice* device, const std::vector<std::string>& /* args */) {
+     ure::LegacyLifecycleGuard lifecycle("reboot");
+     if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
++    if (ure::dualboot_quarantine_state() != ure::DualbootQuarantineState::Clear)
++        return device->WriteFail("Only recovery reboot is available after dualboot partition changes");
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting fastboot");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,fastboot");
+     device->CloseDevice();

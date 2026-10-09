@@ -18,7 +18,7 @@ void put(std::string& bytes,std::size_t offset,std::uint64_t value,unsigned coun
 std::uint32_t crc(std::string_view data) {
     std::uint32_t out=UINT32_MAX; for(char byte:data) { out^=static_cast<unsigned char>(byte); for(unsigned i=0;i<8;++i)out=(out>>1)^((out&1U) ? 0xedb88320U : 0U); } return out^UINT32_MAX;
 }
-void write(int fd,const std::string& bytes,std::uint64_t offset) { check(::pwrite(fd,bytes.data(),bytes.size(),static_cast<off_t>(offset))==static_cast<ssize_t>(bytes.size()),"Fixture write failed"); }
+void fixture_write(int fd,const std::string& bytes,std::uint64_t offset) { check(::pwrite(fd,bytes.data(),bytes.size(),static_cast<off_t>(offset))==static_cast<ssize_t>(bytes.size()),"Fixture write failed"); }
 void fixture(const ure::fs::path& file,unsigned sector,bool obstacle=false,bool attributed=false) {
     ure::Fd fd(::open(file.c_str(),O_RDWR|O_CREAT|O_TRUNC,0600)); check(fd.get()>=0 && ::ftruncate(fd.get(),static_cast<off_t>(capacity))==0,"Fixture creation failed");
     const auto sectors=capacity/sector; constexpr unsigned count=96,table_size=count*128; const auto table_sectors=16384/sector;
@@ -38,21 +38,55 @@ void fixture(const ure::fs::path& file,unsigned sector,bool obstacle=false,bool 
         // Linux data type GUID in GPT byte order.
         const std::array<unsigned char,16> type{0xaf,0x3d,0xc6,0x0f,0x83,0x84,0x72,0x47,0x8e,0x79,0x3d,0x69,0xd8,0x47,0x7d,0xe4};
         for(unsigned i=0;i<type.size();++i)entries[4*128+i]=static_cast<char>(type[i]); }
-    write(fd.get(),entries,2*sector); write(fd.get(),entries,backup*sector);
+    fixture_write(fd.get(),entries,2*sector); fixture_write(fd.get(),entries,backup*sector);
     for(const auto lba:std::array<std::uint64_t,2>{1,sectors-1}) {
         std::string header(sector,'\0'); header.replace(0,8,"EFI PART"); put(header,8,0x10000,4); put(header,12,92,4);
         put(header,24,lba,8); put(header,32,sectors-lba,8); put(header,40,first,8); put(header,48,last,8);
         for(unsigned i=0;i<16;++i)header[56+i]=static_cast<char>(i+81);
         put(header,72,lba==1 ? 2 : backup,8); put(header,80,count,4); put(header,84,128,4); put(header,88,crc(entries),4);
-        put(header,16,crc(std::string_view(header).substr(0,92)),4); write(fd.get(),header,lba*sector);
+        put(header,16,crc(std::string_view(header).substr(0,92)),4); fixture_write(fd.get(),header,lba*sector);
     }
-    std::string mbr(sector,'\0'); mbr[450]=static_cast<char>(0xee); put(mbr,454,1,4); put(mbr,458,sectors-1,4); mbr[510]=0x55; mbr[511]=static_cast<char>(0xaa); write(fd.get(),mbr,0);
-    write(fd.get(),"protected-super-data",2*mib); write(fd.get(),"existing-user-data",17*mib); check(::fsync(fd.get())==0,"Cannot sync fixture");
+    std::string mbr(sector,'\0'); mbr[450]=static_cast<char>(0xee); put(mbr,454,1,4); put(mbr,458,sectors-1,4); mbr[510]=0x55; mbr[511]=static_cast<char>(0xaa); fixture_write(fd.get(),mbr,0);
+    fixture_write(fd.get(),"protected-super-data",2*mib); fixture_write(fd.get(),"existing-user-data",17*mib); check(::fsync(fd.get())==0,"Cannot sync fixture");
+}
+// Uke-shaped capacity fixture: all 32 declared entries are occupied, with
+// userdata last, 4 KiB sectors, and a pre-existing 16 KiB table reservation.
+// The zero reserve here is synthetic; copied captures that omitted it cannot
+// establish the actual tablet's reserve contents.
+void full_table_fixture(const ure::fs::path& file,unsigned sector=4096,bool saturated=true,bool tight=false) {
+    ure::Fd fd(::open(file.c_str(),O_RDWR|O_CREAT|O_TRUNC,0600)); check(fd.get()>=0 && ::ftruncate(fd.get(),static_cast<off_t>(capacity))==0,"Cannot create full-table fixture");
+    const auto sectors=capacity/sector; constexpr unsigned count=32,table_size=count*128;
+    const std::uint64_t reserve_sectors=(tight ? table_size : 16384)/sector,first=2+reserve_sectors,last=sectors-2-reserve_sectors,backup=last+1;
+    std::string entries(table_size,'\0');
+    for(unsigned index=0;index<count;++index) {
+        const auto offset=index*128; for(unsigned byte=0;byte<16;++byte) { entries[offset+byte]=static_cast<char>(byte+11); entries[offset+16+byte]=static_cast<char>(byte+51); }
+        put(entries,offset+16,index+1,4); const auto begin=(index+1)*mib/sector,end=index==31 ? last : (index+2)*mib/sector-1;
+        put(entries,offset+32,begin,8); put(entries,offset+40,end,8); const auto name=index==31 ? "userdata" : "oem_"+std::to_string(index+1);
+        for(std::size_t i=0;i<name.size();++i)entries[offset+56+i*2]=name[i];
+    }
+    fixture_write(fd.get(),entries,2*sector); fixture_write(fd.get(),entries,backup*sector);
+    if(!tight) {
+        // Distinct undeclared padding beyond the new 64-entry prefix must
+        // survive independently in each existing table reservation.
+        fixture_write(fd.get(),"primary-reserve-tail",2*sector+96*128);
+        fixture_write(fd.get(),"backup-reserve-tail",backup*sector+96*128);
+    }
+    for(const auto lba:std::array<std::uint64_t,2>{1,sectors-1}) {
+        std::string header(sector,'\0'); header.replace(0,8,"EFI PART"); put(header,8,0x10000,4); put(header,12,92,4); put(header,24,lba,8); put(header,32,sectors-lba,8);
+        put(header,40,first,8); put(header,48,last,8); for(unsigned byte=0;byte<16;++byte)header[56+byte]=static_cast<char>(byte+81);
+        put(header,72,lba==1 ? 2 : backup,8); put(header,80,count,4); put(header,84,128,4); put(header,88,crc(entries),4); put(header,16,crc(std::string_view(header).substr(0,92)),4); fixture_write(fd.get(),header,lba*sector);
+    }
+    std::string mbr(sector,'\0'); mbr[450]=static_cast<char>(0xee); put(mbr,454,1,4); put(mbr,458,saturated ? UINT32_MAX : sectors-1,4); mbr[510]=0x55; mbr[511]=static_cast<char>(0xaa); fixture_write(fd.get(),mbr,0);
+    for(unsigned index=1;index<32;++index)fixture_write(fd.get(),"protected_"+std::to_string(index),index*mib);
+    check(::fsync(fd.get())==0,"Cannot sync full-table fixture");
 }
 ure::Value request() {
     ure::Value out; out["schema"]=1; out["format"]="ure-layout-request"; out["rows"]=ure::Value(Json::arrayValue);
     const std::array<std::string,4> roles{"esp","linux","windows","userdata"},sizes{"128","40","20",""},units{"MiB","%","%","remaining"},filesystems{"fat32","ext4","ntfs","f2fs"};
     for(unsigned i=0;i<4;++i) { ure::Value row; row["role"]=roles[i]; row["size"]=sizes[i]; row["unit"]=units[i]; row["filesystem"]=filesystems[i]; out["rows"].append(row); } return out;
+}
+ure::Value boot_request() {
+    auto out=request(); ure::Value row; row["role"]="linux_boot"; row["size"]="256"; row["unit"]="MiB"; row["filesystem"]="ext4"; out["rows"].append(row); return out;
 }
 struct Workspace {
     ure::fs::path path;
@@ -70,7 +104,8 @@ int main(int argc,char* argv[]) {
         for(const auto* bad:{"-1","+1","1e2"," 1","1 ",".5","1.","1.2345678","1,2.3",""})reject([&] { ure::layout_size_bytes(bad,"GB",capacity); },"invalid-layout-size");
         reject([&] { ure::layout_size_bytes("999999999999999999999999","GB",capacity); },"layout-size-overflow");
         reject([&] { ure::layout_size_bytes("100.000001","%",capacity); },"invalid-layout-percent");
-        reject([&] { ure::layout_size_bytes("1","MB",capacity); },"invalid-layout-unit"); Workspace work;
+        check(ure::layout_size_bytes("1.5","MB",capacity)==1500000,"Decimal MB is wrong");
+        reject([&] { ure::layout_size_bytes("1","KB",capacity); },"invalid-layout-unit"); Workspace work;
         for(unsigned sector:{512U,4096U}) {
             const auto file=work.path/(std::to_string(sector)+".img"); fixture(file,sector); auto target=ure::storage_image(file,sector);
             const auto original=ure::gpt_inspect(target.descriptor.get(),sector); check(original["healthy"]==true,"Bad GPT fixture");
@@ -119,6 +154,83 @@ int main(int argc,char* argv[]) {
             bad["rows"][1]["size"]="1"; reject([&] { ure::partition_layout(target,bad,"global-os3.0.303.0"); },"existing-os-partition");
             fixture(file,sector,false,true); target=ure::storage_image(file,sector); reject([&] { ure::partition_layout(target,request(),"global-os3.0.303.0"); },"protected-partition");
         }
-        std::cout<<"Layout: exact GB/GiB/MiB/percent math, alignment, protected GPT records, role/filesystem rules, graph widths, deterministic plans, scoped image metadata execution/readback and rollback passed; synthetic images only.\n"; return 0;
+        const auto full=work.path/"full-uke-table.img"; full_table_fixture(full);
+        auto selected=ure::storage_image(full,4096); const auto full_before=ure::gpt_inspect(selected.descriptor.get(),4096);
+        const auto complete_before=ure::sha256(selected.descriptor.get());
+        check(full_before["healthy"]==true && full_before["protective_mbr_classification"]=="OEM_SATURATED_4K" && full_before["partitions"].size()==32,"Valid Uke-shaped saturated protective MBR was rejected");
+        auto choices=boot_request(); choices["mode"]="advanced"; choices["userdata_policy"]="recreate";
+        const auto expanded=ure::gpt_layout_plan(selected,choices,"fixture-uke");
+        check(expanded["layout"]["rows"].size()==5 && expanded["layout"]["rows"][0]["role"]=="userdata" && expanded["layout"]["rows"][1]["role"]=="esp" &&
+            expanded["layout"]["rows"][2]["role"]=="linux_boot" && expanded["layout"]["rows"][3]["role"]=="linux" && expanded["layout"]["rows"][4]["role"]=="windows","Separate Linux boot is out of order");
+        check(expanded["layout"]["gpt_entry_table"]["original_count"].asUInt()==32 && expanded["layout"]["gpt_entry_table"]["proposed_count"].asUInt()==64 &&
+            expanded["layout"]["gpt_entry_table"]["extension_zero_verified_both_copies"]==true && expanded["desired_table"]["healthy"]==true,"Bounded GPT declaration expansion failed");
+        for(const auto* copy:{"primary","backup"})for(const auto* field:{"table_lba","current_lba","alternate_lba","first_usable_lba","last_usable_lba"})
+            check(expanded["desired_table"][copy][field]==full_before[copy][field],"GPT declaration expansion moved metadata or usable boundaries");
+        for(Json::ArrayIndex i=0;i<31;++i)check(ure::json(expanded["desired_table"]["partitions"][i])==ure::json(full_before["partitions"][i]),"Expansion changed protected OEM records");
+        ure::Value resolved; const auto proposed=ure::gpt_layout_regions(selected,expanded["layout"]["request"],"fixture-uke",resolved);
+        for(const auto& range:proposed) {
+            const auto before=ure::storage_read(selected.descriptor.get(),range.offset,range.bytes.size());
+            if(range.name=="protective_mbr")check(range.bytes==before,"OEM protective MBR was normalized");
+            if(range.name=="primary_table" || range.name=="backup_table") {
+                check(range.bytes.substr(0,31*128)==before.substr(0,31*128),"Unselected record bytes changed");
+                check(range.bytes.substr(64*128)==before.substr(64*128),"Undeclared reserve tail changed");
+            }
+        }
+        const auto repeat=ure::partition_layout(selected,expanded["layout"]["request"],"fixture-uke"); check(ure::json(repeat)==ure::json(expanded["layout"]),"Expanded resolved layout is nondeterministic");
+        for(unsigned width:{1U,17U,3000U}) { unsigned end=0; for(const auto& row:ure::partition_layout_bar(repeat,width)) { check(row["x"].asUInt()==end,"Five-row graph has a gap"); end+=row["width"].asUInt(); } check(end==width,"Five-row graph exceeds width"); }
+        const auto legacy_expanded=ure::gpt_layout_plan(selected,request(),"fixture-uke"); check(legacy_expanded["layout"]["rows"].size()==4 && legacy_expanded["desired_table"]["primary"]["entry_count"].asUInt()==64,"Four-role caller no longer expands safely");
+        const auto expansion_journal=work.path/"expanded-journal"; const auto expanded_hash=expanded["plan_sha256"].asString();
+        auto expanded_writer=ure::storage_image(full,4096,true);
+        check(ure::gpt_execute(expanded_writer,expanded,expansion_journal,expanded_hash)["state"]=="COMMITTED","Full32-to64 GPT metadata application failed");
+        for(const auto& range:proposed)check(ure::storage_read(expanded_writer.descriptor.get(),range.offset,range.bytes.size())==range.bytes,"Applied expansion differs from exact reviewed metadata");
+        for(unsigned index=1;index<32;++index)check(ure::storage_read(expanded_writer.descriptor.get(),index*mib,("protected_"+std::to_string(index)).size())=="protected_"+std::to_string(index),"Expansion changed an OEM payload marker");
+        // Simulate a forced restart after only the backup count/table reached
+        // their target and during the primary header CRC/count update. The
+        // journal oracle must classify exact old/new byte mixtures and permit
+        // only safe recovery, without trusting a progress counter.
+        ure::Root expansion_store(expansion_journal);
+        for(const auto& range:proposed)if(range.name=="primary_table" || range.name=="primary_header")
+            fixture_write(expanded_writer.descriptor.get(),expansion_store.read("before-"+range.name+".bin"),range.offset);
+        for(const auto& range:proposed)if(range.name=="primary_header")fixture_write(expanded_writer.descriptor.get(),range.bytes.substr(0,18),range.offset);
+        check(::fsync(expanded_writer.descriptor.get())==0,"Cannot synchronize partial expansion fixture");
+        auto uncertain=ure::json_file(expansion_journal/"journal.json"); uncertain["state"]="EXECUTING"; uncertain["completed_ranges"].append("untrusted-progress"); expansion_store.save_record("journal.json",uncertain,true);
+        expanded_writer=ure::storage_image(full,4096,true);
+        const auto partial=ure::gpt_journal_inspect(expanded_writer,expansion_journal);
+        check(partial["classification"]=="PARTIAL_EXPECTED_WRITE" && partial["current_table"]["healthy"]==false,"Torn32-to64 expansion was mistaken for a healthy committed table");
+        reject([&] { ure::gpt_resume(expanded_writer,expansion_journal,expanded_hash); },"unsafe-resume");
+        check(ure::gpt_rollback(expanded_writer,expansion_journal,expanded_hash)["state"]=="ROLLED_BACK","Partial expansion did not roll back");
+        check(ure::sha256(expanded_writer.descriptor.get())==complete_before,"Expansion rollback did not restore every byte of the complete synthetic disk");
+        selected=ure::storage_image(full,4096);
+        auto invalid_boot=boot_request(); invalid_boot["rows"][1]["size"]="0";
+        reject([&] { ure::partition_layout(selected,invalid_boot,"fixture-uke"); },"linux-boot-without-root");
+        invalid_boot=boot_request(); invalid_boot["rows"][4]["filesystem"]="btrfs";
+        reject([&] { ure::partition_layout(selected,invalid_boot,"fixture-uke"); },"invalid-layout-filesystem");
+        invalid_boot=request(); invalid_boot["rows"][1]=boot_request()["rows"][4];
+        reject([&] { ure::partition_layout(selected,invalid_boot,"fixture-uke"); },"invalid-layout-request");
+        const auto backup_lba=full_before["backup"]["table_lba"].asUInt64();
+        for(const auto offset:std::array<std::uint64_t,2>{2ULL*4096+32*128,backup_lba*4096+32*128}) {
+            { auto writer=ure::storage_image(full,4096,true); fixture_write(writer.descriptor.get(),std::string(1,'x'),offset); check(::fsync(writer.descriptor.get())==0,"Cannot dirty extension slot"); }
+            auto dirty=ure::storage_image(full,4096); const auto observed=ure::gpt_inspect(dirty.descriptor.get(),4096);
+            check(observed["healthy"]==true,"Undeclared reserve mutation unexpectedly changed the declared GPT: "+ure::json(observed));
+            reject([&] { ure::partition_layout(dirty,choices,"fixture-uke"); },"layout-table-reserve-not-empty");
+            { auto writer=ure::storage_image(full,4096,true); fixture_write(writer.descriptor.get(),std::string(1,'\0'),offset); check(::fsync(writer.descriptor.get())==0,"Cannot restore extension slot"); }
+        }
+        // A saturated length cannot turn a damaged, conflicting, hybrid or
+        // 512-byte-sector table into an accepted source.
+        { auto writer=ure::storage_image(full,4096,true); const auto header=ure::storage_read(writer.descriptor.get(),4096,4096); auto corrupt=header; corrupt[16]^=1; fixture_write(writer.descriptor.get(),corrupt,4096); check(::fsync(writer.descriptor.get())==0,"Cannot corrupt header");
+          check(ure::gpt_inspect(writer.descriptor.get(),4096)["protective_mbr_valid"]==false,"Saturated MBR accepted with one invalid GPT copy"); fixture_write(writer.descriptor.get(),header,4096); }
+        { auto writer=ure::storage_image(full,4096,true); auto mbr=ure::storage_read(writer.descriptor.get(),0,4096); auto hybrid=mbr; hybrid[466]=static_cast<char>(0x83); fixture_write(writer.descriptor.get(),hybrid,0);
+          check(ure::gpt_inspect(writer.descriptor.get(),4096)["healthy"]==false,"Hybrid MBR accepted as OEM saturated");
+          auto wrong_start=mbr; put(wrong_start,454,2,4); fixture_write(writer.descriptor.get(),wrong_start,0); check(ure::gpt_inspect(writer.descriptor.get(),4096)["healthy"]==false,"Wrong protective start accepted");
+          auto bootable=mbr; bootable[446]=static_cast<char>(0x80); fixture_write(writer.descriptor.get(),bootable,0); check(ure::gpt_inspect(writer.descriptor.get(),4096)["healthy"]==false,"Bootable protective entry accepted");
+          auto bad_signature=mbr; bad_signature[510]=0; fixture_write(writer.descriptor.get(),bad_signature,0); check(ure::gpt_inspect(writer.descriptor.get(),4096)["healthy"]==false,"Invalid MBR signature accepted"); fixture_write(writer.descriptor.get(),mbr,0); }
+        { auto writer=ure::storage_image(full,4096,true); const auto offset=capacity-4096; const auto header=ure::storage_read(writer.descriptor.get(),offset,4096); auto conflict=header; conflict[56]^=1; put(conflict,16,0,4); put(conflict,16,crc(std::string_view(conflict).substr(0,92)),4);
+          fixture_write(writer.descriptor.get(),conflict,offset); const auto mismatched=ure::gpt_inspect(writer.descriptor.get(),4096);
+          check(mismatched["primary"]["valid"]==true && mismatched["backup"]["valid"]==true && mismatched["protective_mbr_valid"]==false && mismatched["healthy"]==false,"Saturated exception accepted conflicting valid disk identities"); fixture_write(writer.descriptor.get(),header,offset); }
+        const auto narrow=work.path/"narrow-gpt.img"; full_table_fixture(narrow,4096,true,true); auto tight=ure::storage_image(narrow,4096);
+        reject([&] { ure::partition_layout(tight,choices,"fixture-uke"); },"unhealthy-layout-source");
+        const auto bad_sector=work.path/"saturated-512.img"; full_table_fixture(bad_sector,512,true); auto sector512=ure::storage_image(bad_sector,512);
+        check(ure::gpt_inspect(sector512.descriptor.get(),512)["protective_mbr_valid"]==false,"OEM saturated exception leaked to 512-byte media");
+        std::cout<<"Layout: MB/MiB/GB/GiB/percent math, optional Linux boot, bounded full-table expansion, saturated 4K OEM MBR classification/refusals, protected record bytes, graph widths, deterministic plans and image metadata rollback passed; synthetic images only.\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

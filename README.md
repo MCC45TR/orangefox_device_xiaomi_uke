@@ -10,7 +10,7 @@ An independent OrangeFox recovery project for the `uke` device family (SM7675), 
 
 The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. The earlier alpha has been withdrawn; a replacement installable release has not yet passed its publication gates.
 
-Current source [blocks live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass this gate; older release images retain their original behavior.
+Current source [blocks general live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. The separate [dualboot shell backend](docs/DUALBOOT-SETUP.md) implements narrowly checked F2FS userdata erase/recreation, but remains physically unaccepted and requires an already opened encryption map. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass general mutation gates; older release images retain their original behavior.
 
 ## Feature overview
 
@@ -29,9 +29,10 @@ The **Extra** menu groups the added tools by task, with matching icons and short
 
 Availability depends on the selected filesystem, kernel, packaged tools and operation policy. A capability entry is not device acceptance. In particular:
 
-- Partition shrink/recreation and six-LUN restoration currently execute on
-  **regular images**, not live tablet storage. New OS allocations use the
-  original userdata range; encrypted userdata migration remains unavailable.
+- Partition transactions and six-LUN restoration have **regular-image** test
+  evidence. The narrow live dualboot backend still requires physical acceptance
+  and current-device preflight. New OS allocations use the original userdata
+  range; encrypted userdata preservation/migration remains unavailable.
 - Btrfs has separate generic ARM64 VM evidence. The preserved stock kernel
   lacks Btrfs support, and receive/restore remains unfinished.
 - One-shot boot routing has a [fixture implementation](docs/BOOT-ROUTING.md);
