@@ -36,7 +36,10 @@ current_job() {
 case $mode in
     begin)
         [[ ${UKE_HOST_BUDGET_ACTIVE:-0} == 1 && ( $# == 2 || $# == 3 ) ]]
-        jq -e '.mode=="arm64" and .admitted' /tmp/admitted-policy.json >/dev/null
+        seed=${3:-fresh}
+        jq -e '.admitted' /tmp/admitted-policy.json >/dev/null
+        bash "$build_scripts/host-budget-policy.sh" --android-mode \
+            "$(jq -er .mode /tmp/admitted-policy.json)" "$seed"
         prepare_publisher
         for kind in soong blueprint; do bash "$build_scripts/prepare-reviewed-patches.sh" "$android/build/$kind" check "$kind"; done
         bash "$build_scripts/prepare-reviewed-patches.sh" "$android/bootable/recovery" check recovery
@@ -47,7 +50,6 @@ case $mode in
         # Reserve an unguessable job name without exposing an old output to begin.
         reserved=$(mktemp -d "$component/build/android-builds/job-XXXXXXXXXXXX")
         rmdir "$reserved"
-        seed=${3:-fresh}
         [[ $seed == fresh || $seed =~ ^job-[a-zA-Z0-9]{12}$ ]]
         if [[ $seed != fresh ]]; then seed="$component/build/android-builds/$seed"; else seed=; fi
         build_begin "$component" "$android" "$reserved" android-recovery 399 "$1" "$2" "$seed"

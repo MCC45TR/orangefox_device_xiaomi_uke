@@ -2,6 +2,11 @@
 # Host-only admission policy. Optional snapshot roots are explicit fixture inputs.
 set -euo pipefail
 export LC_ALL=C
+if [[ ${1:-} == --android-mode ]]; then
+    [[ $# == 3 && ( $3 == fresh || $3 =~ ^job-[a-zA-Z0-9]{12}$ ) ]]
+    [[ $2 == arm64 || ( $2 == arm64-incremental && $3 != fresh ) ]]
+    exit 0
+fi
 if [[ ${1:-} == --compile-jobs ]]; then
     requested=${2:?Requested compile count required}
     ceiling=${3:?Admitted compile ceiling required}
@@ -81,7 +86,7 @@ plan=$(jq -cn --argjson memory "$memory" --argjson groups "$groups" --argjson ow
   ([16384,($available-$reserve)] + (if $own==null then [] else [$own|mib] end)|min|floor) as $maximum |
   # A complete Android 16 Soong graph exceeded a 7.54 GiB hard ceiling.
   # Refuse a smaller envelope before cloning inputs or starting graph work.
-  (if $mode=="arm64" then 8192 else 1536 end) as $minimum |
+  (if $mode=="arm64" then 8192 elif $mode=="arm64-incremental" then 6144 else 1536 end) as $minimum |
   (if $mode=="sanitizer" then 1280 else 768 end) as $per_compile |
   ([2048,($maximum/3|floor)]|min) as $internal |
   ([16,$cpus,([1,(($maximum-$internal)/$per_compile|floor)]|max)]|min) as $jobs |

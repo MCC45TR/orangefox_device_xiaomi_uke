@@ -27,6 +27,16 @@ snapshot 32768 13000 max max 0
 plan arm64 | jq -e '.effective_capacity_mib==16384 and .shared_reserve_mib==4096 and .memory_max_mib==8904 and .minimum_mib==8192' >/dev/null
 snapshot 32768 12000 max max 0
 refuse plan arm64
+plan arm64-incremental | jq -e '.mode=="arm64-incremental" and .minimum_mib==6144 and .memory_max_mib==7904 and .admitted' >/dev/null
+snapshot 32768 10240 max max 0
+plan arm64-incremental | jq -e '.memory_max_mib==6144 and .minimum_mib==6144 and .admitted' >/dev/null
+snapshot 32768 10239 max max 0
+refuse plan arm64-incremental
+bash "$policy" --android-mode arm64 fresh
+bash "$policy" --android-mode arm64-incremental job-ABCDEFGHIJKL
+refuse bash "$policy" --android-mode arm64-incremental fresh
+refuse bash "$policy" --android-mode native job-ABCDEFGHIJKL
+refuse bash "$policy" --android-mode arm64-incremental ../unowned
 snapshot 16384 16384 "$((8*1024*1024*1024))" max "$((2*1024*1024*1024))"
 plan native | jq -e '.effective_capacity_mib==8192 and .memory_max_mib==2048 and .compile_jobs==1' >/dev/null
 refuse plan arm64
