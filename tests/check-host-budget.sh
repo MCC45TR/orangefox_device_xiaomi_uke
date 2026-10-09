@@ -22,14 +22,18 @@ jq -e '.shared_reserve_mib==4096 and .memory_max_mib==12288 and .memory_high_mib
 plan sanitizer | jq -e '.compile_jobs==8 and .memory_max_mib==12288 and .memory_high_mib==10444 and .memory_high_fraction==0.85' >/dev/null
 plan native | jq -e '.memory_max_mib==12288 and .memory_high_mib==10444 and .memory_high_fraction==0.85' >/dev/null
 snapshot 32768 28672 max max 0
-plan arm64 | jq -e '.compile_jobs==16 and .shared_reserve_mib==8192 and .memory_max_mib==16384' >/dev/null
+plan arm64 | jq -e '.effective_capacity_mib==16384 and .compile_jobs==16 and .shared_reserve_mib==4096 and .memory_max_mib==16384' >/dev/null
+snapshot 32768 13000 max max 0
+plan arm64 | jq -e '.effective_capacity_mib==16384 and .shared_reserve_mib==4096 and .memory_max_mib==8904 and .minimum_mib==8192' >/dev/null
+snapshot 32768 12000 max max 0
+refuse plan arm64
 snapshot 16384 16384 "$((8*1024*1024*1024))" max "$((2*1024*1024*1024))"
 plan native | jq -e '.effective_capacity_mib==8192 and .memory_max_mib==2048 and .compile_jobs==1' >/dev/null
 refuse plan arm64
 snapshot 16384 16384 "$((12*1024*1024*1024))" "$((6*1024*1024*1024))" "$((2*1024*1024*1024))"
 refuse plan native
 snapshot 32768 28672 "$((8*1024*1024*1024))" "$((7*1024*1024*1024))" 0
-plan native owned | jq -e '.memory_max_mib==8192 and .shared_reserve_mib==8192' >/dev/null
+plan native owned | jq -e '.memory_max_mib==8192 and .shared_reserve_mib==4096' >/dev/null
 mkdir -p "$scratch/cgroup/scope/job"
 printf '0::/scope/job\n' > "$scratch/proc/self/cgroup"
 printf 'max\n' > "$scratch/cgroup/scope/job/memory.high"
@@ -57,7 +61,7 @@ refuse plan native
 [[ $(bash "$policy" --compile-jobs 2 8) == 2 ]]
 refuse bash "$policy" --compile-jobs 17 3
 refuse bash "$policy" --compile-jobs '1+1' 3
-printf 'Host snapshot controls passed: 16 GiB reserve, j16 ceiling, sanitizer cost, ancestor high/max, owned-leaf cap, pressure/CPU/input refusal and compile clamping.\n'
+printf 'Host snapshot controls passed: 16 GiB work envelope, desktop reserve, Soong minimum, j16 ceiling, sanitizer cost, ancestor high/max, owned-leaf cap, pressure/CPU/input refusal and compile clamping.\n'
 
 cat > "$scratch/cache-job.sh" <<'CACHE_JOB_EOF'
 set -euo pipefail

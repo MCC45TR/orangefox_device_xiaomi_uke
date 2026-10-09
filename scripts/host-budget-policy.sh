@@ -70,13 +70,18 @@ plan=$(jq -cn --argjson memory "$memory" --argjson groups "$groups" --argjson ow
     --argjson cpus "$cpus" --arg affinity "$affinity" --arg mode "$mode" '
   def mib: (. / 1048576 | floor);
   ($groups | map([.maximum_bytes,.high_bytes]|map(select(.!=null))|min) | map(select(.!=null))) as $limits |
-  ([ $memory.total_mib ] + ($limits|map(mib)) | min) as $capacity |
+  # The requested work envelope is at most 16 GiB even on larger hosts.
+  # Reserve a quarter of that envelope, not a quarter of unrelated host RAM:
+  # MemAvailable already excludes memory occupied by the desktop.
+  ([16384,$memory.total_mib] + ($limits|map(mib)) | min) as $capacity |
   ([4096,($capacity/4|floor)]|max) as $reserve |
   ($groups | map(. as $g | ([.maximum_bytes,.high_bytes]|map(select(.!=null))|min) as $l |
     if $l==null then empty else ([0,($l-$g.current_bytes)]|max|mib) end)) as $headrooms |
   ([ $memory.available_mib ] + $headrooms | min) as $available |
   ([16384,($available-$reserve)] + (if $own==null then [] else [$own|mib] end)|min|floor) as $maximum |
-  (if $mode=="arm64" then 4096 else 1536 end) as $minimum |
+  # A complete Android 16 Soong graph exceeded a 7.54 GiB hard ceiling.
+  # Refuse a smaller envelope before cloning inputs or starting graph work.
+  (if $mode=="arm64" then 8192 else 1536 end) as $minimum |
   (if $mode=="sanitizer" then 1280 else 768 end) as $per_compile |
   ([2048,($maximum/3|floor)]|min) as $internal |
   ([16,$cpus,([1,(($maximum-$internal)/$per_compile|floor)]|max)]|min) as $jobs |
