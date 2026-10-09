@@ -1,0 +1,330 @@
+diff --git a/Decrypt.cpp b/Decrypt.cpp
+index e6d4ecd..d2543c2 100755
+--- a/Decrypt.cpp
++++ b/Decrypt.cpp
+@@ -705,8 +705,13 @@ bool Decrypt_User_Synth_Pass(const userid_t user_id, const std::string& Password
+ 		// printf("weaver key: "); output_hex((unsigned char*)weaver_key, weaver_key_size); printf("\n");
+ 		// Send the slot from the .weaver file, the computed weaver key, and get the escrowed key data
+ 		std::vector<uint8_t> weaver_payload;
++		uint64_t weaver_retry_ms = 0;
+ 		// TODO: we should return more information about the status including time delays before the next retry
+-		if (!weaver.WeaverVerify(wd.slot, weaver_key, &weaver_payload)) {
++		if (!weaver.WeaverVerify(wd.slot, weaver_key, SHA512_DIGEST_LENGTH,
++		                         &weaver_payload, &weaver_retry_ms)) {
++			if (weaver_retry_ms != 0)
++				printf("Weaver retry delay: %llu ms; no automatic retry\n",
++				       static_cast<unsigned long long>(weaver_retry_ms));
+ 			printf("failed to weaver verify\n");
+ 			return Free_Return(retval, weaver_key, &pwd);
+ 		}
+diff --git a/Weaver1.cpp b/Weaver1.cpp
+index a2eeaaa..f8e742a 100644
+--- a/Weaver1.cpp
++++ b/Weaver1.cpp
+@@ -22,146 +22,121 @@
+  */
+ 
+ #include "Weaver1.h"
+-
+-//#include <android-base/logging.h>
+-//#include <keystore/keymaster_tags.h>
+-//#include <keystore/authorization_set.h>
+-//#include <keystore/keystore_hidl_support.h>
+-
++#include "ure-weaver-policy.hpp"
+ #include <android/binder_manager.h>
++#include <openssl/crypto.h>
+ 
+-#include <android/hardware/weaver/1.0/IWeaver.h>
+-#include <aidl/android/hardware/weaver/IWeaver.h>
+-
+-#include <iostream>
+-#define ERROR 1
+-#define LOG(x) std::cout
+-
+-using namespace android::hardware::weaver;
+-using android::hardware::hidl_string;
+-using ::android::hardware::weaver::V1_0::IWeaver;
+ using ::android::hardware::weaver::V1_0::WeaverConfig;
+-using ::android::hardware::weaver::V1_0::WeaverReadStatus;
+ using ::android::hardware::weaver::V1_0::WeaverReadResponse;
++using ::android::hardware::weaver::V1_0::WeaverReadStatus;
+ using ::android::hardware::weaver::V1_0::WeaverStatus;
+-using ::android::hardware::Return;
+-using ::android::sp;
+ 
+ namespace android {
+ namespace vold {
+ 
+-Weaver::Weaver() {
++namespace {
++void clear_secret(std::vector<uint8_t>* value) {
++    if (value == nullptr) return;
++    if (!value->empty()) OPENSSL_cleanse(value->data(), value->size());
++    value->clear();
++}
++struct ScopedKey {
++    std::vector<uint8_t> value;
++    ~ScopedKey() { clear_secret(&value); }
++};
++}
++
++Weaver::Weaver() : GottenConfig(false) {
+     const std::string instance = std::string(::aidl::android::hardware::weaver::IWeaver::descriptor) + "/default";
+-    AIBinder* binder = AServiceManager_waitForService(instance.c_str());
+-    mAidlDevice = ::aidl::android::hardware::weaver::IWeaver::fromBinder(ndk::SpAIBinder(binder));
+-	if (mAidlDevice == nullptr) {
+-		mDevice = ::android::hardware::weaver::V1_0::IWeaver::getService();
+-	}
+-	GottenConfig = false;
++    // Readiness belongs to the recovery session. Do not lazily start a service
++    // or wait indefinitely while a credential operation owns the UI worker.
++    ndk::SpAIBinder binder(AServiceManager_checkService(instance.c_str()));
++    if (binder.get() != nullptr)
++        mAidlDevice = ::aidl::android::hardware::weaver::IWeaver::fromBinder(binder);
++    if (mAidlDevice == nullptr)
++        mDevice = ::android::hardware::weaver::V1_0::IWeaver::tryGetService();
+ }
+ 
+ bool Weaver::GetConfig() {
+-	if (GottenConfig)
+-		return true;
+-
+-	if (mAidlDevice != nullptr) {
+-		auto r = mAidlDevice->getConfig(&aidlConfig);
+-		if (r.isOk()) {
+-			GottenConfig = true;
+-			return true;
+-		}
+-		return false;
+-	}
+-
+-	WeaverStatus status;
+-	WeaverConfig cfg;
+-
+-	bool callbackCalled = false;
+-	auto ret = mDevice->getConfig([&](WeaverStatus s, WeaverConfig c) {
+-		callbackCalled = true;
+-		status = s;
+-		cfg = c;
+-	});
+-	if (ret.isOk() && callbackCalled && status == WeaverStatus::OK) {
+-		config = cfg;
+-		GottenConfig = true;
+-		return true;
+-	}
+-	return false;
++    if (GottenConfig) return true;
++    if (mAidlDevice != nullptr) {
++        ::aidl::android::hardware::weaver::WeaverConfig candidate{};
++        const auto result = mAidlDevice->getConfig(&candidate);
++        if (!result.isOk() || !ure_weaver::Config(candidate.slots, candidate.keySize, candidate.valueSize))
++            return false;
++        aidlConfig = candidate;
++        GottenConfig = true;
++        return true;
++    }
++    if (mDevice == nullptr) return false;
++    bool callbackCalled = false, duplicateCallback = false;
++    WeaverStatus status = WeaverStatus::FAILED;
++    WeaverConfig candidate{};
++    const auto result = mDevice->getConfig([&](WeaverStatus s, WeaverConfig c) {
++        if (callbackCalled) { duplicateCallback = true; return; }
++        callbackCalled = true;
++        status = s;
++        candidate = c;
++    });
++    if (!result.isOk() || !callbackCalled || duplicateCallback || status != WeaverStatus::OK ||
++        !ure_weaver::Config(candidate.slots, candidate.keySize, candidate.valueSize)) return false;
++    config = candidate;
++    GottenConfig = true;
++    return true;
+ }
+ 
+ bool Weaver::GetSlots(uint32_t* slots) {
+-	if (!GetConfig())
+-		return false;
+-	if (mAidlDevice != nullptr) {
+-		*slots = aidlConfig.slots;
+-		return true;
+-	}
+-	*slots = config.slots;
+-	return true;
++    if (slots == nullptr || !GetConfig()) return false;
++    *slots = mAidlDevice != nullptr ? static_cast<uint32_t>(aidlConfig.slots) : config.slots;
++    return true;
+ }
+-
+-bool Weaver::GetKeySize(uint32_t* keySize) {
+-	if (!GetConfig())
+-		return false;
+-	if (mAidlDevice != nullptr) {
+-		*keySize = aidlConfig.keySize;
+-		return true;
+-	}
+-	*keySize = config.keySize;
+-	return true;
++bool Weaver::GetKeySize(uint32_t* size) {
++    if (size == nullptr || !GetConfig()) return false;
++    *size = mAidlDevice != nullptr ? static_cast<uint32_t>(aidlConfig.keySize) : config.keySize;
++    return true;
+ }
+-
+-bool Weaver::GetValueSize(uint32_t* valueSize) {
+-	if (!GetConfig())
+-		return false;
+-	if (mAidlDevice != nullptr) {
+-		*valueSize = aidlConfig.valueSize;
+-		return true;
+-	}
+-	*valueSize = config.valueSize;
+-	return true;
++bool Weaver::GetValueSize(uint32_t* size) {
++    if (size == nullptr || !GetConfig()) return false;
++    *size = mAidlDevice != nullptr ? static_cast<uint32_t>(aidlConfig.valueSize) : config.valueSize;
++    return true;
+ }
+ 
+-// TODO: we should return more information about the status including time delays before the next retry
+-bool Weaver::WeaverVerify(const uint32_t slot, const void* weaver_key, std::vector<uint8_t>* payload) {
+-	bool callbackCalled = false;
+-	WeaverReadStatus status;
+-	std::vector<uint8_t> readValue;
+-	uint32_t timeout;
+-	uint32_t keySize;
+-	if (!GetKeySize(&keySize))
+-		return false;
+-	std::vector<uint8_t> key;
+-	key.resize(keySize);
+-	uint32_t index = 0;
+-	unsigned char* ptr = (unsigned char*)weaver_key;
+-	for (index = 0; index < keySize; index++) {
+-		key[index] = *ptr;
+-		ptr++;
+-	}
+-	
+-	if (mAidlDevice != nullptr) {
+-		::aidl::android::hardware::weaver::WeaverReadResponse rep;
+-		auto r = mAidlDevice->read(slot, key, &rep);
+-		if (r.isOk() && rep.status == ::aidl::android::hardware::weaver::WeaverReadStatus::OK) {
+-			*payload = rep.value;
+-			return true;
+-		}
+-		return false;
+-	}
+-
+-	const auto readRet = mDevice->read(slot, key, [&](WeaverReadStatus s, WeaverReadResponse r) {
+-		callbackCalled = true;
+-		status = s;
+-		readValue = r.value;
+-		timeout = r.timeout;
+-	});
+-	if (readRet.isOk() && callbackCalled && status == WeaverReadStatus::OK && timeout == 0) {
+-		*payload = readValue;
+-		return true;
+-	}
+-	return false;
++bool Weaver::WeaverVerify(uint32_t slot, const void* weaver_key, size_t key_bytes,
++                          std::vector<uint8_t>* payload, uint64_t* retry_ms) {
++    clear_secret(payload);
++    if (retry_ms != nullptr) *retry_ms = 0;
++    if (payload == nullptr || retry_ms == nullptr) return false;
++    uint32_t slots = 0, keySize = 0, valueSize = 0;
++    if (!GetSlots(&slots) || !GetKeySize(&keySize) || !GetValueSize(&valueSize) ||
++        !ure_weaver::Request(slot, slots, keySize, key_bytes, weaver_key)) return false;
++    const auto* begin = static_cast<const uint8_t*>(weaver_key);
++    ScopedKey key{{begin, begin + keySize}};
++    if (mAidlDevice != nullptr) {
++        ::aidl::android::hardware::weaver::WeaverReadResponse reply{};
++        const auto result = mAidlDevice->read(static_cast<int32_t>(slot), key.value, &reply);
++        ScopedKey response{std::move(reply.value)};
++        if (!result.isOk() || !ure_weaver::Timeout(reply.timeout, true, retry_ms)) return false;
++        if (reply.status != ::aidl::android::hardware::weaver::WeaverReadStatus::OK ||
++            *retry_ms != 0 || response.value.size() != valueSize) return false;
++        *payload = std::move(response.value);
++        return true;
++    }
++    if (mDevice == nullptr) return false;
++    bool callbackCalled = false, duplicateCallback = false, validTimeout = false;
++    WeaverReadStatus status = WeaverReadStatus::FAILED;
++    ScopedKey response;
++    const auto result = mDevice->read(slot, key.value, [&](WeaverReadStatus s, WeaverReadResponse r) {
++        if (callbackCalled) { duplicateCallback = true; return; }
++        callbackCalled = true;
++        status = s;
++        validTimeout = ure_weaver::Timeout(r.timeout, false, retry_ms);
++        if (s == WeaverReadStatus::OK && validTimeout && *retry_ms == 0 && r.value.size() == valueSize)
++            response.value.assign(r.value.begin(), r.value.end());
++    });
++    if (!result.isOk() || !callbackCalled || duplicateCallback || !validTimeout ||
++        status != WeaverReadStatus::OK || *retry_ms != 0 || response.value.size() != valueSize) return false;
++    *payload = std::move(response.value);
++    return true;
+ }
+ 
+ }  // namespace vold
+diff --git a/Weaver1.h b/Weaver1.h
+index 4a329cb..5f8678c 100644
+--- a/Weaver1.h
++++ b/Weaver1.h
+@@ -25,6 +25,8 @@
+ #define TWRP_WEAVER_H
+ 
+ #include <memory>
++#include <cstddef>
++#include <cstdint>
+ #include <string>
+ #include <utility>
+ 
+@@ -46,8 +48,10 @@ class Weaver {
+ 		bool GetSlots(uint32_t* slots);
+ 		bool GetKeySize(uint32_t* keySize);
+ 		bool GetValueSize(uint32_t* valueSize);
+-		// TODO: we should return more information about the status including time delays before the next retry
+-		bool WeaverVerify(const uint32_t slot, const void* weaver_key, std::vector<uint8_t>* payload);
++		// Exactly one hardware read; preserve the returned retry delay. Callers
++		// must supply the actual allocated key length, never a HAL-reported length.
++		bool WeaverVerify(uint32_t slot, const void* weaver_key, size_t key_bytes,
++		                  std::vector<uint8_t>* payload, uint64_t* retry_ms);
+ 
+ 	private:
+ 		sp<hardware::weaver::V1_0::IWeaver> mDevice;
+diff --git a/ure-weaver-policy.hpp b/ure-weaver-policy.hpp
+new file mode 100644
+index 0000000..b664619
+--- /dev/null
++++ b/ure-weaver-policy.hpp
+@@ -0,0 +1,33 @@
++// SPDX-License-Identifier: Apache-2.0
++// Bounds for recovery's existing-protector Weaver read. This does not admit
++// credential attempts, start services, or establish read-only TEE behavior.
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++#include <limits>
++
++namespace ure_weaver {
++constexpr uint32_t kMaxSlots = 4096;
++constexpr uint32_t kMaxKeyBytes = 64;  // PersonalizedHashBinary returns SHA-512.
++constexpr uint32_t kMaxValueBytes = 4096;
++
++inline bool Config(int64_t slots, int64_t key_bytes, int64_t value_bytes) {
++    return slots > 0 && slots <= kMaxSlots && key_bytes > 0 &&
++           key_bytes <= kMaxKeyBytes && value_bytes > 0 && value_bytes <= kMaxValueBytes;
++}
++
++inline bool Request(uint32_t slot, uint32_t slots, uint32_t key_bytes,
++                    size_t available_bytes, const void* key) {
++    return key != nullptr && slots > 0 && slots <= kMaxSlots && slot < slots &&
++           key_bytes > 0 && key_bytes <= kMaxKeyBytes && available_bytes >= key_bytes;
++}
++
++inline bool Timeout(int64_t milliseconds, bool aidl, uint64_t* output) {
++    if (output == nullptr || milliseconds < 0 ||
++        milliseconds > std::numeric_limits<uint32_t>::max() ||
++        (aidl && milliseconds >= std::numeric_limits<int32_t>::max())) return false;
++    *output = static_cast<uint64_t>(milliseconds);
++    return true;
++}
++}  // namespace ure_weaver

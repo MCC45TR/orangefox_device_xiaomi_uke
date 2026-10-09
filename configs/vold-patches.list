@@ -1,0 +1,4 @@
+0050-vold-optional-key-upgrade.patch
+0054-bound-synthetic-password-records.patch
+0055-authenticate-synthetic-password-gcm.patch
+0059-bound-existing-protector-weaver-reads.patch

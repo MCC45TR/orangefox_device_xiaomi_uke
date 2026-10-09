@@ -1,0 +1,24 @@
+diff --git a/fox_fifo/fox_remote_state.cpp b/fox_fifo/fox_remote_state.cpp
+--- a/fox_fifo/fox_remote_state.cpp
++++ b/fox_fifo/fox_remote_state.cpp
+@@ -10,6 +10,7 @@
+ */
+ 
+ #include "fox_remote_state.hpp"
++#include "../data.hpp"
+ 
+ #include "fox_channel.hpp"
+ #include "fox_screen_service.hpp"
+@@ -17,7 +18,11 @@
+ 
+ bool Fox_Remote_State::CommandActive(bool legacy_command_active)
+ {
+-	return legacy_command_active || Fox_Channel::IsActive();
++	// CommandDone closes the FIFO before the action worker leaves its batch.
++	// Keep the next request queued until that worker releases GUI ownership;
++	// otherwise threadActions rejects it after its RPC output becomes active.
++	return legacy_command_active || Fox_Channel::IsActive() ||
++	       DataManager::GetIntValue("tw_action_thread_running") != 0;
+ }
+ 
+ bool Fox_Remote_State::CanAcceptCommand(bool legacy_command_active)

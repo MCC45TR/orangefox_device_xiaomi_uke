@@ -1,0 +1,156 @@
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -21,6 +21,7 @@
+ 
+ #include "ure-write-gate.hpp"
+ #include "ure-lifecycle.hpp"
++#include "ure-readonly-fstab-import.hpp"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -134,6 +135,7 @@
+ std::vector<users_struct> Users_List;
+ 
+ std::string additional_fstab = "/etc/additional.fstab";
++static bool additional_fstab_readonly_approved = false;
+ 
+ TWPartitionManager::TWPartitionManager(void) {
+ 	mtp_was_enabled = false;
+@@ -354,7 +356,7 @@
+ int TWPartitionManager::Process_Fstab(string Fstab_Filename, bool Display_Error, bool recovery_mode) {
+ 	FILE *fstabFile;
+ 	char fstab_line[MAX_FSTAB_LINE_LENGTH];
+-	bool parse_userdata = false;
++	additional_fstab_readonly_approved = false;
+ 	std::map<string, Flags_Map> twrp_flags;
+ 
+ 	fstabFile = fopen("/etc/twrp.flags", "rt");
+@@ -418,11 +420,8 @@
+ 	}
+ 	TWPartition *data = NULL;
+ 	TWPartition *meta = NULL;
+-#ifndef TW_SKIP_ADDITIONAL_FSTAB
+-parse:
+-#endif
+ 	fstabFile = fopen(Fstab_Filename.c_str(), "rt");
+-	if (!parse_userdata && fstabFile == NULL) {
++	if (fstabFile == NULL) {
+ 		LOGERR("Critical Error: Unable to open fstab at '%s'.\n", Fstab_Filename.c_str());
+ 		return false;
+ 	} else
+@@ -435,31 +434,12 @@
+ 		if (fstab_line[0] == '#')
+ 			continue;
+ 
+-		if (parse_userdata) {
+-			if (TWFunc::HasDelimitedWord(fstab_line, "/metadata") && !strstr(fstab_line, "/data")) {
+-				if (meta) {
+-					Partitions.erase(std::find(Partitions.begin(), Partitions.end(), meta));
+-					delete meta;
+-					meta = NULL;
+-				}
+-			} else if (TWFunc::HasDelimitedWord(fstab_line, "/data")) {
+-				if (data) {
+-					Partitions.erase(std::find(Partitions.begin(), Partitions.end(), data));
+-					delete data;
+-					data = NULL;
+-				}
+-			} else {
+-				continue;
+-			}
+-		}
+-
+-
+ 		size_t line_size = strlen(fstab_line);
+ 		if (fstab_line[line_size - 1] != '\n')
+ 			fstab_line[line_size] = '\n';
+ 
+ 		TWPartition* partition = new TWPartition();
+-		if (partition->Process_Fstab_Line(fstab_line, Display_Error, parse_userdata ? NULL : &twrp_flags)) {
++		if (partition->Process_Fstab_Line(fstab_line, Display_Error, &twrp_flags)) {
+ 			if (partition->Mount_Point == "/data") data = partition;
+ 			if (partition->Mount_Point == "/metadata") meta = partition;
+ 			if (partition->Is_Super && !Prepare_Super_Volume(partition)) {
+@@ -475,7 +455,7 @@
+ 	}
+ 	fclose(fstabFile);
+ 
+-	if (!parse_userdata && twrp_flags.size() > 0) {
++	if (twrp_flags.size() > 0) {
+ 		LOGINFO("Processing remaining twrp.flags\n");
+ 		// Add any items from twrp.flags that did not exist in the recovery.fstab
+ 		for (std::map<string, Flags_Map>::iterator mapit=twrp_flags.begin(); mapit!=twrp_flags.end(); mapit++) {
+@@ -498,22 +478,44 @@
+ 
+ 	TWPartition* ven = PartitionManager.Find_Partition_By_Path("/vendor");
+ 	TWPartition* odm = PartitionManager.Find_Partition_By_Path("/odm");
+-	if (recovery_mode && !parse_userdata) {
++	if (recovery_mode) {
+ 		if (ven) ven->Mount(Display_Error);
+ 		if (odm) odm->Mount(Display_Error);
+ 
+ 		Process_ResetProps(ven, odm);
+-		parse_userdata = true;
+-
+ #ifndef TW_SKIP_ADDITIONAL_FSTAB
+-		// Now Fetch the additional fstab
++		// Merge only reviewed fields into the trusted partition objects. Vendor
++		// Android mount defaults must not replace recovery's read-only policy.
+ 		if (TWFunc::Find_Fstab(Fstab_Filename)) {
+-			LOGINFO("Fstab: %s\n", Fstab_Filename.c_str());
+-			TWFunc::copy_file(Fstab_Filename, additional_fstab, 0600, false);
+-			Fstab_Filename = additional_fstab;
+-			property_set("fstab.additional", "1");
+-			goto parse;
++			std::string vendor_contents;
++			ure::readonly_fstab::Import imported;
++			if (ure::readonly_fstab::read_bounded(Fstab_Filename, &vendor_contents))
++				imported = ure::readonly_fstab::sanitize(vendor_contents);
++			if (imported.accepted && data && meta && data->Mount_Read_Only && meta->Mount_Read_Only &&
++				ure::readonly_fstab::same_block_device(imported.data.block_device, data->Primary_Block_Device) &&
++				ure::readonly_fstab::same_block_device(imported.metadata.block_device, meta->Primary_Block_Device) &&
++				ure::readonly_fstab::publish_ramdisk_copy(additional_fstab, imported.additional_fstab)) {
++				auto merge_readonly = [](TWPartition* partition, const ure::readonly_fstab::Entry& entry) {
++					partition->Fstab_File_System = entry.filesystem;
++					partition->Current_File_System = entry.filesystem;
++					partition->Mount_Read_Only = true;
++					partition->Mount_Flags = MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOATIME;
++					partition->Mount_Options = entry.mount_options;
++					partition->fs_flags.clear();
++					partition->Save_FS_Flags(entry.filesystem, partition->Mount_Flags, entry.mount_options);
++					if (entry.mount_point == "/data") partition->Key_Directory = entry.key_directory;
++				};
++				merge_readonly(meta, imported.metadata);
++				merge_readonly(data, imported.data);
++				additional_fstab_readonly_approved = true;
++				property_set("fstab.additional", "1");
++				LOGINFO("Imported a validated read-only userdata/metadata fstab pair\n");
++			} else {
++				property_set("fstab.additional", "0");
++				LOGERR("Vendor userdata/metadata fstab refused; trusted read-only map retained\n");
++			}
+ 		} else {
++			property_set("fstab.additional", "0");
+ 			LOGINFO("Unable to parse vendor fstab\n");
+ 		}
+ 	}
+@@ -675,6 +677,10 @@
+ 
+ void TWPartitionManager::Decrypt_Data() {
+     if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return;
++	if (!additional_fstab_readonly_approved) {
++		LOGERR("Metadata decryption refused without a validated read-only fstab pair\n");
++		return;
++	}
+ 	#ifdef TW_INCLUDE_CRYPTO
+ 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
+ 	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
+@@ -689,7 +695,7 @@
+ #ifdef USE_FSCRYPT
+ 			std::vector<std::string> user_devices;
+ 			std::vector<bool> device_aliased;
+-			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, false, user_devices, device_aliased, 0, TWFunc::Path_Exists(additional_fstab) ? additional_fstab : "")) {
++			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, false, user_devices, device_aliased, 0, additional_fstab)) {
+ 				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
+ 				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
+ 				LOGINFO("Successfully decrypted metadata encrypted data partition with new block device: '%s'\n", crypto_blkdev.c_str());
