@@ -11,6 +11,7 @@ cd "$component"
         patches/0062-own-the-uke-touch-session.patch \
         src/upstream/orangefox-android16/bootable/recovery/gui/Android.bp
     find src/upstream/orangefox-android16/bootable/recovery/touch -type f -print0
+    find src/upstream/orangefox-android16/bootable/recovery/gui/touch -type f -print0
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/ure-touch.hpp
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \

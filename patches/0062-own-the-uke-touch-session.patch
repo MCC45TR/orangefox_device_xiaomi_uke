@@ -125,7 +125,7 @@
 @@ -64,5 +64,6 @@
          "action.cpp",
          "ure.cpp",
-+        "../touch/touch-gui-session.cpp",
++        "touch/touch-gui-session.cpp",
          "console.cpp",
          "fill.cpp",
          "button.cpp",

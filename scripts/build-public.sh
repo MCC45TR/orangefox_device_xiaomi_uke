@@ -35,6 +35,7 @@ for header in ure-localization.hpp ure-locale-keys.hpp ure-write-gate.hpp ure-li
 done
 for source in touch-gui-session.cpp touch-gui-session.hpp touch-policy.hpp; do
     cmp -- "$component/src/device/xiaomi/uke/touch/$source" "$tree/bootable/recovery/touch/$source"
+    cmp -- "$component/src/device/xiaomi/uke/touch/$source" "$tree/bootable/recovery/gui/touch/$source"
 done
 # OrangeFox captures shell exports during lunch for its vendor packaging script.
 # A make-only FOX_BUILD_BASH value would still let that script copy its prebuilt.
