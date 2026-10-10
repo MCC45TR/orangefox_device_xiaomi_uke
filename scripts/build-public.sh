@@ -6,7 +6,7 @@ if [[ ${UKE_HOST_BUDGET_ACTIVE:-0} != 1 ]]; then
     exec bash "$component/scripts/with-host-budget.sh" arm64 bash "$component/scripts/build-public.sh" "$@"
 fi
 tree="$component/src/upstream/orangefox-android16"
-jobs=${1:-16}
+jobs=${1:-12}
 if (( $# > 0 )); then shift; fi
 cache_seed=
 if (( $# > 0 )); then

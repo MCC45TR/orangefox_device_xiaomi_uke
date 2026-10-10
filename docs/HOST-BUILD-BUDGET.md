@@ -3,12 +3,12 @@
 Run one heavy job at a time through the host-only wrapper:
 
 ```sh
-bash scripts/with-host-budget.sh arm64 bash scripts/build-public.sh 16
+bash scripts/with-host-budget.sh arm64 bash scripts/build-public.sh 12
 bash scripts/with-host-budget.sh native bash tests/run-native.sh
 bash scripts/with-host-budget.sh sanitizer bash tests/check-sanitizers.sh
 ```
 
-The public Android and native/sanitizer entry points enter this wrapper automatically. The systemd service owns the serialization lock until its work ends, including interruption of the calling desktop. Explicit nested admission refuses before waiting on that same lock. `j16` is a maximum; lower requested compile counts remain respected.
+The public Android and native/sanitizer entry points enter this wrapper automatically. The systemd service owns the serialization lock until its work ends, including interruption of the calling desktop. Explicit nested admission refuses before waiting on that same lock. Android compilation defaults to `-j12`; explicit requests up to 16 remain supported, and memory admission can reduce the requested count.
 
 ## Admission and memory reserve
 
