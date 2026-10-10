@@ -44,22 +44,24 @@ Availability depends on the selected filesystem, kernel, packaged tools and oper
 
 ## Downloads
 
-The **v002 hardware test preview** contains touch startup, repeated-tap and
-bottom-tab navigation corrections. Use it only with the reviewed installed
+The **v003 hardware test preview** adds a once-only screen synchronization
+after the touch service starts, alongside repeated-tap and bottom-tab navigation
+corrections. Use it only with the reviewed installed
 kernel and keep a previously working recovery available.
 
 | Download | Purpose |
 |---|---|
-| `orangefox-r12-uke-modded-v002.img` | Flash to the active recovery slot; not a `fastboot boot` image |
-| `orangefox-r12-uke-modded-v002.zip` | Contains the same recovery image; ZIP installation is currently unavailable |
+| `orangefox-r12-uke-modded-v003.img` | Flash to the active recovery slot; not a `fastboot boot` image |
+| `orangefox-r12-uke-modded-v003.zip` | Contains the same recovery image; ZIP installation is currently unavailable |
 
 Download the two files from the
-[test release](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases/tag/R12.0-uke-modded-v002).
+[test release](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases/tag/R12.0-uke-modded-v003).
 The IMG uses the tablet's installed boot stack. The current touch profile
 requires kernel `6.1.175-android14-11-ga3b9c44908dd-ab13320413`; model name alone
 does not establish compatibility. Battery reporting, Android decryption,
-USB-hub mouse support and persistent preferences still require further work
-or device acceptance. Follow the [installation and rollback guide](docs/INSTALLATION.md)
+USB-hub mouse support and cold-start touch still require device acceptance.
+Preferences survived a controlled GUI restart; full reboot and replacement-image
+persistence remain untested. Follow the [installation and rollback guide](docs/INSTALLATION.md)
 and [touch test boundary](docs/TOUCH-STARTUP.md).
 
 ## Development and validation

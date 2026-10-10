@@ -11,7 +11,7 @@ uses the tablet's installed boot stack. It is not a `fastboot boot` image.
 
 ## Install the IMG
 
-Download `orangefox-r12-uke-modded-v002.img` from the
+Download `orangefox-r12-uke-modded-v003.img` from the
 [release page](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases).
 Your bootloader must already be unlocked. Enter fastboot, connect the tablet
 and check its identity, active slot and recovery capacity:
@@ -26,7 +26,7 @@ The product must be `uke`. The recovery partition must be at least
 `0x6400000` bytes (100 MiB). The following example is **only for slot `a`**:
 
 ```sh
-fastboot flash recovery_a orangefox-r12-uke-modded-v002.img
+fastboot flash recovery_a orangefox-r12-uke-modded-v003.img
 fastboot reboot recovery
 ```
 
@@ -36,7 +36,7 @@ instead. Keep the inactive slot unchanged. Do not flash this IMG to `boot`,
 
 ## About the ZIP
 
-`orangefox-r12-uke-modded-v002.zip` contains the same recovery image.
+`orangefox-r12-uke-modded-v003.zip` contains the same recovery image.
 **ZIP installation is currently unavailable:** both ADB sideload and the
 recovery's Install screen refuse installation before writing. Use the IMG
 instructions above for this preview. A ZIP download does not mean that its
@@ -45,6 +45,8 @@ installer has passed device testing.
 ## First checks
 
 After the screen appears, test menu touch before performing any other action.
+The preview briefly cycles the display once after the touch service starts;
+allow that cycle to finish without pressing the power button.
 Try **Files → Menu → Extra → Files**, including repeated taps on the same
 tab. Turn the screen off and on with the power button, unlock it and repeat.
 The owner confirmed these actions in the corrected live session; the new
@@ -63,7 +65,8 @@ encrypted Android storage is not needed for theme or scale settings. Saving
 is automatic and coalesced. Open **Extra > Display and input > Interface scale >
 Saved recovery preferences** to inspect the storage result. If storage is unavailable or a
 record is damaged, changes remain limited to the current session. Persistence
-across a recovery restart still requires a device test for this preview.
+across a controlled GUI restart was verified in the live session. Persistence
+across a full device reboot or a replacement-image boot remains untested.
 
 Managed formatting, repartitioning, ROM/OTA installation, stock restoration
 and other storage writes remain blocked. Do not use a root ADB shell to bypass
