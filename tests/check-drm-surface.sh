@@ -13,6 +13,8 @@ work=$(mktemp -d "$component/build/drm-surface-XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 awk '/^static void drm_destroy_surface\(/ { copying=1 } /^static drmModeCrtc.*find_crtc/ { exit } copying { print }' "$source" > "$work/drm-surface.inc"
 rg -q '^static drm_surface \*drm_create_surface' "$work/drm-surface.inc"
+awk '/^static GRSurface\* drm_flip\(/ { copying=1 } /^static void drm_exit\(/ { exit } copying { print }' "$source" > "$work/drm-flip.inc"
+rg -q '^static GRSurface\* drm_flip' "$work/drm-flip.inc"
 "$compiler" -std=c++20 -Wall -Wextra -Werror -ftrivial-auto-var-init=pattern "${flags[@]}" \
     -I"$work" -I"$component/src/upstream/orangefox-android16/external/libdrm" \
     -I"$component/src/upstream/orangefox-android16/external/libdrm/include/drm" \

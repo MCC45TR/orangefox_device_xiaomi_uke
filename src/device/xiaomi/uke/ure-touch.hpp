@@ -12,4 +12,7 @@ inline void ure_touch_poll_status() noexcept { uke::touch::poll_status(); }
 inline uke::touch::Status ure_touch_collected_status() noexcept {
     return uke::touch::collected_status();
 }
+inline bool ure_touch_take_initial_panel_sync(bool awake) noexcept {
+    return uke::touch::take_initial_panel_sync(awake);
+}
 inline void ure_touch_stop() noexcept { uke::touch::stop(); }

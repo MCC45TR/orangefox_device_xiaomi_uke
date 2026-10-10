@@ -1,0 +1,15 @@
+--- a/gui/gui.cpp
++++ b/gui/gui.cpp
+@@ -852,6 +852,12 @@
+ 			DataManager::SetValue("ure_touch_state", touch_state);
+ 		if (DataManager::GetStrValue("ure_touch_code") != touch_code)
+ 			DataManager::SetValue("ure_touch_code", touch_code);
++		// The late-started HAL needs a panel notification after its initial setup.
++		if (ure_touch_take_initial_panel_sync(!blankTimer.isScreenOff())) {
++			LOGINFO("Synchronizing initial touch panel wake.\n");
++			blankTimer.blank();
++			blankTimer.resetTimerAndUnblank();
++		}
+ 		// Poll while idle too: connecting a monitor must not require a tablet
+ 		// touch. The DRM sink bounds connector probes and framebuffer updates.
+ 		if (gr_external_update())

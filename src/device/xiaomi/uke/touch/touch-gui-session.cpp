@@ -280,6 +280,10 @@ Status collected_status() noexcept {
     std::lock_guard<std::mutex> lock(session.mutex);
     return session.status;
 }
+bool take_initial_panel_sync(bool awake) noexcept {
+    std::lock_guard<std::mutex> lock(session.mutex);
+    return session.readiness.initial_panel_sync(session.status.state, awake, milliseconds());
+}
 void stop() noexcept {
     std::lock_guard<std::mutex> lock(session.mutex);
     session.shutdown();

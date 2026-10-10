@@ -1,0 +1,21 @@
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -613,7 +613,7 @@
+     ret = drmModeAtomicCommit(drm_fd, atomic_req, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL);
+ 
+   if (!ret) {
+-    printf("Atomic Commit succeed");
++    printf("Atomic Commit succeeded\n");
+     current_blank_state = blank;
+   } else {
+     printf("Atomic Commit failed, rc = %d\n", ret);
+@@ -1129,6 +1129,9 @@
+ }
+ 
+ static GRSurface* drm_flip(minui_backend* backend __unused) {
++    // A disabled CRTC cannot accept a plane framebuffer update.
++    if (current_blank_state)
++        return draw_buf;
+     memcpy(drm_surfaces[current_buffer]->base.data,
+             draw_buf->data, draw_buf->height * draw_buf->row_bytes);
+     update_plane_fb();

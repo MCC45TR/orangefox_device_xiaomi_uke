@@ -77,9 +77,25 @@ class Readiness {
     }
     void stop() noexcept { stopped_ = true; }
     bool attempted() const noexcept { return attempted_; }
+    bool initial_panel_sync(State state, bool awake, std::uint64_t now) noexcept {
+        if (panel_synced_ || stopped_ || !attempted_ || state != State::running)
+            return false;
+        if (!awake) {
+            panel_synced_ = true; // The owner's next wake supplies the notification.
+            return false;
+        }
+        if (!running_since_)
+            running_since_ = now;
+        if (now < *running_since_ || now - *running_since_ < 1000)
+            return false;
+        panel_synced_ = true;
+        return true;
+    }
 
   private:
     bool graphics_ = false, scan_ = false, resources_ = false, attempted_ = false, stopped_ = false;
+    bool panel_synced_ = false;
+    std::optional<std::uint64_t> running_since_;
 };
 struct Lifecycle {
     State state = State::idle;

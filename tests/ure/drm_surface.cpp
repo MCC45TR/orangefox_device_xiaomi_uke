@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <sys/mman.h>
 #include <drm_fourcc.h>
 #include <xf86drm.h>
@@ -39,6 +40,18 @@ static void* fixture_mmap(void*,std::size_t bytes,int,int,int,off_t) {
 #define mmap fixture_mmap
 #include "drm-surface.inc"
 #undef mmap
+struct minui_backend {};
+static bool current_blank_state = true;
+static int current_buffer = 0, commits = 0;
+static GRSurface* draw_buf;
+static drm_surface* drm_surfaces[2];
+static void update_plane_fb() {
+    if (current_blank_state) std::abort();
+    ++commits;
+}
+#define __unused __attribute__((unused))
+#include "drm-flip.inc"
+#undef __unused
 int main() {
     auto* surface=drm_create_surface(16,8);
     if(!surface || surface->base.row_bytes!=64 || surface->base.pixel_bytes!=4)return 1;
@@ -48,5 +61,22 @@ int main() {
     if(drm_create_surface(16,8) || closed!=2 || removed!=1 || mapped!=1)return 3;
     failure=2;
     if(drm_create_surface(16,8) || closed!=2 || removed!=1 || mapped!=1)return 4;
+    unsigned char drawing[16] = {1}, buffers[2][16] = {};
+    GRSurface draw{2,2,8,4,drawing,0};
+    drm_surface back[2] = {{GRSurface{2,2,8,4,buffers[0],0},0,0},
+                           {GRSurface{2,2,8,4,buffers[1],0},0,0}};
+    draw_buf = &draw;
+    drm_surfaces[0] = &back[0]; drm_surfaces[1] = &back[1];
+    for (int i=0; i<3; ++i) {
+        if (drm_flip(nullptr)!=&draw || commits!=0 || current_buffer!=0 || buffers[0][0]!=0) return 5;
+        ++drawing[0];
+    }
+    current_blank_state = false;
+    if (drm_flip(nullptr)!=&draw || commits!=1 || current_buffer!=1 ||
+        std::memcmp(drawing,buffers[0],sizeof(drawing))!=0) return 6;
+    ++drawing[0];
+    if (drm_flip(nullptr)!=&draw || commits!=2 || current_buffer!=0 ||
+        std::memcmp(drawing,buffers[1],sizeof(drawing))!=0) return 7;
     std::puts("Actual DRM surface allocation: zero unused planes, positive mapping and failed allocation cleanup passed.");
+    std::puts("Actual DRM flip: blanked planes receive no update; the latest draw survives blanking and resumes double buffering.");
 }

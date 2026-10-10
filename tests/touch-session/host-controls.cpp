@@ -75,6 +75,29 @@ void controls(const std::string &root) {
     stopped.resources(true);
     stopped.stop();
     check(!stopped.frame(true), "stop before first page");
+    auto started_ready = [] {
+        Readiness r;
+        r.graphics(true, true);
+        r.resources(true);
+        r.frame(true);
+        return r;
+    };
+    auto panel = started_ready();
+    check(!panel.initial_panel_sync(State::preparing, true, 100), "no wake during preparation");
+    check(!panel.initial_panel_sync(State::running, true, 200), "HAL settle does not block GUI");
+    check(!panel.initial_panel_sync(State::running, true, 1199), "settle interval required");
+    check(!panel.initial_panel_sync(State::failed, true, 1200), "failed service cannot cycle panel");
+    check(!panel.initial_panel_sync(State::running, true, 199), "clock rollback cannot trigger wake");
+    check(panel.initial_panel_sync(State::running, true, 1200), "running service synchronizes once");
+    check(!panel.initial_panel_sync(State::running, true, 9000), "page or theme cannot repeat wake");
+    auto sleeping_panel = started_ready();
+    check(!sleeping_panel.initial_panel_sync(State::running, false, 0), "sleeping panel stays off");
+    check(!sleeping_panel.initial_panel_sync(State::running, true, 9000), "natural wake completes synchronization");
+    auto stopped_panel = started_ready();
+    stopped_panel.stop();
+    check(!stopped_panel.initial_panel_sync(State::running, true, 9000), "shutdown cannot wake panel");
+    Readiness unstarted_panel;
+    check(!unstarted_panel.initial_panel_sync(State::running, true, 9000), "no wake before first frame");
     Lifecycle life;
     check(!life.exec_ok(), "exec without owner rejected");
     check(life.prepared(), "prepare once");
@@ -375,6 +398,9 @@ void controls(const std::string &root) {
         ::poll(nullptr, 0, 10);
     }
     check(collected_status().state == State::running, "GUI actual posix_spawn and status pipe");
+    check(!take_initial_panel_sync(true), "GUI initial wake waits without blocking");
+    ::poll(nullptr, 0, 1050);
+    check(take_initial_panel_sync(true) && !take_initial_panel_sync(true), "GUI initial wake hook fires once");
     resources_ready(false);
     resources_ready(true);
     start_once_after_frame(true);

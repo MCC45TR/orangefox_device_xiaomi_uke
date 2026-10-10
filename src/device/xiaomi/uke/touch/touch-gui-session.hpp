@@ -9,5 +9,6 @@ void resources_ready(bool loaded) noexcept;
 void start_once_after_frame(bool panel_awake) noexcept;
 void poll_status() noexcept;
 Status collected_status() noexcept;
+bool take_initial_panel_sync(bool panel_awake) noexcept;
 void stop() noexcept;
 } // namespace uke::touch

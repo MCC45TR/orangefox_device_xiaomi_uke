@@ -38,3 +38,5 @@
 0063-persist-bounded-recovery-ui-preferences.patch
 0064-preserve-unchanged-touch-coordinates.patch
 0065-keep-scroll-viewport-above-navigation.patch
+0066-synchronize-initial-touch-panel-wake.patch
+0067-skip-plane-updates-while-panel-is-blanked.patch
