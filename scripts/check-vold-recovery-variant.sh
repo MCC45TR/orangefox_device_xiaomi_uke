@@ -14,7 +14,7 @@ awk '/^m.libvold_android_arm64_armv8-a_static.cFlags1 = /' "${ninja_files[@]}" >
 [[ $(wc -l < "$work/recovery-flags") == 1 && $(wc -l < "$work/normal-flags") == 1 ]]
 rg -q -- '(^| )-D__ANDROID_RECOVERY__( |$)' "$work/recovery-flags"
 ! rg -q -- '-D__ANDROID_RECOVERY__' "$work/normal-flags"
-for source in Keystore Decrypt; do
+for source in Keystore Decrypt KeyStorage ExistingKeyMint; do
     awk -v suffix="libvold_uke_recovery/android_arm64_armv8-a_static/obj/system/vold/$source.o:" '
         index($0,suffix) {copy=1}
         copy {print}
@@ -31,4 +31,10 @@ object="${archive%/*}/obj/system/vold/Keystore.o"
 [[ -s $archive && -s $object ]]
 "$tree/prebuilts/clang/host/linux-x86/clang-r547379/bin/llvm-nm" -u "$object" > "$work/Keystore-undefined.txt"
 rg -q ' AServiceManager_checkService$' "$work/Keystore-undefined.txt"
-printf '%s\n' 'Generated recovery-library flags contain the macro, normal libvold flags do not; Keystore/Decrypt compile with those flags, recovery links only the private archive, and the real Keystore object references non-waiting service lookup. No Binder/TEE or decryption acceptance.'
+nm="$tree/prebuilts/clang/host/linux-x86/clang-r547379/bin/llvm-nm"
+"$nm" -C "${archive%/*}/obj/system/vold/KeyStorage.o" > "$work/reader-symbols.txt"
+"$nm" -C "${archive%/*}/obj/system/vold/ExistingKeyMint.o" > "$work/client-symbols.txt"
+rg -q ' U android::vold::ExistingKeyMint::decryptMetadata\(' "$work/reader-symbols.txt"
+rg -q ' T android::vold::ExistingKeyMint::decryptMetadata\(' "$work/client-symbols.txt"
+! rg -q '/libvold/android_arm64_armv8-a_static/obj/system/vold/ExistingKeyMint\.o:' "${ninja_files[@]}"
+printf '%s\n' 'Generated recovery flags and four compile edges, the dedicated archive, bounded-reader/client symbols and non-waiting lookup passed. Normal libvold excludes the new client. No Binder/TEE or decryption acceptance.'

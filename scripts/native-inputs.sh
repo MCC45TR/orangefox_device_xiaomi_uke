@@ -26,6 +26,9 @@ cd "$component"
         patches/0079-compile-vold-guards-for-the-recovery-caller.patch patches/0080-link-the-dedicated-recovery-vold-library.patch \
         scripts/check-vold-recovery-variant.sh tests/check-vold-recovery-variant.sh src/upstream/orangefox-android16/system/vold/Android.bp \
         patches/0081-report-metadata-mount-failure.patch tests/check-metadata-mount-result.sh \
+        patches/0082-read-existing-metadata-keys-without-keystore2.patch tests/check-existing-key-metadata.sh \
+        tests/crypto-existing-key/{fake.hpp,existing_key.cpp,reader_fixture.hpp,reader_controls.cpp} \
+        src/upstream/orangefox-android16/system/vold/{ExistingKeyMint.cpp,ExistingKeyMint.h,KeyStorage.h} \
         src/upstream/orangefox-android16/system/vold/MetadataCrypt.cpp \
         src/upstream/orangefox-android16/system/vold/Keystore.cpp \
         tests/check-touch-release.sh tests/check-touch-device-state.sh

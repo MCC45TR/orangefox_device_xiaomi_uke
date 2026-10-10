@@ -6,9 +6,12 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 tree="$component/src/upstream/orangefox-android16"
 work=$(mktemp -d "$component/build/vold-module-XXXXXXXX")
 trap 'rm -rf -- "$work"' EXIT
+git init -q "$work"
 git -C "$tree/system/vold" show 953de9608eb78380b3c4e39e801c2bc0af7dbddc:Android.bp > "$work/original.bp"
 cp "$work/original.bp" "$work/Android.bp"
-git -C "$work" apply "$component/patches/0079-compile-vold-guards-for-the-recovery-caller.patch"
+while IFS= read -r patch; do
+    git -C "$work" apply --include=Android.bp "$component/patches/$patch"
+done < "$component/configs/vold-patches.list"
 bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/system/vold" check vold
 bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/bootable/recovery" check recovery
 cmp "$work/Android.bp" "$tree/system/vold/Android.bp"
