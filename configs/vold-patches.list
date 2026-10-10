@@ -2,3 +2,5 @@
 0054-bound-synthetic-password-records.patch
 0055-authenticate-synthetic-password-gcm.patch
 0059-bound-existing-protector-weaver-reads.patch
+0073-vold-crypto-service-hardening.patch
+0076-handle-missing-keystore-results.patch

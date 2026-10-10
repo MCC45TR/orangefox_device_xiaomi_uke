@@ -21,6 +21,9 @@ cd "$component"
         patches/0065-keep-scroll-viewport-above-navigation.patch tests/check-theme-viewport.sh \
         patches/0066-synchronize-initial-touch-panel-wake.patch \
         patches/0067-skip-plane-updates-while-panel-is-blanked.patch \
+        patches/0072-recovery-crypto-service-hardening.patch patches/0073-vold-crypto-service-hardening.patch tests/check-crypto-service-hardening.sh \
+        patches/0076-handle-missing-keystore-results.patch tests/check-crypto-nullability.sh \
+        src/upstream/orangefox-android16/system/vold/Keystore.cpp \
         tests/check-touch-release.sh tests/check-touch-device-state.sh
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \

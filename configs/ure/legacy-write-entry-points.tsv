@@ -11,7 +11,7 @@ bootable/recovery/partition.cpp	bool TWPartition::Wipe_Data_Cache(void)	Wipe
 bootable/recovery/partition.cpp	bool TWPartition::Repair()	Repair
 bootable/recovery/partition.cpp	bool TWPartition::Resize()	Resize
 bootable/recovery/partition.cpp	bool TWPartition::Restore(PartitionSettings *part_settings)	Restore
-bootable/recovery/partition.cpp	bool TWPartition::Decrypt(string Password)	EncryptionAccess
+bootable/recovery/partition.cpp	bool TWPartition::Decrypt(string)	EncryptionAccess
 bootable/recovery/partition.cpp	bool TWPartition::Wipe_Encryption()	Format
 bootable/recovery/partition.cpp	bool TWPartition::Wipe_EXTFS(string File_System)	Format
 bootable/recovery/partition.cpp	bool TWPartition::Wipe_EXT4()	Format

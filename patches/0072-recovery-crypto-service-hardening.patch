@@ -1,0 +1,16 @@
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -2284,11 +2284,9 @@
+ 	return "ERROR!";
+ }
+ 
+-bool TWPartition::Decrypt(string Password) {
++bool TWPartition::Decrypt(string) {
+     if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return false;
+-	LOGINFO("STUB TWPartition::Decrypt, password: '%s'\n", Password.c_str());
+-	// Is this needed?
+-	return 1;
++	return false;
+ }
+ 
+ bool TWPartition::Wipe_Encryption() {
