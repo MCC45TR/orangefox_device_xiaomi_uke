@@ -21,6 +21,12 @@ cd "$component"
         patches/0065-keep-scroll-viewport-above-navigation.patch tests/check-theme-viewport.sh \
         patches/0066-synchronize-initial-touch-panel-wake.patch \
         patches/0067-skip-plane-updates-while-panel-is-blanked.patch \
+        patches/0068-fit-keyboard-and-compact-gesture-area.patch \
+        patches/0069-draw-themed-keys-at-the-fitted-width.patch \
+        patches/0070-enter-localized-confirmation-characters.patch tests/check-localized-input.sh \
+        patches/0071-keep-input-cursors-on-utf8-boundaries.patch \
+        src/upstream/orangefox-android16/bootable/recovery/gui/input.cpp \
+        tests/check-keyboard-geometry.sh tests/ure/keyboard_geometry.cpp \
         patches/0072-recovery-crypto-service-hardening.patch patches/0073-vold-crypto-service-hardening.patch tests/check-crypto-service-hardening.sh \
         patches/0076-handle-missing-keystore-results.patch tests/check-crypto-nullability.sh \
         patches/0079-compile-vold-guards-for-the-recovery-caller.patch patches/0080-link-the-dedicated-recovery-vold-library.patch \

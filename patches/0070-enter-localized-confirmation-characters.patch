@@ -1,0 +1,84 @@
+--- a/gui/input.cpp
++++ b/gui/input.cpp
+@@ -491,6 +491,30 @@
+ 	return 1;
+ }
+ 
++static std::string InputCharacter(int key)
++{
++	if (key < 32 || key == 127 || key > 0x10ffff || (key >= 0xd800 && key <= 0xdfff)) return {};
++	if (key < 0x80) return std::string(1, static_cast<char>(key));
++	std::string text;
++	if (key < 0x800) text += static_cast<char>(0xc0 | (key >> 6));
++	else {
++		if (key >= 0x10000) { text += static_cast<char>(0xf0 | (key >> 18)); text += static_cast<char>(0x80 | ((key >> 12) & 0x3f)); }
++		else text += static_cast<char>(0xe0 | (key >> 12));
++		text += static_cast<char>(0x80 | ((key >> 6) & 0x3f));
++	}
++	text += static_cast<char>(0x80 | (key & 0x3f));
++	return text;
++}
++
++static std::size_t PreviousInputCharacter(const std::string& text, std::size_t end)
++{
++	if (end > text.size()) end = text.size();
++	if (!end) return 0;
++	--end;
++	while (end && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
++	return end;
++}
++
+ int GUIInput::NotifyCharInput(int key)
+ {
+ 	if (HasInputFocus) {
+@@ -498,10 +522,11 @@
+ 			//Backspace
+ 			if (mValue.size() > 0 && mCursorLocation != 0) {
+ 				if (mCursorLocation == -1) {
+-					mValue.resize(mValue.size() - 1);
++					mValue.resize(PreviousInputCharacter(mValue, mValue.size()));
+ 				} else {
+-					mValue.erase(mCursorLocation - 1, 1);
+-					mCursorLocation--;
++					const auto begin = PreviousInputCharacter(mValue, mCursorLocation);
++					mValue.erase(begin, mCursorLocation - begin);
++					mCursorLocation = begin;
+ 				}
+ 				isLocalChange = true;
+ 				DataManager::SetValue(mVariable, mValue);
+@@ -529,24 +554,28 @@
+ 			return 0;
+ 		} else if (key >= 32) {
+ 			// Regular key
+-			if (HasAllowed && AllowedList.find((char)key) == string::npos) {
++			std::string character = InputCharacter(key);
++			if (character.empty()) return 0;
++			if (HasAllowed && AllowedList.find(character) == string::npos) {
+                 //[f/d] UX: Replace space with '_' when space isn't allowed (e.g. backup name)
+ 				if (key == 32 && AllowedList.find('_') != string::npos)
+-					key = (int)'_';
++					character = "_";
+ 				else
+ 				    return 0;
+ 			}
+-			if (HasDisabled && DisabledList.find((char)key) != string::npos) {
++			if (HasDisabled && DisabledList.find(character) != string::npos) {
+ 				return 0;
+ 			}
+-			if (MaxLen != 0 && mValue.size() >= MaxLen) {
++			if (MaxLen != 0 && (mValue.size() >= MaxLen || character.size() > MaxLen - mValue.size())) {
+ 				return 0;
+ 			}
+ 			if (mCursorLocation == -1) {
+-				mValue += key;
++				mValue += character;
+ 			} else {
+-				mValue.insert(mCursorLocation, 1, key);
+-				mCursorLocation++;
++				while (mCursorLocation > 0 && static_cast<std::size_t>(mCursorLocation) < mValue.size() &&
++					(static_cast<unsigned char>(mValue[mCursorLocation]) & 0xc0) == 0x80) --mCursorLocation;
++				mValue.insert(mCursorLocation, character);
++				mCursorLocation += character.size();
+ 			}
+ 			isLocalChange = true;
+ 			DataManager::SetValue(mVariable, mValue);

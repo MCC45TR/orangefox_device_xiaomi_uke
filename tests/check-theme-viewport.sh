@@ -15,7 +15,10 @@ awk '
  END {if (seen!=1) exit 1}
 ' "$vars" || { echo 'Scroll viewport uses an undefined or duplicate bar height.' >&2; exit 1; }
 expression() { xmllint --xpath "string(/recovery/variables/variable[@name='$1']/@value)" "$vars"; }
-[[ $(expression nav_panel_y) == '%screen_h%-360' ]]
+[[ $(expression nav_panel_y) == '%screen_h%-264' ]]
+[[ $(expression nav_h) == '48' ]]
+[[ $(expression row_nav_y) == '%screen_h%-48' ]]
+[[ $(expression gst_line_y) == '%screen_h%-24' ]]
 [[ $(expression ab_h) == '240+%cutout_w%' ]]
 [[ $(expression scroll_nav_h) == '%nav_panel_y%-%ab_h%' ]]
 # The same scale is applied to viewport placement and tab hit rectangles.
@@ -25,12 +28,12 @@ for screen in '2136 3200' '3200 2136' '1080 1920'; do
         for cutout in 0 43; do
             canvas_height=$(((height*100+scale/2)/scale))
             bar=$((240+cutout))
-            nav=$((canvas_height-360))
+            nav=$((canvas_height-264))
             viewport=$((nav-bar))
             (( viewport>0 ))
             viewport_end=$((bar*scale/100+viewport*scale/100))
             nav_start=$((nav*scale/100))
-            nav_button_y=$(((canvas_height-252)*scale/100))
+            nav_button_y=$(((canvas_height-156)*scale/100))
             (( viewport_end<=nav_start && nav_start-viewport_end<=1 && nav_button_y>viewport_end ))
         done
     done

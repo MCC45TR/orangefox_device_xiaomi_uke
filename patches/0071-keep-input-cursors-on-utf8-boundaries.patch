@@ -1,0 +1,92 @@
+--- a/gui/input.cpp
++++ b/gui/input.cpp
+@@ -219,6 +219,9 @@
+ 	textWidth = twrpTruetype::gr_ttf_measureEx(displayValue.c_str(), fontResource);
+ }
+ 
++static std::size_t PreviousInputCharacter(const std::string& text, std::size_t end);
++static std::size_t NextInputCharacter(const std::string& text, std::size_t begin);
++
+ void GUIInput::HandleCursorByTouch(int x) {
+ // Uses x to find mCursorLocation and cursorX
+ 	if (displayValue.size() == 0) {
+@@ -239,20 +242,21 @@
+ 	int prevX = mRenderX + scrollingX;
+ 
+ 	for (index = 0; index <= displaySize; index++) {
++		if (index < displaySize && (static_cast<unsigned char>(displayValue[index]) & 0xc0) == 0x80) continue;
+ 		cursorString = displayValue.substr(0, index);
+ 		cursorX = twrpTruetype::gr_ttf_measureEx(cursorString.c_str(), fontResource) + mRenderX + scrollingX;
+ 		if (cursorX > x) {
+ 			if (index > 0 && x <= cursorX - ((x - prevX) / 2) && prevX >= mRenderX) {
+ 				// This helps make sure that we can place the cursor before the very first char if the first char is
+ 				// is fully visible while also still letting us place the cursor after the last char if fully visible
+-				mCursorLocation = index - 1;
++				mCursorLocation = PreviousInputCharacter(displayValue, index);
+ 				cursorX = prevX;
+ 				return;
+ 			}
+ 			mCursorLocation = index;
+ 			if (cursorX > mRenderX + mRenderW) {
+ 				cursorX = prevX; // This makes sure that the cursor doesn't get placed after the end of the input box
+-				mCursorLocation--;
++				mCursorLocation = PreviousInputCharacter(displayValue, index);
+ 				return;
+ 			}
+ 			if (cursorX >= mRenderX) {
+@@ -453,9 +457,9 @@
+ 					cursorX = mRenderX;
+ 					return 0;
+ 				}
+-				mCursorLocation = displayValue.size() - 1;
++				mCursorLocation = PreviousInputCharacter(mValue, mValue.size());
+ 			} else {
+-				mCursorLocation--;
++				mCursorLocation = PreviousInputCharacter(mValue, mCursorLocation);
+ 			}
+ 			mRendered = false;
+ 			HandleCursorByText();
+@@ -464,8 +468,8 @@
+ 		case KEY_RIGHT:
+ 			if (mCursorLocation == -1)
+ 				return 0; // we're already at the end
+-			mCursorLocation++;
+-			if ((int)displayValue.size() <= mCursorLocation)
++			mCursorLocation = NextInputCharacter(mValue, mCursorLocation);
++			if (static_cast<int>(mValue.size()) <= mCursorLocation)
+ 				mCursorLocation = -1;
+ 			HandleCursorByText();
+ 			mRendered = false;
+@@ -515,6 +519,14 @@
+ 	return end;
+ }
+ 
++static std::size_t NextInputCharacter(const std::string& text, std::size_t begin)
++{
++	if (begin >= text.size()) return text.size();
++	++begin;
++	while (begin < text.size() && (static_cast<unsigned char>(text[begin]) & 0xc0) == 0x80) ++begin;
++	return begin;
++}
++
+ int GUIInput::NotifyCharInput(int key)
+ {
+ 	if (HasInputFocus) {
+@@ -524,6 +536,8 @@
+ 				if (mCursorLocation == -1) {
+ 					mValue.resize(PreviousInputCharacter(mValue, mValue.size()));
+ 				} else {
++					while (mCursorLocation > 0 && static_cast<std::size_t>(mCursorLocation) < mValue.size() &&
++						(static_cast<unsigned char>(mValue[mCursorLocation]) & 0xc0) == 0x80) --mCursorLocation;
+ 					const auto begin = PreviousInputCharacter(mValue, mCursorLocation);
+ 					mValue.erase(begin, mCursorLocation - begin);
+ 					mCursorLocation = begin;
+@@ -543,6 +557,8 @@
+ 				textWidth = 0;
+ 				mCursorLocation = -1;
+ 			} else {
++				while (mCursorLocation > 0 && static_cast<std::size_t>(mCursorLocation) < mValue.size() &&
++					(static_cast<unsigned char>(mValue[mCursorLocation]) & 0xc0) == 0x80) --mCursorLocation;
+ 				mValue.erase(0, mCursorLocation);
+ 				DataManager::SetValue(mVariable, mValue);
+ 				mCursorLocation = 0;

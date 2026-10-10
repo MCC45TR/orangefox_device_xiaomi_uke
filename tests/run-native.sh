@@ -44,6 +44,8 @@ bash tests/check-layout.sh
 bash tests/check-partition-job.sh
 bash tests/check-display.sh
 bash tests/check-menu-rendering.sh
+bash tests/check-keyboard-geometry.sh
+bash tests/check-localized-input.sh
 bash scripts/check-ui-icons.sh
 bash tests/check-drm-surface.sh
 bash tests/check-filesystems.sh

@@ -1,0 +1,84 @@
+--- a/gui/keyboard.cpp
++++ b/gui/keyboard.cpp
+@@ -289,15 +289,14 @@
+ 	DataManager::GetValue("key_buttons", useImage);
+ 
+ 
+-	//[f/d] Do not draw key background
+-	/* key background
+-	COLOR& c = (keychar >= 32 && keychar < 127) ? mKeyColorAlphanumeric : mKeyColorOther;
+-	gr_color(c.red, c.green, c.blue, c.alpha);
+-	keyX += mKeyMarginX;
+-	keyY += mKeyMarginY;
+-	keyW -= mKeyMarginX * 2;
+-	keyH -= mKeyMarginY * 2;
+-	gr_fill(keyX, keyY, keyW, keyH);*/
++	// A stretched keyboard draws themed keys instead of a fixed-width bitmap.
++	if (useImage == "1" && (!keyboardImg || keyboardImg->GetWidth() != mRenderW || keyboardImg->GetHeight() != mRenderH)) {
++		const COLOR& c = (keychar >= 32 && keychar < 127) ? mKeyColorAlphanumeric : mKeyColorOther;
++		gr_color(c.red, c.green, c.blue, c.alpha);
++		const int marginX = std::min(mKeyMarginX, std::max(0, (keyW - 1) / 2));
++		const int marginY = std::min(mKeyMarginY, std::max(0, (keyH - 1) / 2));
++		gr_fill(keyX + marginX, keyY + marginY, keyW - marginX * 2, keyH - marginY * 2);
++	}
+ 
+ 	// key label
+ 	FontResource* labelFont = mFont;
+--- a/gui/theme/portrait_hdpi/pages/templates/keyboard.xml
++++ b/gui/theme/portrait_hdpi/pages/templates/keyboard.xml
+@@ -7,8 +7,9 @@
+ 				<condition var1="tw_hide_kb" var2="0"/>
+ 				<placement x="0" y="%keyboard_terminal_y%" w="%screen_w%" h="96"/>
+ 				<background color="%keyboard_bg%"/>
+-				<key-alphanumeric color="%keyboard_bg%" font="keylabel-bold" textcolor="%text%"/>
+-				<key-other color="%keyboard_bg%" font="keylabel-bold" textcolor="%text_light%"/>
++                <keymargin x="8" y="8"/>
++				<key-alphanumeric color="%neutral_light%" font="keylabel-bold" textcolor="%text%"/>
++				<key-other color="%neutral_light%" font="keylabel-bold" textcolor="%text_light%"/>
+ 				<longpress font="keylabel-bold" textcolor="%text_light%" x="12" y="0"/>
+ 				<keylabel key="0:k:29" text="Ctrl"/>
+ 				<keylabel key="0:c:27" text="Esc"/>
+@@ -29,8 +30,9 @@
+ 				<condition var1="tw_hide_kb" var2="0"/>
+ 				<placement x="0" y="%keyboard_term_num_y%" w="%screen_w%" h="96"/>
+ 				<background color="%keyboard_bg%"/>
+-				<key-alphanumeric color="%keyboard_bg%" font="keylabel-bold" textcolor="%text%"/>
+-				<key-other color="%keyboard_bg%" font="keylabel-bold" textcolor="%text_light%"/>
++                <keymargin x="8" y="8"/>
++				<key-alphanumeric color="%neutral_light%" font="keylabel-bold" textcolor="%text%"/>
++				<key-other color="%neutral_light%" font="keylabel-bold" textcolor="%text_light%"/>
+ 				<longpress font="keylabel-bold" textcolor="%text_light%" x="12" y="0"/>
+ 				<keylabel key="0:k:29" text="Ctrl"/>
+ 				<keylabel key="0:c:27" text="Esc"/>
+@@ -54,7 +56,8 @@
+ 				<condition var1="tw_hide_kb" var2="0"/>
+ 				<placement x="0" y="%keyboard_num_y%" w="%screen_w%" h="116" />
+ 				<background color="%keyboard_bg%"/>
+-				<key-alphanumeric color="%keyboard_bg%" font="keylabel" textcolor="%text%"/>
++                <keymargin x="8" y="8"/>
++				<key-alphanumeric color="%neutral_light%" font="keylabel" textcolor="%text%"/>
+ 				<highlight color="%keyboard_hl%"/>
+ 				<layout1>
+ 					<keysize height="116" width="108"/>
+@@ -66,8 +69,9 @@
+ 				<condition var1="tw_hide_kb" var2="0"/>
+ 				<placement x="0" y="%keyboard_y%" w="%screen_w%" h="644"/>
+ 				<background color="%keyboard_bg%"/>
+-				<key-alphanumeric color="%keyboard_bg%" font="keylabel" textcolor="%text%"/>
+-				<key-other color="%keyboard_bg%" font="keylabel-bold" textcolor="%text_light%"/>
++                <keymargin x="8" y="8"/>
++				<key-alphanumeric color="%neutral_light%" font="keylabel" textcolor="%text%"/>
++				<key-other color="%neutral_light%" font="keylabel-bold" textcolor="%text_light%"/>
+ 				<longpress font="keylabel-longpress" textcolor="%text_light%" x="18" y="12"/>
+ 				<keylabel key="0:c:8" text="" resource="backspace" />
+ 				<keylabel key=" " text="" resource="space" noalt="1"/>
+@@ -124,7 +128,8 @@
+ 				<condition var1="tw_hide_kb" var2="0"/>
+ 				<placement x="0" y="%keyboard_y%" w="%screen_w%" h="644"/>
+ 				<background color="%keyboard_bg%"/>
+-				<key-alphanumeric color="%keyboard_bg%" font="keylabel-num" textcolor="%text%"/>
++                <keymargin x="8" y="8"/>
++				<key-alphanumeric color="%neutral_light%" font="keylabel-num" textcolor="%text%"/>
+ 				<highlight color="%keyboard_hl%"/>
+ 				<keylabel key="0:c:8" text="" resource="backspace"/>
+ 				<keylabel key="0:action" text="" resource="enter" alt="enter_num_new"/>

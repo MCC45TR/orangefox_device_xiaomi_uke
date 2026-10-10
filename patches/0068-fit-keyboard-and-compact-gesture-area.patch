@@ -1,0 +1,157 @@
+--- a/gui/keyboard.cpp
++++ b/gui/keyboard.cpp
+@@ -22,6 +22,7 @@
+ #include <linux/input.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <cstdint>
+ #include "../data.hpp"
+ 
+ #include <string>
+@@ -199,6 +200,7 @@
+ 	int x, y;
+ 	// Load the placement
+ 	LoadPlacement(FindNode(node, "placement"), &x, &y, &mRenderW, &mRenderH);
++	FitToWidth(mRenderW);
+ 	SetRenderPos(x, y, mRenderW, mRenderH);
+ 	return;
+ }
+@@ -246,7 +248,7 @@
+ 	} else {
+ 		key.key = keychar;
+ 		Xindex += keyWidth;
+-		key.end_x = Xindex - 1;
++		key.end_x = Xindex;
+ 	}
+ 
+ 	return 0;
+@@ -382,7 +384,8 @@
+ 	bool drawKeys = true; //[f/d] Always draw keys
+ 	string useImage;
+ 	DataManager::GetValue("key_buttons", useImage);
+-	if (keyboardImg && keyboardImg->GetResource() && useImage == "1")
++	if (keyboardImg && keyboardImg->GetResource() && useImage == "1" &&
++		keyboardImg->GetWidth() == mRenderW && keyboardImg->GetHeight() == mRenderH)
+ 		// keyboard is image based
+ 		gr_blit(keyboardImg->GetResource(), 0, 0, mRenderW, mRenderH, mRenderX, mRenderY);
+ 	else {
+@@ -451,6 +454,23 @@
+ 	return 0;
+ }
+ 
++void GUIKeyboard::FitToWidth(int width)
++{
++	if (width <= 0) return;
++	// Scale boundaries once, so drawing, highlights and hit tests share exact edges.
++	for (auto& layout : layouts) {
++		for (int row = 0; row < MAX_KEYBOARD_ROWS && layout.row_end_y[row] > 0; ++row) {
++			auto& keys = layout.keys[row];
++			int count = 0;
++			while (count < MAX_KEYBOARD_KEYS && keys[count].end_x > 0) ++count;
++			if (count == 0) continue;
++			const int original_width = keys[count - 1].end_x;
++			for (int col = 0; col < count; ++col)
++				keys[col].end_x = static_cast<std::int64_t>(keys[col].end_x) * width / original_width;
++		}
++	}
++}
++
+ int GUIKeyboard::SetRenderPos(int x, int y, int w, int h)
+ {
+ 	RenderObject::SetRenderPos(x, y, w, h);
+--- a/gui/objects.hpp
++++ b/gui/objects.hpp
+@@ -1375,6 +1375,7 @@
+ 
+ protected:
+ 	int ParseKey(const char* keyinfo, Key& key, int& Xindex, int keyWidth, bool longpress);
++	void FitToWidth(int width);
+ 	void LoadKeyLabels(xml_node<>* parent, int layout);
+ 	void DrawKey(Key& key, int keyX, int keyY, int keyW, int keyH);
+ 	int KeyCharToCtrlChar(int key);
+--- a/gui/theme/portrait_hdpi/pages/templates/keyboard.xml
++++ b/gui/theme/portrait_hdpi/pages/templates/keyboard.xml
+@@ -64,7 +64,7 @@
+ 			
+ 			<keyboard>
+ 				<condition var1="tw_hide_kb" var2="0"/>
+-				<placement x="0" y="%keyboard_y%"/>
++				<placement x="0" y="%keyboard_y%" w="%screen_w%" h="644"/>
+ 				<background color="%keyboard_bg%"/>
+ 				<key-alphanumeric color="%keyboard_bg%" font="keylabel" textcolor="%text%"/>
+ 				<key-other color="%keyboard_bg%" font="keylabel-bold" textcolor="%text_light%"/>
+@@ -122,7 +122,7 @@
+ 		<template name="keyboardnum">
+ 			<keyboard>
+ 				<condition var1="tw_hide_kb" var2="0"/>
+-				<placement x="0" y="%keyboard_y%"/>
++				<placement x="0" y="%keyboard_y%" w="%screen_w%" h="644"/>
+ 				<background color="%keyboard_bg%"/>
+ 				<key-alphanumeric color="%keyboard_bg%" font="keylabel-num" textcolor="%text%"/>
+ 				<highlight color="%keyboard_hl%"/>
+--- a/gui/theme/portrait_hdpi/resources/vars.xml
++++ b/gui/theme/portrait_hdpi/resources/vars.xml
+@@ -152,10 +152,10 @@
+ 		<variable name="nav_panel_id" value="0"/>
+ 		<variable name="nav_panel_w" value="%screen_w%-96"/>
+ 		<variable name="nav_panel_x" value="48"/>
+-		<variable name="nav_panel_y" value="%screen_h%-360"/>
+-		<variable name="nav_icon_y" value="%screen_h%-282"/>
+-		<variable name="nav_text_y" value="%screen_h%-202"/>
+-		<variable name="nav_item_y" value="%screen_h%-252"/>
++		<variable name="nav_panel_y" value="%screen_h%-264"/>
++		<variable name="nav_icon_y" value="%screen_h%-186"/>
++		<variable name="nav_text_y" value="%screen_h%-106"/>
++		<variable name="nav_item_y" value="%screen_h%-156"/>
+ 		<variable name="nav_item_1" value="146"/>
+ 		<variable name="nav_item_2" value="343"/>
+ 		<variable name="nav_item_3" value="540"/>
+@@ -166,7 +166,7 @@
+ 
+ 		<variable name="np_pill_w" value="192"/>
+ 		<variable name="np_pill_h" value="96"/>
+-		<variable name="np_pill_y" value="%screen_h%-330"/>
++		<variable name="np_pill_y" value="%screen_h%-234"/>
+ 		<variable name="np_pill_x1" value="50"/>
+ 		<variable name="np_pill_x2" value="247"/>
+ 		<variable name="np_pill_x3" value="444"/>
+@@ -382,12 +382,12 @@
+ 
+ 		<!-- NavBar -->
+ 		<variable name="row_nav_text_y" value="%row_nav_y%+%bs_text_offset%"/>
+-		<variable name="row_nav_y" value="%screen_h%-144"/>
++		<variable name="row_nav_y" value="%screen_h%-48"/>
+ 		<variable name="row_navbtn_w" value="318"/>
+-		<variable name="row_navbtn_y" value="%screen_h%-72"/>
++		<variable name="row_navbtn_y" value="%screen_h%-24"/>
+ 		<variable name="back_button_x" value="237"/>
+ 		<variable name="slideout_button_x" value="843"/>
+-		<variable name="nav_h" value="144"/>
++		<variable name="nav_h" value="48"/>
+ 
+ 		<!-- Status Bar -->
+ 		<variable name="status_right_x" value="1060-%status_indent_right%"/>
+@@ -551,10 +551,10 @@
+ 		<variable name="progressbar_y" value="456+%cutout_w%"/>
+ 
+ 		<!-- Keyboard -->
+-		<variable name="keyboard_y" value="%screen_h%-788"/>
+-		<variable name="keyboard_terminal_y" value="%screen_h%-884"/>
+-		<variable name="keyboard_num_y" value="%screen_h%-900"/>
+-		<variable name="keyboard_term_num_y" value="%screen_h%-992"/>
++		<variable name="keyboard_y" value="%screen_h%-692"/>
++		<variable name="keyboard_terminal_y" value="%screen_h%-788"/>
++		<variable name="keyboard_num_y" value="%screen_h%-808"/>
++		<variable name="keyboard_term_num_y" value="%screen_h%-904"/>
+ 
+ 		<!-- Input fields -->
+ 		<variable name="input_encr_width" value="696"/>
+@@ -657,7 +657,7 @@
+ 
+ 		<!-- Gesture -->
+ 		<variable name="gst_keyboard_y" value="%keyboard_y%-%ab_h%"/>
+-		<variable name="gst_line_y" value="%screen_h%-72"/>
++		<variable name="gst_line_y" value="%screen_h%-24"/>
+ 
+ 		<!-- Rows -->
+ 		<variable name="row0_y" value="240+%cutout_w%"/>
