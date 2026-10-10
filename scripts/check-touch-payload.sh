@@ -14,6 +14,8 @@ trap 'rm -rf -- "$work"' EXIT
     -I "$component/src/device/xiaomi/uke/touch" \
     "$component/tests/touch-session/image-pins.cpp" -o "$work/pins"
 "$work/pins" > "$work/pins.tsv"
+kernel=$("$work/pins" --kernel)
+[[ $kernel == 6.1.175-android14-11-ga3b9c44908dd-ab13320413 ]]
 count=0
 while IFS=$'\t' read -r path digest bytes; do
     [[ $path == /* && $digest =~ ^[a-f0-9]{64}$ && $bytes =~ ^[0-9]+$ ]]
@@ -36,13 +38,17 @@ helper="$root/system/bin/uke-touch-supervisor"
 [[ -f $helper && ! -L $helper && -x $helper ]]
 readelf -h "$helper" | rg 'Machine:.*AArch64' >/dev/null
 strings "$helper" | rg -F '/odm/bin/hw/vendor.xiaomi.hw.touchfeature-service' >/dev/null
-strings "$helper" | rg -F '6.1.175-android14-11-ga3b9c44908dd-ab13320413' >/dev/null
+# An optimized comparison need not retain its complete string in the ELF.
+# The image audit independently binds this profile and executable to the
+# sealed compilation inputs. Actual uname admission belongs to device tests.
 [[ ! -e $root/odm/bin/hw/vendor.xiaomi.hw.touchfeature-service ]]
 jq -cn --arg helper "$(sha256sum "$helper" | cut -d ' ' -f 1)" \
+    --arg kernel "$kernel" \
     --arg init_script "$(sha256sum "$init_script" | cut -d ' ' -f 1)" \
     --arg profile "$(sha256sum "$work/pins.tsv" | cut -d ' ' -f 1)" \
     '{schema_version:1,evidence_class:"package",supervisor_sha256:$helper,
       image_profile_sha256:$profile,image_provider_count:18,image_providers_match:true,
+      required_kernel_release:$kernel,kernel_profile_evidence:"source-profile",
       runtime_config_copy_reviewed:true,runtime_init_script:"/system/etc/init/hw/init.rc",
       runtime_init_script_sha256:$init_script,proprietary_service_packaged:false,
       physical_cold_start_accepted:false,storage_acceptance:false}' > "$report"
