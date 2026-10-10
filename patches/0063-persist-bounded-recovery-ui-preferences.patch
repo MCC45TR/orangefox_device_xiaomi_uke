@@ -1,3 +1,12 @@
+diff --git a/Android.mk b/Android.mk
+--- a/Android.mk
++++ b/Android.mk
+@@ -280,3 +280,5 @@
+ ifeq ($(TW_UKE_NATIVE_THEME), true)
++    # Keep preference-store errors inside their recovery UI handlers.
++    LOCAL_CPP_FEATURES += exceptions
+     LOCAL_CFLAGS += -DTW_UKE_NATIVE_THEME
+ endif
 diff --git a/data.cpp b/data.cpp
 index b85a633..2abd3d1 100644
 --- a/data.cpp
