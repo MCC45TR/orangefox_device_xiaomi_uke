@@ -249,6 +249,14 @@ inline bool readonly_persist_overlay(const Mount& mount, unsigned device_major,
            mount.major != 0 && mount.major == device_major && mount.minor == device_minor &&
            mount.readonly() && token(mount.options,"nosuid") && token(mount.options,"nodev");
 }
+// Fresh recovery creates /persist as 0777 on the RAM root before mounting it.
+// Admit that placeholder only for hiding it, without changing OEM permissions.
+inline bool ram_persist_overlay(const Mount& root, unsigned device_major,
+                               unsigned device_minor, unsigned owner, unsigned mode) {
+    return owner == 0 && (mode & 0170000) == 0040000 && root.visible &&
+           root.path == "/" && root.root == "/" && ramfs(root.fs) &&
+           root.major == 0 && device_major == 0 && root.minor == device_minor;
+}
 inline Code mount_policy(const std::vector<Mount> &mounts, bool final, bool real_cache,
                          MountPhase phase = MountPhase::isolated) {
     // Init owns inherited shared mounts. Only the verified init-namespace

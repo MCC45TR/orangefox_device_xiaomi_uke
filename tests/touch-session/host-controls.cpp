@@ -161,6 +161,22 @@ void controls(const std::string &root) {
     check(!readonly_persist_overlay(calibration,8,87,1000,0040771), "foreign persist directory owner refused");
     check(!readonly_persist_overlay(calibration,8,87,0,0100771), "regular-file overlay target refused");
     check(!readonly_persist_overlay(calibration,8,86,0,0040771), "different persist device refused");
+    const auto ram_root = parse("1 0 0:2 / / rw - rootfs rootfs rw\n")[0];
+    check(ram_persist_overlay(ram_root,0,2,0,0040777), "fresh RAM persist placeholder admitted");
+    check(!ram_persist_overlay(ram_root,8,2,0,0040777), "block-backed placeholder refused");
+    check(!ram_persist_overlay(ram_root,0,3,0,0040777), "different RAM device refused");
+    check(!ram_persist_overlay(ram_root,0,2,1000,0040777), "foreign RAM placeholder owner refused");
+    check(!ram_persist_overlay(ram_root,0,2,0,0120777), "RAM placeholder symlink refused");
+    for (unsigned field=0; field<6; ++field) {
+        auto changed=ram_root;
+        if (field==0) changed.visible=false;
+        if (field==1) changed.path="/persist";
+        if (field==2) changed.root="/subdir";
+        if (field==3) changed.fs="ext4";
+        if (field==4) changed.major=8;
+        if (field==5) changed.minor=3;
+        check(!ram_persist_overlay(changed,0,2,0,0040777), "unsafe RAM root identity refused");
+    }
     for(unsigned field=0;field<9;++field) {
         auto changed=calibration;
         if(field==0)changed.visible=false;

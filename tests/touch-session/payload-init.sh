@@ -32,3 +32,26 @@ printf '%s\n' "$line" > "$work/alias-target/init.rc"
 ln -s "$work/alias-target" "$root/system/etc/init/hw"
 refuse 'parent symlink'
 printf 'Pinned modern init selector: 8 controls passed; no device execution.\n'
+# Execute the manifest portion of the actual packaging callback in host fixtures.
+awk '/^# Without this declaration/ {copy=1} /^# An incremental relink/ {copy=0} copy' \
+    "$component/src/device/xiaomi/uke/prepare-public-ramdisk.sh" > "$work/manifest-hook.inc"
+[[ -s $work/manifest-hook.inc ]]
+cat > "$work/manifest-controls.sh" <<'CONTROLS'
+set -euo pipefail
+payload=/tmp/touch-manifest/payload
+mkdir -p "$payload"
+source /tmp/touch-manifest/manifest-hook.inc
+source /tmp/touch-manifest/manifest-hook.inc
+[[ $(stat -c %a "$manifest") == 644 ]]
+printf 'existing unrelated HAL declaration\n' > "$manifest"
+cp "$manifest" /tmp/touch-manifest/sentinel
+if bash -euc 'payload=/tmp/touch-manifest/payload; source /tmp/touch-manifest/manifest-hook.inc' > /tmp/touch-manifest/refusal.log 2>&1; then exit 1; fi
+cmp "$manifest" /tmp/touch-manifest/sentinel
+rm "$manifest"
+ln -s /tmp/touch-manifest/sentinel "$manifest"
+if bash -euc 'payload=/tmp/touch-manifest/payload; source /tmp/touch-manifest/manifest-hook.inc' > /tmp/touch-manifest/refusal.log 2>&1; then exit 1; fi
+[[ -L $manifest && $(cat /tmp/touch-manifest/sentinel) == 'existing unrelated HAL declaration' ]]
+CONTROLS
+bwrap --ro-bind / / --tmpfs /tmp --tmpfs /mnt --ro-bind "$component/src/device/xiaomi/uke" /mnt/device/xiaomi/uke \
+    --bind "$work" /tmp/touch-manifest bash /tmp/touch-manifest/manifest-controls.sh
+printf '%s\n' 'Touch AIDL manifest: fresh/repeated packaging and preservation of unrelated/symlinked declarations passed on host fixtures.'

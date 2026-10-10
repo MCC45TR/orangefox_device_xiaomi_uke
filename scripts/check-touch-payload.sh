@@ -42,6 +42,9 @@ strings "$helper" | rg -F '/odm/bin/hw/vendor.xiaomi.hw.touchfeature-service' >/
 # The image audit independently binds this profile and executable to the
 # sealed compilation inputs. Actual uname admission belongs to device tests.
 [[ ! -e $root/odm/bin/hw/vendor.xiaomi.hw.touchfeature-service ]]
+manifest="$root/system/etc/vintf/manifest.xml"
+[[ -f $manifest && ! -L $manifest && $(stat -c %a "$manifest") == 644 ]]
+cmp -- "$component/src/device/xiaomi/uke/touch/manifest.xml" "$manifest"
 jq -cn --arg helper "$(sha256sum "$helper" | cut -d ' ' -f 1)" \
     --arg kernel "$kernel" \
     --arg init_script "$(sha256sum "$init_script" | cut -d ' ' -f 1)" \
@@ -51,5 +54,6 @@ jq -cn --arg helper "$(sha256sum "$helper" | cut -d ' ' -f 1)" \
       required_kernel_release:$kernel,kernel_profile_evidence:"source-profile",
       runtime_config_copy_reviewed:true,runtime_init_script:"/system/etc/init/hw/init.rc",
       runtime_init_script_sha256:$init_script,proprietary_service_packaged:false,
+      touch_aidl_manifest_packaged:true,
       physical_cold_start_accepted:false,storage_acceptance:false}' > "$report"
 printf 'Packed touch supervisor and 18 runtime provider pins match; cold boot remains separate.\n'

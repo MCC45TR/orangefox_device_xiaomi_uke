@@ -12,6 +12,15 @@ phase=${2:?Missing callback phase}
 # The shell entry point uses the native setup parser and reviewed transactions.
 # It never embeds donor offsets or passes user input to a shell evaluator.
 ln -sf uke-recoveryctl "$payload/system/bin/partition"
+# Without this declaration the installed THP service aborts during AIDL registration.
+mkdir -p "$payload/system/etc/vintf"
+manifest="$payload/system/etc/vintf/manifest.xml"
+if [[ -e $manifest || -L $manifest ]]; then
+    [[ -f $manifest && ! -L $manifest ]]
+    cmp -- /mnt/device/xiaomi/uke/touch/manifest.xml "$manifest"
+fi
+cp -- /mnt/device/xiaomi/uke/touch/manifest.xml "$payload/system/etc/vintf/manifest.xml"
+chmod 0644 "$payload/system/etc/vintf/manifest.xml"
 # An incremental relink target can retain yesterday's renderer while the GUI
 # executable already imports today's APIs. Install the exact source-built
 # renderer and fail packaging if its monitor entry points are missing.

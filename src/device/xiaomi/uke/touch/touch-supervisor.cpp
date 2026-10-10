@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <linux/dm-ioctl.h>
+#include <linux/magic.h>
 #include <linux/stat.h>
 #include <memory>
 #include <openssl/evp.h>
@@ -199,12 +200,17 @@ void directory(std::string_view path, bool overlay_admission = false) {
     if (s.st_mode & 0022) {
         require(overlay_admission && path == "/persist", Code::mount_invalid);
         struct statfs filesystem{};
-        require(::fstatfs(fd.get(), &filesystem) == 0 && (filesystem.f_flags & ST_RDONLY),
-                Code::mount_invalid);
+        require(::fstatfs(fd.get(), &filesystem) == 0, Code::mount_invalid);
         const auto mounts = current_mounts();
-        require(readonly_persist_overlay(visible_mount(mounts,path), major(s.st_dev),
-                                        minor(s.st_dev), s.st_uid, s.st_mode),
-                Code::mount_invalid);
+        if (filesystem.f_type == TMPFS_MAGIC || filesystem.f_type == RAMFS_MAGIC) {
+            require(ram_persist_overlay(visible_mount(mounts,"/"), major(s.st_dev),
+                                       minor(s.st_dev), s.st_uid, s.st_mode), Code::mount_invalid);
+        } else {
+            require((filesystem.f_flags & ST_RDONLY) &&
+                        readonly_persist_overlay(visible_mount(mounts,path), major(s.st_dev),
+                                                 minor(s.st_dev), s.st_uid, s.st_mode),
+                    Code::mount_invalid);
+        }
     }
 }
 void make_directory(const char *path, mode_t mode) {
