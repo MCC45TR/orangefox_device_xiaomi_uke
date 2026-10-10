@@ -30,6 +30,9 @@ a disabled ESP must not specify a capacity. Sizes accept decimal MB/GB, binary M
 percentage of the original userdata capacity. Userdata receives the aligned
 remainder. Alignment and filesystem minimums are checked before confirmation.
 Creating partitions does not install either OS or configure its bootloader.
+New GPT names are `esp`, `linux_boot`, `linux` and `windows`, matching the Linux
+installer's physical partition contract. Existing `uke_` names remain readable
+and protected; setup never renames or reclaims them merely to match this convention.
 
 ## Preview and consent
 

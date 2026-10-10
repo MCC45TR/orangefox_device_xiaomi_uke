@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include "operation_guard.hpp"
 #include "rescue_resources.hpp"
 #include <algorithm>
@@ -73,7 +74,8 @@ Value mounted_connections(const Root& root,const Root* esp) {
             require(source.starts_with("UUID=") || source.starts_with("PARTUUID="),"unstable-fstab-source","Automatic mounts require UUID or PARTUUID selectors");
             Root system("/"); const auto graph=storage_graph(system); Value selected;
             for(const auto& object:graph["objects"]) {
-                if(object["partition"]!=true || (object["label"]!="uke_linux" && object["label"]!="uke_esp" && object["label"]!="uke_home"))continue;
+                const auto role=os_partition_role(object["label"].asString());
+                if(object["partition"]!=true || (role!="linux" && role!="linux_boot" && role!="esp" && role!="home"))continue;
                 auto target=storage_select(system,object["stable_id"].asString()); const auto signature=filesystem_probe(target.descriptor.get());
                 const bool matches=source.starts_with("PARTUUID=") ? target.identity["partuuid"]==source.substr(9) : signature["uuid"]==source.substr(5);
                 if(matches) { require(selected.isNull(),"ambiguous-fstab-source","More than one storage object matches fstab");

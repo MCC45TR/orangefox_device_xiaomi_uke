@@ -2,6 +2,7 @@
 // Mutating tools operate on a private staged image. The existing chunk journal
 // owns the only original-target writes, readback, interruption recovery and rollback.
 #include "uke.h"
+#include "partition_names.hpp"
 #include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
@@ -95,7 +96,7 @@ void filesystem_target(const StorageTarget& target) {
     }
     const auto signature=filesystem_probe(target.descriptor.get());
     require(signature["encryption"]=="none" && signature["type"]!="wim" && signature["type"]!="erofs", "protected-filesystem", "Encrypted containers, WIM and Android read-only images require their own workflow");
-    if(target.identity["kind"]=="live-block")require(target.identity["label"]=="uke_linux" || target.identity["label"]=="uke_esp" || target.identity["label"]=="uke_windows" || target.identity["label"]=="uke_home",
+    if(target.identity["kind"]=="live-block")require(!os_partition_role(target.identity["label"].asString()).empty(),
         "protected-partition","Android firmware, userdata, metadata and unclassified partitions are protected");
 }
 // fatresize operates through a partition table, and its superfloppy path can

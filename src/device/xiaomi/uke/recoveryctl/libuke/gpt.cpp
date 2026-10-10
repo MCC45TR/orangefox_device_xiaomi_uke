@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include "operation_guard.hpp"
 #include <algorithm>
 #include <array>
@@ -202,7 +203,8 @@ std::vector<StorageRange> stock_desired(const StorageTarget& target,const fs::pa
     const auto current=gpt_inspect(target.descriptor.get(),4096);
     for(const auto& part:current["partitions"]) {
         const auto name=part["label"].asString();
-        require(expected.count(name)!=0 || name=="uke_linux" || name=="uke_windows" || name=="uke_esp",
+        const auto role=os_partition_role(name);
+        require(expected.count(name)!=0 || role=="linux" || role=="windows" || role=="esp",
             "protected-partition","Unknown current partitions cannot be removed by stock restoration");
     }
     source["identity_backup_manifest_sha256"]=backup["manifest_sha256"];

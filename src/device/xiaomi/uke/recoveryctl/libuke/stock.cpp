@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -149,7 +150,8 @@ std::vector<StorageRange> gpt_stock_regions(const fs::path& directory,std::uint6
     }
     for(const auto& [name,part]:original) {
         (void)part;
-        require(expected.count(name)!=0 || name=="uke_linux" || name=="uke_windows" || name=="uke_esp",
+        const auto role=os_partition_role(name);
+        require(expected.count(name)!=0 || role=="linux" || role=="windows" || role=="esp",
             "protected-partition","Unknown extra partitions require a separate ownership and migration plan");
     }
     put(entries,(terminal[lun]-1)*128+40,sectors-6,8);

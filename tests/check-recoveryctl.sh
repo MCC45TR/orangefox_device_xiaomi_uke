@@ -20,6 +20,15 @@ fi
 scratch=$(mktemp -d)
 trap 'rm -r -- "$scratch"' EXIT
 cp -a -- "$fixture/." "$scratch/"
+for role in esp linux; do
+    sed -i "s/PARTNAME=uke_$role/PARTNAME=$role/" "$scratch"/sda*/uevent
+done
+"$binary" plan-mount esp 12345678-1234-1234-1234-123456789abc "$scratch" | rg -q 'read-only.*\/mnt\/uke-esp.*vfat'
+"$binary" plan-mount linux abcdefab-cdef-abcd-efab-cdefabcdefab "$scratch" | rg -q 'read-only.*\/mnt\/uke-linux.*ext4'
+"$binary" plan-mount linux-btrfs abcdefab-cdef-abcd-efab-cdefabcdefab "$scratch" | rg -q 'read-only.*\/mnt\/uke-linux.*btrfs'
+if "$binary" plan-mount esp abcdefab-cdef-abcd-efab-cdefabcdefab "$scratch" >/dev/null 2>&1; then
+  echo 'Canonical GPT names bypassed the partition role check' >&2; exit 1
+fi
 cp -a -- "$scratch/sda1" "$scratch/sda3"
 if "$binary" plan-mount esp 12345678-1234-1234-1234-123456789abc "$scratch" >/dev/null 2>&1; then
   echo 'Ambiguous partition identity was accepted' >&2; exit 1

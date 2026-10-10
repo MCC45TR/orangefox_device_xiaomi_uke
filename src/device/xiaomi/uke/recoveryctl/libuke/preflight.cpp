@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include "boot_state.hpp"
 #include "recovery_write_policy.hpp"
 #include "../install_policy.h"
@@ -66,7 +67,7 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
     check(out,"exclusive-kernel-claim",target.exclusive_claim,"Kernel ownership must be retained throughout the job");
     check(out,"writable-media",target.identity["read_only_state"]==false,"The kernel must report writable media");
     const auto label=target.identity["label"].asString();
-    check(out,"target-owner",target.identity["partition"]==true && (label=="uke_linux" || label=="uke_windows" || label=="uke_esp" || label=="uke_home"),
+    check(out,"target-owner",target.identity["partition"]==true && !os_partition_role(label).empty(),
         "Standard filesystem jobs are restricted to Linux, Windows, home or ESP partitions; Android data and firmware require separate trust and restore workflows");
     check(out,"accepted-model-sku-capacity-profile",out["device_profile"]["profile_accepted"]==true,
         "Only an accepted commercial model/SKU/capacity, exact installed firmware and this unit's six-LUN geometry/GUID backup may authorize live planning");

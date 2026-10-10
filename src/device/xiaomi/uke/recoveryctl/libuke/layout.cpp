@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include "recovery_write_policy.hpp"
 #include <algorithm>
 #include <array>
@@ -14,10 +15,10 @@ constexpr std::uint64_t mib=1048576, precision=1000000;
 __extension__ typedef unsigned __int128 Wide;
 struct Role { const char* id; const char* label; const char* type; std::vector<std::string> filesystems; };
 const std::array<Role,5> roles{{
-    {"esp","uke_esp","c12a7328-f81f-11d2-ba4b-00a0c93ec93b",{"fat32"}},
-    {"linux_boot","uke_linux_boot","0fc63daf-8483-4772-8e79-3d69d8477de4",{"ext4"}},
-    {"linux","uke_linux","0fc63daf-8483-4772-8e79-3d69d8477de4",{"ext4","btrfs","f2fs"}},
-    {"windows","uke_windows","ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",{"ntfs"}},
+    {"esp","esp","c12a7328-f81f-11d2-ba4b-00a0c93ec93b",{"fat32"}},
+    {"linux_boot","linux_boot","0fc63daf-8483-4772-8e79-3d69d8477de4",{"ext4"}},
+    {"linux","linux","0fc63daf-8483-4772-8e79-3d69d8477de4",{"ext4","btrfs","f2fs"}},
+    {"windows","windows","ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",{"ntfs"}},
     {"userdata","userdata","",{"ext4","f2fs"}}
 }};
 const Role& role(const std::string& id) {
@@ -175,7 +176,7 @@ Value partition_layout(const StorageTarget& target,const Value& input,const std:
     require(!has_linux_boot || allocated.at("linux_boot")==0 || allocated.at("linux")>0,"linux-boot-without-root","A separate Linux boot partition requires an enabled Linux root");
     if(remainder) { requested["userdata"]=pool-used; allocated["userdata"]=pool-used; }
     require(allocated.at("userdata")>0,"userdata-required","Userdata cannot be deleted by this layout workflow");
-    for(const auto& part:protected_parts)for(const auto& r:roles)if(r.id!=std::string("userdata") && selected.contains(r.id) && part["label"]==r.label && allocated.at(r.id)>0)
+    for(const auto& part:protected_parts)for(const auto& r:roles)if(r.id!=std::string("userdata") && selected.contains(r.id) && os_partition_role(part["label"].asString())==r.id && allocated.at(r.id)>0)
         throw Error("existing-os-partition","An existing OS partition is protected. This workflow creates new roles only from userdata; back up and select a separate migration workflow");
     // A request that leaves every OS role disabled must not trim userdata merely
     // because its existing end is not MiB aligned.

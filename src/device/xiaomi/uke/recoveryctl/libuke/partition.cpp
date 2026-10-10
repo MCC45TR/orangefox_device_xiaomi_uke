@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include <algorithm>
 #include <map>
 #include <utility>
@@ -8,9 +9,11 @@ namespace ure {
 namespace {
 constexpr unsigned probe_limit=128;
 std::string owner_hint(const std::string& label) {
-    if(label=="uke_linux")return "LINUX_ROOT";
-    if(label=="uke_windows")return "WINDOWS_ROOT";
-    if(label=="uke_esp")return "ESP_SHARED";
+    const auto role=os_partition_role(label);
+    if(role=="linux")return "LINUX_ROOT";
+    if(role=="linux_boot")return "LINUX_BOOT";
+    if(role=="windows")return "WINDOWS_ROOT";
+    if(role=="esp")return "ESP_SHARED";
     if(label=="userdata" || label=="metadata")return "ANDROID_DATA";
     if(label.starts_with("recovery_"))return "RECOVERY";
     if(label=="super" || label.starts_with("boot_") || label.starts_with("init_boot_") || label.starts_with("vendor_boot_"))return "ANDROID_SYSTEM";

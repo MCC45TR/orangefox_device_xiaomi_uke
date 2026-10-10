@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -91,14 +92,16 @@ Value storage_graph(const Root& system) {
         const auto ro = optional_read(system, object_path + "/ro");
         item["read_only_state"] = ro.empty() ? Value() : Value(integer(ro) != 0);
         const std::string label = fields["PARTNAME"];
-        if (label == "uke_linux") item["owner"] = "LINUX_ROOT";
-        else if (label == "uke_esp") item["owner"] = "ESP_SHARED";
-        else if (label == "uke_windows") item["owner"] = "WINDOWS_ROOT";
+        const auto role=os_partition_role(label);
+        if (role == "linux") item["owner"] = "LINUX_ROOT";
+        else if (role == "linux_boot") item["owner"] = "LINUX_BOOT";
+        else if (role == "esp") item["owner"] = "ESP_SHARED";
+        else if (role == "windows") item["owner"] = "WINDOWS_ROOT";
         else if (label.starts_with("recovery_")) item["owner"] = "RECOVERY";
         else if (label == "userdata" || label == "metadata") item["owner"] = "ANDROID_DATA";
         else if (label == "super" || label.starts_with("boot_") || label.starts_with("init_boot_") || label.starts_with("vendor_boot_")) item["owner"] = "ANDROID_SYSTEM";
         else item["owner"] = "UNKNOWN";
-        item["write_policy"]=label=="uke_linux" || label=="uke_esp" || label=="uke_windows" ? "PLAN_REQUIRED" : "PROTECTED_OR_UNCLASSIFIED";
+        item["write_policy"]=role=="linux" || role=="linux_boot" || role=="esp" || role=="windows" ? "PLAN_REQUIRED" : "PROTECTED_OR_UNCLASSIFIED";
         if (label.ends_with("_a") || label.ends_with("_b")) item["slot"] = label.substr(label.size() - 1);
         item["mounts"] = Value(Json::arrayValue);
         for (const auto& table_line : mount_rows) {

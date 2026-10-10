@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "libuke/uke.h"
+#include "libuke/partition_names.hpp"
 #include "libuke/lifecycle_policy.hpp"
 #ifdef __ANDROID__
 #include <sys/system_properties.h>
@@ -76,10 +77,10 @@ struct Target {
 };
 
 Target target(std::string_view name) {
-    if (name == "esp") return {"uke_esp", "/mnt/uke-esp", "vfat", "utf8=1"};
-    if (name == "linux") return {"uke_linux", "/mnt/uke-linux", "ext4", "noload"};
+    if (name == "esp") return {"esp", "/mnt/uke-esp", "vfat", "utf8=1"};
+    if (name == "linux") return {"linux", "/mnt/uke-linux", "ext4", "noload"};
     if (name == "linux-btrfs")
-        return {"uke_linux", "/mnt/uke-linux", "btrfs", "rescue=nologreplay"};
+        return {"linux", "/mnt/uke-linux", "btrfs", "rescue=nologreplay"};
     throw std::runtime_error("Target must be esp, linux or linux-btrfs");
 }
 
@@ -88,7 +89,7 @@ Partition select(const std::vector<Partition>& entries, const Target& selected,
     if (!valid_uuid(uuid)) throw std::runtime_error("Expected a full GPT PARTUUID");
     std::optional<Partition> found;
     for (const auto& item : entries) {
-        if (item.label != selected.label) continue;
+        if (ure::os_partition_role(item.label) != selected.label) continue;
         if (item.uuid.size() != uuid.size() ||
             !std::equal(item.uuid.begin(), item.uuid.end(), uuid.begin(),
                         [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) ==

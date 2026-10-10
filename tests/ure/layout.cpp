@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "partition_names.hpp"
 #include <algorithm>
 #include <array>
 #include <fcntl.h>
@@ -19,7 +20,7 @@ std::uint32_t crc(std::string_view data) {
     std::uint32_t out=UINT32_MAX; for(char byte:data) { out^=static_cast<unsigned char>(byte); for(unsigned i=0;i<8;++i)out=(out>>1)^((out&1U) ? 0xedb88320U : 0U); } return out^UINT32_MAX;
 }
 void fixture_write(int fd,const std::string& bytes,std::uint64_t offset) { check(::pwrite(fd,bytes.data(),bytes.size(),static_cast<off_t>(offset))==static_cast<ssize_t>(bytes.size()),"Fixture write failed"); }
-void fixture(const ure::fs::path& file,unsigned sector,bool obstacle=false,bool attributed=false) {
+void fixture(const ure::fs::path& file,unsigned sector,bool obstacle=false,bool attributed=false,bool canonical_name=false) {
     ure::Fd fd(::open(file.c_str(),O_RDWR|O_CREAT|O_TRUNC,0600)); check(fd.get()>=0 && ::ftruncate(fd.get(),static_cast<off_t>(capacity))==0,"Fixture creation failed");
     const auto sectors=capacity/sector; constexpr unsigned count=96,table_size=count*128; const auto table_sectors=16384/sector;
     const auto first=2+table_sectors; const auto last=sectors-2-table_sectors,backup=last+1; std::string entries(table_size,'\0');
@@ -34,7 +35,7 @@ void fixture(const ure::fs::path& file,unsigned sector,bool obstacle=false,bool 
     entry(0,mib/sector,16*mib/sector-1,"super"); entry(1,16*mib/sector,(capacity-mib)/sector-1,"userdata");
     entry(2,(capacity-mib)/sector,last,sector==4096 ? "last_parti" : "oem_reserved",sector==4096);
     if(obstacle) { entry(1,16*mib/sector,32*mib/sector-1,"userdata"); entry(3,32*mib/sector,48*mib/sector-1,"unknown_oem");
-        entry(4,48*mib/sector,(capacity-mib)/sector-1,"uke_linux");
+        entry(4,48*mib/sector,(capacity-mib)/sector-1,canonical_name ? "linux" : "uke_linux");
         // Linux data type GUID in GPT byte order.
         const std::array<unsigned char,16> type{0xaf,0x3d,0xc6,0x0f,0x83,0x84,0x72,0x47,0x8e,0x79,0x3d,0x69,0xd8,0x47,0x7d,0xe4};
         for(unsigned i=0;i<type.size();++i)entries[4*128+i]=static_cast<char>(type[i]); }
@@ -98,6 +99,11 @@ int main(int argc,char* argv[]) {
     try {
         if(argc==3 && std::string_view(argv[1])=="--fixture") { fixture(argv[2],4096); return 0; }
         if(argc==2 && std::string_view(argv[1])=="--request") { std::cout<<ure::json(request()); return 0; }
+        for(const auto* role:{"esp","linux_boot","linux","windows","home"}) {
+            check(ure::os_partition_role(role)==role && ure::os_partition_role(std::string("uke_")+role)==role,"Canonical and legacy GPT role hints differ");
+        }
+        for(const auto* name:{"userdata","metadata","boot_a","vendor_boot_a","persist","frp","uke_userdata","uke_uke_linux","linux_a","linux2","linux-extra",""})
+            check(ure::os_partition_role(name).empty(),"A protected or unknown GPT name acquired an OS role");
         check(ure::layout_size_bytes("1","GB",capacity)==1000000000 && ure::layout_size_bytes("1","GiB",capacity)==1073741824 &&
             ure::layout_size_bytes("1.5","MiB",capacity)==1572864 && ure::layout_size_bytes("1,5","MiB",capacity)==1572864,"Decimal and binary units differ");
         check(ure::layout_size_bytes("0.000001","%",INT64_MAX)==92233720368ULL && ure::layout_size_bytes("100","%",INT64_MAX)==INT64_MAX,"Percentage loses integer precision");
@@ -110,6 +116,7 @@ int main(int argc,char* argv[]) {
             const auto file=work.path/(std::to_string(sector)+".img"); fixture(file,sector); auto target=ure::storage_image(file,sector);
             const auto original=ure::gpt_inspect(target.descriptor.get(),sector); check(original["healthy"]==true,"Bad GPT fixture");
             const auto layout=ure::partition_layout(target,request(),"global-os3.0.303.0"); check(layout["pool"]["bytes"]==Json::UInt64(4079*mib) && layout["protected_records"].size()==2,"User pool includes protected bytes");
+            for(const auto& row:layout["rows"])check(row["label"]==row["role"],"New GPT labels differ from the Linux installer contract");
             check(layout["rows"][0]["index"].asUInt()==2 && layout["rows"][0]["partuuid"]==original["partitions"][1]["partuuid"] && layout["rows"][0]["start_lba"]==original["partitions"][1]["start_lba"],"Existing userdata start, index or GUID changed");
             check(layout["rows"][2]["bytes"]==Json::UInt64(1631*mib) && layout["rows"][3]["bytes"]==Json::UInt64(815*mib) && layout["unallocated_bytes"].asUInt64()==0,"Percentage basis or alignment is wrong");
             for(const auto& row:layout["rows"])if(row["enabled"]==true)check(row["start_lba"].asUInt64()>=original["partitions"][1]["start_lba"].asUInt64() && row["end_lba"].asUInt64()<=original["partitions"][1]["end_lba"].asUInt64(),"New partition escaped original userdata");
@@ -152,6 +159,8 @@ int main(int argc,char* argv[]) {
             bad=request(); for(unsigned i=0;i<3;++i) { bad["rows"][i]["size"]="0"; bad["rows"][i]["unit"]="MiB"; }
             const auto constrained=ure::gpt_layout_plan(target,bad,"global-os3.0.303.0"); check(constrained["layout"]["pool"]["bytes"]==Json::UInt64(16*mib) && ure::json(constrained["desired_table"])==ure::json(constrained["current_table"]),"Other OS partitions or free gaps were allocated");
             bad["rows"][1]["size"]="1"; reject([&] { ure::partition_layout(target,bad,"global-os3.0.303.0"); },"existing-os-partition");
+            fixture(file,sector,true,false,true); target=ure::storage_image(file,sector);
+            reject([&] { ure::partition_layout(target,bad,"global-os3.0.303.0"); },"existing-os-partition");
             fixture(file,sector,false,true); target=ure::storage_image(file,sector); reject([&] { ure::partition_layout(target,request(),"global-os3.0.303.0"); },"protected-partition");
         }
         const auto full=work.path/"full-uke-table.img"; full_table_fixture(full);
