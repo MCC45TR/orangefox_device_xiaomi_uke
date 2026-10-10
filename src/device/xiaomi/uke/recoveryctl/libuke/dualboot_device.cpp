@@ -504,7 +504,8 @@ void journal_usb(const Root& system,const Root& store) {
     struct stat st{}; struct statvfs space{}; require(::fstat(store.fd(),&st)==0 && ::fstatvfs(store.fd(),&space)==0 && st.st_uid==0 &&
         (st.st_mode&0777)==0700 && (space.f_flag&ST_RDONLY)==0 && space.f_frsize>0 && space.f_bavail>=(32*live_mib-1)/space.f_frsize+1,
         "unsafe-dualboot-journal","Use a private root-owned writable external USB directory with at least 32 MiB free");
-    Value object; for(const auto& item:storage_graph(system)["objects"])if(item["device_number"]==devtext(st.st_dev)) { require(object.isNull(),"unsafe-dualboot-journal","Ambiguous journal storage"); object=item; }
+    const auto graph=storage_graph(system);
+    Value object; for(const auto& item:graph["objects"])if(item["device_number"]==devtext(st.st_dev)) { require(object.isNull(),"unsafe-dualboot-journal","Ambiguous journal storage"); object=item; }
     require(object.isObject() && object["sysfs_path"].isString(),"unsafe-dualboot-journal","Journal must reside on a measured block filesystem");
     bool usb=false; auto path=fs::path(object["sysfs_path"].asString());
     while(path.generic_string().starts_with("sys/devices/")) {

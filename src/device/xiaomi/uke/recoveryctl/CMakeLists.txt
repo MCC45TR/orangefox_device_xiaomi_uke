@@ -67,6 +67,8 @@ if(BUILD_TESTING)
     add_executable(uke-dualboot-device-tests ../../../../../tests/ure/dualboot_device.cpp)
     target_include_directories(uke-dualboot-device-tests PRIVATE libuke)
     target_link_libraries(uke-dualboot-device-tests PRIVATE uke-recovery)
+    target_link_options(uke-dualboot-device-tests PRIVATE
+        "-Wl,--wrap=fstat" "-Wl,--wrap=_ZN3ure13storage_graphERKNS_4RootE")
     target_compile_options(uke-dualboot-device-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
     ure_test(ure-dualboot-device-admission-refusals uke-dualboot-device-tests)
     set_tests_properties(ure-dualboot-device-admission-refusals PROPERTIES TIMEOUT 60)

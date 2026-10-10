@@ -6,6 +6,21 @@
 #include <map>
 
 namespace {
+int journal_fixture_fd=-1;
+ure::Value journal_fixture_graph;
+}
+extern "C" int __real_fstat(int,struct stat*);
+extern "C" int __wrap_fstat(int descriptor,struct stat* value) {
+    const int result=__real_fstat(descriptor,value);
+    if(result==0 && descriptor==journal_fixture_fd)value->st_uid=0;
+    return result;
+}
+extern "C" ure::Value __real__ZN3ure13storage_graphERKNS_4RootE(const ure::Root&);
+extern "C" ure::Value __wrap__ZN3ure13storage_graphERKNS_4RootE(const ure::Root& system) {
+    return journal_fixture_fd<0 ? __real__ZN3ure13storage_graphERKNS_4RootE(system) : journal_fixture_graph;
+}
+
+namespace {
 constexpr std::uint64_t mib=1048576,capacity=128ULL*1024*mib;
 void check(bool value,const char* message) { if(!value)throw std::runtime_error(message); }
 struct HandoffState { int claims=0,anchors=0,effects=0,readbacks=0; };
@@ -386,7 +401,26 @@ int main() {
         busy=clear; busy["blockers_truncated"]=true; reject([&]{ure::device_usage_policy(busy,metadata);},"dualboot-device-busy");
         busy=clear; busy["blocker_count"]=128; reject([&]{ure::device_usage_policy(busy,metadata);},"dualboot-device-busy");
         busy=clear; auto bad_mount=valid_mount; bad_mount["path"]="/data"; block(busy,"mounted",bad_mount); reject([&]{ure::device_usage_policy(busy,metadata);},"dualboot-device-busy");
-        Workspace work; repeated_restore_trials(work.path); const auto bcb_file=work.path/"misc-command.bin"; ure::Fd bcb(::open(bcb_file.c_str(),O_RDWR|O_CREAT|O_EXCL,0600));
+        Workspace work;
+        {
+            const auto sysfs=work.path/"journal-sysfs";
+            ure::fs::create_directories(sysfs/"sys/devices/lab/usb1/block/sdz");
+            ure::fs::create_symlink("../../bus/usb",sysfs/"sys/devices/lab/usb1/subsystem");
+            ure::Root fixture_system(sysfs); auto store=ure::private_directory(work.path/"journal-store",true);
+            struct stat info{}; check(::fstat(store.fd(),&info)==0,"Cannot inspect journal fixture");
+            ure::Value object; object["device_number"]=ure::devtext(info.st_dev); object["sysfs_path"]="sys/devices/lab/usb1/block/sdz";
+            journal_fixture_graph["objects"].append(object); journal_fixture_fd=store.fd();
+            ure::journal_usb(fixture_system,store);
+            journal_fixture_graph["objects"].append(object);
+            reject([&]{ure::journal_usb(fixture_system,store);},"unsafe-dualboot-journal");
+            journal_fixture_graph["objects"].clear();
+            reject([&]{ure::journal_usb(fixture_system,store);},"unsafe-dualboot-journal");
+            journal_fixture_graph["objects"].append(object);
+            ure::fs::remove(sysfs/"sys/devices/lab/usb1/subsystem");
+            reject([&]{ure::journal_usb(fixture_system,store);},"unsafe-dualboot-journal");
+            journal_fixture_fd=-1;
+        }
+        repeated_restore_trials(work.path); const auto bcb_file=work.path/"misc-command.bin"; ure::Fd bcb(::open(bcb_file.c_str(),O_RDWR|O_CREAT|O_EXCL,0600));
         check(bcb.get()>=0,"Cannot create private BCB command fixture"); ure::write_exact(bcb.get(),0,recovery_command); ure::recovery_bcb_read(bcb.get());
         check(::ftruncate(bcb.get(),31)==0,"Cannot truncate private command fixture"); reject([&]{ure::recovery_bcb_read(bcb.get());},"recovery-bcb-unavailable");
         const auto disk=work.path/"device-model.img"; fixture(disk); auto plan=preview(disk);
