@@ -16,6 +16,8 @@ printf '%s\n' "$line" > "$script"
 [[ $(touch_payload_init "$root") == "$script" ]]
 printf 'unrelated legacy script\n' > "$root/init.rc"
 [[ $(touch_payload_init "$root") == "$script" ]]
+printf '    copy /system/etc/ldXconfigYtxt /linkerconfig/ldXconfigYtxt\n' > "$script"
+refuse 'lookalike filenames must not match regex punctuation'
 printf '%s\n' "$line" "$line" > "$script"
 refuse 'duplicate runtime copy'
 printf 'on init\n' > "$script"
@@ -29,4 +31,4 @@ mv "$root/system/etc/init/hw" "$work/alias-target"
 printf '%s\n' "$line" > "$work/alias-target/init.rc"
 ln -s "$work/alias-target" "$root/system/etc/init/hw"
 refuse 'parent symlink'
-printf 'Pinned modern init selector: 7 controls passed; no device execution.\n'
+printf 'Pinned modern init selector: 8 controls passed; no device execution.\n'

@@ -7,6 +7,6 @@ touch_payload_init() {
     [[ -f $script && -s $script && ! -L $script ]] || return 1
     # Never resolve payload aliases into host files or a different payload path.
     [[ $(realpath -e -- "$script") == "$script" ]] || return 1
-    [[ $(rg -c -x '    copy /system/etc/ld.config.txt /linkerconfig/ld.config.txt' "$script") == 1 ]] || return 1
+    [[ $(rg -F -c -x '    copy /system/etc/ld.config.txt /linkerconfig/ld.config.txt' "$script") == 1 ]] || return 1
     printf '%s\n' "$script"
 }
