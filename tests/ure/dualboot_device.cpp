@@ -319,6 +319,22 @@ int main() {
         record["label"]="misc"; record["partuuid"]=misc["partuuid"]; record["bytes"]=misc["bytes"]; record["index"]=Json::UInt64(3); record["start_lba"]=Json::UInt64(16);
         misc_plan["target_identity"]["sysfs_path"]=misc["parent_lun_sysfs"]; misc_plan["gpt"]["layout"]["protected_records"].append(record); ure::recovery_misc_geometry(misc,misc_plan);
         ure::recovery_misc_geometry(misc,ure::parse_json(ure::json(misc_plan)));
+        auto without_uuid=misc; without_uuid["partuuid"]="";
+        auto kernel_without_uuid=misc_graph; kernel_without_uuid["objects"][0]["partuuid"]="";
+        check(ure::recovery_misc_object(kernel_without_uuid)["partuuid"]=="","Kernel UUID omission was treated as a conflicting UUID");
+        ure::recovery_misc_geometry(without_uuid,ure::parse_json(ure::json(misc_plan)));
+        for(unsigned variant=0;variant<8;++variant) {
+            auto changed=misc_plan;
+            if(variant==0)changed["target_identity"]["sysfs_path"]="sys/devices/mock/block/sde";
+            if(variant==1)changed["gpt"]["layout"]["protected_records"][0]["bytes"]=Json::UInt64(2*mib);
+            if(variant==2)changed["gpt"]["layout"]["protected_records"][0]["index"]=Json::UInt64(4);
+            if(variant==3)changed["gpt"]["layout"]["protected_records"][0]["start_lba"]=Json::UInt64(17);
+            if(variant==4)changed["gpt"]["layout"]["protected_records"][0]["partuuid"]="invalid";
+            if(variant==5)changed["gpt"]["layout"]["protected_records"][0]["partuuid"]="";
+            if(variant==6)changed["gpt"]["layout"]["protected_records"].clear();
+            if(variant==7)changed["gpt"]["layout"]["protected_records"].append(record);
+            reject([&]{ure::recovery_misc_geometry(without_uuid,changed);},"recovery-bcb-unavailable");
+        }
         {
         ure::Value allocation_plan,allocation_graph,data=data_object(),metadata=misc;
         allocation_plan["target_identity"]["sysfs_path"]=misc["parent_lun_sysfs"];

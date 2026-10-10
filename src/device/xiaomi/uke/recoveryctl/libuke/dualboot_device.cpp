@@ -295,7 +295,8 @@ Value recovery_misc_object(const Value& graph) {
     }
     require(selected.isObject() && selected["partition"]==true && selected["kernel_name"].isString() && identifier(selected["kernel_name"].asString()) &&
         selected["sysfs_path"].isString() && selected["sysfs_path"].asString().starts_with("sys/devices/") &&
-        selected["device_number"].isString() && selected["partuuid"].isString() && uuid(selected["partuuid"].asString()) &&
+        selected["device_number"].isString() && selected["partuuid"].isString() &&
+        (selected["partuuid"].asString().empty() || uuid(selected["partuuid"].asString())) &&
         selected["bytes"].isUInt64() && selected["bytes"].asUInt64()>=2048 && selected["bytes"].asUInt64()<=live_maximum &&
         selected["dependencies_available"]==true && selected["holders"].isArray() && selected["holders"].empty() &&
         selected["slaves"].isArray() && selected["slaves"].empty(),
@@ -307,8 +308,11 @@ void recovery_misc_geometry(const Value& object,const Value& plan) {
     for(const auto& candidate:plan["gpt"]["layout"]["protected_records"])if(candidate["label"]=="misc") {
         require(record.isNull(),"recovery-bcb-unavailable","More than one protected misc record is present"); record=candidate;
     }
+    // Uke may omit kernel PARTUUID; the unchanged GPT still binds LUN, index, start and size.
     require(record.isObject() && object["parent_lun_sysfs"]==plan["target_identity"]["sysfs_path"] &&
-        object["bytes"].isUInt64() && record["bytes"].isUInt64() && object["bytes"].asUInt64()==record["bytes"].asUInt64() && object["partuuid"]==record["partuuid"] &&
+        object["bytes"].isUInt64() && record["bytes"].isUInt64() && object["bytes"].asUInt64()==record["bytes"].asUInt64() &&
+        record["partuuid"].isString() && uuid(record["partuuid"].asString()) && object["partuuid"].isString() &&
+        (object["partuuid"].asString().empty() || object["partuuid"]==record["partuuid"]) &&
         object["partition_index"].isUInt64() && object["partition_index"].asUInt64()==record["index"].asUInt64() &&
         object["start_512_sectors"].isUInt64() && record["start_lba"].isUInt64() && record["start_lba"].asUInt64()<=live_maximum/4096 &&
         object["start_512_sectors"].asUInt64()==record["start_lba"].asUInt64()*8,
