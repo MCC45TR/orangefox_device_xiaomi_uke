@@ -11,6 +11,8 @@ refuse() {
     fi
 }
 bash "$policy" --capacity arm64 ext4 4096 2097152 200000 131072 | jq -e '.available_bytes==8589934592 and .inode_accounting=="fixed"' >/dev/null
+bash "$policy" --capacity arm64-incremental ext4 4096 2097152 200000 131072 | jq -e '.minimum_bytes==8589934592' >/dev/null
+refuse bash "$policy" --capacity arm64-incremental ext4 4096 2097151 200000 131072
 refuse bash "$policy" --capacity arm64 ext4 4096 2097151 200000 131072
 refuse bash "$policy" --capacity arm64 ext4 4096 2097152 200000 131071
 refuse bash "$policy" --capacity native ext4 4096 2097152 0 0
@@ -22,6 +24,8 @@ refuse bash "$policy" --capacity native btrfs invalid 524288 0 0
 refuse bash "$policy" --capacity native btrfs 4096 100000000000000 0 0
 bash "$policy" arm64 "$scratch" > "$scratch/expected.json"
 bash "$policy" arm64 "$scratch" "$scratch/expected.json" > "$scratch/rechecked.json"
+bash "$policy" arm64-incremental "$scratch" "$scratch/expected.json" > "$scratch/incremental-rechecked.json"
+jq -e '.job_mode=="arm64" and .capacity.minimum_bytes==8589934592' "$scratch/incremental-rechecked.json" >/dev/null
 jq '.identity.directory_inode += 1' "$scratch/expected.json" > "$scratch/wrong-inode.json"
 refuse bash "$policy" arm64 "$scratch" "$scratch/wrong-inode.json"
 jq '.job_mode="native"' "$scratch/expected.json" > "$scratch/wrong-mode.json"
@@ -69,7 +73,7 @@ jq -cn --argjson allocated "$allocated" --argjson anonymous "$((anon_after-anon_
     > /mnt/out-public/probe-result.json
 cp /tmp/android-temp-inner.json /mnt/out-public/inner-temp-receipt.json
 cp /tmp/android-temp-mount.txt /mnt/out-public/inner-temp-mount.txt
-[[ -z ${CFLAGS:-} && $HOME == /tmp/uke-build-home && $PATH == /usr/bin:/bin ]]
+[[ -z ${CFLAGS:-} && $HOME == /tmp/uke-build-home && $PATH == /tmp/uke-build-launchers:/usr/bin:/bin ]]
 printf 'Actual inner disk scratch: %s\n' "$(cat /mnt/out-public/probe-result.json)"
 INNER_JOB_EOF
 cat > "$scratch/outer-job.sh" <<'OUTER_JOB_EOF'
@@ -103,5 +107,10 @@ bash "$component/scripts/with-android-build-environment.sh" "$fixture" "$fixture
 OUTER_JOB_EOF
 bash "$component/scripts/with-host-budget.sh" arm64 bash "$scratch/outer-job.sh" "$component" "$scratch" > "$scratch/service.log" 2>&1
 cat "$scratch/service.log"
+incremental="$scratch/incremental"
+mkdir -m 0700 "$incremental"
+cp "$scratch/inner-job.sh" "$scratch/outer-job.sh" "$incremental/"
+bash "$component/scripts/with-host-budget.sh" arm64-incremental bash "$incremental/outer-job.sh" "$component" "$incremental" > "$scratch/incremental-service.log" 2>&1
+cat "$scratch/incremental-service.log"
 jq -e '.file_bytes==67108864 and .allocated_bytes>=.file_bytes and .anonymous_growth_bytes<=33554432 and .shmem_growth_bytes==0' "$scratch/output/probe-result.json" >/dev/null
 printf 'Actual nested Android mount, bounded disk write and anonymous/shared-memory accounting passed; tmpfs, substituted disk and readonly scratch refused before the command.\n'

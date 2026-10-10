@@ -3,8 +3,13 @@
 set -euo pipefail
 umask 077
 export LC_ALL=C
+scratch_mode() {
+    [[ $1 =~ ^[a-z][a-z0-9-]{0,40}$ ]]
+    if [[ $1 == arm64-incremental ]]; then printf '%s\n' arm64; else printf '%s\n' "$1"; fi
+}
 capacity() {
     local mode=$1 fs=$2 block=$3 available=$4 total_inodes=$5 free_inodes=$6 value
+    mode=$(scratch_mode "$mode")
     [[ $mode =~ ^[a-z][a-z0-9-]{0,40}$ ]]
     case $fs in ext2|ext3|ext4|ext2/3/4|xfs|btrfs|f2fs) :;;
         *) echo 'Host scratch must use a reviewed local disk filesystem.' >&2; return 1;;
@@ -29,7 +34,7 @@ if [[ ${1:-} == --capacity ]]; then
     capacity "$@"
     exit 0
 fi
-mode=${1:?Usage: host-temp-policy.sh MODE DIRECTORY [EXPECTED_RECEIPT]}
+mode=$(scratch_mode "${1:?Usage: host-temp-policy.sh MODE DIRECTORY [EXPECTED_RECEIPT]}")
 directory=${2:?Private scratch directory required}
 expected=${3:-}
 [[ $# == 2 || $# == 3 ]]
