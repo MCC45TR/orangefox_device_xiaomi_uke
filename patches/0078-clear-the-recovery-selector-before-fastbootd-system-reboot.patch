@@ -1,0 +1,19 @@
+--- a/fastboot/device/commands.cpp
++++ b/fastboot/device/commands.cpp
+@@ -16,6 +16,7 @@
+ 
+ #include "recovery_write_policy.hpp"
+ #include "lifecycle_policy.hpp"
++#include "system_boot.hpp"
+ 
+ #include "commands.h"
+ 
+@@ -405,6 +406,8 @@
+     if (!lifecycle.active()) return device->WriteFail("An active or interrupted operation must finish or be recovered first");
+     if (ure::dualboot_quarantine_state() != ure::DualbootQuarantineState::Clear)
+         return device->WriteFail("Only recovery reboot is available after dualboot partition changes");
++    if (const auto* error = ure::prepare_system_boot(lifecycle))
++        return device->WriteFail(error);
+     auto result = device->WriteStatus(FastbootResult::OKAY, "Rebooting");
+     android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,from_fastboot");
+     device->CloseDevice();

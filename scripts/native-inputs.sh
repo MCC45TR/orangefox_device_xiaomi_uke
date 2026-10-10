@@ -73,6 +73,8 @@ cd "$component"
         src/upstream/orangefox-android16/bootable/recovery/bootloader_message/{Android.bp,bootloader_message.cpp,include/bootloader_message/bootloader_message.h} \
         src/upstream/orangefox-android16/bootable/recovery/install/get_args.cpp \
         src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/boot_control/{Android.bp,libboot_control.cpp,include/libboot_control/libboot_control.h,include/private/boot_control_definition.h}
+    printf '%s\0' patches/0077-clear-only-the-recovery-selector-before-system-reboot.patch \
+        patches/0078-clear-the-recovery-selector-before-fastbootd-system-reboot.patch tests/check-system-boot.sh
     printf '%s\0' src/upstream/orangefox-android16/hardware/interfaces/boot/1.1/default/{BootControl.cpp,BootControl.h}
     printf '%s\0' patches/0042-refuse-unaccepted-boot-hal-resolution.patch patches/0043-system-only-boot-hal-library-path.patch \
         patches/0044-read-extra-logical-metadata-records.patch patches/0045-use-declared-terminfo-install-targets.patch \

@@ -1,0 +1,20 @@
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -26,5 +26,6 @@
+ #include "ure-write-gate.hpp"
+ #include "ure-lifecycle.hpp"
++#include "system_boot.hpp"
+ #ifdef TW_UKE_RTC_OFFSET
+ #include "ure-clock.hpp"
+ #endif
+@@ -1161,6 +1162,10 @@
+ 	switch (command) {
+ 		case rb_current:
+ 		case rb_system:
++			if (const auto* error = ure::prepare_system_boot(lifecycle)) {
++				LOGERR("System reboot refused: %s\n", error);
++				return -1;
++			}
+       			if (DoDeactivate == 1) { Deactivation_Process(); } 
+ 			Update_Intent_File("s");
+ 			sync();

@@ -31,6 +31,7 @@ bash "$component/scripts/prepare-fastboot-patches.sh" "$tree/system/core" check
 bash "$component/scripts/prepare-reviewed-patches.sh" "$tree/hardware/interfaces" check boot-control
 bash "$component/tests/check-recovery-first-stage.sh"
 bash "$component/tests/check-misc-write-policy.sh"
+bash "$component/tests/check-system-boot.sh"
 bash "$component/tests/check-recovery-module-policy.sh"
 bash "$component/tests/check-recovery-startup.sh"
 # An early queued error is translated after theme loading. A missing fallback
