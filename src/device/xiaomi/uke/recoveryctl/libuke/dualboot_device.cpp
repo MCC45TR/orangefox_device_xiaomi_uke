@@ -308,7 +308,7 @@ void recovery_misc_geometry(const Value& object,const Value& plan) {
         require(record.isNull(),"recovery-bcb-unavailable","More than one protected misc record is present"); record=candidate;
     }
     require(record.isObject() && object["parent_lun_sysfs"]==plan["target_identity"]["sysfs_path"] &&
-        object["bytes"]==record["bytes"] && object["partuuid"]==record["partuuid"] &&
+        object["bytes"].isUInt64() && record["bytes"].isUInt64() && object["bytes"].asUInt64()==record["bytes"].asUInt64() && object["partuuid"]==record["partuuid"] &&
         object["partition_index"].isUInt64() && object["partition_index"].asUInt64()==record["index"].asUInt64() &&
         object["start_512_sectors"].isUInt64() && record["start_lba"].isUInt64() && record["start_lba"].asUInt64()<=live_maximum/4096 &&
         object["start_512_sectors"].asUInt64()==record["start_lba"].asUInt64()*8,
@@ -338,7 +338,7 @@ Value original_userdata(const Value& graph,const Value& plan) {
         require(selected.isNull(),"ambiguous-userdata","Duplicated userdata partition"); selected=item;
     }
     require(selected.isObject() && selected["partition"]==true && selected["start_512_sectors"].asUInt64()*512==pool["offset"].asUInt64() &&
-        selected["bytes"]==pool["original_bytes"] && selected["dependencies_available"]==true,
+        selected["bytes"].isUInt64() && pool["original_bytes"].isUInt64() && selected["bytes"].asUInt64()==pool["original_bytes"].asUInt64() && selected["dependencies_available"]==true,
         "userdata-node-geometry-changed","This execution requires the original userdata kernel partition; refresh or restore GPT and reboot before a new plan"); return selected;
 }
 Value encryption_object(const Value& graph,const Value& userdata) {
@@ -375,7 +375,7 @@ Value metadata_object(const Value& graph,const Value& plan) {
     }
     require(metadata.isObject() && record.isObject() && metadata["partition"]==true && metadata["dependencies_available"]==true &&
         metadata["holders"].isArray() && metadata["holders"].empty() && metadata["slaves"].isArray() && metadata["slaves"].empty() &&
-        metadata["bytes"]==record["bytes"] && metadata["start_512_sectors"].asUInt64()==record["start_lba"].asUInt64()*8 &&
+        metadata["bytes"].isUInt64() && record["bytes"].isUInt64() && metadata["bytes"].asUInt64()==record["bytes"].asUInt64() && metadata["start_512_sectors"].asUInt64()==record["start_lba"].asUInt64()*8 &&
         metadata["mounts"].isArray() && metadata["mounts"].size()==1 && metadata["mounts"][0]["path"]=="/metadata",
         "metadata-mount-unavailable","The exact protected metadata partition must already have one /metadata mount; this operation never mounts or remounts it");
     return metadata;

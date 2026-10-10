@@ -303,6 +303,27 @@ int main() {
         ure::Value misc_plan,record; misc["parent_lun_sysfs"]="sys/devices/mock/block/sdd"; misc["partition_index"]=Json::UInt64(3); misc["start_512_sectors"]=Json::UInt64(128);
         record["label"]="misc"; record["partuuid"]=misc["partuuid"]; record["bytes"]=misc["bytes"]; record["index"]=Json::UInt64(3); record["start_lba"]=Json::UInt64(16);
         misc_plan["target_identity"]["sysfs_path"]=misc["parent_lun_sysfs"]; misc_plan["gpt"]["layout"]["protected_records"].append(record); ure::recovery_misc_geometry(misc,misc_plan);
+        ure::recovery_misc_geometry(misc,ure::parse_json(ure::json(misc_plan)));
+        {
+        ure::Value allocation_plan,allocation_graph,data=data_object(),metadata=misc;
+        allocation_plan["target_identity"]["sysfs_path"]=misc["parent_lun_sysfs"];
+        allocation_plan["gpt"]["layout"]["pool"]["offset"]=Json::UInt64(4096);
+        allocation_plan["gpt"]["layout"]["pool"]["original_bytes"]=data["bytes"];
+        data["label"]="userdata"; data["partition"]=true; data["parent_lun_sysfs"]=misc["parent_lun_sysfs"];
+        data["start_512_sectors"]=Json::UInt64(8); data["dependencies_available"]=true;
+        metadata["label"]="metadata"; metadata["mounts"][0]["path"]="/metadata";
+        auto metadata_record=record; metadata_record["label"]="metadata";
+        allocation_plan["gpt"]["layout"]["protected_records"].append(metadata_record);
+        allocation_graph["objects"].append(data); allocation_graph["objects"].append(metadata);
+        const auto persisted=ure::parse_json(ure::json(allocation_plan));
+        check(ure::json(ure::original_userdata(allocation_graph,persisted))==ure::json(data),"Persisted userdata geometry changed numeric representation");
+        check(ure::json(ure::metadata_object(allocation_graph,persisted))==ure::json(metadata),"Persisted metadata geometry changed numeric representation");
+        for(unsigned variant=0;variant<3;++variant) {
+            auto changed=persisted;
+            changed["gpt"]["layout"]["pool"]["original_bytes"]=variant==0 ? ure::Value(Json::UInt64(1)) : variant==1 ? ure::Value("17179869184") : ure::Value(-1);
+            reject([&]{ure::original_userdata(allocation_graph,changed);},"userdata-node-geometry-changed");
+        }
+        }
         for(unsigned variant=0;variant<8;++variant) {
             auto refused=misc_plan;
             if(variant==0)refused["gpt"]["layout"]["protected_records"].clear();
