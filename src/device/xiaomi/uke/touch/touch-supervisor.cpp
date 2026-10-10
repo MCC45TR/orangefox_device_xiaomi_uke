@@ -65,9 +65,13 @@ struct Fd {
         return out;
     }
 };
-void require(bool ok, Code code) {
-    if (!ok)
+void require(bool ok, Code code, int check = __builtin_LINE()) {
+    if (!ok) {
+        // Fixed source location only: no paths, firmware bytes or unit data.
+        ::dprintf(STDERR_FILENO, "Touch startup refused: code=%u check=%d\n",
+                  static_cast<unsigned>(code), check);
         throw code;
+    }
 }
 std::uint64_t now_ms() {
     timespec t{};
