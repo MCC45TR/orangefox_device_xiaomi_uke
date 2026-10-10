@@ -36,3 +36,5 @@
 0061-describe-uke-device-and-soc.patch
 0062-own-the-uke-touch-session.patch
 0063-persist-bounded-recovery-ui-preferences.patch
+0064-preserve-unchanged-touch-coordinates.patch
+0065-keep-scroll-viewport-above-navigation.patch

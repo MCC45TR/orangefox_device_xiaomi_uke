@@ -84,6 +84,31 @@ static void compatibility(const std::string& mode){
     require(contact.down==1&&contact.up==1,"legacy release protocol regressed");
     std::printf("Legacy %s contact and release preserved.\n",mode.c_str());
 }
+static void repeatedPosition(){
+    Contact contact;
+    contact.start(1);
+    contact.send(EV_ABS,ABS_MT_TRACKING_ID,-1);
+    contact.send(EV_ABS,ABS_MT_PRESSURE,0);
+    contact.send(EV_ABS,ABS_MT_TOUCH_MAJOR,0);
+    contact.sync();
+    require(contact.down==1 && contact.up==1,"initial repeated-position contact failed");
+    for (int id=2;id<=4;++id) {
+        // Evdev omits unchanged axes, including when a new finger lands there.
+        contact.send(EV_ABS,ABS_MT_TRACKING_ID,id);
+        contact.send(EV_ABS,ABS_MT_PRESSURE,1);
+        contact.send(EV_ABS,ABS_MT_TOUCH_MAJOR,8);
+        if (id==3) contact.send(EV_ABS,ABS_MT_POSITION_X,6100);
+        contact.sync();
+        require(contact.down==static_cast<unsigned>(id),"stationary repeated tap lost its coordinates");
+        require(contact.device.vk.downX==(id<3?599:609) && contact.device.vk.downY==899,"unchanged axis was cleared on lift");
+        contact.send(EV_ABS,ABS_MT_TRACKING_ID,-1);
+        contact.send(EV_ABS,ABS_MT_PRESSURE,0);
+        contact.send(EV_ABS,ABS_MT_TOUCH_MAJOR,0);
+        contact.sync();
+        require(contact.up==static_cast<unsigned>(id),"stationary repeated tap lost its release");
+    }
+    std::puts("Repeated taps preserve omitted coordinates, including one-axis updates.");
+}
 static void interference(){
     Contact first,second;
     first.send(EV_ABS,ABS_MT_POSITION_X,6000);first.send(EV_ABS,ABS_MT_POSITION_Y,9000);first.sync();
@@ -107,5 +132,6 @@ int main(int argc,char** argv){
     else if(mode=="interference")interference();
     else if(mode=="isolated")isolated();
     else if(mode=="single"||mode=="type-a"||mode=="pressure"||mode=="major")compatibility(mode);
+    else if(mode=="repeated-position")repeatedPosition();
     else fail("unknown scenario");
 }

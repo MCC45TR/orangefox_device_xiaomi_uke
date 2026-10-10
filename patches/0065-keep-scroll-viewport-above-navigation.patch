@@ -1,0 +1,21 @@
+--- a/gui/theme/portrait_hdpi/resources/vars.xml
++++ b/gui/theme/portrait_hdpi/resources/vars.xml
+@@ -272,9 +272,6 @@
+ 
+ 		<variable name="bl_fullscreen_h" value="%screen_min_cut%-384"/>
+ 		<variable name="bl_files_h" value="%screen_min_cut%-600"/>
+-		<!-- height of a FoxUiEngine <scroll> viewport that sits between the action
+-		     bar (top, %ab_h%) and the floating nav panel (bottom, %nav_panel_y%) -->
+-		<variable name="scroll_nav_h" value="%nav_panel_y%-%ab_h%"/>
+ 
+ 		<!-- FoxUiEngine design tokens: a consistent spacing/radius scale. Prefer
+ 		     these over hard-coded pixel gaps so layouts rescale together.
+@@ -492,6 +489,8 @@
+ 		<variable name="ab_bc2_y" value="282+%cutout_w%"/>
+ 		<variable name="ab_bc3_y" value="500+%cutout_w%"/>
+ 		<variable name="ab_h" value="240+%cutout_w%"/>
++		<!-- Define viewport height after both bars; a forward reference becomes zero. -->
++		<variable name="scroll_nav_h" value="%nav_panel_y%-%ab_h%"/>
+ 		<variable name="ab_ex_h" value="456+%cutout_w%"/>
+ 		<variable name="row_ab_ex_y" value="456+%cutout_w%"/>
+ 		<variable name="ab_btn_h" value="168"/>

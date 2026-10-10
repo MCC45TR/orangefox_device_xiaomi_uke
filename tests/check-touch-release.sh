@@ -27,7 +27,7 @@ for flavor in native sanitized; do
     instrumentation=()
     if [[ $flavor == sanitized ]]; then instrumentation=(-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer -g); fi
     timeout 45 "$compiler" "${flags[@]}" "${instrumentation[@]}" "$component/tests/ure/touch_release.cpp" -o "$work/test-$flavor"
-    for scenario in fixture permutations single type-a pressure major; do
+    for scenario in fixture permutations single type-a pressure major repeated-position; do
         ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
             timeout 20 "$work/test-$flavor" "$scenario" "$component/tests/ure/fixtures/touch-four-contacts.events"
     done

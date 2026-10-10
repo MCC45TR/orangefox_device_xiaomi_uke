@@ -46,7 +46,7 @@ for flavor in native sanitized; do
     awk '/^enum \{/ {copy=1} /^static struct pollfd/ {exit} copy {print}' "$work/minuitwrp/events.cpp" > "$work/touch-vk-types.inc"
     awk '/^static int vk_tp_to_screen\(/ {copy=1} /^int ev_get\(/ {exit} copy {print}' "$work/minuitwrp/events.cpp" > "$work/touch-vk-modify.inc"
     timeout 45 "$compiler" "${flags[@]}" "${instrumentation[@]}" "$component/tests/ure/touch_release.cpp" -o "$work/release-$flavor"
-    for scenario in fixture permutations single type-a pressure major isolated; do
+    for scenario in fixture permutations single type-a pressure major isolated repeated-position; do
         ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
             timeout 20 "$work/release-$flavor" "$scenario" "$component/tests/ure/fixtures/touch-four-contacts.events"
     done

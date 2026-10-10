@@ -17,6 +17,9 @@ cd "$component"
         tests/check-ui-preferences.sh \
         src/upstream/orangefox-android16/bootable/recovery/infomanager.hpp \
         src/upstream/orangefox-android16/bootable/recovery/data.hpp
+    printf '%s\0' patches/0064-preserve-unchanged-touch-coordinates.patch \
+        patches/0065-keep-scroll-viewport-above-navigation.patch tests/check-theme-viewport.sh \
+        tests/check-touch-release.sh tests/check-touch-device-state.sh
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \
         patches/0061-describe-uke-device-and-soc.patch

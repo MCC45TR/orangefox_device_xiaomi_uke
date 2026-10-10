@@ -26,6 +26,11 @@ by size, SHA-256 and ELF identity. Proprietary service, firmware and module
 bytes are not distributed by this implementation. Packaging must compare the
 source-built provider pins with the new extracted recovery payload.
 
+The pinned platform servicemanager also requires an explicit framework VINTF
+declaration for `vendor.xiaomi.hw.touchfeature.ITouchFeature/default`. The
+ramdisk includes that declaration without replacing unrelated declarations.
+This does not relax SELinux or enable other unreviewed vendor services.
+
 ## Process and write containment
 
 The service runs in the supervisor's private mount namespace. Writable storage
@@ -43,11 +48,20 @@ claim that every OEM behavior or root capability has been independently proven.
 
 ## Evidence boundaries
 
-The owner observed working menu touch after a RAM-only firmware-path correction
-and a normal display off/on cycle on the previous boot-test image. That result
-qualifies the temporary combination only. The permanent startup implementation
-has 118 host controls in each production-path, owned-GUI and pinned Clang
-ASan/UBSan run. These controls do not load the OEM service or tablet modules.
+On 2026-10-10, the owner confirmed physical Files → Menu → Extra → Files
+navigation in a RAM-corrected v001 session at 75% density, including a display
+off/on and lock/unlock cycle after diagnostic logging was removed. The fixes
+admit the RAM-only persist placeholder, declare the touch AIDL instance,
+retain unchanged evdev coordinates and calculate the scrolling viewport after
+both bar heights are defined. The earlier viewport captured bottom-tab touches.
+This qualifies that live session, not a replacement image or a cold boot.
+
+The startup implementation has 150 host controls in each production-path,
+owned-GUI and pinned Clang ASan/UBSan run. Repeated-contact parser controls
+also cover omitted axes, one-axis changes and legacy releases. Theme checks
+reject the original forward reference and cover navigation exclusion at
+50–100% in portrait and landscape. Host controls do not load the OEM service
+or tablet modules.
 
 A newly built image still needs its own cold-start touch and shutdown test.
 Successful input does not admit Format Data, repartition, ROM/OTA installation,
