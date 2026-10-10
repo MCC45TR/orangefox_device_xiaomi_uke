@@ -3,6 +3,7 @@
 // Only the coordinator touches disposable host files. Every lifecycle effect
 // in the extracted production hooks is redirected to the ledger below.
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -26,22 +27,34 @@ struct LifecycleProbe {
     static inline unsigned probes=0, data_reads=0;
     static inline int never_unmount_system=0;
     static inline bool lazy_unmount_succeeds=true, ensure_unmount_succeeds=true;
+    static inline const char* system_boot_error=nullptr;
     static void effect(string name) {
         effects.push_back(std::move(name));
         if(during_effect)during_effect();
+    }
+    template<class... Args> static void error(const char* format,Args... args) {
+        char message[256]; std::snprintf(message,sizeof(message),format,args...); errors.emplace_back(message);
     }
     static void reset() {
         effects.clear(); errors.clear(); failures.clear(); status.clear(); unmounts.clear(); values.clear(); unmount_results.clear();
         during_effect={}; probes=data_reads=0; never_unmount_system=0;
         lazy_unmount_succeeds=ensure_unmount_succeeds=true;
+        system_boot_error=nullptr;
         mounted={{"/data",true},{"/data-child",true},{"/system",true},{"/sdcard1",true},{"/sdcard",true},{"/data/media",true}};
     }
 };
+namespace ure {
+inline const char* prepare_system_boot(const LegacyLifecycleGuard& lifecycle) noexcept {
+    LifecycleProbe::effect("system-boot.prepare");
+    return lifecycle.active() ? LifecycleProbe::system_boot_error : "system-boot-operation-pending";
+}
+}
 struct LifecycleLog {
     template<class T> LifecycleLog& operator<<(const T&) { return *this; }
 };
 #define LOG(...) LifecycleLog{}
 #define LOGINFO(...) ((void)0)
+#define LOGERR(...) LifecycleProbe::error(__VA_ARGS__)
 namespace msg { constexpr int kError=1; }
 struct Msg {
     Msg(int,const char*) {}

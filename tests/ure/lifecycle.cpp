@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "lifecycle_hooks.hpp"
 #include "operation_lease.hpp"
+#include <algorithm>
 #include <array>
 #include <csignal>
 #include <cstdio>
@@ -57,6 +58,34 @@ void permitted(const ure::OperationBinding& binding) {
     PartitionManager.Partitions.clear(); LifecycleProbe::reset(); FastbootDevice fastboot;
     for(const auto handler:std::array{ShutDownHandler,RebootHandler,RebootBootloaderHandler,RebootFastbootHandler,RebootRecoveryHandler})
         check(handler(&fastboot,{}),"Idle fastbootd lifecycle refused");
+}
+void system_boot_callbacks() {
+    for(const auto command:{rb_current,rb_system}) {
+        LifecycleProbe::reset();
+        check(TWFunc::tw_reboot(command)==0,"Prepared system reboot refused");
+        const auto& effects=LifecycleProbe::effects;
+        const auto prepared=std::find(effects.begin(),effects.end(),"system-boot.prepare");
+        const auto reboot=std::find(effects.begin(),effects.end(),"property.callback:sys.powerctl=reboot,");
+        check(prepared!=effects.end() && reboot!=effects.end() && prepared<reboot &&
+            std::count(effects.begin(),effects.end(),"system-boot.prepare")==1,"System reboot did not prepare its selector exactly once before reboot");
+        LifecycleProbe::reset(); LifecycleProbe::system_boot_error="system-boot-command-unrecognized";
+        check(TWFunc::tw_reboot(command)==-1,"Selector refusal permitted system reboot");
+        check(std::none_of(effects.begin(),effects.end(),[](const auto& effect) {
+            return effect.starts_with("property.callback:") || effect=="android-reboot.callback" || effect=="reboot.syscall.callback";
+        }),"Selector refusal requested a reboot");
+        check(std::count(effects.begin(),effects.end(),"system-boot.prepare")==1 &&
+            LifecycleProbe::errors==std::vector<std::string>{"System reboot refused: system-boot-command-unrecognized\n"},"Selector refusal was not reported");
+    }
+    LifecycleProbe::reset(); FastbootDevice fastboot;
+    check(RebootHandler(&fastboot,{}),"Prepared fastbootd system reboot refused");
+    const std::vector<std::string> expected{"system-boot.prepare","fastboot.status.callback",
+        "property.callback:sys.powerctl=reboot,from_fastboot","fastboot.close.callback","pause.callback"};
+    check(LifecycleProbe::effects==expected,"Fastbootd acknowledged or requested reboot before selector preparation");
+    LifecycleProbe::reset(); LifecycleProbe::system_boot_error="system-boot-command-unrecognized";
+    check(!RebootHandler(&fastboot,{}),"Selector refusal permitted fastbootd system reboot");
+    check(LifecycleProbe::effects==std::vector<std::string>{"system-boot.prepare"} && LifecycleProbe::status.empty() &&
+        LifecycleProbe::failures==std::vector<std::string>{"system-boot-command-unrecognized"},"Fastbootd selector refusal acknowledged or requested reboot");
+    LifecycleProbe::reset();
 }
 #ifdef __ANDROID__
 #ifndef URE_HOST_POLICY_FIXTURE
@@ -196,6 +225,7 @@ int main() {
             child_check([&]{ure::LegacyLifecycleGuard inherited("unmount",&parent); check(!inherited.active(),"Child borrowed an inherited parent token");});
         }
 #endif
+        system_boot_callbacks();
         std::cout<<"PASS complete production lifecycle callbacks: pre-effect refusal, retained exact owner, explicit nested unmount, staged GUI reboot handoff, direct/fastbootd transitions and compile-time Android admission boundary";
 #ifdef __ANDROID__
         std::cout<<", pending/malformed quarantine refusal and recovery-only terminal callbacks";
