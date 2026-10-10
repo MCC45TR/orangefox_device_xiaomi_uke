@@ -42,3 +42,4 @@
 0067-skip-plane-updates-while-panel-is-blanked.patch
 0072-recovery-crypto-service-hardening.patch
 0077-clear-only-the-recovery-selector-before-system-reboot.patch
+0080-link-the-dedicated-recovery-vold-library.patch

@@ -4,3 +4,4 @@
 0059-bound-existing-protector-weaver-reads.patch
 0073-vold-crypto-service-hardening.patch
 0076-handle-missing-keystore-results.patch
+0079-compile-vold-guards-for-the-recovery-caller.patch

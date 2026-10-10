@@ -10,6 +10,7 @@ mode=${3:-}
 [[ -z $mode || $mode == --qemu || $mode == --qemu-startup ]]
 tree="$component/src/upstream/orangefox-android16"
 bash "$component/scripts/build-evidence.sh" verify
+bash "$component/scripts/check-vold-recovery-variant.sh" "$tree/out-public"
 lz4="$tree/out-public/host/linux-x86/bin/lz4"
 [[ -f $image && ! -L $image && -x $lz4 ]]
 [[ $(dd if="$image" bs=1 count=8 status=none) == 'ANDROID!' ]]
@@ -193,6 +194,7 @@ jq -n --arg image "$(sha256sum "$image" | cut -d' ' -f1)" \
 jq --argjson qemu "$qemu" --argjson startup_qemu "$startup_qemu" '.validation.source_built_capacity_adjusted_stock_preflight=true |
     .validation.source_built_one_shot_boot_and_gui=true | .validation.qemu_user_one_shot_boot_fixtures=$qemu |
     .validation.source_built_shared_legacy_write_policy=true |
+    .validation.generated_recovery_vold_flags_and_linkage=true |
     .validation.source_built_shared_misc_and_boot_control_write_policy=true |
     .validation.source_built_installer_durability_refusal=true |
     .validation.source_built_boot_service_pre_resolution_refusal=true |

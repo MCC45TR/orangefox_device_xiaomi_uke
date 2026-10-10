@@ -1,0 +1,32 @@
+--- a/Android.bp
++++ b/Android.bp
+@@ -113,8 +113,8 @@
+ }
+ 
+ // Static library factored out to support testing
+-cc_library_static {
+-    name: "libvold",
++cc_defaults {
++    name: "libvold_common_sources",
+     defaults: [
+         "vold_default_flags",
+         "vold_default_libs",
+@@ -216,6 +216,18 @@
+     },
+ }
+ 
++cc_library_static {
++    name: "libvold",
++    defaults: ["libvold_common_sources"],
++}
++
++// Recovery service lookups and optional-result guards must be compiled here.
++cc_library_static {
++    name: "libvold_uke_recovery",
++    defaults: ["libvold_common_sources"],
++    cflags: ["-D__ANDROID_RECOVERY__"],
++}
++
+ cc_binary {
+     name: "vold",
+     defaults: [

@@ -23,6 +23,8 @@ cd "$component"
         patches/0067-skip-plane-updates-while-panel-is-blanked.patch \
         patches/0072-recovery-crypto-service-hardening.patch patches/0073-vold-crypto-service-hardening.patch tests/check-crypto-service-hardening.sh \
         patches/0076-handle-missing-keystore-results.patch tests/check-crypto-nullability.sh \
+        patches/0079-compile-vold-guards-for-the-recovery-caller.patch patches/0080-link-the-dedicated-recovery-vold-library.patch \
+        scripts/check-vold-recovery-variant.sh tests/check-vold-recovery-variant.sh src/upstream/orangefox-android16/system/vold/Android.bp \
         src/upstream/orangefox-android16/system/vold/Keystore.cpp \
         tests/check-touch-release.sh tests/check-touch-device-state.sh
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
