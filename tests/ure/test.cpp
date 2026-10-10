@@ -129,6 +129,22 @@ int main() {
         ure::Root system(system_tree); const auto graph=ure::storage_graph(system);
         check(graph["objects"].size()==1 && graph["objects"][0]["parent_lun_name"]=="sda" &&
             graph["objects"][0]["bytes"].asUInt64()==131072 && graph["objects"][0]["logical_sector_bytes"].asUInt64()==4096 && graph["edges"].size()==1,"Storage Graph identity or units failed");
+        const auto partition_path=system_tree/"sys/devices/test/block/sda/sda1";
+        check(graph["objects"][0]["dependencies_available"]==false,"Missing partition holders were accepted");
+        ure::fs::create_directory(partition_path/"holders");
+        check(ure::storage_graph(system)["objects"][0]["dependencies_available"]==true,"A kernel partition incorrectly requires a slaves directory");
+        ure::fs::remove(partition_path/"partition");
+        check(ure::storage_graph(system)["objects"][0]["dependencies_available"]==false,"A whole disk without slaves was accepted");
+        ure::fs::create_directory(partition_path/"slaves");
+        check(ure::storage_graph(system)["objects"][0]["dependencies_available"]==true,"Whole-disk dependency directories were rejected");
+        ure::fs::remove(partition_path/"holders");
+        check(ure::storage_graph(system)["objects"][0]["dependencies_available"]==false,"A whole disk without holders was accepted");
+        ure::fs::create_directory(partition_path/"holders");
+        write(partition_path/"partition","1\n");
+        ure::fs::remove(partition_path/"slaves");
+        write(partition_path/"slaves","invalid-directory\n");
+        reject([&]{ure::storage_graph(system);},"path-unavailable");
+        ure::fs::remove(partition_path/"slaves");
         const auto usage=ure::storage_usage(system,graph["objects"][0]["stable_id"].asString());
         check(usage["quiescent_observed"]==false && usage["coverage"]["processes"]==false && usage["coverage"]["usb"]==false,
             "A synthetic proc/configfs tree was accepted as complete ownership evidence");

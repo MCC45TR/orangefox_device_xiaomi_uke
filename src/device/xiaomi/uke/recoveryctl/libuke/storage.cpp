@@ -111,10 +111,13 @@ Value storage_graph(const Root& system) {
             }
         }
         if(item["partition"].asBool()) { Value edge; edge["relation"]="partition-of"; edge["source"]=item["stable_id"]; edge["target"]="sysfs:"+parent_path; result["edges"].append(edge); }
-        item["dependencies_available"]=system.exists(object_path+"/slaves") && system.exists(object_path+"/holders");
+        const auto children=system.list(object_path,256);
+        const auto present=[&](std::string_view entry) { return std::find(children.begin(),children.end(),entry)!=children.end(); };
+        // Kernel partitions have holders; their parent disk supplies slaves.
+        item["dependencies_available"]=present("holders") && (item["partition"].asBool() || present("slaves"));
         for(const auto* relation:{"slaves","holders"}) {
             item[relation]=Value(Json::arrayValue);
-            if(system.exists(object_path+"/"+relation))for(const auto& peer:system.list(object_path+"/"+relation,128)) {
+            if(present(relation))for(const auto& peer:system.list(object_path+"/"+relation,128)) {
                 require(identifier(peer),"invalid-device","Invalid block dependency name"); item[relation].append(peer);
                 if(std::string_view(relation)=="slaves") { Value edge; edge["relation"]="depends-on"; edge["source"]=item["stable_id"]; edge["target_kernel_name"]=peer; result["edges"].append(edge); }
             }
