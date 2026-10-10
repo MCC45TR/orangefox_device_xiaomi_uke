@@ -42,7 +42,7 @@ Value path_owner(const Root& system,const std::string& encoded) {
     item["kind"]=S_ISBLK(st.st_mode) ? "block" : S_ISREG(st.st_mode) ? "file" : "other";
     item["inode"]=Json::UInt64(st.st_ino); return item;
 }
-void mount_owners(const Root& system,const std::string& path,Value& observations,const std::string& pid) {
+void mount_owners(const Root& system,const std::string& path,Value& observations,const std::string& pid,std::set<std::string>& seen) {
     std::istringstream input(system.read(path,4*1024*1024)); std::string line;
     while(std::getline(input,line)) {
         std::istringstream row(line); std::vector<std::string> fields; std::string field;
@@ -50,15 +50,59 @@ void mount_owners(const Root& system,const std::string& path,Value& observations
         const auto separator=std::find(fields.begin(),fields.end(),"-");
         require(fields.size()>=10 && separator-fields.begin()>=6 && fields.end()-separator==4 && digits(fields[0]) && device_number(fields[2]),
             "invalid-usage","Malformed mountinfo observation");
+        // Inspect every process, but report an identical kernel mount record once.
+        if(!seen.insert(line).second)continue;
         Value item; item["device_number"]=fields[2]; item["mount_id"]=fields[0]; item["pid"]=pid;
         item["path"]=decode(fields[4]); item["options"]=fields[5]; item["filesystem"]=*(separator+1); item["super_options"]=*(separator+3); observations["mounts"].append(item);
         require(observations["mounts"].size()<=32768,"size-limit","Mount observation budget exceeded");
     }
 }
+bool proc_mount_visible(const std::string& options,const std::set<gid_t>& groups) {
+    std::istringstream input(options); std::string option,hidden; gid_t group=0; bool has_group=false,has_hidden=false;
+    while(std::getline(input,option,',')) {
+        if(option.starts_with("hidepid=")) {
+            if(has_hidden)return false;
+            has_hidden=true; hidden=option.substr(8);
+        } else if(option.starts_with("gid=")) {
+            if(has_group)return false;
+            const auto value=option.substr(4); const auto parsed=std::from_chars(value.data(),value.data()+value.size(),group);
+            if(value.empty() || parsed.ec!=std::errc() || parsed.ptr!=value.data()+value.size())return false;
+            has_group=true;
+        }
+    }
+    if(!has_hidden || hidden=="0" || hidden=="off")return true;
+    return (hidden=="1" || hidden=="2" || hidden=="noaccess" || hidden=="invisible") && has_group && groups.count(group)!=0;
+}
+bool notification_usb_attributes(const std::vector<std::string>& names) {
+    bool state=false;
+    for(const auto& name:names) {
+        if(name=="state")state=true;
+        else if(name!="power" && name!="subsystem" && name!="uevent")return false;
+    }
+    return state;
+}
+bool legacy_notification_only(const Root& system) {
+    const std::string base="sys/class/android_usb";
+    if(!system.exists(base))return true;
+    auto directory=system.open(base,O_RDONLY|O_DIRECTORY); struct statfs info{};
+    require(::fstatfs(directory.get(),&info)==0 && info.f_type==SYSFS_MAGIC,"usage-unavailable","Android USB observations require kernel sysfs");
+    const auto devices=system.list(base,64);
+    if(devices.size()!=1 || devices[0]!="android0")return false;
+    const auto path=(fs::path(base)/system.link(base+"/android0")).lexically_normal().generic_string();
+    require(path=="sys/devices/virtual/android_usb/android0","usage-unavailable","Unexpected Android USB notification device");
+    // CONFIG_USB_CONFIGFS_UEVENT creates this state-only class beside configfs.
+    return notification_usb_attributes(system.list(path,64));
+}
+bool exited_process_state(std::string_view status) {
+    const auto end=status.rfind(')');
+    return end!=status.npos && end+4<=status.size() && status[end+1]==' ' && status[end+3]==' ' &&
+        (status[end+2]=='Z' || status[end+2]=='X');
+}
 Value observe(const Root& system) {
     Value data; data["coverage"]["mounts"]=false; data["coverage"]["processes"]=false; data["coverage"]["swaps"]=false; data["coverage"]["usb"]=false;
     for(const auto* key:{"mounts","open_users","swaps","usb","errors"})data[key]=Value(Json::arrayValue);
-    try { mount_owners(system,"proc/"+std::to_string(::getpid())+"/mountinfo",data,"self"); data["coverage"]["mounts"]=true; }
+    std::set<std::string> mounts;
+    try { mount_owners(system,"proc/"+std::to_string(::getpid())+"/mountinfo",data,"self",mounts); data["coverage"]["mounts"]=true; }
     catch(const Error& error) { data["errors"].append(error.code); }
     try {
         std::istringstream input(system.read("proc/swaps",1024*1024)); std::string line;
@@ -73,12 +117,22 @@ Value observe(const Root& system) {
     try {
         auto proc=system.open("proc",O_RDONLY|O_DIRECTORY); struct statfs fs{};
         require(::fstatfs(proc.get(),&fs)==0 && fs.f_type==PROC_SUPER_MAGIC,"usage-unavailable","Process inspection requires the kernel proc filesystem");
+        const auto count=::getgroups(0,nullptr);
+        require(count>=0 && count<=4096,"usage-unavailable","Supplementary process groups are unavailable or oversized");
+        std::vector<gid_t> memberships(static_cast<std::size_t>(count));
+        require(::getgroups(count,memberships.data())==count,"usage-unavailable","Supplementary process groups changed during inspection");
+        std::set<gid_t> groups(memberships.begin(),memberships.end()); groups.insert(::getegid());
         bool complete=true; std::size_t total=0;
         for(const auto& pid:system.list("proc",16384))if(digits(pid)) {
             try {
+                Root process(system.open("proc/"+pid,O_RDONLY|O_DIRECTORY));
+                if(exited_process_state(process.read("stat",65536))) {
+                    require(process.list("fd",4096).empty(),"usage-unavailable","Exited process retains unexpected file descriptors");
+                    continue;
+                }
                 // Every visible process namespace is checked, not only self.
-                mount_owners(system,"proc/"+pid+"/mountinfo",data,pid);
-                Root fds(system.open("proc/"+pid+"/fd",O_RDONLY|O_DIRECTORY));
+                mount_owners(process,"mountinfo",data,pid,mounts);
+                Root fds(process.open("fd",O_RDONLY|O_DIRECTORY));
                 for(const auto& number:fds.list(".",4096)) {
                     require(digits(number) && ++total<=65536,"size-limit","Process descriptor budget exceeded"); struct stat st{};
                     // Following this final procfs magic link performs only stat;
@@ -88,7 +142,7 @@ Value observe(const Root& system) {
                         complete=false; continue;
                     }
                     if(!S_ISREG(st.st_mode) && !S_ISBLK(st.st_mode) && !S_ISDIR(st.st_mode))continue;
-                    const auto info=system.read("proc/"+pid+"/fdinfo/"+number,65536); std::istringstream fields(info); std::string row; std::uint64_t flags=0,inode=0; bool known=false,inode_known=false;
+                    const auto info=process.read("fdinfo/"+number,65536); std::istringstream fields(info); std::string row; std::uint64_t flags=0,inode=0; bool known=false,inode_known=false;
                     while(std::getline(fields,row))if(row.starts_with("flags:") || row.starts_with("ino:")) {
                         const bool is_flags=row.starts_with("flags:"); auto text=row.substr(is_flags ? 6 : 4);
                         const auto first=text.find_first_not_of(" \t"); require(first!=text.npos,"invalid-usage","Missing descriptor field"); text.erase(0,first);
@@ -107,7 +161,7 @@ Value observe(const Root& system) {
                 complete=false; if(data["errors"].size()<64)data["errors"].append(error.code);
             }
         }
-        for(const auto& mount:data["mounts"])if(mount["filesystem"]=="proc" && mount["super_options"].asString().find("hidepid=")!=std::string::npos)complete=false;
+        for(const auto& mount:data["mounts"])if(mount["filesystem"]=="proc" && !proc_mount_visible(mount["super_options"].asString(),groups))complete=false;
         data["coverage"]["processes"]=complete;
     } catch(const Error& error) { data["errors"].append(error.code); }
     try {
@@ -131,9 +185,7 @@ Value observe(const Root& system) {
                 }
             }
         }
-        // Absence of configfs does not prove that a legacy or firmware-owned
-        // gadget cannot export storage. The managed gadget backend must settle it.
-        data["coverage"]["usb"]=found && !system.exists("sys/class/android_usb");
+        data["coverage"]["usb"]=found && legacy_notification_only(system);
     } catch(const Error& error) { data["errors"].append(error.code); }
     return data;
 }

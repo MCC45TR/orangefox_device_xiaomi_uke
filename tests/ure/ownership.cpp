@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include "uke.h"
+#include "../../src/device/xiaomi/uke/recoveryctl/libuke/ownership.cpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -24,6 +24,33 @@ bool blocked(const ure::Value& result,const std::string& code) { for(const auto&
 }
 int main() {
     try {
+        const std::set<gid_t> groups{0,3009};
+        for(const auto* options:{"rw", "rw,hidepid=0", "hidepid=off", "rw,gid=3009,hidepid=invisible", "hidepid=2,gid=3009", "hidepid=noaccess,gid=0"})
+            check(ure::proc_mount_visible(options,groups),"Measured proc visibility was refused");
+        for(const auto* options:{"hidepid=2", "hidepid=2,gid=3010", "hidepid=ptraceable,gid=3009", "hidepid=invisible,gid=invalid", "hidepid=2,gid=3009,gid=3009", "hidepid=0,hidepid=2", "hidepid=unknown", "hidepid=2,gid=4294967296"})
+            check(!ure::proc_mount_visible(options,groups),"Unproved proc visibility was admitted");
+        check(ure::notification_usb_attributes({"state","power","subsystem","uevent"}),"Configfs notification class was refused");
+        for(const auto& names:std::vector<std::vector<std::string>>{{}, {"power"}, {"state","functions"}, {"state","enable"}, {"state","lun0"}, {"state","unknown"}})
+            check(!ure::notification_usb_attributes(names),"An unobserved legacy gadget control was accepted");
+        check(ure::exited_process_state("42 (pigz) Z 1 0") && ure::exited_process_state("42 (name) with spaces) X 1 0"),"Exited kernel process state was missed");
+        for(const auto* status:{"", "42 (pigz) S 1 0", "42 (pigz) R 1 0", "42 (pigz) Z", "42 (pigz)Z 1", "42 (pigz) Q 1 0"})
+            check(!ure::exited_process_state(status),"Live or malformed process state was treated as exited");
+        char pattern[]="/tmp/ure-mount-observation-XXXXXX"; const char* directory=::mkdtemp(pattern);
+        check(directory!=nullptr,"Cannot create mount fixture");
+        const ure::fs::path fixture(directory); ure::Root root(fixture);
+        const std::string row="42 1 8:21 / /metadata ro,nosuid - f2fs /dev/block/metadata ro,norecovery\n";
+        auto write_table=[&](const std::string& text) { auto file=root.open("mountinfo",O_WRONLY|O_CREAT|O_TRUNC,0600);
+            check(::write(file.get(),text.data(),text.size())==static_cast<ssize_t>(text.size()),"Cannot write mount fixture"); };
+        write_table(row); ure::Value observed; observed["mounts"]=ure::Value(Json::arrayValue); std::set<std::string> seen_mounts;
+        for(unsigned process=0;process<256;++process)ure::mount_owners(root,"mountinfo",observed,std::to_string(process),seen_mounts);
+        check(observed["mounts"].size()==1,"Identical per-process mount records consumed the ownership budget");
+        write_table(row+"43 1 8:21 / /other rw - f2fs /dev/block/metadata rw\n");
+        ure::mount_owners(root,"mountinfo",observed,"foreign",seen_mounts);
+        check(observed["mounts"].size()==2 && observed["mounts"][1]["options"]=="rw","Distinct foreign mount was coalesced");
+        write_table(row+"malformed\n");
+        try { ure::mount_owners(root,"mountinfo",observed,"foreign",seen_mounts); throw std::runtime_error("Malformed repeated mount table accepted"); }
+        catch(const ure::Error& error) { check(error.code=="invalid-usage","Unexpected mount-table refusal"); }
+        ure::fs::remove_all(fixture);
         ure::Value graph; graph["objects"]=ure::Value(Json::arrayValue);
         graph["objects"].append(object("sda","8:0")); graph["objects"].append(object("sda1","8:1",true)); graph["objects"].append(object("sda2","8:2",true));
         const auto disk=graph["objects"][0]["stable_id"].asString(),partition=graph["objects"][1]["stable_id"].asString();
