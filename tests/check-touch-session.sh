@@ -6,6 +6,7 @@ component=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 work=$(mktemp -d "$component/build/touch-session-XXXXXXXX")
 source_dir="$component/src/device/xiaomi/uke/touch"
 mkdir -p "$work/host-check"
+bash "$component/tests/touch-session/payload-init.sh"
 compiler=${CXX:-g++}
 "$compiler" -std=c++20 -O0 -Wall -Wextra -Werror -I "$source_dir" "$component/tests/touch-session/host-child.cpp" -o "$work/host-check/fixture"
 for mode in hang stubborn exit flood manager; do
