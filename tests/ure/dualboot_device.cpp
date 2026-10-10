@@ -15,8 +15,9 @@ extern "C" int __wrap_fstat(int descriptor,struct stat* value) {
     if(result==0 && descriptor==journal_fixture_fd)value->st_uid=0;
     return result;
 }
-extern "C" ure::Value __real__ZN3ure13storage_graphERKNS_4RootE(const ure::Root&);
-extern "C" ure::Value __wrap__ZN3ure13storage_graphERKNS_4RootE(const ure::Root& system) {
+ure::Value __real__ZN3ure13storage_graphERKNS_4RootE(const ure::Root&) asm("__real__ZN3ure13storage_graphERKNS_4RootE");
+ure::Value __wrap__ZN3ure13storage_graphERKNS_4RootE(const ure::Root&) asm("__wrap__ZN3ure13storage_graphERKNS_4RootE");
+ure::Value __wrap__ZN3ure13storage_graphERKNS_4RootE(const ure::Root& system) {
     return journal_fixture_fd<0 ? __real__ZN3ure13storage_graphERKNS_4RootE(system) : journal_fixture_graph;
 }
 
@@ -289,6 +290,48 @@ int main() {
         }
         std::cout<<"Owned view handoff: six success/failure paths, thirty exact mapper-policy refusals and five retained-guard ownership refusals passed with all local descriptors released. Callback/graph controls only; no block or mapper operations.\n";
         std::string recovery_command(32,'\0'); recovery_command.replace(0,13,"boot-recovery"); ure::recovery_bcb_command(recovery_command);
+        std::string virtual_ab(64,'\0'); virtual_ab[0]=2; virtual_ab[1]=static_cast<char>(0xb0); virtual_ab[2]=0x0a; virtual_ab[3]=0x74; virtual_ab[4]=0x56;
+        ure::idle_virtual_ab_record(virtual_ab); virtual_ab[6]=1; ure::idle_virtual_ab_record(virtual_ab); virtual_ab[6]=0;
+        for(unsigned byte=0;byte<64;++byte) { auto refused=virtual_ab; refused[byte]=static_cast<char>(0xff);
+            reject([&]{ure::idle_virtual_ab_record(refused);},"android-snapshot-active"); }
+        for(unsigned state=1;state<6;++state) { auto refused=virtual_ab; refused[5]=static_cast<char>(state);
+            reject([&]{ure::idle_virtual_ab_record(refused);},"android-snapshot-active"); }
+        for(const auto& refused:std::vector<std::string>{"",virtual_ab.substr(0,63),virtual_ab+std::string(1,'\0'),std::string(64,'\0')})
+            reject([&]{ure::idle_virtual_ab_record(refused);},"android-snapshot-active");
+        ure::Value slots; slots["objects"]=ure::Value(Json::arrayValue);
+        for(const auto* prefix:{"boot","vendor_boot","recovery","dtbo","vbmeta"})for(const auto* suffix:{"_a","_b"}) {
+            ure::Value object; object["label"]=std::string(prefix)+suffix; object["partition"]=true; object["bytes"]=Json::UInt64(mib); slots["objects"].append(object);
+        }
+        ure::Value chained_vbmeta; chained_vbmeta["label"]="vbmeta_system_a"; slots["objects"].append(chained_vbmeta);
+        ure::measured_dualboot_slots(slots,"_a","androidboot.slot_suffix = \"_a\"\n");
+        ure::measured_dualboot_slots(slots,"_b","androidboot.slot_suffix = \"_b\"\n");
+        for(const auto* config:{"", "androidboot.slot_suffix = \"_b\"", "androidboot.slot_suffix = _a", "androidboot.slot_suffix = \"_a\"\nandroidboot.slot_suffix = \"_a\"", "androidboot.slot_suffix"})
+            reject([&]{ure::measured_dualboot_slots(slots,"_a",config);},"unknown-android-state");
+        for(unsigned variant=0;variant<5;++variant) { auto refused=slots;
+            if(variant==0)refused["objects"].resize(9);
+            if(variant==1)refused["objects"].append(refused["objects"][0]);
+            if(variant==2)refused["objects"][0]["label"]="boot_c";
+            if(variant==3)refused["objects"][0]["bytes"]=Json::UInt64(2*mib);
+            if(variant==4)refused["objects"][0]["partition"]=false;
+            reject([&]{ure::measured_dualboot_slots(refused,"_a","androidboot.slot_suffix = \"_a\"");},"unknown-android-state");
+        }
+        {
+            Workspace ota; ure::Root root(ota.path); ure::idle_snapshot_metadata(root);
+            check(::mkdir((ota.path/"ota").c_str(),0700)==0 && ::mkdir((ota.path/"ota/snapshots").c_str(),0700)==0,"Cannot create snapshot fixture");
+            ure::idle_snapshot_metadata(root);
+            auto state=root.open("ota/state",O_RDWR|O_CREAT|O_EXCL,0600); ure::idle_snapshot_metadata(root);
+            ure::write_exact(state.get(),0,std::string("\x08\x03",2));
+            reject([&]{ure::idle_snapshot_metadata(root);},"android-snapshot-active");
+            check(::ftruncate(state.get(),0)==0,"Cannot reset snapshot state fixture"); ure::idle_snapshot_metadata(root);
+            auto marker=root.open("ota/rollback-indicator",O_WRONLY|O_CREAT|O_EXCL,0600);
+            reject([&]{ure::idle_snapshot_metadata(root);},"android-snapshot-active"); marker=ure::Fd{};
+            check(::unlink((ota.path/"ota/rollback-indicator").c_str())==0,"Cannot remove snapshot marker fixture");
+            auto pending=root.open("ota/snapshots/system_b",O_WRONLY|O_CREAT|O_EXCL,0600);
+            reject([&]{ure::idle_snapshot_metadata(root);},"android-snapshot-active"); pending=ure::Fd{};
+            check(::unlink((ota.path/"ota/snapshots/system_b").c_str())==0,"Cannot remove snapshot fixture");
+            state=ure::Fd{}; check(::unlink((ota.path/"ota/state").c_str())==0 && ::symlink("../missing",(ota.path/"ota/state").c_str())==0,"Cannot create snapshot symlink fixture");
+            reject([&]{ure::idle_snapshot_metadata(root);},"path-unavailable");
+        }
         for(const auto& refused:std::vector<std::string>{"",std::string(31,'\0'),std::string(33,'\0'),std::string(32,'\0'),std::string(32,static_cast<char>(0xff)),
             "boot-recovery",std::string("boot-fastboot")+std::string(19,'\0'),std::string("boot-recovery ")+std::string(18,'\0')})
             reject([&]{ure::recovery_bcb_command(refused);},"recovery-bcb-command-required");

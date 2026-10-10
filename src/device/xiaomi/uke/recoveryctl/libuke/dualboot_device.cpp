@@ -287,6 +287,46 @@ void recovery_bcb_read(int descriptor) {
     catch(const Error&) { throw Error("recovery-bcb-unavailable","The existing recovery BCB command could not be completely read"); }
     recovery_bcb_command(command);
 }
+void idle_virtual_ab_record(std::string_view record) {
+    // AOSP misc system space: packed version-2 Virtual A/B message, 64 bytes.
+    constexpr unsigned char header[]={2,0xb0,0x0a,0x74,0x56,0};
+    require(record.size()==64 && std::equal(std::begin(header),std::end(header),record.begin(),
+        [](unsigned char expected,char actual){return expected==static_cast<unsigned char>(actual);}) &&
+        static_cast<unsigned char>(record[6])<=1 && std::all_of(record.begin()+7,record.end(),[](char byte){return byte==0;}),
+        "android-snapshot-active","An existing version-2 Virtual A/B message must report NONE; absent, unknown or pending state is never initialized here");
+}
+void measured_dualboot_slots(const Value& graph,std::string_view suffix,std::string_view bootconfig) {
+    require((suffix=="_a" || suffix=="_b") && bootconfig.size()<=256*1024 && bootconfig.find('\0')==bootconfig.npos,
+        "unknown-android-state","An exact current A/B slot is required");
+    auto trim=[](std::string_view value) { const auto first=value.find_first_not_of(" \t\r");
+        return first==value.npos ? std::string_view{} : value.substr(first,value.find_last_not_of(" \t\r")-first+1); };
+    bool seen=false;
+    while(!bootconfig.empty()) {
+        const auto end=bootconfig.find('\n'); const auto line=trim(bootconfig.substr(0,end)); const auto equal=line.find('=');
+        require(line.size()<=4096,"unknown-android-state","Oversized kernel boot configuration line");
+        if(trim(line.substr(0,equal))=="androidboot.slot_suffix") {
+            require(!seen && equal!=line.npos,"unknown-android-state","Ambiguous kernel slot configuration");
+            const auto value=trim(line.substr(equal+1));
+            require(value.size()==4 && value.front()=='"' && value.back()=='"' && value.substr(1,2)==suffix,
+                "unknown-android-state","Kernel and recovery-property slots differ"); seen=true;
+        }
+        if(end==bootconfig.npos)break;
+        bootconfig.remove_prefix(end+1);
+    }
+    require(seen && graph["objects"].isArray(),"unknown-android-state","Kernel slot and physical partition inventory are required");
+    for(const auto* prefix:{"boot","vendor_boot","recovery","dtbo","vbmeta"}) {
+        std::set<std::string> labels; std::uint64_t bytes=0;
+        for(const auto& object:graph["objects"]) {
+            const std::string base=prefix; const auto label=object["label"].asString();
+            if(!label.starts_with(base+"_") || label.size()!=base.size()+2)continue;
+            require((label==std::string(prefix)+"_a" || label==std::string(prefix)+"_b") && labels.insert(label).second &&
+                object["partition"]==true && object["bytes"].isUInt64() && object["bytes"].asUInt64()>0 &&
+                (bytes==0 || bytes==object["bytes"].asUInt64()),"unknown-android-state","Exactly two unambiguous equal-capacity physical boot slots are required");
+            bytes=object["bytes"].asUInt64();
+        }
+        require(labels.size()==2,"unknown-android-state","A physical A/B boot partition pair is missing");
+    }
+}
 Value recovery_misc_object(const Value& graph) {
     require(graph["objects"].isArray(),"recovery-bcb-unavailable","Kernel block inventory is unavailable");
     Value selected;
@@ -334,6 +374,13 @@ public:
         require(::fstat(descriptor_.get(),&st)==0 && S_ISBLK(st.st_mode) && st.st_rdev==devnumber(object_["device_number"].asString()) &&
             storage_bytes(descriptor_.get())==object_["bytes"].asUInt64(),"recovery-bcb-changed","The retained read-only misc descriptor differs from the observed partition");
         recovery_bcb_read(descriptor_.get());
+    }
+    void idle_virtual_ab(const Root& system) const {
+        verify(system);
+        require(object_["bytes"].asUInt64()>=32768+64,"recovery-bcb-unavailable","Misc does not contain AOSP Virtual A/B system space");
+        const auto before=storage_read(descriptor_.get(),32768,64); idle_virtual_ab_record(before);
+        verify(system);
+        require(storage_read(descriptor_.get(),32768,64)==before,"unknown-android-state","Virtual A/B state changed during inspection");
     }
 };
 Value original_userdata(const Value& graph,const Value& plan) {
@@ -418,23 +465,31 @@ void device_usage(const Root& system,const Value& plan) {
     const auto metadata=mounted_metadata(system,plan);
     device_usage_policy(storage_usage(system,plan["target_identity"]["stable_id"].asString()),metadata);
 }
+void idle_snapshot_metadata(const Root& metadata) {
+    struct stat directory{}; errno=0;
+    if(::fstatat(metadata.fd(),"ota",&directory,AT_SYMLINK_NOFOLLOW)!=0) {
+        require(errno==ENOENT,"android-snapshot-active","Persistent OTA directory is inaccessible"); return;
+    }
+    require(S_ISDIR(directory.st_mode) && directory.st_uid==::geteuid(),"android-snapshot-active","Persistent OTA directory identity is invalid");
+    for(const auto& name:metadata.list("ota",4096)) {
+        if(name=="snapshots")require(metadata.list("ota/snapshots",4096).empty(),"android-snapshot-active","Persistent snapshots are present");
+        else if(name=="state") {
+            const auto state=metadata.stat("ota/state");
+            // Proto3's canonical default SnapshotUpdateStatus (NONE) is empty.
+            require(S_ISREG(state.st_mode) && state.st_uid==::geteuid() && state.st_nlink==1 && state.st_size==0 &&
+                metadata.read("ota/state",1).empty(),"android-snapshot-active","Persistent OTA state is not an exact empty NONE message");
+        } else throw Error("android-snapshot-active","Persistent OTA markers require reconciliation through Android");
+    }
+}
 void check_snapshot(const Root& system,const Value& plan) {
     const auto metadata=mounted_metadata(system,plan); Root metadata_root(system.open("metadata",O_RDONLY|O_DIRECTORY));
     struct stat metadata_stat{}; require(::fstat(metadata_root.fd(),&metadata_stat)==0 && metadata_stat.st_dev==devnumber(metadata["device_number"].asString()),
         "metadata-mount-unavailable","Metadata changed before OTA inspection");
-    for(const auto* command:{"get-number-slots","get-current-slot","get-snapshot-merge-status"}) {
-        const auto result=run_tool("bootctl",{command},15); require(result.status==0 && !result.timed_out,"unknown-android-state","The current boot-control HAL did not provide an authoritative state");
-        const auto value=trimmed(result.output);
-        if(std::string_view(command)=="get-number-slots")require(value=="2","unknown-android-state","Exactly two slots are required");
-        else if(std::string_view(command)=="get-current-slot")require((value=="0" && live_property("ro.boot.slot_suffix")=="_a") ||
-            (value=="1" && live_property("ro.boot.slot_suffix")=="_b"),"unknown-android-state","Boot-control and boot-property slots differ");
-        else require(value=="none","android-snapshot-active","Unknown, pending, merging or cancelled Virtual A/B updates block userdata recreation");
-    }
-    for(const auto* directory:{"ota","ota/snapshots"})if(metadata_root.exists(directory)) {
-        for(const auto& name:metadata_root.list(directory,4096))require(name=="snapshots" && metadata_root.list(std::string(directory)+"/"+name,4096).empty(),
-            "android-snapshot-active","Persistent OTA state is present; reconcile it through Android before repartitioning");
-    }
-    const auto graph=storage_graph(system); for(const auto& object:graph["objects"]) {
+    const auto graph=storage_graph(system);
+    measured_dualboot_slots(graph,live_property("ro.boot.slot_suffix"),system.read("proc/bootconfig",256*1024));
+    RecoveryBcb(system,plan).idle_virtual_ab(system);
+    idle_snapshot_metadata(metadata_root);
+    for(const auto& object:graph["objects"]) {
         const auto name=object["mapper_name"].asString(),uuid_value=object["mapper_uuid"].asString();
         require(name.find("-cow")==name.npos && name.find("-snap")==name.npos && name.find("snapshot")==name.npos &&
             uuid_value.find("snapshot")==uuid_value.npos,"android-snapshot-active","A snapshot/COW mapper is present");
