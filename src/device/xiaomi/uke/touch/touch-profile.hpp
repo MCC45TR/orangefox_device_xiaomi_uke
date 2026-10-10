@@ -90,7 +90,7 @@ inline constexpr std::array<std::string_view, 25> kExpectedElfPaths = {
 inline constexpr std::array<FilePin, 18> kImageFiles = {{
     {"/system/lib64/libapexsupport.so", "3c9f6bf01356ecf4dc1d92519abd11a5317c316917c9d91ee85bb94ae7827f3a", 186048, FileKind::library},
     {"/system/lib64/libbase.so", "7301152a50cf3c8179a4fa26fd62981403975b6d61243cfd288182359989c8c6", 219784, FileKind::library},
-    {"/system/lib64/libbinder.so", "e737bc164b9a75b0892d40d01d30ba43d2b43339ac5db1af0cb8f7e73e31bc1f", 759032, FileKind::library},
+    {"/system/lib64/libbinder.so", "12632d905d2e57b83e2770e5ba4fe6408b7f514db49874ed815580a66628b8f9", 759008, FileKind::library},
     {"/system/lib64/libbinder_ndk.so", "d238c5bfb2ffb56af8631fb9e23dcc343e00e9b7179e18231929f2d4f67175a3", 153328, FileKind::library},
     {"/system/lib64/libc++.so", "2267f93b8b3c9d1967f1833d5f71c7312213c43bb291250cf772800763037fb9", 1049704, FileKind::library},
     {"/system/lib64/libc.so", "5424093b26dc0cc2dcf4f52c515cb24ffc0c4603d5b3526cb44536d4c8a0f815", 1208680, FileKind::library},
@@ -101,7 +101,7 @@ inline constexpr std::array<FilePin, 18> kImageFiles = {{
     {"/system/lib64/libjsoncpp.so", "02adc1c1421a3291a89c7740273b58073c8fabca5b16b3e3b0b9b78dd1a9aeee", 200760, FileKind::library},
     {"/system/lib64/liblog.so", "fb4a8808cfece7ad128482cf7d83fb3985ed8578507fa265a3100e9684d5c8bd", 102096, FileKind::library},
     {"/system/lib64/libm.so", "44433149f62eeb8f09f38ecd3566683fac01a0f89de6ea6d15f6e4deca1ba4bc", 248968, FileKind::library},
-    {"/system/lib64/libutils.so", "a3a0973d8eddf3ef7e3ece7d2bbf953a2861ea48d585984402fa3d649313aca4", 134776, FileKind::library},
+    {"/system/lib64/libutils.so", "bdb5e2e02e0f2e2e92fb4e8364b9172996d15adb96071c7d31d9fb51856e3a33", 134776, FileKind::library},
     {"/system/lib64/libvndksupport.so", "448ee8d7be3a030bcc30a791a77b77628e8314b7b5aa28f70437cc3a1bd04a8a", 51352, FileKind::library},
     {"/system/bin/linker64", "279a489c2e60682d2e479cc85c9cf42e63655ee524cf147851f35a9bbd4daf8e", 2183528, FileKind::linker},
     {"/system/etc/ld.config.txt", "850e6c29e68eec2ca97850084052fe8b379f23406b96dec8187edef7dd595421", 356, FileKind::linker_config},
