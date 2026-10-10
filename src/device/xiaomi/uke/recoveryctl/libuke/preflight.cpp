@@ -31,6 +31,20 @@ Value boot_query(const std::string& command,const std::vector<std::string>& args
     } catch(const Error& error) { out["successful"]=false; out["error_code"]=error.code; } return out;
 }
 } // namespace
+bool bootloader_unlocked(const Root& system) {
+#ifdef __ANDROID__
+    try {
+        Root current("/");
+        if (json(descriptor_identity(current.fd())) != json(descriptor_identity(system.fd()))) return false;
+        const auto config = system.exists("proc/bootconfig") ? system.read("proc/bootconfig", 256 * 1024) : "";
+        return measured_uke_unlocked(property("ro.product.device"), property("ro.boot.vbmeta.device_state"),
+            property("ro.boot.flash.locked"), property("ro.boot.verifiedbootstate"), config);
+    } catch (const Error&) { return false; }
+#else
+    (void)system;
+    return false;
+#endif
+}
 Value storage_preflight(const Root& system,const StorageTarget& target,const std::string& profile) {
     require(identifier(profile),"invalid-profile","An explicit firmware profile is required"); storage_revalidate(target,&system);
     Value out; out["schema"]=1; out["format"]="ure-storage-preflight"; out["target_identity"]=target.identity;

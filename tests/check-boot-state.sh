@@ -21,6 +21,3 @@ bash -c 'timeout 20 "$1"; exit "$?"' _ "$work/mutant" > "$work/mutant.log" 2>&1 
 for source in preflight dualboot_device; do
     rg -qF 'bootloader_unlocked(system)' "$component/src/device/xiaomi/uke/recoveryctl/libuke/$source.cpp"
 done
-for catalog in Android.bp CMakeLists.txt; do
-    rg -qF 'libuke/boot_state.cpp' "$component/src/device/xiaomi/uke/recoveryctl/$catalog"
-done
