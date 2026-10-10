@@ -12,7 +12,6 @@
 #include <atomic>
 #include <charconv>
 #include <fcntl.h>
-#include <fcntl.h>
 #include <mutex>
 #include <map>
 #include "gui_job.hpp"
@@ -20,6 +19,8 @@
 #include "lifecycle_policy.hpp"
 #include "recovery_services.hpp"
 #include <set>
+#include <sys/sysmacros.h>
+#include <sstream>
 #include <thread>
 #include <unistd.h>
 
@@ -58,6 +59,9 @@ ure::Value pending_tree;
 ure::Value reviewed_layout_request;
 ure::Value dualboot_plan,dualboot_selection;
 std::string dualboot_journal;
+ure::Value multiboot_plan,multiboot_selection;
+std::uint64_t extra_scan_ms=0;
+std::string extra_mounts;
 std::string reviewed_partition_journal;
 ure::Value reviewed_partition_selection;
 std::string reviewed_tree_store,reviewed_tree_root,reviewed_tree_destination;
@@ -96,7 +100,7 @@ void publish(const ure::Value& data) {
     set("ure_output",Json::writeString(writer,view));
 }
 
-bool choice(const std::string& name) {
+bool choice(const std::string& name) const {
     const auto selected=value(name); ure::require(selected=="0" || selected=="1","invalid-choice","Choose an explicit on/off value"); return selected=="1";
 }
 unsigned number(const std::string& name,unsigned maximum) {
@@ -144,7 +148,8 @@ ure::Value rescue_request() {
 }
 ure::Value btrfs_request(const ure::Root& root) {
     ure::Value request; request["schema"]=1; const auto action=value("ure_btrfs_action"); request["action"]=action;
-    if(action=="create" || action=="snapshot" || action=="readonly" || action=="delete" || action=="rollback")request["path"]=value("ure_btrfs_path");
+    if(action=="create" || action=="snapshot" || action=="readonly" || action=="delete" || action=="rollback" || action=="rename")request["path"]=value("ure_btrfs_path");
+    if(action=="rename")request["new_path"]=value("ure_btrfs_new_path");
     if(action=="snapshot") { request["source"]=value("ure_btrfs_source"); request["read_only"]=choice("ure_btrfs_readonly"); }
     if(action=="readonly")request["read_only"]=choice("ure_btrfs_readonly");
     if(action=="delete")request["backup_snapshot"]=value("ure_btrfs_backup");
@@ -241,6 +246,52 @@ void dualboot_clear() {
     set("ure_db_confirmation",""); set("ure_layout_graph","");
     set("ure_db_summary","Review the selected systems and sizes before applying.");
 }
+void multiboot_clear() {
+    multiboot_plan={}; multiboot_selection={};
+    for(const auto* key:{"ure_mb_hash","ure_mb_confirmation","ure_mb_report","ure_mb_old_graph","ure_mb_new_graph"})set(key,"");
+    set("ure_mb_can_apply","0");
+}
+ure::Value multiboot_request() const {
+    ure::Value request; request["schema"]=1; request["format"]="uke-multiboot-request";
+    const bool restore=value("ure_mb_action")=="restore-default";
+    request["action"]=restore ? "restore-default" : "setup";
+    request["advanced"]=choice("ure_mb_advanced"); request["keep_userdata"]=restore || !choice("ure_mb_no_userdata");
+    request["userdata_filesystem"]=value("ure_mb_userdata_fs"); request["partitions"]=ure::Value(Json::arrayValue);
+    if(!restore)for(const auto* role:{"esp","linux_boot","linux","windows","shared","linux_swap","linux2"}) {
+        const auto prefix="ure_mb_"+std::string(role)+"_"; if(!choice(prefix+"enabled"))continue;
+        ure::Value row; row["role"]=role; row["size"]=value(prefix+"size"); row["unit"]=value(prefix+"unit"); row["filesystem"]=value(prefix+"fs");
+        if(request["advanced"]==true)row["label"]=value(prefix+"label");
+        request["partitions"].append(row);
+    }
+    if(!restore && request["advanced"]==true && !value("ure_mb_order").empty()) {
+        request["order"]=ure::Value(Json::arrayValue); std::istringstream order(value("ure_mb_order")); std::string role;
+        while(std::getline(order,role,',')) { ure::require(request["order"].size()<8,"invalid-multiboot-order","Select at most eight partition roles"); request["order"].append(role); }
+    }
+    return request;
+}
+ure::Value multiboot_choices() const {
+    ure::Value selection; selection["request"]=multiboot_request();
+    for(const auto* key:{"ure_gpt_kind","ure_gpt_source","ure_gpt_sector","ure_mb_original_backup","ure_journal_parent","tw_language","ure_mb_required_phrase"})selection[key]=value(key);
+    return selection;
+}
+void extra_discover(const ure::Root& system) {
+    const auto mounts=system.read("proc/self/mountinfo",1024*1024);
+    const auto now=ure::monotonic_ms();
+    if(extra_scan_ms && now>=extra_scan_ms && now-extra_scan_ms<30000 && mounts==extra_mounts)return;
+    set("ure_btrfs_present","0"); extra_scan_ms=now; extra_mounts=mounts;
+    const auto graph=ure::storage_graph(system); unsigned probed=0;
+    for(const auto& object:graph["objects"])if(object["partition"]==true) {
+        if(++probed>1024)break;
+        try {
+            const auto name=object["kernel_name"].asString(); ure::require(ure::identifier(name),"invalid-device-node","Invalid kernel block name");
+            auto node=system.open("dev/block/"+name,O_RDONLY|O_NONBLOCK); struct stat observed{};
+            ure::require(::fstat(node.get(),&observed)==0 && S_ISBLK(observed.st_mode) &&
+                std::to_string(major(observed.st_rdev))+":"+std::to_string(minor(observed.st_rdev))==object["device_number"].asString(),
+                "stale-device","Read-only discovery node differs from its sysfs identity");
+            if(ure::filesystem_probe(node.get())["type"]=="btrfs") { set("ure_btrfs_present","1"); break; }
+        } catch(const ure::Error&) { /* An inaccessible signature cannot establish Btrfs availability. */ }
+    }
+}
 ure::Value dualboot_request() {
     ure::Value request; request["schema"]=1; request["format"]="uke-dualboot-request";
     request["linux_enabled"]=choice("ure_db_linux"); request["windows_enabled"]=choice("ure_db_windows");
@@ -331,6 +382,7 @@ void clear_stream_review() {
     for(const auto* name:{"ure_stream_journal_hash","ure_stream_can_rollback","ure_stream_can_finish","ure_stream_can_cancel"})set(name,"");
 }
 void invalidate_reviews() {
+    multiboot_clear();
     dualboot_clear();
     pending_plan={}; pending_backup={}; pending_gpt_plan={}; pending_stock_plan={}; pending_restore_plan={}; pending_tree={}; managed_plan={}; boot_plan={};
     reviewed_filesystem_journal.clear(); reviewed_gpt_journal.clear(); reviewed_stock_journal.clear(); reviewed_restore_journal.clear(); reviewed_stream_journal.clear();
@@ -439,24 +491,40 @@ void ure_create_scale_preview(xml_node<>* node,GUIObject*& object,RenderObject*&
 // they never retain a widget pointer or alter scanout resources.
 class UrePartitionMap : public GUIObject, public RenderObject {
     std::string cached_;
+    std::string variable_="ure_layout_graph";
     ure::Value segments_;
     int cached_width_=-1;
     void refresh() {
-        const auto data=value("ure_layout_graph"); if(data==cached_ && cached_width_==mRenderW)return;
+        const auto data=value(variable_); if(data==cached_ && cached_width_==mRenderW)return;
         cached_=data; cached_width_=mRenderW; segments_=ure::Value();
         try { ure::require(data.size()<=65536,"size-limit","Layout graph exceeds its limit");
-            if(!data.empty() && mRenderW>0)segments_=ure::partition_layout_bar(ure::parse_json(data),static_cast<unsigned>(mRenderW));
+            if(!data.empty() && mRenderW>0) {
+                const auto graph=ure::parse_json(data);
+                segments_=graph["format"]=="ure-multiboot-bar" ? ure::multiboot_layout_bar(graph,static_cast<unsigned>(mRenderW)) : ure::partition_layout_bar(graph,static_cast<unsigned>(mRenderW));
+            }
         } catch(const ure::Error&) { /* An invalid or absent preview paints only the neutral bar. */ }
     }
 public:
-    explicit UrePartitionMap(xml_node<>* node):GUIObject(node) { LoadPlacement(FindNode(node,"placement"),&mRenderX,&mRenderY,&mRenderW,&mRenderH); }
+    explicit UrePartitionMap(xml_node<>* node):GUIObject(node) {
+        LoadPlacement(FindNode(node,"placement"),&mRenderX,&mRenderY,&mRenderW,&mRenderH);
+        auto* data=FindNode(node,"data"); if(data)variable_=LoadAttrString(data,"name",variable_.c_str());
+    }
     int Update() override { const auto before=cached_; const auto width=cached_width_; refresh(); return before==cached_ && width==cached_width_ ? 0 : 2; }
     int Render() override {
         if(!isConditionTrue())return 0;
         refresh(); gr_color(96,96,96,255); gr_fill(mRenderX,mRenderY,mRenderW,mRenderH);
         for(const auto& segment:segments_) {
-            const auto name=segment["role"].asString();
-            if(name=="esp")gr_color(210,160,64,255);
+            const auto name=segment["role"].asString(),fs=segment["filesystem"].asString();
+            if(fs=="fat32")gr_color(229,184,73,255);
+            else if(fs=="ntfs")gr_color(79,135,206,255);
+            else if(fs=="f2fs")gr_color(237,139,58,255);
+            else if(fs=="ext4")gr_color(104,166,91,255);
+            else if(fs=="btrfs")gr_color(157,117,197,255);
+            else if(fs=="zfs")gr_color(72,127,131,255);
+            else if(fs=="exfat")gr_color(199,140,101,255);
+            else if(fs=="linux-swap")gr_color(181,104,135,255);
+            else if(fs=="xfs")gr_color(92,167,163,255);
+            else if(name=="esp")gr_color(210,160,64,255);
             else if(name=="linux")gr_color(80,172,116,255);
             else if(name=="linux_boot")gr_color(64,164,176,255);
             else if(name=="windows")gr_color(76,140,216,255);
@@ -502,10 +570,21 @@ bool ure_gui_variable(const std::string& name,std::string& output) {
     }
     int width=0,height=0; DataManager::GetValue("ure_canvas_width",width); DataManager::GetValue("ure_canvas_height",height);
     if(width<=0 || height<=0)return false;
+    const int footer=DataManager::GetIntValue("real_gestures_enable")==1 ? 48 : 144;
+    if(name=="nav_h") { output=std::to_string(footer); return true; }
+    if(name=="row_navbtn_y" || name=="gst_line_y") { output=std::to_string(height-footer/2); return true; }
+    struct Anchor { const char* name; int inset; };
+    static constexpr Anchor bottom_offsets[]={
+        {"row_nav_y",0},{"nav_panel_y",216},{"nav_icon_y",138},{"nav_text_y",58},
+        {"nav_item_y",108},{"np_pill_y",186},{"keyboard_y",644},
+        {"keyboard_terminal_y",740},{"keyboard_num_y",760},{"keyboard_term_num_y",856}
+    };
+    for(const auto& bottom:bottom_offsets)if(name==bottom.name) {
+        output=std::to_string(height-footer-bottom.inset); return true;
+    }
     // Density changes control sizes, while the logical viewport changes anchors.
     // Explicit stock-theme names avoid changing stored selections or guessing
     // whether an arbitrary numeric variable is a dimension, color or preference.
-    struct Anchor { const char* name; int inset; };
     static constexpr Anchor trailing[]={
         {"btn_float_x",132},{"col1_x_neg",48},{"col2_x",372},{"col2_x_text",484},
         {"bs_del",144},{"bs_del_i",108},{"ab_btn1_x",84},{"ab_btn2_x",228},{"ab_btn3_x",372},
@@ -578,7 +657,83 @@ int ManagementSession::run(const std::string& command) {
             ure::require(setting || !mutation,"review-language-changed","Language changed. Review the current plan or journal again before confirming.");
         }
         ure::Root system("/");
-        if(command=="mirror-enable" || command=="mirror-disable") {
+        if(command=="extra-discover") {
+            extra_discover(system);
+        } else if(command=="mb-clear") {
+            multiboot_clear();
+        } else if(command=="mb-open") {
+            multiboot_clear(); set("ure_mb_ready","0"); set("ure_mb_existing","0");
+            if(value("ure_gpt_source").empty()) {
+#ifndef __ANDROID__
+                throw ure::Error("fixture-only-command","Select a disposable multiboot disk image in host tests");
+#else
+                const auto graph=ure::storage_graph(system); std::string parent; unsigned found=0;
+                for(const auto& row:graph["objects"])if(row["partition"]==true && row["label"]=="userdata") {
+                    parent="sysfs:"+row["parent_lun_sysfs"].asString(); ++found;
+                }
+                ure::require(found==1 && parent!="sysfs:","ambiguous-userdata","Select the measured original userdata disk before continuing");
+                set("ure_gpt_kind","live"); set("ure_gpt_source",parent);
+#endif
+            }
+            auto target=gpt_target(system);
+            const auto inspection=ure::multiboot_inspect(target,value("ure_mb_original_backup"),"global-os3.0.303.0",&system);
+            set("ure_mb_existing",inspection["multiboot"]==true ? "1" : "0");
+            set("ure_mb_capacity",std::to_string(inspection["pool"]["bytes"].asUInt64()/1073741824ULL)+" GiB");
+            set("ure_mb_ready","1"); publish(inspection);
+        } else if(command.rfind("mb-edit-",0)==0) {
+            const auto field=command.substr(8); bool allowed=field=="original_backup" || field=="order";
+            for(const auto* role:{"esp","linux_boot","linux","windows","shared","linux_swap","linux2"})
+                for(const auto* suffix:{"size","label"})allowed=allowed || field==std::string(role)+"_"+suffix;
+            ure::require(allowed && (field.find("label")==std::string::npos || choice("ure_mb_advanced")),"invalid-field","Choose an editable multiboot field");
+            multiboot_clear(); edited_management_field="ure_mb_"+field;
+            set("ure_form_field",edited_management_field); set("ure_form_value",value(edited_management_field));
+            set("ure_form_back",field=="original_backup" ? "ure_mb_welcome" : field=="order" || field.find("label")!=std::string::npos ? "ure_mb_order" : "ure_mb_sizes");
+        } else if(command=="mb-size-open" || command=="mb-fs-open" || command=="mb-size-save" || command=="mb-fs-save") {
+            const auto role=value("ure_mb_edit_role");
+            ure::require(role=="esp" || role=="linux_boot" || role=="linux" || role=="windows" || role=="shared" || role=="linux_swap" || role=="linux2",
+                "invalid-multiboot-role","Select a multiboot partition");
+            const auto prefix="ure_mb_"+role+"_";
+            ure::require(choice(prefix+"enabled"),"invalid-multiboot-role","The selected partition is disabled");
+            multiboot_clear();
+            if(command=="mb-size-open") { set("ure_mb_edit_size",value(prefix+"size")); set("ure_mb_edit_unit",value(prefix+"unit")); }
+            else if(command=="mb-fs-open")set("ure_mb_edit_fs",value(prefix+"fs"));
+            else if(command=="mb-size-save") {
+                static_cast<void>(ure::layout_size_bytes(value("ure_mb_edit_size"),value("ure_mb_edit_unit"),512ULL*1073741824));
+                set(prefix+"size",value("ure_mb_edit_size")); set(prefix+"unit",value("ure_mb_edit_unit"));
+            } else {
+                const auto fs=value("ure_mb_edit_fs");
+                ure::require((role!="esp" || fs=="fat32") && (role!="windows" || fs=="ntfs") && (role!="linux_swap" || fs=="linux-swap"),
+                    "fixed-multiboot-filesystem","ESP, Windows and swap filesystem types are fixed");
+                const auto supported=ure::multiboot_capabilities(); bool found=false;
+                for(const auto& entry:supported["filesystems"])found=found || entry["filesystem"]==fs;
+                ure::require(found,"invalid-layout-filesystem","Select a supported filesystem name"); set(prefix+"fs",fs);
+            }
+        } else if(command=="mb-review") {
+            multiboot_clear(); const auto selection=multiboot_choices(); auto target=gpt_target(system);
+            auto plan=ure::multiboot_plan(system,target,selection["request"],value("ure_mb_original_backup"),"global-os3.0.303.0");
+            multiboot_plan=plan; multiboot_selection=selection;
+            set("ure_mb_hash",plan["plan_sha256"].asString()); set("ure_mb_can_apply",plan["executable"]==true ? "1" : "0");
+            for(const auto* side:{"old","new"}) {
+                ure::Value graph; graph["format"]="ure-multiboot-bar"; graph["pool"]=plan["pool"];
+                graph["rows"]=plan[std::string(side)+"_rows"]; set("ure_mb_"+std::string(side)+"_graph",ure::json(graph));
+            }
+            ure_locale::Message report; report.prose("All data in the selected user area will be erased. Factory partitions are preserved.").data("\n\n");
+            for(const auto& row:plan["new_rows"])report.data(row["label"].asString()+" / "+row["filesystem"].asString()+" / "+
+                std::to_string(row["bytes"].asUInt64()/1048576ULL)+" MiB\n");
+            report.data("\n");
+            for(const auto& command:plan["commands"])report.data(ure::json(command)+"\n");
+            for(const auto& blocker:plan["blockers"])report.data(ure::json(blocker)+"\n");
+            display_message("ure_mb_report",report); publish(plan);
+        } else if(command=="mb-apply") {
+            ure::require(multiboot_plan.isObject() && multiboot_plan["executable"]==true &&
+                multiboot_selection==multiboot_choices() && value("ure_mb_hash")==multiboot_plan["plan_sha256"].asString() &&
+                !value("ure_mb_required_phrase").empty() && value("ure_mb_confirmation")==value("ure_mb_required_phrase"),
+                "confirmation-required","Review the current multiboot plan and type the displayed confirmation exactly");
+            auto writer=gpt_target(system,true);
+            const auto journal=(ure::fs::path(value("ure_journal_parent"))/("ure-multiboot-"+multiboot_plan["gpt"]["operation_id"].asString())).string();
+            publish(ure::multiboot_image_execute(system,writer,multiboot_plan,journal,value("ure_mb_hash"),multiboot_plan["confirmation_phrase"].asString()));
+            set("ure_partition_journal",journal); multiboot_clear(); extra_scan_ms=0;
+        } else if(command=="mirror-enable" || command=="mirror-disable") {
             gr_external_enable(command=="mirror-enable");
             set("ure_mirror_status","Display change queued for the render thread");
         } else if(command=="mirror-apply") {
@@ -752,7 +907,7 @@ int ManagementSession::run(const std::string& command) {
         } else if(command.rfind("manage-edit-",0)==0) {
             const auto field=command.substr(12);
             static const std::set<std::string> allowed{"ure_esp","ure_journal_parent","ure_fs_size","ure_fs_label","ure_rescue_command","ure_rescue_kernel","ure_rescue_timeout",
-                "ure_manage_journal","ure_btrfs_root","ure_btrfs_path","ure_btrfs_source","ure_btrfs_backup","ure_btrfs_saved","ure_btrfs_size","ure_btrfs_device",
+                "ure_manage_journal","ure_btrfs_root","ure_btrfs_path","ure_btrfs_new_path","ure_btrfs_source","ure_btrfs_backup","ure_btrfs_saved","ure_btrfs_size","ure_btrfs_device",
                 "ure_btrfs_usage","ure_btrfs_limit","ure_btrfs_store","ure_btrfs_parent","ure_btrfs_name","ure_btrfs_incremental_parent",
                 "ure_boot_esp","ure_boot_variables","ure_boot_option","ure_boot_fallback","ure_boot_partuuid","ure_boot_journal"};
             ure::require(allowed.count(field),"invalid-field","Select a supported management field");
@@ -765,6 +920,7 @@ int ManagementSession::run(const std::string& command) {
             // The editable field is selected exclusively by manage-edit-* above.
             set(field,value("ure_form_value")); set("ure_manage_hash",""); set("ure_manage_can_apply","0");
             dualboot_clear();
+            multiboot_clear();
             boot_clear_review();
             edited_management_field.clear();
         } else if(command=="linux-audit") {
@@ -1393,6 +1549,11 @@ ure::Value management_inputs() {
     for(const auto* role:{"esp","linux","windows","userdata"})
         for(const auto* field:{"size","unit","filesystem","guid"})capture("ure_layout_"+std::string(role)+"_"+field);
     for(const auto* field:{"size","unit","filesystem","guid"})capture("ure_layout_edit_"+std::string(field));
+    for(const auto* key:{"ure_mb_action","ure_mb_advanced","ure_mb_no_userdata","ure_mb_userdata_fs","ure_mb_order",
+        "ure_mb_original_backup","ure_mb_required_phrase","ure_mb_confirmation","ure_mb_hash","ure_btrfs_new_path",
+        "ure_mb_edit_role","ure_mb_edit_size","ure_mb_edit_unit","ure_mb_edit_fs"})capture(key);
+    for(const auto* role:{"esp","linux_boot","linux","windows","shared","linux_swap","linux2"})
+        for(const auto* field:{"enabled","size","unit","fs","label"})capture("ure_mb_"+std::string(role)+"_"+field);
     return input;
 }
 bool immediate_display_command(const std::string& command) {
@@ -1474,8 +1635,8 @@ int collect_management_job() {
         if(!same) {
             for(const auto* key:{"ure_manage_hash","ure_plan_hash","ure_backup_hash","ure_tree_hash","ure_gpt_plan_hash","ure_gpt_journal_hash",
                 "ure_partition_journal_hash","ure_restore_plan_hash","ure_restore_journal_hash","ure_stream_journal_hash","ure_boot_hash","ure_boot_journal_hash",
-                "ure_stock_job_hash","ure_stock_job_journal_hash","ure_fs_journal_hash","ure_journal_hash"})DataManager::SetValue(key,"");
-            for(const auto* key:{"ure_manage_can_apply","ure_gpt_can_execute","ure_restore_can_execute","ure_stock_job_can_execute","ure_boot_can_stage"})DataManager::SetValue(key,"0");
+                "ure_stock_job_hash","ure_stock_job_journal_hash","ure_fs_journal_hash","ure_journal_hash","ure_mb_hash","ure_mb_confirmation"})DataManager::SetValue(key,"");
+            for(const auto* key:{"ure_manage_can_apply","ure_gpt_can_execute","ure_restore_can_execute","ure_stock_job_can_execute","ure_boot_can_stage","ure_mb_can_apply"})DataManager::SetValue(key,"0");
             DataManager::SetValue("ure_status","Selections changed during the job. Its result is retained in Job status; review the current target again.");
         } else {
             DataManager::SetValue("ure_output",ure::json(output));
@@ -1549,6 +1710,8 @@ int GUIAction::uremanager(std::string command) {
         static_cast<void>(collect_management_job());
         ure::require(management_owner.accepting && management_owner.jobs.status()["active"]!=true && management_owner.controls.status()["active"]!=true && management_owner.session,
             "gui-job-busy","An owned job, backend controller or shutdown is active. Job status and exact controls remain available.");
+        if(command=="mb-review")DataManager::SetValue("ure_mb_required_phrase",value("ure_mb_action")=="restore-default" ?
+            gui_lookup("ure_mb_restore_phrase","Restore default") : gui_lookup("ure_mb_apply_phrase","Erase selected user area"));
         auto input=management_inputs(); auto owned=management_owner.session;
         owned->variables=input; owned->updates=ure::Value(Json::objectValue); owned->update_bytes=0;
         management_owner.inputs=input; ++management_owner.epoch;

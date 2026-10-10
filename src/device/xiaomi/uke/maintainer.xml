@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Project-owned URE pages. Actions are native; paths never enter a shell. -->
 <recovery>
+  <include><xml name="/sbin/multiboot.xml"/></include>
   <resources>
     <font name="ure_description" filename="Roboto-Regular.ttf" size="28"/>
     <image name="ure_display_icon" filename="URE/sliders-horizontal" tint="%text%"/>
@@ -122,6 +123,8 @@
     <variable name="ure_btrfs_action" value="snapshot"/>
     <variable name="ure_btrfs_source" value="@home"/>
     <variable name="ure_btrfs_path" value="home-snapshot"/>
+    <variable name="ure_btrfs_new_path" value="renamed-subvolume"/>
+    <variable name="ure_btrfs_present" value="0"/>
     <variable name="ure_btrfs_backup" value="home-snapshot"/>
     <variable name="ure_btrfs_saved" value="home-before-rollback"/>
     <variable name="ure_btrfs_readonly" value="1"/>
@@ -811,6 +814,11 @@
             <action function="uremanager">manage-edit-ure_btrfs_path</action>
             <action function="page">ure_management_input</action>
           </listitem>
+          <listitem name="{@ure_btrfs_rename_path=Rename destination}: %ure_btrfs_new_path%" description="{@ure_btrfs_rename_description=New name in the same parent; existing entries are never replaced}">
+            <icon res="ure_btrfs_icon"/>
+            <action function="uremanager">manage-edit-ure_btrfs_new_path</action>
+            <action function="page">ure_management_input</action>
+          </listitem>
           <listitem name="Snapshot source: %ure_btrfs_source%" description="Select the Btrfs target and review the operation first.">
             <icon res="ure_btrfs_icon"/>
             <action function="uremanager">manage-edit-ure_btrfs_source</action>
@@ -912,6 +920,11 @@
           <listitem name="Create subvolume" description="Select the Btrfs target and review the operation first.">
             <icon res="ure_btrfs_icon"/>
             <action function="set">ure_btrfs_action=create</action>
+            <action function="page">ure_btrfs</action>
+          </listitem>
+          <listitem name="{@ure_btrfs_rename=Rename subvolume}" description="{@ure_btrfs_rename_description=New name in the same parent; existing entries are never replaced}">
+            <icon res="ure_btrfs_icon"/>
+            <action function="set">ure_btrfs_action=rename</action>
             <action function="page">ure_btrfs</action>
           </listitem>
           <listitem name="Create snapshot" description="Select the Btrfs target and review the operation first.">
@@ -1953,6 +1966,7 @@
     <page name="ure_home">
       <action>
         <action function="set">nav_panel_id=4</action>
+        <action function="uremanager">extra-discover</action>
       </action>
       <template name="body_nav"/>
       <template name="base_nav_basic"/>
@@ -1967,6 +1981,16 @@
         </text>
         <listbox style="ure_menu">
           <placement x="0" y="0" w="%screen_w%" h="1632"/>
+          <listitem name="{@ure_mb_welcome=Setup Multiboot}" description="{@ure_mb_scope=Use only the original userdata area; factory partitions are preserved}">
+            <icon res="ure_storage_icon"/>
+            <action function="uremanager">mb-open</action>
+            <action function="page">ure_mb_welcome</action>
+          </listitem>
+          <listitem name="{@ure_btrfs_operations=Btrfs operations}" description="{@ure_btrfs_description=Manage subvolumes, snapshots and filesystem maintenance}">
+            <condition var1="ure_btrfs_present" var2="1"/>
+            <icon res="ure_btrfs_icon"/>
+            <action function="page">ure_btrfs</action>
+          </listitem>
           <listitem name="Job status" description="Inspect ongoing work, request a stop and read the final result">
             <icon res="ure_history_icon"/>
             <action function="uremanager">job-status</action>
@@ -2159,6 +2183,7 @@
             <action function="page">ure_linux</action>
           </listitem>
           <listitem name="Btrfs manager" description="Subvolumes, snapshots, scrub, balance and rollback">
+            <condition var1="ure_btrfs_present" var2="1"/>
             <icon res="ure_btrfs_icon"/>
             <action function="page">ure_btrfs</action>
           </listitem>

@@ -313,6 +313,27 @@ Value partition_layout_bar(const Value& layout,unsigned width) {
     }
     Value remaining; remaining["role"]="unallocated"; remaining["x"]=Json::UInt(scaled(cursor,width,pool)); remaining["width"]=width-remaining["x"].asUInt(); out.append(remaining); return out;
 }
+Value multiboot_layout_bar(const Value& graph,unsigned width) {
+    require(width>0 && width<=32768 && graph["format"]=="ure-multiboot-bar" && graph["pool"]["original_bytes"].isUInt64() &&
+        graph["rows"].isArray() && graph["rows"].size()<=128,"invalid-layout-bar","Invalid bounded multiboot graph");
+    const auto pool=graph["pool"]["original_bytes"].asUInt64();
+    require(pool>0 && pool<=512ULL*1073741824,"invalid-layout-bar","Invalid original userdata capacity");
+    Value out(Json::arrayValue); std::uint64_t cursor=0;
+    const auto append=[&](std::uint64_t first,std::uint64_t end,const Value& row) {
+        Value part; part["role"]=row.get("role","unallocated"); part["filesystem"]=row.get("filesystem","unknown");
+        part["x"]=Json::UInt(scaled(first,width,pool)); part["width"]=Json::UInt(scaled(end,width,pool)-part["x"].asUInt()); out.append(part);
+    };
+    for(const auto& row:graph["rows"]) {
+        require(row["pool_offset"].isUInt64() && row["bytes"].isUInt64() && row["role"].isString() && row["filesystem"].isString(),
+            "invalid-layout-bar","Invalid graph row");
+        const auto first=row["pool_offset"].asUInt64(),size=row["bytes"].asUInt64();
+        require(first>=cursor && first<=pool && size>0 && size<=pool-first,"invalid-layout-bar","Graph rows overlap or exceed original userdata");
+        if(first>cursor)append(cursor,first,Value());
+        append(first,first+size,row); cursor=first+size;
+    }
+    if(cursor<pool)append(cursor,pool,Value());
+    return out;
+}
 std::string partition_layout_text(const Value& layout) {
     std::ostringstream out; out<<"Original userdata allocation pool: "<<display_size(layout["pool"]["bytes"].asUInt64())<<"\n";
     out<<"Mode: "<<layout["mode"].asString()<<" / "<<layout["placement"].asString()<<" / userdata: "<<layout["userdata_policy"].asString()<<"\n";

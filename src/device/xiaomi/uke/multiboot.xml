@@ -1,0 +1,284 @@
+<?xml version="1.0"?>
+<recovery>
+  <variables>
+    <variable name="ure_mb_action" value="setup"/>
+    <variable name="ure_mb_advanced" value="0"/>
+    <variable name="ure_mb_no_userdata" value="0"/>
+    <variable name="ure_mb_userdata_fs" value="f2fs"/>
+    <variable name="ure_mb_original_backup" value=""/>
+    <variable name="ure_mb_order" value=""/>
+    <variable name="ure_mb_ready" value="0"/>
+    <variable name="ure_mb_existing" value="0"/>
+    <variable name="ure_mb_can_apply" value="0"/>
+    <variable name="ure_mb_capacity" value=""/>
+    <variable name="ure_mb_report" value=""/>
+    <variable name="ure_mb_hash" value=""/>
+    <variable name="ure_mb_required_phrase" value=""/>
+    <variable name="ure_mb_confirmation" value=""/>
+    <variable name="ure_mb_old_graph" value=""/>
+    <variable name="ure_mb_new_graph" value=""/>
+    <variable name="ure_mb_edit_role" value="linux"/>
+    <variable name="ure_mb_edit_size" value="40"/>
+    <variable name="ure_mb_edit_unit" value="GiB"/>
+    <variable name="ure_mb_edit_fs" value="ext4"/>
+    <variable name="ure_mb_filesystems_back" value="ure_mb_sizes"/>
+    <variable name="ure_mb_review_back" value="ure_mb_filesystems"/>
+    <variable name="ure_mb_esp_enabled" value="0"/>
+    <variable name="ure_mb_esp_size" value="512"/>
+    <variable name="ure_mb_esp_unit" value="MiB"/>
+    <variable name="ure_mb_esp_fs" value="fat32"/>
+    <variable name="ure_mb_esp_label" value="esp"/>
+    <variable name="ure_mb_linux_boot_enabled" value="0"/>
+    <variable name="ure_mb_linux_boot_size" value="512"/>
+    <variable name="ure_mb_linux_boot_unit" value="MiB"/>
+    <variable name="ure_mb_linux_boot_fs" value="ext4"/>
+    <variable name="ure_mb_linux_boot_label" value="linux_boot"/>
+    <variable name="ure_mb_linux_enabled" value="1"/>
+    <variable name="ure_mb_linux_size" value="40"/>
+    <variable name="ure_mb_linux_unit" value="GiB"/>
+    <variable name="ure_mb_linux_fs" value="ext4"/>
+    <variable name="ure_mb_linux_label" value="linux"/>
+    <variable name="ure_mb_windows_enabled" value="0"/>
+    <variable name="ure_mb_windows_size" value="50"/>
+    <variable name="ure_mb_windows_unit" value="GiB"/>
+    <variable name="ure_mb_windows_fs" value="ntfs"/>
+    <variable name="ure_mb_windows_label" value="windows"/>
+    <variable name="ure_mb_shared_enabled" value="0"/>
+    <variable name="ure_mb_shared_size" value="1"/>
+    <variable name="ure_mb_shared_unit" value="GiB"/>
+    <variable name="ure_mb_shared_fs" value="exfat"/>
+    <variable name="ure_mb_shared_label" value="shared"/>
+    <variable name="ure_mb_linux_swap_enabled" value="0"/>
+    <variable name="ure_mb_linux_swap_size" value="1"/>
+    <variable name="ure_mb_linux_swap_unit" value="GiB"/>
+    <variable name="ure_mb_linux_swap_fs" value="linux-swap"/>
+    <variable name="ure_mb_linux_swap_label" value="linux_swap"/>
+    <variable name="ure_mb_linux2_enabled" value="0"/>
+    <variable name="ure_mb_linux2_size" value="40"/>
+    <variable name="ure_mb_linux2_unit" value="GiB"/>
+    <variable name="ure_mb_linux2_fs" value="ext4"/>
+    <variable name="ure_mb_linux2_label" value="linux2"/>
+  </variables>
+  <pages>
+    <page name="ure_mb_welcome">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_welcome=Setup Multiboot}</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>{@ure_mb_pool=Original user area}: %ure_mb_capacity%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_status%</text></text>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="1200"/>
+          <listitem name="{@ure_mb_continue=Continue for Setup Multiboot}" description="{@ure_mb_scope=Use only the original userdata area; factory partitions are preserved}">
+            <condition var1="ure_mb_ready" var2="1"/><condition var1="ure_mb_existing" var2="0"/>
+            <icon res="ure_storage_icon"/><action function="set">ure_mb_action=setup</action><action function="page">ure_mb_select</action>
+          </listitem>
+          <listitem name="{@ure_mb_change=Change Multiboot}" description="{@ure_mb_erase_warning=All data in the selected user area will be erased}">
+            <condition var1="ure_mb_ready" var2="1"/><condition var1="ure_mb_existing" var2="1"/>
+            <icon res="ure_storage_icon"/><action function="set">ure_mb_action=setup</action><action function="page">ure_mb_select</action>
+          </listitem>
+          <listitem name="{@ure_mb_restore=Restore Default}" description="{@ure_mb_restore_description=Recreate userdata within its original bounds; preserve factory partitions}">
+            <condition var1="ure_mb_ready" var2="1"/><condition var1="ure_mb_existing" var2="1"/>
+            <icon res="ure_restore_icon"/><action function="set">ure_mb_action=restore-default</action><action function="set">ure_mb_review_back=ure_mb_welcome</action><action function="uremanager">mb-review</action><action function="page">ure_mb_review</action>
+          </listitem>
+          <listitem name="{@ure_mb_original_backup=Original GPT backup}" description="{@ure_mb_backup_description=Required to change or restore an existing multiboot layout}">
+            <icon res="ure_backup_icon"/><action function="uremanager">mb-edit-original_backup</action><action function="page">ure_management_input</action>
+          </listitem>
+          <listitem name="{@ure_mb_check=Check current layout}" description="{@ure_mb_check_description=Read GPT identity, boundaries and the original user-area budget}">
+            <icon res="ure_check_icon"/><action function="uremanager">mb-open</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_home</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_select">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_select=Choose partitions}</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>{@ure_mb_userdata_min=Keep at least 64 GiB for userdata, or explicitly omit it}</text></text>
+        <listbox style="ure_choices"><placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <listitem name="esp" description="{@ure_mb_minimum=Minimum}: 512 MB–4 GiB"><data variable="ure_mb_esp_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="linux_boot" description="{@ure_mb_minimum=Minimum}: 512 MB"><data variable="ure_mb_linux_boot_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="linux" description="{@ure_mb_minimum=Minimum}: 40 GiB"><data variable="ure_mb_linux_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="windows" description="{@ure_mb_minimum=Minimum}: 50 GiB"><data variable="ure_mb_windows_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="shared" description="{@ure_mb_minimum=Minimum}: 32 MiB"><data variable="ure_mb_shared_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="linux_swap" description="{@ure_mb_minimum=Minimum}: 1 GiB"><data variable="ure_mb_linux_swap_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="linux2" description="{@ure_mb_minimum=Minimum}: 40 GiB"><data variable="ure_mb_linux2_enabled"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="{@ure_mb_advanced=Advanced settings}" description="{@ure_mb_advanced_description=Allow custom GPT names and partition order}"><data variable="ure_mb_advanced"/><action function="uremanager">mb-clear</action></listitem>
+          <listitem name="{@ure_mb_no_userdata=Do not create userdata}" description="{@ure_mb_no_userdata_warning=Android cannot boot normally until userdata is restored}"><data variable="ure_mb_no_userdata"/><action function="uremanager">mb-clear</action></listitem>
+        </listbox>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <listitem name="{@ure_mb_next=Next}" description="{@ure_mb_sizes_description=Enter sizes for the selected partitions}"><icon res="ure_storage_icon"/>
+            <action function="page">ure_mb_sizes</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_mb_welcome</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_sizes">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_sizes=Choose sizes}</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>{@ure_mb_pool=Original user area}: %ure_mb_capacity%</text></text>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="1800"/><data requireReload="1"/>
+          <listitem name="esp: %ure_mb_esp_size% %ure_mb_esp_unit%" description="{@ure_mb_minimum=Minimum}: 512 MB–4 GiB"><condition var1="ure_mb_esp_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=esp</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="linux_boot: %ure_mb_linux_boot_size% %ure_mb_linux_boot_unit%" description="{@ure_mb_minimum=Minimum}: 512 MB"><condition var1="ure_mb_linux_boot_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux_boot</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="linux: %ure_mb_linux_size% %ure_mb_linux_unit%" description="{@ure_mb_minimum=Minimum}: 40 GiB"><condition var1="ure_mb_linux_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="windows: %ure_mb_windows_size% %ure_mb_windows_unit%" description="{@ure_mb_minimum=Minimum}: 50 GiB"><condition var1="ure_mb_windows_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=windows</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="shared: %ure_mb_shared_size% %ure_mb_shared_unit%" description="{@ure_mb_minimum=Minimum}: 32 MiB"><condition var1="ure_mb_shared_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=shared</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="linux_swap: %ure_mb_linux_swap_size% %ure_mb_linux_swap_unit%" description="{@ure_mb_minimum=Minimum}: 1 GiB"><condition var1="ure_mb_linux_swap_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux_swap</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="linux2: %ure_mb_linux2_size% %ure_mb_linux2_unit%" description="{@ure_mb_minimum=Minimum}: 40 GiB"><condition var1="ure_mb_linux2_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux2</action><action function="uremanager">mb-size-open</action><action function="page">ure_mb_size</action></listitem>
+          <listitem name="{@ure_mb_next=Next}" description="{@ure_mb_order_description=Review order before choosing filesystems}"><condition var1="ure_mb_advanced" var2="1"/><icon res="ure_check_icon"/><action function="page">ure_mb_order</action></listitem>
+          <listitem name="{@ure_mb_next=Next}" description="{@ure_mb_filesystems_description=Choose a filesystem for each selected partition}"><condition var1="ure_mb_advanced" var2="0"/><icon res="ure_check_icon"/><action function="set">ure_mb_filesystems_back=ure_mb_sizes</action><action function="page">ure_mb_filesystems</action></listitem>
+          <listitem name="{@ure_mb_back=Back}" description="{@ure_mb_select=Choose partitions}"><icon res="ure_storage_icon"/>
+            <action function="page">ure_mb_select</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_mb_select</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_size">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>%ure_mb_edit_role%</text></text>
+      <input><placement x="%col1_x%" y="%row1_2_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_mb_edit_size%</text><data name="ure_mb_edit_size"/><restrict minlen="1" maxlen="24"/></input>
+      <listbox style="ure_menu"><placement x="0" y="%row2_2a_y%" w="%screen_w%" h="650"/><data name="ure_mb_edit_unit"/>
+        <listitem name="MiB" description="{@ure_mb_mib=Binary megabytes; 1 MiB is 1,048,576 bytes}">MiB</listitem>
+        <listitem name="MB" description="{@ure_mb_mb=Decimal megabytes; 1 MB is 1,000,000 bytes}">MB</listitem>
+        <listitem name="GiB" description="{@ure_mb_gib=Binary gigabytes; 1 GiB is 1,073,741,824 bytes}">GiB</listitem>
+        <listitem name="GB" description="{@ure_mb_gb=Decimal gigabytes; 1 GB is 1,000,000,000 bytes}">GB</listitem>
+        <listitem name="%" description="{@ure_mb_percent=Percentage of the original combined user area}">%</listitem>
+      </listbox>
+      <button style="bs_btn"><font resource="Secondary" color="%text%"/><placement x="0" y="%keyboard_y%-180" w="%screen_w%" h="160"/><text>{@ure_mb_keep=Keep selection}</text><action function="uremanager">mb-size-save</action><action function="page">ure_mb_sizes</action></button>
+      <template name="gestures_key"/>
+      <action><touch key="back"/><action function="page">ure_mb_sizes</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_order">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_order=Partition order and names}</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="1800"/><data requireReload="1"/>
+          <listitem name="{@ure_mb_order=Partition order and names}" description="{@ure_mb_order_help=Comma-separated role names; leave empty for the standard order}"><icon res="ure_storage_icon"/>
+            <action function="uremanager">mb-edit-order</action>
+            <action function="page">ure_management_input</action>
+          </listitem>
+          <listitem name="esp: %ure_mb_esp_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_esp_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-esp_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="linux_boot: %ure_mb_linux_boot_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_linux_boot_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-linux_boot_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="linux: %ure_mb_linux_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_linux_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-linux_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="windows: %ure_mb_windows_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_windows_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-windows_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="shared: %ure_mb_shared_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_shared_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-shared_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="linux_swap: %ure_mb_linux_swap_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_linux_swap_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-linux_swap_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="linux2: %ure_mb_linux2_label%" description="{@ure_mb_label_help=Unique GPT name; advanced mode only}"><condition var1="ure_mb_linux2_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="uremanager">mb-edit-linux2_label</action><action function="page">ure_management_input</action></listitem>
+          <listitem name="{@ure_mb_next=Next}" description="{@ure_mb_filesystems=Choose filesystems}"><icon res="ure_storage_icon"/>
+            <action function="set">ure_mb_filesystems_back=ure_mb_order</action><action function="page">ure_mb_filesystems</action>
+          </listitem>
+          <listitem name="{@ure_mb_back=Back}" description="{@ure_mb_sizes=Choose sizes}"><icon res="ure_storage_icon"/>
+            <action function="page">ure_mb_sizes</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_mb_sizes</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_filesystems">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_filesystems=Choose filesystems}</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>{@ure_mb_fs_help=ext4 is recommended for Linux. ESP, Windows and swap types are fixed. Unsupported adapters block application.}</text></text>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="1800"/><data requireReload="1"/>
+          <listitem name="esp: %ure_mb_esp_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_esp_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=esp</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="linux_boot: %ure_mb_linux_boot_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_linux_boot_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux_boot</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="linux: %ure_mb_linux_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_linux_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="windows: %ure_mb_windows_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_windows_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=windows</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="shared: %ure_mb_shared_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_shared_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=shared</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="linux_swap: %ure_mb_linux_swap_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_linux_swap_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux_swap</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="linux2: %ure_mb_linux2_fs%" description="{@ure_mb_choose_fs=Choose the filesystem for this partition}"><condition var1="ure_mb_linux2_enabled" var2="1"/><icon res="ure_storage_icon"/><action function="set">ure_mb_edit_role=linux2</action><action function="uremanager">mb-fs-open</action><action function="page">ure_mb_fs</action></listitem>
+          <listitem name="{@ure_mb_next=Next}" description="{@ure_mb_review=Review changes}"><icon res="ure_storage_icon"/>
+            <action function="set">ure_mb_review_back=ure_mb_filesystems</action><action function="uremanager">mb-review</action>
+            <action function="page">ure_mb_review</action>
+          </listitem>
+          <listitem name="{@ure_mb_back=Back}" description="{@ure_mb_sizes=Choose sizes}"><icon res="ure_storage_icon"/>
+            <action function="page">%ure_mb_filesystems_back%</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">%ure_mb_filesystems_back%</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_fs">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_fs=Filesystem}</text></text>
+      <scroll x="0" y="%ab_h%" w="%screen_w%" h="%scroll_nav_h%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_mb_edit_role%</text></text>
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_mb_edit_fs%</text></text>
+        <listbox style="ure_menu"><condition var1="ure_mb_edit_role" op="!=" var2="esp"/><condition var1="ure_mb_edit_role" op="!=" var2="windows"/><condition var1="ure_mb_edit_role" op="!=" var2="linux_swap"/><placement x="0" y="0" w="%screen_w%" h="1600"/><data name="ure_mb_edit_fs"/>
+          <listitem name="fat32" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">fat32</listitem>
+          <listitem name="ntfs" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">ntfs</listitem>
+          <listitem name="f2fs" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">f2fs</listitem>
+          <listitem name="ext4" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">ext4</listitem>
+          <listitem name="btrfs" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">btrfs</listitem>
+          <listitem name="zfs" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">zfs</listitem>
+          <listitem name="exfat" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">exfat</listitem>
+          <listitem name="linux-swap" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">linux-swap</listitem>
+          <listitem name="xfs" description="{@ure_mb_adapter_check=Formatter and independent checker are verified before application}">xfs</listitem>
+        </listbox>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="1800"/>
+          <listitem name="{@ure_mb_keep=Keep selection}" description="{@ure_mb_filesystems=Choose filesystems}"><icon res="ure_storage_icon"/>
+            <action function="uremanager">mb-fs-save</action>
+            <action function="page">ure_mb_filesystems</action>
+          </listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">ure_mb_filesystems</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_review">
+      <template name="base_ex"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_review=Review changes}</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_1_y%"/><text>{@ure_mb_old=Current layout}</text></text>
+      <urepartitionmap><placement x="%col1_x%" y="%row1_2_y%" w="%input_w%" h="80"/><data name="ure_mb_old_graph"/></urepartitionmap>
+      <text style="caption"><placement x="%col1_x%" y="%row2_1_y%"/><text>{@ure_mb_new=Proposed layout}</text></text>
+      <urepartitionmap><placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="80"/><data name="ure_mb_new_graph"/></urepartitionmap>
+      <scroll x="0" y="%row3_1_y%" w="%screen_w%" h="%row_nav_y%-%row3_1_y%" spacing="24" paddingtop="24" paddingbottom="40" itemheight="48">
+        <text style="caption"><placement x="%gl_text_x%" y="0"/><text>%ure_status%</text></text>
+        <textbox><placement x="%col1_x%" y="0" w="%input_w%" h="1100"/><font resource="fixed"/><color foreground="%text%" background="%background%"/><text>%ure_mb_report%</text></textbox>
+        <text style="caption"><condition var1="ure_mb_can_apply" var2="0"/><placement x="%gl_text_x%" y="0"/><text>{@ure_mb_blocked=Application is unavailable; read the report for the remaining requirements}</text></text>
+        <listbox style="ure_menu"><placement x="0" y="0" w="%screen_w%" h="480"/>
+          <listitem name="{@ure_mb_next=Next}" description="{@ure_mb_confirm=Confirm changes}"><condition var1="ure_mb_can_apply" var2="1"/><icon res="ure_check_icon"/><action function="page">ure_mb_confirm</action></listitem>
+          <listitem name="{@ure_mb_back=Back}" description="{@ure_mb_filesystems=Choose filesystems}"><icon res="ure_storage_icon"/><action function="page">%ure_mb_review_back%</action></listitem>
+        </listbox>
+      </scroll>
+      <template name="navbar"/><template name="gestures"/>
+      <action><touch key="back"/><action function="page">%ure_mb_review_back%</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+    <page name="ure_mb_confirm">
+      <template name="base_ex_key"/>
+      <text style="text_ab_title"><placement x="%col1_x_indent%" y="%ab_bc_y%"/><text>{@ure_mb_confirm=Confirm changes}</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row1_1_y%"/><text>{@ure_mb_erase_warning=All data in the selected user area will be erased}</text></text>
+      <text style="caption"><placement x="%col1_x%" y="%row2_1_y%"/><text>{@ure_mb_type=Type exactly}: %ure_mb_required_phrase%</text></text>
+      <input><placement x="%col1_x%" y="%row3_1_y%" w="%input_w%" h="%input_height%"/><font resource="fixed"/><text>%ure_mb_confirmation%</text><data name="ure_mb_confirmation"/><restrict minlen="0" maxlen="128"/></input>
+      <keyboard>
+        <condition var1="tw_language" var2="tr_TR"/>
+        <placement x="%col1_x%" y="%row4_1_y%" w="%input_w%" h="96"/>
+        <background color="%keyboard_bg%"/><keymargin x="8" y="8"/>
+        <key-alphanumeric color="%neutral_light%" font="keylabel" textcolor="%text%"/>
+        <key-other color="%neutral_light%" font="keylabel" textcolor="%text%"/>
+        <keylabel key="0:c:231" text="ç"/><keylabel key="0:c:305" text="ı"/><keylabel key="0:c:246" text="ö"/><keylabel key="0:c:252" text="ü"/>
+        <highlight color="%keyboard_hl%"/>
+        <layout1><keysize height="96" width="100"/><row1 key01="100:c:305" key02="100:c:246" key03="100:c:252" key04="100:c:231"/></layout1>
+      </keyboard>
+      <button style="bs_btn"><font resource="Secondary" color="%text%"/><condition var1="ure_mb_can_apply" var2="1"/><condition var1="ure_mb_confirmation" var2="%ure_mb_required_phrase%"/><placement x="0" y="%row5_1_y%" w="%screen_w%" h="160"/><text>{@ure_mb_apply=Apply reviewed changes}</text><action function="uremanager">mb-apply</action><action function="page">ure_output</action></button>
+      <template name="gestures_key"/>
+      <action><touch key="back"/><action function="page">ure_mb_review</action></action>
+      <action><touch key="home"/><action function="home"/></action>
+    </page>
+  </pages>
+</recovery>

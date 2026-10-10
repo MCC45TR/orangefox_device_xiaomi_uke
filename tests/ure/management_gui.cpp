@@ -120,6 +120,28 @@ int main(int argc,char* argv[]) {
         check(run_management(action,"partition-job-inspect")==0 && value("ure_partition_can_rollback")=="1","Actual GUI did not inspect a complete data/GPT journal");
         DataManager::SetValue("ure_gpt_source",image.string()); check(run_management(action,"partition-job-rollback")==1,"Changed GUI target reused journal confirmation");
         DataManager::SetValue("ure_gpt_source",disk.string()); check(run_management(action,"partition-job-rollback")==0 && digest(disk)==original_disk,"Actual GUI failed complete partition rollback");
+        DataManager::SetValue("ure_gpt_backup_dir",(fixture/"original-gpt").string());
+        check(run_management(action,"gpt-backup")==0,"Cannot capture original GUI fixture GPT");
+        for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_mb_action","restore-default"},{"ure_mb_advanced","0"},
+            {"ure_mb_no_userdata","0"},{"ure_mb_userdata_fs","ext4"},{"ure_mb_order",""},
+            {"ure_mb_original_backup",(fixture/"original-gpt").string()}})DataManager::SetValue(key,text);
+        for(const auto* role:{"esp","linux_boot","linux","windows","shared","linux_swap","linux2"}) {
+            const std::string prefix="ure_mb_"+std::string(role)+"_";
+            DataManager::SetValue(prefix+"enabled","0"); DataManager::SetValue(prefix+"label",role);
+        }
+        check(run_management(action,"mb-open")==0 && value("ure_mb_ready")=="1","Wizard did not inspect the original user area");
+        check(run_management(action,"mb-review")==0 && value("ure_mb_hash").size()==64,"Wizard did not review its restore plan");
+        for(const auto* side:{"old","new"}) {
+            const auto graph=ure::parse_json(value("ure_mb_"+std::string(side)+"_graph"));
+            unsigned pixels=0; for(const auto& segment:ure::multiboot_layout_bar(graph,2136))pixels+=segment["width"].asUInt();
+            check(pixels==2136,"GUI comparison graph does not satisfy the renderer contract");
+        }
+        DataManager::SetValue("ure_mb_confirmation","wrong");
+        check(run_management(action,"mb-apply")==1 && digest(disk)==original_disk,"Wizard accepted the wrong localized consent");
+        DataManager::SetValue("ure_mb_action","setup"); DataManager::SetValue("ure_mb_windows_enabled","1");
+        DataManager::SetValue("ure_mb_windows_size","50"); DataManager::SetValue("ure_mb_windows_unit","GiB"); DataManager::SetValue("ure_mb_windows_fs","ntfs");
+        check(run_management(action,"mb-review")==1 && value("ure_mb_hash").empty() && value("ure_mb_can_apply")=="0" && digest(disk)==original_disk,
+            "Failed multiboot review retained a destructive confirmation or changed the disk");
         check(management_foreign_reads==0 && management_foreign_writes==0,"A backend worker read or wrote the mutable GUI state");
         ure_gui_shutdown_jobs(); ure::fs::remove_all(fixture); std::cout<<"Actual management callbacks: sealed review, changed selections/view epochs, image format/readback/rollback, rescue review, truthful empty audit, native Btrfs discovery, queued scale application, unavailable private-preference refusal and UTF-8 preview boundaries passed; host UI stand-ins only.\n"; return 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; ure_gui_shutdown_jobs(); ure::fs::remove_all(fixture); return 1; }

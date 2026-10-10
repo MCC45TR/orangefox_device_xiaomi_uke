@@ -39,7 +39,7 @@ inline void remember(const std::string& variable, const Message& message) {
 inline bool display_variable(const std::string& variable, const std::string& raw, const Lookup& lookup, std::string& output) {
     static const std::vector<std::string_view> prose_variables = {
         "ure_status", "ure_scale_status", "ure_scale_warning", "ure_mirror_status", "ure_manage_summary",
-        "ure_boot_summary", "ure_stock_job_summary", "ure_layout_review", "ure_maintenance_state"
+        "ure_boot_summary", "ure_stock_job_summary", "ure_layout_review", "ure_maintenance_state", "ure_mb_report"
     };
     static const std::map<std::string, std::map<std::string, std::string>> choices = {
         {"ure_layout_mode", {{"standard", "Standard"}, {"advanced", "Advanced"}}},

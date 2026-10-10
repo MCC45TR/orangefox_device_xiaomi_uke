@@ -17,7 +17,7 @@ target_include_directories(uke-jsoncpp SYSTEM PUBLIC ${UKE_JSONCPP_SOURCE}/inclu
 target_compile_definitions(uke-jsoncpp PRIVATE JSON_USE_EXCEPTION=0 JSONCPP_NO_LOCALE_SUPPORT)
 add_library(uke-recovery STATIC libuke/core.cpp libuke/storage.cpp libuke/systems.cpp libuke/boot_audit.cpp libuke/boot_router.cpp libuke/editor.cpp
     libuke/transaction.cpp libuke/backup.cpp libuke/installer_job.cpp libuke/tree.cpp libuke/tree_listing.cpp libuke/block.cpp libuke/gpt.cpp libuke/stock.cpp libuke/partition.cpp libuke/layout.cpp libuke/display.cpp libuke/ownership.cpp libuke/diagnostics.cpp libuke/tools.cpp libuke/cli.cpp
-    libuke/preflight.cpp libuke/device_profile.cpp libuke/platform.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/dualboot.cpp libuke/dualboot_device.cpp libuke/recovery_services.cpp libuke/image_ranges.cpp libuke/stock_job.cpp libuke/rescue.cpp libuke/rescue_resources.cpp libuke/gui_job.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp libuke/operation_lease.cpp libuke/operation_guard.cpp libuke/lifecycle_bridge.cpp)
+    libuke/preflight.cpp libuke/device_profile.cpp libuke/platform.cpp libuke/filesystems.cpp libuke/partition_job.cpp libuke/dualboot.cpp libuke/dualboot_device.cpp libuke/multiboot.cpp libuke/recovery_services.cpp libuke/image_ranges.cpp libuke/stock_job.cpp libuke/rescue.cpp libuke/rescue_resources.cpp libuke/gui_job.cpp libuke/btrfs_backup.cpp libuke/btrfs_manager.cpp libuke/management.cpp libuke/operation_lease.cpp libuke/operation_guard.cpp libuke/lifecycle_bridge.cpp)
 target_compile_features(uke-recovery PUBLIC cxx_std_20)
 target_compile_options(uke-recovery PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
 target_link_libraries(uke-recovery PUBLIC uke-jsoncpp OpenSSL::Crypto ZLIB::ZLIB LibLZMA::LibLZMA ${UKE_ZSTD_LIBRARY} Threads::Threads)
@@ -130,6 +130,12 @@ if(BUILD_TESTING)
     add_test(NAME ure-btrfs-rename-ownership COMMAND ${BWRAP_EXECUTABLE} --bind / / --dev-bind /dev /dev --unshare-pid --proc /proc
         bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/with-operation-coordinator.sh"
         "${CMAKE_CURRENT_BINARY_DIR}" $<TARGET_FILE:uke-btrfs-rename-tests> "${CMAKE_CURRENT_BINARY_DIR}")
+    add_executable(uke-multiboot-tests ../../../../../tests/ure/multiboot.cpp)
+    target_include_directories(uke-multiboot-tests PRIVATE libuke)
+    target_link_libraries(uke-multiboot-tests PRIVATE uke-recovery)
+    target_compile_options(uke-multiboot-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    ure_test(ure-multiboot-original-userdata-only uke-multiboot-tests)
+    set_tests_properties(ure-multiboot-original-userdata-only PROPERTIES TIMEOUT 300)
     find_package(LibXml2 REQUIRED)
     # Host-only catalog generation. None of these targets are Android payloads.
     add_library(uke-locale-keys STATIC ../../../../localization/key-catalog.cpp)

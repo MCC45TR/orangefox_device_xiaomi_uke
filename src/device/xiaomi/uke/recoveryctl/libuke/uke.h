@@ -107,6 +107,8 @@ std::vector<StorageRange> gpt_stock_plan_regions(const StorageTarget& target, co
 Value gpt_backup(const StorageTarget& target, const fs::path& directory, const std::string& profile,
                  const Root* system = nullptr);
 Value gpt_backup_verify(const fs::path& directory);
+Value gpt_original_table(const StorageTarget& target, const fs::path& directory, const std::string& profile,
+                         const Root* system = nullptr);
 Value gpt_compare(const StorageTarget& target, const fs::path& directory, const std::string& profile,
                   const Root* system = nullptr);
 Value gpt_plan(const StorageTarget& target, const std::string& operation, const std::string& profile,
@@ -126,6 +128,19 @@ std::uint64_t layout_size_bytes(const std::string& amount, const std::string& un
 Value partition_layout(const StorageTarget& target, const Value& request, const std::string& profile, const Root* system = nullptr);
 Value partition_capabilities();
 Value dualboot_layout_request(const Value& input);
+Value multiboot_capabilities();
+Value multiboot_inspect(const StorageTarget& target, const fs::path& original_backup,
+                       const std::string& profile, const Root* system = nullptr);
+Value multiboot_plan(const Root& system, const StorageTarget& target, const Value& request,
+                    const fs::path& original_backup, const std::string& profile);
+void multiboot_validate_plan(const Value& plan);
+Value multiboot_image_execute(const Root& system, StorageTarget& target, const Value& plan,
+                             const fs::path& journal, const std::string& confirmation,
+                             const std::string& data_policy);
+std::vector<StorageRange> multiboot_gpt_regions(const StorageTarget& target, const Value& request,
+    const fs::path& original_backup, const std::string& profile, Value& source, const Root* system = nullptr);
+Value gpt_multiboot_plan(const StorageTarget& target, const Value& request, const fs::path& original_backup,
+                        const std::string& profile, const Root* system = nullptr);
 Value dualboot_plan(const Root& system, const StorageTarget& target, const Value& input, const std::string& profile);
 std::string dualboot_preview(const Value& plan);
 int dualboot_shell(const std::vector<std::string>& args, std::istream& input, std::ostream& output);
@@ -141,6 +156,7 @@ Value partition_job_execute_reviewed(const Root& system, StorageTarget& target, 
 Value dualboot_image_execute(const Root& system, StorageTarget& target, const Value& plan, const fs::path& journal, const std::string& confirmation, const std::string& data_policy);
 Value partition_live_blockers();
 Value partition_layout_bar(const Value& layout, unsigned width);
+Value multiboot_layout_bar(const Value& graph, unsigned width);
 std::string partition_layout_text(const Value& layout);
 std::vector<StorageRange> gpt_layout_regions(const StorageTarget& target, const Value& request,
                                             const std::string& profile, Value& source, const Root* system = nullptr);
@@ -201,6 +217,8 @@ Value recovery_install_execute(const Root& system, StorageTarget& target, const 
 Value recovery_install_recover(const Root& system, StorageTarget& target, const StorageTarget& fallback,
                               const fs::path& journal, const std::string& action, const std::string& confirmation = {});
 Value partition_job_plan(const Root& system, const StorageTarget& target, const Value& request, const std::string& profile);
+Value partition_job_multiboot_plan(const Root& system, const StorageTarget& target, const Value& request,
+                                  const fs::path& original_backup, const std::string& profile);
 Value partition_job_execute(const Root& system, StorageTarget& target, const Value& plan,
                             const fs::path& journal, const std::string& confirmation);
 Value partition_job_recover(const Root& system, StorageTarget& target, const fs::path& journal,

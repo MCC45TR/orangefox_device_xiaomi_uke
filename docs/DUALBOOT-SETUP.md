@@ -2,9 +2,10 @@
 
 `partition` is a native alias of `uke-recoveryctl dualboot setup` in the recovery
 ramdisk. It provides an interactive preview and explicit application flow.
-**Extra → Storage and partitions → Dualboot setup** provides the same native
-planner through an OrangeFox wizard, with system checkboxes, capacity and unit
-selectors, a proportional partition map and a separate data-loss confirmation.
+The new **Extra → Setup Multiboot** wizard has a separate seven-role planner,
+sequential selection/review pages and localized consent. See
+[the graphical wizard guide](MULTIBOOT-WIZARD.md). This document describes the
+earlier five-role shell interface and its distinct backend prerequisites.
 
 All OS allocations come from the **original userdata extent**. Setup preserves
 the userdata start, GPT entry and partition GUID, every other partition record

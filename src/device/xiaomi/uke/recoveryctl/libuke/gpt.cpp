@@ -212,6 +212,7 @@ std::vector<StorageRange> stock_desired(const StorageTarget& target,const fs::pa
 }
 std::vector<StorageRange> plan_desired(const StorageTarget& target,const Value& plan,Value& source) {
     if(plan["operation"]=="gpt.layout")return gpt_layout_regions(target,plan["layout"]["request"],plan["firmware_profile"].asString(),source);
+    if(plan["operation"]=="gpt.multiboot")return multiboot_gpt_regions(target,plan["layout"]["request"],plan["backup_directory"].asString(),plan["firmware_profile"].asString(),source);
     if(plan["operation"]=="gpt.stock")return stock_desired(target,plan["stock_inputs_directory"].asString(),plan["stock_lun"].asUInt(),
         plan["firmware_profile"].asString(),plan["backup_directory"].asString(),source);
     return desired(target,plan["operation"].asString(),plan["backup_directory"].asString(),plan["firmware_profile"].asString(),source);
@@ -233,7 +234,7 @@ void verify_ranges(int fd,const std::vector<StorageRange>& ranges) {
 }
 void write_gate(const StorageTarget& target) { storage_write_gate(target); }
 void check_plan(const Value& plan) {
-    require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore" || plan["operation"]=="gpt.stock" || plan["operation"]=="gpt.layout") &&
+    require(plan["schema"]==1 && (plan["operation"]=="gpt.repair" || plan["operation"]=="gpt.restore" || plan["operation"]=="gpt.stock" || plan["operation"]=="gpt.layout" || plan["operation"]=="gpt.multiboot") &&
         plan["target_identity"].isObject() && plan["target_identity"]["bytes"].isUInt64() &&
         plan["target_identity"]["logical_sector_bytes"].isUInt() && plan["firmware_profile"].isString() &&
         identifier(plan["firmware_profile"].asString()) && plan["operation_id"].isString() && identifier(plan["operation_id"].asString()) &&
@@ -241,7 +242,8 @@ void check_plan(const Value& plan) {
         plan["plan_sha256"].asString()==seal(plan,"plan_sha256"),"invalid-gpt-plan","Invalid sealed GPT plan");
     const auto sector=plan["target_identity"]["logical_sector_bytes"].asUInt();
     require(sector==512 || sector==4096,"invalid-gpt-plan","Unsupported plan sector size");
-    if(plan["operation"]=="gpt.layout")require(plan["layout"].isObject() && plan["layout"]["format"]=="ure-partition-layout" &&
+    if(plan["operation"]=="gpt.layout" || plan["operation"]=="gpt.multiboot")require(plan["layout"].isObject() &&
+        plan["layout"]["format"]==(plan["operation"]=="gpt.multiboot" ? "ure-multiboot-layout" : "ure-partition-layout") &&
         plan["layout"]["layout_sha256"].isString() && hash_valid(plan["layout"]["layout_sha256"].asString()) &&
         plan["layout"]["layout_sha256"].asString()==seal(plan["layout"],"layout_sha256") &&
         plan["layout"]["layout_sha256"]==plan["backup_manifest_sha256"] && plan["execution_scope"]=="GPT_METADATA_ONLY" &&
@@ -338,6 +340,13 @@ Value gpt_backup_verify(const fs::path& directory) {
     result["target_identity"]=manifest["target_identity"]; result["firmware_profile"]=manifest["firmware_profile"];
     result["region_count"]=manifest["regions"].size(); result["private_record"]=true; return result;
 }
+Value gpt_original_table(const StorageTarget& target,const fs::path& directory,const std::string& profile,const Root* system) {
+    storage_revalidate(target,system); auto store=private_directory(directory,false);
+    const auto manifest=backup_manifest(store); same_target(target.identity,manifest["target_identity"]);
+    require(manifest["firmware_profile"]==profile,"wrong-profile","Original GPT backup firmware profile differs");
+    Value out; out["manifest"]=manifest; out["table"]=record(store,"partition-table.json");
+    out["read_only"]=true; out["physical_test_record"]=false; storage_revalidate(target,system); return out;
+}
 Value gpt_compare(const StorageTarget& target,const fs::path& directory,const std::string& profile,const Root* system) {
     storage_revalidate(target,system);
     auto store=private_directory(directory,false); const auto manifest=backup_manifest(store); same_target(target.identity,manifest["target_identity"]);
@@ -380,6 +389,21 @@ Value gpt_layout_plan(const StorageTarget& target,const Value& request,const std
     plan["live_write_backend_ready"]=false; plan["cancel_semantics"]="cancel-before-executing; interrupted execution requires inspection/rollback";
     plan["current_table"]=gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt()); plan["desired_table"]=proposed_table(target,after);
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,system); return plan;
+}
+Value gpt_multiboot_plan(const StorageTarget& target,const Value& request,const fs::path& original_backup,const std::string& profile,const Root* system) {
+    storage_revalidate(target,system); Value source;
+    const auto after=multiboot_gpt_regions(target,request,original_backup,profile,source,system);
+    const auto before=read_original(target.descriptor.get(),after);
+    protect_usable(target.descriptor.get(),descriptions(after),target.identity["logical_sector_bytes"].asUInt());
+    Value plan; plan["schema"]=1; plan["operation"]="gpt.multiboot"; plan["operation_id"]=operation_id(); plan["created_utc"]=utc();
+    plan["target_identity"]=target.identity; plan["firmware_profile"]=profile; plan["before"]=descriptions(before); plan["after"]=descriptions(after);
+    plan["untouched"]=Value(Json::arrayValue); plan["backup_directory"]=source["original_backup_directory"];
+    plan["backup_manifest_sha256"]=source["manifest_sha256"]; source.removeMember("manifest_sha256"); plan["layout"]=source;
+    plan["execution_scope"]="GPT_METADATA_ONLY"; plan["formats_filesystems"]=false; plan["migrates_data"]=false;
+    plan["complete_partition_job"]=false; plan["backup_required"]=true; plan["private_record"]=true; plan["physical_test_record"]=false;
+    plan["live_write_backend_ready"]=false; plan["current_table"]=gpt_inspect(target.descriptor.get(),target.identity["logical_sector_bytes"].asUInt());
+    plan["desired_table"]=proposed_table(target,after); plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan);
+    storage_revalidate(target,system); return plan;
 }
 Value gpt_stock_plan(const StorageTarget& target,const fs::path& inputs,unsigned lun,const std::string& profile,
                      const fs::path& identity_backup,const Root* system) {

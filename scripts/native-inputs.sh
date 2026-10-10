@@ -24,9 +24,7 @@ cd "$component"
         patches/0068-fit-keyboard-and-compact-gesture-area.patch \
         patches/0069-draw-themed-keys-at-the-fitted-width.patch \
         patches/0070-enter-localized-confirmation-characters.patch tests/check-localized-input.sh \
-        patches/0071-keep-input-cursors-on-utf8-boundaries.patch \
-        src/upstream/orangefox-android16/bootable/recovery/gui/input.cpp \
-        tests/check-keyboard-geometry.sh tests/ure/keyboard_geometry.cpp \
+        patches/0071-keep-input-cursors-on-utf8-boundaries.patch tests/check-multiboot-ui.sh \
         patches/0072-recovery-crypto-service-hardening.patch patches/0073-vold-crypto-service-hardening.patch tests/check-crypto-service-hardening.sh \
         patches/0076-handle-missing-keystore-results.patch tests/check-crypto-nullability.sh \
         patches/0079-compile-vold-guards-for-the-recovery-caller.patch patches/0080-link-the-dedicated-recovery-vold-library.patch \
@@ -41,8 +39,12 @@ cd "$component"
         src/upstream/orangefox-android16/system/vold/Keystore.cpp \
         patches/0074-select-explicit-boot-slots-for-quick-backup.patch patches/0075-show-unavailable-wipe-choices-without-enabling-writes.patch \
         tests/check-partition-menu-options.sh scripts/backup-important-partitions.sh tests/check-important-partition-backup.sh \
+        src/upstream/orangefox-android16/bootable/recovery/gui/input.cpp \
+        tests/check-keyboard-geometry.sh tests/ure/keyboard_geometry.cpp \
         tests/check-touch-release.sh tests/check-touch-device-state.sh
-    printf '%s\0' src/device/xiaomi/uke/maintainer.xml
+    printf '%s\0' src/device/xiaomi/uke/{maintainer,multiboot}.xml
+    printf '%s\0' src/device/xiaomi/uke/localization/tr_TR-ure.xml
+    printf '%s\0' patches/0084-register-multiboot-and-preference-resource-defaults.patch
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \
         patches/0061-describe-uke-device-and-soc.patch
     printf '%s\0' scripts/native-inputs.sh tests/run-native.sh tests/check-ure.sh \

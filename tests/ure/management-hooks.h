@@ -11,6 +11,8 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <sstream>
+#include <sys/sysmacros.h>
 #include <thread>
 #include <poll.h>
 inline std::map<std::string,std::string> management_variables;

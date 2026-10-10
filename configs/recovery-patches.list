@@ -50,3 +50,4 @@
 0077-clear-only-the-recovery-selector-before-system-reboot.patch
 0080-link-the-dedicated-recovery-vold-library.patch
 0083-fix-apex-loop-size-and-device-ownership.patch
+0084-register-multiboot-and-preference-resource-defaults.patch

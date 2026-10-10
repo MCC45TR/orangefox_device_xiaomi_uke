@@ -37,6 +37,23 @@ codec=/mnt/out-public/target/product/uke/system/lib64/libzstd.so
 readelf -h "$codec" | grep -q 'Machine:.*AArch64'
 cp -- "$codec" "$payload/system/lib64/libzstd.so"
 cp -- /mnt/device/xiaomi/uke/maintainer.xml "$payload/sbin/maintainer.xml"
+cp -- /mnt/device/xiaomi/uke/multiboot.xml "$payload/sbin/multiboot.xml"
+# Curated resources extend the packaged language; no translation service or
+# runtime materializer is needed on the tablet.
+for overlay in /mnt/device/xiaomi/uke/localization/*-ure.xml; do
+    locale=${overlay##*/}; locale=${locale%-ure.xml}
+    language="$payload/twres/languages/$locale.xml"
+    [[ -f $language && ! -L $language ]]
+    while IFS= read -r key; do
+        if grep -Fq "name=\"$key\"" "$language"; then
+            echo 'Refusing a duplicate recovery translation key' >&2; exit 1
+        fi
+    done < <(sed -n 's/.*<string name="\([a-zA-Z0-9_]*\)".*/\1/p' "$overlay")
+    awk 'FNR==NR { if ($0 ~ /<string name=/) extra=extra $0 "\n"; next }
+        /<\/resources>/ { printf "%s",extra; count++ } { print } END { if(count!=1)exit 1 }' \
+        "$overlay" "$language" > "$language.ure-new"
+    mv -- "$language.ure-new" "$language"
+done
 mkdir -p "$payload/twres/images/URE"
 cp -- /mnt/device/xiaomi/uke/ui-icons/*.png "$payload/twres/images/URE/"
 mkdir -p "$payload/system/etc/ure/licenses"

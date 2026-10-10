@@ -1,0 +1,62 @@
+--- a/gui/theme/common/languages/en.xml
++++ b/gui/theme/common/languages/en.xml
+@@ -1269,5 +1269,59 @@
+ 		<string name="partitions_management">Partitions Management</string>
+ 		
+ 		<string name="ure_lifecycle_blocked">An active or interrupted operation must finish or be recovered before unmounting or restarting.</string>
++		<string name="ure_mb_welcome">Setup Multiboot</string>
++		<string name="ure_mb_pool">Original user area</string>
++		<string name="ure_mb_continue">Continue for Setup Multiboot</string>
++		<string name="ure_mb_scope">Use only the original userdata area; factory partitions are preserved</string>
++		<string name="ure_mb_change">Change Multiboot</string>
++		<string name="ure_mb_erase_warning">All data in the selected user area will be erased</string>
++		<string name="ure_mb_restore">Restore Default</string>
++		<string name="ure_mb_restore_description">Recreate userdata within its original bounds; preserve factory partitions</string>
++		<string name="ure_mb_original_backup">Original GPT backup</string>
++		<string name="ure_mb_backup_description">Required to change or restore an existing multiboot layout</string>
++		<string name="ure_mb_check">Check current layout</string>
++		<string name="ure_mb_check_description">Read GPT identity, boundaries and the original user-area budget</string>
++		<string name="ure_mb_select">Choose partitions</string>
++		<string name="ure_mb_userdata_min">Keep at least 64 GiB for userdata, or explicitly omit it</string>
++		<string name="ure_mb_minimum">Minimum</string>
++		<string name="ure_mb_advanced">Advanced settings</string>
++		<string name="ure_mb_advanced_description">Allow custom GPT names and partition order</string>
++		<string name="ure_mb_no_userdata">Do not create userdata</string>
++		<string name="ure_mb_no_userdata_warning">Android cannot boot normally until userdata is restored</string>
++		<string name="ure_mb_next">Next</string>
++		<string name="ure_mb_sizes_description">Enter sizes for the selected partitions</string>
++		<string name="ure_mb_sizes">Choose sizes</string>
++		<string name="ure_mb_order_description">Review order before choosing filesystems</string>
++		<string name="ure_mb_filesystems_description">Choose a filesystem for each selected partition</string>
++		<string name="ure_mb_back">Back</string>
++		<string name="ure_mb_mib">Binary megabytes; 1 MiB is 1,048,576 bytes</string>
++		<string name="ure_mb_mb">Decimal megabytes; 1 MB is 1,000,000 bytes</string>
++		<string name="ure_mb_gib">Binary gigabytes; 1 GiB is 1,073,741,824 bytes</string>
++		<string name="ure_mb_gb">Decimal gigabytes; 1 GB is 1,000,000,000 bytes</string>
++		<string name="ure_mb_percent">Percentage of the original combined user area</string>
++		<string name="ure_mb_keep">Keep selection</string>
++		<string name="ure_mb_order">Partition order and names</string>
++		<string name="ure_mb_order_help">Comma-separated role names; leave empty for the standard order</string>
++		<string name="ure_mb_label_help">Unique GPT name; advanced mode only</string>
++		<string name="ure_mb_filesystems">Choose filesystems</string>
++		<string name="ure_mb_fs_help">ext4 is recommended for Linux. ESP, Windows and swap types are fixed. Unsupported adapters block application.</string>
++		<string name="ure_mb_choose_fs">Choose the filesystem for this partition</string>
++		<string name="ure_mb_review">Review changes</string>
++		<string name="ure_mb_fs">Filesystem</string>
++		<string name="ure_mb_adapter_check">Formatter and independent checker are verified before application</string>
++		<string name="ure_mb_old">Current layout</string>
++		<string name="ure_mb_new">Proposed layout</string>
++		<string name="ure_mb_blocked">Application is unavailable; read the report for the remaining requirements</string>
++		<string name="ure_mb_confirm">Confirm changes</string>
++		<string name="ure_mb_type">Type exactly</string>
++		<string name="ure_mb_apply">Apply reviewed changes</string>
++		<string name="ure_mb_restore_phrase">Restore default</string>
++		<string name="ure_mb_apply_phrase">Erase selected user area</string>
++		<string name="ure_theme_session_only">Settings are saved when the recovery preference store is available.</string>
++		<string name="ure_btrfs_rename_path">Rename destination</string>
++		<string name="ure_btrfs_rename_description">New name in the same parent; existing entries are never replaced</string>
++		<string name="ure_btrfs_rename">Rename subvolume</string>
++		<string name="ure_btrfs_operations">Btrfs operations</string>
++		<string name="ure_btrfs_description">Manage subvolumes, snapshots and filesystem maintenance</string>
+ 	</resources>
+ </language>

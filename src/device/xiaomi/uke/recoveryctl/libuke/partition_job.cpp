@@ -139,9 +139,11 @@ void check_plan(const Value& plan) {
         plan["live_write_backend_ready"]==false && plan["physical_test_record"]==false,"invalid-partition-plan","Invalid sealed partition job");
     const auto& gpt=plan["gpt"]; const auto& layout=gpt["layout"]; const auto capacity=plan["target_identity"]["bytes"].asUInt64();
     const auto sector=plan["target_identity"]["logical_sector_bytes"].asUInt();
-    require(gpt["operation"]=="gpt.layout" && gpt["plan_sha256"]==seal(gpt,"plan_sha256") && json(gpt["target_identity"])==json(plan["target_identity"]) &&
+    const bool multiboot=gpt["operation"]=="gpt.multiboot";
+    require((gpt["operation"]=="gpt.layout" || multiboot) && gpt["plan_sha256"]==seal(gpt,"plan_sha256") && json(gpt["target_identity"])==json(plan["target_identity"]) &&
         gpt["firmware_profile"]==plan["firmware_profile"] && gpt["current_table"]["healthy"]==true && gpt["desired_table"]["healthy"]==true &&
-        layout["format"]=="ure-partition-layout" && layout["pool"]["source"]=="ORIGINAL_USERDATA_ONLY" && layout["rows"].isArray() && (layout["rows"].size()==4 || layout["rows"].size()==5) &&
+        layout["format"]==(multiboot ? "ure-multiboot-layout" : "ure-partition-layout") && layout["pool"]["source"]=="ORIGINAL_USERDATA_ONLY" && layout["rows"].isArray() &&
+        (multiboot ? !layout["rows"].empty() && layout["rows"].size()<=8 : layout["rows"].size()==4 || layout["rows"].size()==5) &&
         (sector==512 || sector==4096) && capacity<=INT64_MAX,"invalid-partition-plan","Partition job source table or scope is invalid");
     const auto start=layout["pool"]["offset"].asUInt64(),bytes=layout["pool"]["original_bytes"].asUInt64();
     require(bytes>=32*mib && bytes<=maximum && start<=capacity && bytes<=capacity-start && start%mib==0,"invalid-partition-plan","Invalid original userdata geometry");
@@ -151,7 +153,8 @@ void check_plan(const Value& plan) {
     std::set<std::string> roles; std::uint64_t cursor=start;
     for(const auto& row:layout["rows"]) {
         const auto role=row["role"].asString(); const auto size=row["bytes"].asUInt64();
-        require((role=="esp" || role=="linux_boot" || role=="linux" || role=="windows" || role=="userdata") && roles.insert(role).second && number(row["offset"],cursor) &&
+        require((role=="esp" || role=="linux_boot" || role=="linux" || role=="windows" || role=="userdata" ||
+            (multiboot && (role=="shared" || role=="linux_swap" || role=="linux2"))) && roles.insert(role).second && number(row["offset"],cursor) &&
             size<=start+bytes-cursor && (row["enabled"]==true)==(size!=0),"invalid-partition-plan","Partition roles overlap or escape original userdata");
         if(size)require(size>=32*mib && number(row["start_lba"],cursor/sector) && number(row["end_lba"],(cursor+size)/sector-1),"invalid-partition-plan","Partition geometry differs from its row");
         cursor+=size;
@@ -198,7 +201,9 @@ void prepare(const Root& system,StorageTarget& target,const Root& store,const fs
     auto before=store.open("userdata-before.img",O_RDWR|O_CREAT|O_EXCL,0600);
     copy(target.descriptor.get(),before.get(),pool["offset"].asUInt64(),original_bytes);
     require(sha256(before.get())==plan["userdata_sha256"].asString(),"stale-source","Userdata staging readback differs from review");
-    Value source; const auto desired=gpt_layout_regions(target,plan["gpt"]["layout"]["request"],plan["firmware_profile"].asString(),source,&system);
+    Value source; const auto desired=plan["gpt"]["operation"]=="gpt.multiboot" ?
+        multiboot_gpt_regions(target,plan["gpt"]["layout"]["request"],plan["gpt"]["backup_directory"].asString(),plan["firmware_profile"].asString(),source,&system) :
+        gpt_layout_regions(target,plan["gpt"]["layout"]["request"],plan["firmware_profile"].asString(),source,&system);
     require(source["layout_sha256"]==plan["gpt"]["layout"]["layout_sha256"],"stale-plan","Resolved partition layout differs from review");
     for(const auto& range:desired) {
         auto old=store.open("gpt-before-"+range.name+".bin",O_RDWR|O_CREAT|O_EXCL,0600); auto next=store.open("gpt-after-"+range.name+".bin",O_RDWR|O_CREAT|O_EXCL,0600);
@@ -214,7 +219,7 @@ void prepare(const Root& system,StorageTarget& target,const Root& store,const fs
         auto seed=storage_image(path/(shrinking ? "userdata-before.img" : seed_name),512);
         Value request; request["schema"]=1; request["action"]=shrinking ? "resize" : "format"; request["filesystem"]=type;
         if(shrinking)request["target_bytes"]=Json::UInt64(bytes);
-        else { request["erase_confirmed"]=true; request["label"]=role=="userdata" ? "USERDATA" : role=="linux_boot" ? "URE_BOOT" : "URE_"+role; }
+        else { request["erase_confirmed"]=true; request["label"]=role=="userdata" ? "USERDATA" : role=="linux_boot" ? "URE_BOOT" : ("URE_"+role).substr(0,11); }
         const auto fs_plan=filesystem_operation_plan(system,seed,request,plan["firmware_profile"].asString());
         filesystem_prepare(system,seed,fs_plan,path/("stage-"+role),fs_plan["plan_sha256"].asString(),&parent);
         auto prepared=store.open("stage-"+role+"/working.img",O_RDWR); require(::ftruncate(prepared.get(),static_cast<off_t>(bytes))==0,"io-error","Cannot set final filesystem capacity"); sync(prepared.get());
@@ -342,10 +347,10 @@ Value apply(StorageTarget& target,const Root& store,const fs::path& path,Review 
 }
 } // namespace
 
-Value partition_job_plan(const Root& system,const StorageTarget& target,const Value& request,const std::string& profile) {
+static Value partition_job_from_metadata(const Root& system,const StorageTarget& target,Value metadata,const std::string& profile) {
     require(target.identity["kind"]=="regular-image","live-repartition-unavailable",
         "Live repartitioning is unaccepted; review partition capabilities before firmware, encryption, ownership and durability admission");
-    auto metadata=gpt_layout_plan(target,request,profile,&system); const auto& layout=metadata["layout"]; const auto& pool=layout["pool"];
+    const auto& layout=metadata["layout"]; const auto& pool=layout["pool"];
     const auto bytes=pool["original_bytes"].asUInt64(); require(bytes>=32*mib && bytes<=maximum,"unsupported-filesystem-size","Combined image jobs require 32 MiB to 512 GiB userdata");
     const auto signature=filesystem_probe_range(target.descriptor.get(),pool["offset"].asUInt64(),bytes); const auto capabilities=filesystem_capabilities();
     for(const auto& row:layout["rows"])if(row["enabled"]==true) {
@@ -384,9 +389,18 @@ Value partition_job_plan(const Root& system,const StorageTarget& target,const Va
     plan["warnings"].append("Real tablet writes remain blocked. Recreated userdata has no verified Android FBE policy or boot compatibility; an image test is not tablet acceptance.");
     plan["plan_sha256"]=seal(plan,"plan_sha256"); check_plan(plan); storage_revalidate(target,&system); return plan;
 }
+Value partition_job_plan(const Root& system,const StorageTarget& target,const Value& request,const std::string& profile) {
+    require(target.identity["kind"]=="regular-image","live-repartition-unavailable","Live repartitioning remains unaccepted");
+    return partition_job_from_metadata(system,target,gpt_layout_plan(target,request,profile,&system),profile);
+}
+Value partition_job_multiboot_plan(const Root& system,const StorageTarget& target,const Value& request,const fs::path& original_backup,const std::string& profile) {
+    require(target.identity["kind"]=="regular-image","live-repartition-unavailable","Live multiboot repartitioning remains unaccepted");
+    return partition_job_from_metadata(system,target,gpt_multiboot_plan(target,request,original_backup,profile,&system),profile);
+}
 static Value execute_reviewed(const Root& system,StorageTarget& target,const Value& plan,const fs::path& directory,const std::string& confirmation,const Value& setup) {
     if(!setup.isNull()) {
-        dualboot_validate_plan(setup);
+        if(setup["format"]=="ure-multiboot-plan")multiboot_validate_plan(setup);
+        else dualboot_validate_plan(setup);
         require(json(setup["image_job"])==json(plan),"invalid-dualboot-plan","The durable setup preview must contain this exact filesystem job");
     }
     check_plan(plan); require(confirmation==plan["plan_sha256"].asString(),"confirmation-required","Confirm the complete partition job hash");
@@ -397,12 +411,14 @@ static Value execute_reviewed(const Root& system,StorageTarget& target,const Val
     require(json(signature)==json(plan["userdata_signature"]),"stale-source","Userdata filesystem observation changed after review");
     if(plan["gpt"]["layout"]["userdata_policy"]=="preserve")require(!encryption_feature(target.descriptor.get(),pool["offset"].asUInt64(),pool["original_bytes"].asUInt64(),signature),
         "userdata-encryption-unverified","Preserving encrypted userdata requires accepted Android trust and resize policy");
-    const auto rebuilt=gpt_layout_plan(target,plan["gpt"]["layout"]["request"],plan["firmware_profile"].asString(),&system);
+    const auto rebuilt=plan["gpt"]["operation"]=="gpt.multiboot" ?
+        gpt_multiboot_plan(target,plan["gpt"]["layout"]["request"],plan["gpt"]["backup_directory"].asString(),plan["firmware_profile"].asString(),&system) :
+        gpt_layout_plan(target,plan["gpt"]["layout"]["request"],plan["firmware_profile"].asString(),&system);
     for(const auto* key:{"before","after","layout","current_table","desired_table"})require(json(rebuilt[key])==json(plan["gpt"][key]),"stale-plan","Partition policy or GPT differs from the reviewed job");
     auto store=private_directory(directory,true); auto lock=journal_lock(store);
     operation.token().require_binding(operation_binding(plan["operation"].asString(),plan,directory,operation_targets(plan["target_identity"])));
     store.save_record("plan.json",plan);
-    if(!setup.isNull())store.save_record("dualboot-plan.json",setup);
+    if(!setup.isNull())store.save_record(setup["format"]=="ure-multiboot-plan" ? "multiboot-plan.json" : "dualboot-plan.json",setup);
     Value state; state["schema"]=1; state["plan_sha256"]=plan["plan_sha256"]; state["direction"]="apply"; state["state"]="STAGING"; state["verified"]=false; store.save_record("state.json",state);
     struct statvfs space{};
     require(::fstatvfs(store.fd(),&space)==0 && space.f_frsize && space.f_bavail>plan["estimated_journal_bytes"].asUInt64()/space.f_frsize,
