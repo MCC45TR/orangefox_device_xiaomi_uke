@@ -61,6 +61,7 @@ bash tests/check-vold-key-upgrade.sh
 bash tests/check-crypto-service-hardening.sh
 bash tests/check-crypto-nullability.sh
 bash tests/check-vold-recovery-variant.sh
+bash tests/check-metadata-mount-result.sh
 bash tests/check-touch-release.sh
 bash tests/check-touch-device-state.sh
 bash tests/check-telemetry.sh
