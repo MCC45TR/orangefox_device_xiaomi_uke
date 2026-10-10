@@ -341,8 +341,10 @@ void linear_table(unsigned major, unsigned minor, const std::string &expected, u
     alignas(dm_ioctl) std::array<unsigned char, 65536> bytes{};
     auto *io = reinterpret_cast<dm_ioctl *>(bytes.data());
     io->version[0] = DM_VERSION_MAJOR;
-    io->version[1] = DM_VERSION_MINOR;
-    io->version[2] = DM_VERSION_PATCHLEVEL;
+    // Like pinned libdm, request the stable 4.0 interface. The installed
+    // kernel can predate these build headers; it returns its actual version.
+    io->version[1] = 0;
+    io->version[2] = 0;
     io->data_size = bytes.size();
     io->data_start = sizeof(dm_ioctl);
     io->flags = DM_STATUS_TABLE_FLAG | DM_NOFLUSH_FLAG;
