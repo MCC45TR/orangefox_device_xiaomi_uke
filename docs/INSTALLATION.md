@@ -50,9 +50,16 @@ Check the displayed time, battery and temperature, then reconnect USB and run
 or only after turning the screen off and on.
 
 Battery reporting and encrypted Android storage remain unresolved. Automatic
-rotation, automatic brightness, external displays and saved theme settings
-also require separate device tests. A readable temperature value does not
+rotation, automatic brightness and external displays also require separate
+device tests. A readable temperature value does not
 prove correct sensor selection or calibrated reporting.
+
+Recovery appearance preferences use a private directory in `persist`, so
+encrypted Android storage is not needed for theme or scale settings. Saving
+is automatic and coalesced. Open **Extra > Display and input > Interface scale >
+Saved recovery preferences** to inspect the storage result. If storage is unavailable or a
+record is damaged, changes remain limited to the current session. Persistence
+across a recovery restart still requires a device test for this preview.
 
 Managed formatting, repartitioning, ROM/OTA installation, stock restoration
 and other storage writes remain blocked. Do not use a root ADB shell to bypass

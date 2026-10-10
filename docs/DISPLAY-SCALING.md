@@ -45,21 +45,21 @@ and redraws only when the selection changes. It does not rebuild the theme,
 change touch coordinates or make its sample button interactive. Derived fonts
 are released on replacement, invalid input and page destruction.
 
-The active setting is held in memory until explicitly saved. In **Scale storage
-settings**, select a dedicated directory on an already mounted Linux or external
-filesystem. **Save the applied size** creates a private
-0700 directory if needed and an atomic, synced 0600 `display.json`, then reads
-it back. Loading validates the schema, percentage, ownership, permissions and
-single-link regular-file identity. Calibration, Android userdata and metadata
-roots and their separately mounted filesystem aliases are refused. These
-commands never mount storage. A record on tmpfs or ramfs is reported as volatile.
+Applying a size schedules automatic persistence with the other validated UI
+preferences. **Saved recovery preferences** shows the managed path and storage
+result; there is no editable folder selector. **Save the applied size** retries
+a durable save, while **Load a saved selection** loads a size for review before
+Apply. See [recovery appearance preferences](RECOVERY-SERVICES.md#recovery-appearance-preferences)
+for the bounded, private `persist` store and its calibration protections.
 
-At startup, a valid record in an already accessible `/mnt/uke-settings` is used.
-If the storage is unavailable or the record is invalid, the tablet default is
-used. The loader does not mount a volume or search Android storage. For another
-directory, mount it through the separately reviewed storage workflow and use
-**Load a saved selection** after each boot. Saving a record does not make its volume
-automatically available on future boots.
+Startup restores a valid preference record before the first resource layout.
+Unavailable or invalid storage keeps the tablet default and reports that
+changes apply to the current session. Host fixtures cannot establish persistence
+across a tablet restart.
+
+The following directory-based CLI commands remain available for controlled
+external/Linux fixtures. They do not configure the GUI's automatic preference
+store, perform a mount, or make an external directory accessible on later boots.
 
 ```sh
 uke-recoveryctl display preview 2136 3200 1080 3200 75
@@ -71,7 +71,8 @@ Preview dimensions are explicit test inputs, not a fresh tablet measurement.
 Host tests compile the actual project density/variable hooks and reviewed
 upstream text, coordinate and deferred-reload functions with platform stand-ins.
 They cover portrait/landscape presets, bottom-row rectangles, percentage labels,
-failed reload recovery, private settings and absence of mount/flush calls.
+failed reload recovery, private records and scheduling without storage I/O in
+the density/reload hooks.
 They additionally load the real stock theme variables and check physical status
 and toolbar edges, navigation target separation and pill alignment, content
 widths and fixed-coordinate regressions in the patched XML. URE model/profile,

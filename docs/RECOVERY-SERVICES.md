@@ -53,3 +53,30 @@ An accepted SSC/HAL stream, orientation transform, panel brightness adapter and
 render-thread rotation adapter are still required. Current source reports
 automatic controls as unavailable and keeps the existing manual controls.
 Host sensor fixtures are separate from VM integration and tablet acceptance.
+
+## Recovery appearance preferences
+
+The native theme build stores validated UI preferences in
+`/persist/OrangeFox-uke-ui/preferences.json`. This narrow store is independent
+of encrypted Android storage. The legacy persist settings and password fallback
+stays disabled.
+
+The helper verifies Uke's persist geometry and label, clean ext4 state, inherited
+mounts and free space before admitting a write. It mounts a private view in a
+separate, single-threaded process and creates only its own private directory.
+It preserves a 1 MiB free-space reserve plus allocation headroom. Records are
+limited to 32 KiB and require atomic replacement, checksum, private permissions,
+complete readback, filesystem synchronization and successful unmount before
+reporting a save. Linked, malformed or unsupported records are refused rather
+than overwritten. Calibration files and recovery passwords are excluded.
+
+An owned worker coalesces normal GUI changes after a 400 ms quiet period, with
+a two-second scheduling cap during continuous changes. The GUI does not wait
+for those storage operations. Explicit save retries report their result;
+unchanged snapshots perform no filesystem write. Density and native packaged
+themes load before the first layout. Brightness is reconstructed from a bounded
+percentage and the current panel maximum.
+
+Host record, renderer and worker controls do not establish persistence across
+an actual tablet reboot. A read-only or busy persist mount keeps changes in
+the current session and leaves the previous complete record intact.
