@@ -40,6 +40,31 @@ int main(int argc,char** argv) {
         check(ure::btrfs_native_info(root,"info")["subvolume"]["tree_id"].asUInt64()==5,"Fixture must mount the filesystem top-level root");
         auto create=request("create"); create["path"]="active"; manage(create); payload(root,"active/payload","original\n");
         passed("native-subvolume-create");
+        create["path"]="rename-source"; manage(create); payload(root,"rename-source/payload","retained rename payload\n");
+        auto rename=request("rename"); rename["path"]="rename-source"; rename["new_path"]="renamed-source";
+        auto invalid=rename; invalid["new_path"]="../escaped";
+        reject([&] { ure::btrfs_manage_plan(root,invalid,"generic-virt-fixture"); },"invalid-path");
+        invalid["new_path"]="active";
+        reject([&] { ure::btrfs_manage_plan(root,invalid,"generic-virt-fixture"); },"existing-subvolume");
+        invalid["new_path"]="active/renamed-source";
+        reject([&] { ure::btrfs_manage_plan(root,invalid,"generic-virt-fixture"); },"invalid-rename-path");
+        passed("rename-confines-path-and-refuses-overwrite-or-move");
+        {
+            const auto plan=ure::btrfs_manage_plan(root,rename,"generic-virt-fixture");
+            reject([&] { ure::btrfs_manage_execute(root,plan,journals/"rename-unconfirmed",std::string(64,'0')); },"confirmation-required");
+            check(root.exists("rename-source") && !root.exists("renamed-source"),"Unconfirmed rename changed paths");
+            payload(root,"rename-source/later","changed since review\n");
+            auto source=root.open("rename-source",O_RDONLY|O_DIRECTORY); check(::syncfs(source.get())==0,"Cannot commit the stale source fixture");
+            reject([&] { ure::btrfs_manage_execute(root,plan,journals/"rename-stale",plan["plan_sha256"].asString()); },"stale-btrfs-plan");
+            check(root.exists("rename-source") && !root.exists("renamed-source"),"Stale rename changed paths");
+        }
+        passed("rename-requires-exact-consent-and-unchanged-source");
+        const auto before_rename=ure::btrfs_subvolume_info(root,"rename-source"); manage(rename);
+        const auto after_rename=ure::btrfs_subvolume_info(root,"renamed-source");
+        check(!root.exists("rename-source") && root.read("renamed-source/payload")=="retained rename payload\n" &&
+            before_rename["uuid"]==after_rename["uuid"] && before_rename["tree_id"]==after_rename["tree_id"] &&
+            before_rename["inode"]==after_rename["inode"],"Rename lost contents or subvolume identity");
+        passed("native-atomic-rename-preserves-uuid-inode-and-payload");
         auto snapshot=[&](const std::string& source,const std::string& name) {
             const auto store=journals/("snapshot-"+std::to_string(++serial));
             const auto plan=ure::btrfs_snapshot_plan(root,source,".",name,"generic-virt-fixture",store);

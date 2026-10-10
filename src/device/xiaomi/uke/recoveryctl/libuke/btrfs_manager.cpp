@@ -48,7 +48,13 @@ Value balance(int fd) {
 std::string seal(Value value) { value.removeMember("plan_sha256"); return sha256(json(value)); }
 Value volume(const Root& root,const std::string& path) { return btrfs_subvolume_info(root,path); }
 void writable(int fd) { struct statvfs st{}; require(::fstatvfs(fd,&st)==0 && !(st.f_flag&ST_RDONLY),"read-only-btrfs","This operation requires a writable Btrfs mount"); }
-void missing(const Root& root,const std::string& path) { require(!root.exists(path),"existing-subvolume","Destination already exists; it will not be overwritten"); }
+void missing(const Root& root,const std::string& path) {
+    components(path); const auto destination=fs::path(path);
+    auto parent=root.open(destination.parent_path().empty() ? "." : destination.parent_path().generic_string(),O_RDONLY|O_DIRECTORY);
+    struct stat observed{}; const auto result=::fstatat(parent.get(),destination.filename().c_str(),&observed,AT_SYMLINK_NOFOLLOW);
+    require(result<0,"existing-subvolume","Destination already exists; it will not be overwritten");
+    require(errno==ENOENT,"path-unavailable","Cannot establish that the destination is absent");
+}
 std::pair<std::string,std::string> split(const std::string& path) {
     const auto parts=components(path); require(!parts.empty(),"invalid-subvolume-path","A child subvolume path is required");
     return {fs::path(path).parent_path().empty() ? "." : fs::path(path).parent_path().generic_string(),parts.back()};
@@ -135,6 +141,10 @@ void verify_complete(const Root& root,const Value& plan,const Value& state) {
     } else if(action=="delete") {
         require(!root.exists(request["path"].asString()),"btrfs-verification-failed","Deleted subvolume still exists");
         identity(root,request["backup_snapshot"].asString(),plan["backup_identity"]);
+    } else if(action=="rename") {
+        require(!root.exists(request["path"].asString()),"btrfs-verification-failed","Renamed source path has reappeared");
+        renamed_identity(root,request["new_path"].asString(),plan["source_identity"]);
+        identity(root,request["new_path"].asString(),state["renamed_identity"]);
     } else if(action=="resize") {
         struct btrfs_ioctl_dev_info_args device{}; device.devid=1;
         require(::ioctl(root.fd(),BTRFS_IOC_DEV_INFO,&device)==0 && device.total_bytes==request["target_bytes"].asUInt64(),
@@ -202,6 +212,7 @@ Value btrfs_manage_plan(const Root& root,const Value& request,const std::string&
     else if(action=="snapshot")allow({"source","path","read_only"});
     else if(action=="rollback")allow({"path","snapshot","saved_path"});
     else if(action=="delete")allow({"path","backup_snapshot"});
+    else if(action=="rename")allow({"path","new_path"});
     else if(action=="readonly")allow({"path","read_only"});
     else if(action=="resize")allow({"target_bytes"});
     else if(action=="scrub")allow({"device_id","repair"});
@@ -227,6 +238,16 @@ Value btrfs_manage_plan(const Root& root,const Value& request,const std::string&
             auto snapshot=root.open(request["snapshot"].asString(),O_RDONLY|O_DIRECTORY); filesystem_tree_outside(active.get(),snapshot.get());
             plan["staging_path"]=(fs::path(parent)/(".ure-rollback-"+plan["operation_id"].asString())).generic_string(); missing(root,plan["staging_path"].asString());
         }
+    } else if(action=="rename") {
+        require(request["path"].isString() && request["new_path"].isString(),"invalid-btrfs-request","Select the source and unused new subvolume path");
+        const auto [parent,name]=split(request["path"].asString()); const auto [new_parent,new_name]=split(request["new_path"].asString()); (void)name;
+        require(parent==new_parent && identifier(new_name) && new_name!="." && new_name!="..","invalid-rename-path","Rename within the same parent using a bounded unused name");
+        missing(root,request["new_path"].asString());
+        auto directory=root.open(parent,O_RDONLY|O_DIRECTORY); writable(directory.get()); plan["parent_identity"]=descriptor_identity(directory.get());
+        require(filesystem(directory.get())["fsid"]==plan["context"]["fsid"],"different-filesystem","Rename parent must remain on the selected Btrfs filesystem");
+        plan["source_identity"]=volume(root,request["path"].asString());
+        require(plan["source_identity"]["tree_id"].asUInt64()>5,"protected-btrfs-root","The filesystem top-level root cannot be renamed");
+        auto source=root.open(request["path"].asString(),O_RDONLY|O_DIRECTORY); exclude_mounts_and_users(source.get());
     } else if(action=="delete" || action=="readonly") {
         require(request["path"].isString(),"invalid-btrfs-request","Select an exact child subvolume"); plan["source_identity"]=volume(root,request["path"].asString());
         require(plan["source_identity"]["tree_id"].asUInt64()>5,"protected-btrfs-root","The filesystem top-level root cannot be deleted or have its flags changed");
@@ -256,6 +277,7 @@ Value btrfs_manage_plan(const Root& root,const Value& request,const std::string&
     plan["native_ioctl"]=true; plan["physical_test_record"]=false; plan["private_record"]=true; plan["confirmation_required"]=true;
     plan["risk"]=action=="rollback" ? "Replace the unmounted active path with a writable snapshot clone; retain the original at the saved path. Mounted roots and users are blocked; update boot rootflags separately." :
         action=="delete" ? "Delete only the selected subvolume; a derived read-only backup remains. Nested subvolumes are never recursively removed." :
+        action=="rename" ? "Atomically rename the selected unmounted child within its parent without overwriting anything. Update fstab, rootflags and boot references separately." :
         "Modify only the selected mounted Btrfs filesystem; maintenance is not a raw-block rollback transaction.";
     plan["plan_sha256"]=seal(plan); return plan;
 }
@@ -277,7 +299,7 @@ Value btrfs_manage_execute(const Root& root,const Value& plan,const fs::path& pa
     ManagedOperation operation(operation_binding("btrfs.manage",plan,path,operation_targets(plan["context"])),resume);
     require(json(filesystem(root.fd()))==json(plan["context"]),"stale-btrfs-filesystem","Filesystem changed during operation admission");
     Root journal_parent(path.parent_path().empty() ? fs::path(".") : path.parent_path()); filesystem_tree_gate(journal_parent.fd());
-    for(const auto* key:{"path","source","snapshot","backup_snapshot","saved_path"})if(plan["request"][key].isString() && root.exists(plan["request"][key].asString())) {
+    for(const auto* key:{"path","new_path","source","snapshot","backup_snapshot","saved_path"})if(plan["request"][key].isString() && root.exists(plan["request"][key].asString())) {
         auto selected=root.open(plan["request"][key].asString(),O_RDONLY|O_DIRECTORY); filesystem_tree_outside(selected.get(),journal_parent.fd());
     }
     auto store=private_directory(path,!resume); auto writer=store.open("writer.lock",O_RDWR|O_CREAT,0600);
@@ -322,6 +344,25 @@ Value btrfs_manage_execute(const Root& root,const Value& plan,const fs::path& pa
         }
         require(state["state"]=="COMPLETE","maintenance-recovery-required","Rollback did not reach a verified terminal state");
         verify_complete(root,plan,state); writer=Fd(); return operation.finish(state,true,true);
+    }
+    if(action=="rename") {
+        require(state["state"]=="PLANNED" || state["state"]=="RENAMING","maintenance-recovery-required","Rename journal has an unrecognized phase");
+        const auto source=request["path"].asString(),destination=request["new_path"].asString();
+        const auto [parent,name]=split(source); const auto [new_parent,new_name]=split(destination);
+        require(parent==new_parent,"invalid-rename-path","Rename parent must remain unchanged");
+        auto directory=root.open(parent,O_RDONLY|O_DIRECTORY); writable(directory.get());
+        require(json(descriptor_identity(directory.get()))==json(plan["parent_identity"]),"stale-subvolume-parent","Rename parent changed since review");
+        if(root.exists(source)) {
+            identity(root,source,plan["source_identity"]); missing(root,destination);
+            auto selected=root.open(source,O_RDONLY|O_DIRECTORY); exclude_mounts_and_users(selected.get());
+            save(store,state,"RENAMING"); operation.begin("BTRFS_SUBVOLUME_RENAMING");
+            require(::syscall(SYS_renameat2,directory.get(),name.c_str(),directory.get(),new_name.c_str(),RENAME_NOREPLACE)==0,
+                "subvolume-rename-failed","Cannot rename the selected subvolume; the destination is never overwritten");
+        } else require(state["state"]=="RENAMING","stale-subvolume","Source disappeared before the reviewed rename started");
+        renamed_identity(root,destination,plan["source_identity"]);
+        require(::fsync(directory.get())==0,"subvolume-rename-failed","Cannot sync the renamed subvolume parent");
+        state["renamed_identity"]=volume(root,destination); state["native_ioctl"]=true; state["physical_test_record"]=false;
+        verify_complete(root,plan,state); save(store,state,"COMPLETE"); writer=Fd(); return operation.finish(state,true,true);
     }
     require(state["state"]=="PLANNED","maintenance-recovery-required","Interrupted maintenance must be inspected using native status and explicit cancellation; it is not restarted blindly");
     if(plan.isMember("source_identity"))identity(root,request["source"].isString() ? request["source"].asString() : request["path"].asString(),plan["source_identity"]);

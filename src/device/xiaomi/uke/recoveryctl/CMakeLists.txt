@@ -120,6 +120,16 @@ if(BUILD_TESTING)
     add_executable(uke-btrfs-vm-fixture vm-btrfs-fixture.cpp)
     target_link_libraries(uke-btrfs-vm-fixture PRIVATE uke-recovery)
     target_compile_options(uke-btrfs-vm-fixture PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    add_executable(uke-btrfs-rename-tests ../../../../../tests/ure/btrfs_rename.cpp)
+    target_include_directories(uke-btrfs-rename-tests PRIVATE libuke)
+    target_link_libraries(uke-btrfs-rename-tests PRIVATE uke-recovery)
+    target_link_options(uke-btrfs-rename-tests PRIVATE -Wl,--wrap=fstat -Wl,--wrap=fstatfs -Wl,--wrap=ioctl -Wl,--wrap=fsync)
+    target_compile_options(uke-btrfs-rename-tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+    # Busy-subvolume checks must observe every process in their PID namespace.
+    find_program(BWRAP_EXECUTABLE bwrap REQUIRED)
+    add_test(NAME ure-btrfs-rename-ownership COMMAND ${BWRAP_EXECUTABLE} --bind / / --dev-bind /dev /dev --unshare-pid --proc /proc
+        bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tests/with-operation-coordinator.sh"
+        "${CMAKE_CURRENT_BINARY_DIR}" $<TARGET_FILE:uke-btrfs-rename-tests> "${CMAKE_CURRENT_BINARY_DIR}")
     find_package(LibXml2 REQUIRED)
     # Host-only catalog generation. None of these targets are Android payloads.
     add_library(uke-locale-keys STATIC ../../../../localization/key-catalog.cpp)

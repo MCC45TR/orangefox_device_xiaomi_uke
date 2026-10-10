@@ -10,6 +10,7 @@ and must never be loaded into the stock 6.1 recovery kernel.
 | --- | --- |
 | info, subvolumes, usage, device-stats, scrub-status, balance-status | bounded read-only native inventory, UUID/lineage, allocation groups and counters |
 | create, snapshot | exact unused destination; same-filesystem validation; optional read-only snapshot |
+| rename | unmounted child renamed within its existing parent; unused destination, exact source UUID/inode and parent checks; no overwrite |
 | readonly | explicit flag; received snapshots cannot be made writable and lose their incremental lineage |
 | delete | exact child subvolume with a retained derived read-only backup; nested subvolumes are not forced away |
 | rollback | derived read-only snapshot cloned writable, atomic path exchange, original retained at an unused saved path |
@@ -20,7 +21,7 @@ and must never be loaded into the stock 6.1 recovery kernel.
 
 Plans seal the selected filesystem, mount, subvolume identity/flags/generation,
 request and firmware-profile identifier. Apply revalidates them. The top-level
-root cannot be deleted/replaced or have its flags changed. Rollback/delete
+root cannot be deleted/replaced/renamed or have its flags changed. Rollback/delete/rename
 reject mounts in visible namespaces, open files, process working directories
 and process roots inside the affected subvolume. Private journals must remain
 outside affected trees. The GUI keeps native maintenance status/control available
@@ -33,6 +34,16 @@ selection. Verify those separately before booting the replacement. Scrub,
 balance and resize are filesystem maintenance, not raw-byte rollback jobs.
 Interrupted maintenance requires status inspection and explicit control; it
 is never restarted as if an interrupted ioctl completed.
+
+Rename persists its intent before the atomic no-replace operation and syncs the
+parent directory before recording completion. Recovery verifies the same source
+at the old name or the same UUID/inode at the reviewed new name; unrelated paths
+are refused. Renaming does not update fstab, rootflags, BLS/UKI or other boot
+references. Review those separately before booting the renamed subvolume.
+
+```json
+{"schema":1,"action":"rename","path":"home","new_path":"home-previous"}
+```
 
 Example rollback request:
 
