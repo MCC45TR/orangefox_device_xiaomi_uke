@@ -2,13 +2,13 @@
 
 An independent OrangeFox recovery project for the `uke` device family (SM7675), with a tablet interface and native tools for storage planning, backups, Linux recovery and boot diagnostics.
 
-[Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) · [Installation guide](docs/PRE-RELEASE.md) · [Architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Uke Linux workspace](https://github.com/MCC45TR/uke-linux)
+[Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) · [Installation guide](docs/INSTALLATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Uke Linux workspace](https://github.com/MCC45TR/uke-linux)
 
 ## Project status
 
 **Experimental; neither commercial model has completed physical recovery acceptance.** The default branch, `R12.0`, follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 are tracked separately by model, SKU and installed firmware.
 
-The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. The earlier alpha has been withdrawn; a replacement installable release has not yet passed its publication gates.
+The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. Hardware test previews have separate build and package evidence. The owner confirmed touch navigation in a corrected live session; a replacement image still needs its own first-boot test.
 
 Current source [blocks general live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. The separate [dualboot shell backend](docs/DUALBOOT-SETUP.md) implements narrowly checked F2FS userdata erase/recreation, but remains physically unaccepted and requires an already opened encryption map. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass general mutation gates; older release images retain their original behavior.
 
@@ -44,24 +44,23 @@ Availability depends on the selected filesystem, kernel, packaged tools and oper
 
 ## Downloads
 
-**No current installable release is published.** Experimental Alpha 1 was
-withdrawn on 5 October 2026 after its complete local archive was checked against
-the published asset digests. Its source tag remains available for provenance.
-Current source includes later safety corrections and has separate build and
-validation requirements.
+The **v002 hardware test preview** contains touch startup, repeated-tap and
+bottom-tab navigation corrections. Use it only with the reviewed installed
+kernel and keep a previously working recovery available.
 
-| Planned asset | Purpose |
+| Download | Purpose |
 |---|---|
-| `OrangeFox-uke-recovery.img` | Dedicated recovery image; not a temporary-boot image |
-| `orangefox.zip` | Recovery Install ZIP and ADB sideload, once the dedicated installer is accepted |
+| `orangefox-r12-uke-modded-v002.img` | Flash to the active recovery slot; not a `fastboot boot` image |
+| `orangefox-r12-uke-modded-v002.zip` | Contains the same recovery image; ZIP installation is currently unavailable |
 
-The replacement is intended to contain exactly these two downloadable files, with
-checksums and validation scope in its release notes. Global
-**OS3.0.303.0.WOZMIXM** is the current source profile; that declaration does not
-accept a physical unit. The present ZIP installer refuses before writing, so it
-cannot yet be published as a working sideload package. Read the
-[installation and rollback guide](docs/PRE-RELEASE.md) and the
-[current validation boundary](reports/URE-PLATFORM-ADMISSION-2026-10-05.md).
+Download the two files from the
+[test release](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases/tag/R12.0-uke-modded-v002).
+The IMG uses the tablet's installed boot stack. The current touch profile
+requires kernel `6.1.175-android14-11-ga3b9c44908dd-ab13320413`; model name alone
+does not establish compatibility. Battery reporting, Android decryption,
+USB-hub mouse support and persistent preferences still require further work
+or device acceptance. Follow the [installation and rollback guide](docs/INSTALLATION.md)
+and [touch test boundary](docs/TOUCH-STARTUP.md).
 
 ## Development and validation
 
