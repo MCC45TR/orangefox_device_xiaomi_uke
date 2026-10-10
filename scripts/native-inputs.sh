@@ -39,6 +39,8 @@ cd "$component"
         src/upstream/orangefox-android16/system/vold/{ExistingKeyMint.cpp,ExistingKeyMint.h,KeyStorage.h} \
         src/upstream/orangefox-android16/system/vold/MetadataCrypt.cpp \
         src/upstream/orangefox-android16/system/vold/Keystore.cpp \
+        patches/0074-select-explicit-boot-slots-for-quick-backup.patch patches/0075-show-unavailable-wipe-choices-without-enabling-writes.patch \
+        tests/check-partition-menu-options.sh scripts/backup-important-partitions.sh tests/check-important-partition-backup.sh \
         tests/check-touch-release.sh tests/check-touch-device-state.sh
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \

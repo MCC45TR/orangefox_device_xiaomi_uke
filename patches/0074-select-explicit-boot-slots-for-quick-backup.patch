@@ -1,0 +1,22 @@
+--- a/gui/theme/portrait_hdpi/resources/vars.xml
++++ b/gui/theme/portrait_hdpi/resources/vars.xml
+@@ -53,7 +53,7 @@
+ 		<variable name="fox_pass_type" value="0" persist="1"/>
+ 
+ 		<!-- Backups -->
+-		<variable name="tw_backup_list_quick" value="/data;/boot;" persist="1"/>
++		<variable name="tw_backup_list_quick" value="/boot_a;/boot_b;/init_boot_a;/init_boot_b;/vendor_boot_a;/vendor_boot_b;/recovery_a;/recovery_b;/dtbo_a;/dtbo_b;/vbmeta_a;/vbmeta_b;/vbmeta_system_a;/vbmeta_system_b;" persist="1"/>
+ 		<variable name="auto_generate" value="2" persist="1"/>
+ 
+ 		<!-- Design -->
+--- a/data.cpp
++++ b/data.cpp
+@@ -1332,7 +1332,7 @@
+ #ifdef TW_HAS_NO_BOOT_PARTITION
+   mPersist.SetValue("tw_backup_list", "/data;");
+ #else
+-  mPersist.SetValue("tw_backup_list", "/data;/boot;");
++  mPersist.SetValue("tw_backup_list", "/boot_a;/boot_b;/init_boot_a;/init_boot_b;/vendor_boot_a;/vendor_boot_b;/recovery_a;/recovery_b;/dtbo_a;/dtbo_b;/vbmeta_a;/vbmeta_b;/vbmeta_system_a;/vbmeta_system_b;");
+ #endif
+   mConst.SetValue(TW_MIN_SYSTEM_VAR, TW_MIN_SYSTEM_SIZE);
+   mData.SetValue(TW_BACKUP_NAME, "(Auto Generate)");

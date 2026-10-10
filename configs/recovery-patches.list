@@ -45,6 +45,8 @@
 0070-enter-localized-confirmation-characters.patch
 0071-keep-input-cursors-on-utf8-boundaries.patch
 0072-recovery-crypto-service-hardening.patch
+0074-select-explicit-boot-slots-for-quick-backup.patch
+0075-show-unavailable-wipe-choices-without-enabling-writes.patch
 0077-clear-only-the-recovery-selector-before-system-reboot.patch
 0080-link-the-dedicated-recovery-vold-library.patch
 0083-fix-apex-loop-size-and-device-ownership.patch

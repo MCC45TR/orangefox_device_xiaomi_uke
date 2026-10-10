@@ -1,0 +1,64 @@
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -67,6 +67,7 @@
+ 	unsigned int selected;
+ 	bool isFiles;
+ 	unsigned long long PartitionSize = 0;
++	bool selectable = true;
+ };
+ 
+ struct Uevent_Block_Data {
+--- a/gui/partitionlist.cpp
++++ b/gui/partitionlist.cpp
+@@ -308,6 +308,7 @@
+ 
+ void GUIPartitionList::NotifySelect(size_t item_selected)
+ {
++	if (item_selected < mList.size() && !mList.at(item_selected).selectable) return;
+ 	if (item_selected < mList.size()) {
+ 		int listSize = mList.size();
+ 		if (ListType == "mount") {
+@@ -406,4 +407,4 @@
+ 			}
+ 		}
+ 	}
+-}
+\ No newline at end of file
++}
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -3019,6 +3019,34 @@
+ 			}
+ 		}
+ 	} else if (ListType == "wipe") {
++		// Explain requested choices without advertising an unaccepted writer.
++		if (!ure::legacy_write_decision(ure::LegacyWrite::Wipe).allowed) {
++			struct WipeChoice { const char* path; const char* resource; const char* fallback; };
++			const WipeChoice choices[] = {
++				{"DALVIK", "dalvik", "Dalvik / ART Cache"},
++				{"/metadata", "ure_partition_metadata", "Metadata"},
++				{"/cache", "cache", "Cache"},
++				{"/data", "data", "Data"},
++				{"INTERNAL", "internal", "Internal Storage"},
++				{"/frp", "ure_partition_frp", "FRP"},
++				{"/system", "system", "System"}
++			};
++			for (const auto& choice : choices) {
++				PartitionList row;
++				row.Mount_Point = choice.path;
++				row.Display_Name = gui_lookup(choice.resource, choice.fallback);
++				const auto* partition = Find_Partition_By_Path(choice.path);
++				const bool virtual_choice = row.Mount_Point == "DALVIK" || row.Mount_Point == "INTERNAL";
++				row.Display_Name += " — " + (virtual_choice || (partition && partition->Is_Present)
++					? gui_lookup("ure_wipe_unavailable", "Unavailable in this preview")
++					: gui_lookup("ure_partition_absent", "No physical partition"));
++				row.selected = 0;
++				row.isFiles = false;
++				row.selectable = false;
++				Partition_List->push_back(row);
++			}
++			return;
++		}
+ 		struct PartitionList dalvik;
+ 		dalvik.Display_Name = gui_parse_text("{@dalvik}");
+ 		dalvik.Mount_Point = "DALVIK";
