@@ -165,6 +165,52 @@ int main() {
             }
         }
         const auto directory=work/"settings";
+        {
+            auto preferences=ure::private_directory(work/"ui-preferences",true);
+            ure::Value values(Json::objectValue); values["tw_language"]="tr"; values["ure_ui_scale_percent"]="65";
+            values["ure_theme_style"]="Dark"; values["ure_theme_active"]="1";
+            values["ure_theme_accent"]="Orange"; values["ure_theme_light"]="#FF6D00";
+            values["ure_theme_dark"]="#FF9800"; values["ure_theme_dark_accent"]="1";
+            check(ure::ui_preferences_read(preferences)["values"].empty(),"Missing preference record did not return defaults");
+            const auto first=ure::ui_preferences_write(preferences,values);
+            check(ure::ui_preferences_read(ure::Root(work/"ui-preferences"))==first,"Preferences did not survive reopening the store");
+            const auto before=ure::sha256(preferences.read("preferences.json"));
+            auto unsafe=values; unsafe["fox_pass_true"]="private-password";
+            reject([&]{ure::ui_preferences_write(preferences,unsafe);},"invalid-preferences");
+            unsafe=values; unsafe["tw_language"]=std::string(512,'x');
+            reject([&]{ure::ui_preferences_write(preferences,unsafe);},"invalid-preferences");
+            unsafe=values; unsafe["ure_ui_scale_percent"]="49";
+            reject([&]{ure::ui_preferences_write(preferences,unsafe);},"invalid-scale");
+            for(const auto& [key,bad]:std::array<std::pair<const char*,const char*>,8>{{
+                {"tw_brightness","0"},{"tw_brightness_pct","-1"},{"tw_screen_timeout_secs","9999999"},
+                {"tw_military_time","2"},{"ure_theme_style","../foreign"},{"ure_theme_light","#invalid"},
+                {"center_clock","3"},{"tw_gui_sort_order","0"}}}) {
+                unsafe=values; unsafe[key]=bad;
+                reject([&]{ure::ui_preferences_write(preferences,unsafe);},"invalid-preferences");
+            }
+            check(ure::sha256(preferences.read("preferences.json"))==before,"Refused input modified the previous preferences");
+            values["ure_ui_scale_percent"]="85";
+            check(ure::ui_preferences_write(preferences,values)["values"]==values,"Preference replacement failed readback");
+            check(::link((work/"ui-preferences/preferences.json").c_str(),(work/"preference-alias").c_str())==0,"Cannot create preference hardlink fixture");
+            reject([&]{ure::ui_preferences_read(preferences);},"unsafe-preferences");
+            reject([&]{ure::ui_preferences_write(preferences,values);},"unsafe-preferences");
+            check(::unlink((work/"preference-alias").c_str())==0,"Cannot retire preference alias");
+            auto tampered=ure::ui_preferences_read(preferences); tampered["values"]["tw_language"]="en";
+            preferences.save_record("preferences.json",tampered,true);
+            reject([&]{ure::ui_preferences_read(preferences);},"invalid-preferences");
+            reject([&]{ure::ui_preferences_write(preferences,values);},"invalid-preferences");
+            check(::unlink((work/"ui-preferences/preferences.json").c_str())==0,"Cannot retire tampered fixture");
+            check(::symlink("../calibration",(work/"ui-preferences/preferences.json").c_str())==0,"Cannot create preference symlink fixture");
+            reject([&]{ure::ui_preferences_read(preferences);},"unsafe-preferences");
+            reject([&]{ure::ui_preferences_device(false,values);},"preferences-unavailable");
+        }
+        DataManager::SetValue("center_clock","1");
+        DataManager::SetValue("style_battery","0");
+        std::string persisted=R"(<variables><variable name="center_clock" value="2" persist="1"/><variable name="style_battery" value="2" persist="1"/></variables>)";
+        xml_document<> persisted_document; persisted_document.parse<0>(persisted.data());
+        check(theme.LoadVariables(persisted_document.first_node("variables"))==0 &&
+            DataManager::GetStrValue("center_clock")=="1" && DataManager::GetStrValue("style_battery")=="0",
+            "Stock XML defaults replaced validated appearance preferences");
         std::string menu_xml=R"(<listitem name="Open tools"/>)";
         xml_document<> menu_item; menu_item.parse<0>(menu_xml.data());
         ListItem initialized;
@@ -209,7 +255,8 @@ int main() {
         DataManager::SetValue("ure_root","/selected-fixture-root");
         DataManager::SetValue("ure_future_selection","future-fixture");
         check(ure_gui_keep_variable("ure_root") && ure_gui_keep_variable("ure_future_selection") &&
-            !ure_gui_keep_variable("ure_absent") && !ure_gui_keep_variable("tw_language"),"URE defaults overwrite selections or capture unrelated variables");
+            !ure_gui_keep_variable("ure_absent") && ure_gui_keep_variable("tw_language") &&
+            !ure_gui_keep_variable("pass_open"),"XML defaults overwrite selections or capture unrelated variables");
         PageManager::RequestUreReload();
         check(PageManager::reloads==0 && DataManager::flushes==0,"Reload destroyed resources or flushed settings in the action thread");
         check(PageManager::RunReload()==0 && PageManager::reloads==1 && PageManager::current_page=="ure_display" &&

@@ -35,3 +35,4 @@
 0060-use-parent-paths-for-gui-support-headers.patch
 0061-describe-uke-device-and-soc.patch
 0062-own-the-uke-touch-session.patch
+0063-persist-bounded-recovery-ui-preferences.patch

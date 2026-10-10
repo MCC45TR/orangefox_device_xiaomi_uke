@@ -34,9 +34,11 @@ int main(int argc,char* argv[]) {
             "Reset applied a scale before explicit confirmation");
         DataManager::SetValue("ure_scale_directory",(fixture/"scale").string());
         ure::display_settings_save((fixture/"scale").string(),50);
-        check(run_management(action,"scale-load")==0 && value("ure_scale_choice")=="50" && value("ure_ui_scale_percent")=="100" && PageManager::reloads==0,
-            "Loading a selection changed the active scale");
-        check(run_management(action,"scale-apply")==0 && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1,
+        check(run_management(action,"scale-load")==1 && value("ure_scale_choice")=="75" && value("ure_ui_scale_percent")=="100" && PageManager::reloads==0 &&
+            ure::display_settings_load(fixture/"scale")["scale_percent"].asInt()==50,
+            "Unavailable private preferences changed the selection, renderer or unrelated external record");
+        DataManager::SetValue("ure_scale_choice",50);
+        check(run_management(action,"scale-apply")==0 && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1 && DataManager::preference_requests==1,
             "Explicit scale application did not queue one renderer reload");
         DataManager::SetValue("ure_scale_choice","invalid");
         check(run_management(action,"scale-apply")==1 && value("ure_ui_scale_percent")=="50" && PageManager::reloads==1,
@@ -54,8 +56,11 @@ int main(int argc,char* argv[]) {
         DataManager::SetValue("ure_mirror_scale_choice","75"); DataManager::SetValue("ure_mirror_resolution","invalid");
         check(run_management(action,"mirror-apply")==1 && mirror_requests==previous_requests,"Invalid monitor resolution was queued");
         DataManager::SetValue("ure_ui_scale_applied",55);
-        check(run_management(action,"scale-save")==0 && ure::display_settings_load(fixture/"scale")["scale_percent"].asInt()==55,
-            "The worker did not capture the renderer's applied scale for persistent storage");
+        check(run_management(action,"scale-save")==1 && DataManager::preference_flushes==1 &&
+            value("ure_ui_scale_percent")=="50" && PageManager::reloads==1 &&
+            ure::parse_json(value("ure_output"))["error"]["code"].asString()=="preferences-unavailable" &&
+            ure::display_settings_load(fixture/"scale")["scale_percent"].asInt()==50,
+            "A refused preference save reported durability, changed the session or wrote an unrelated external record");
         for(const auto& [key,text]:std::map<std::string,std::string>{{"ure_raw_kind","image"},{"ure_raw_source",image.string()},{"ure_raw_sector","512"},
             {"ure_journal_parent",fixture.string()},{"ure_fs_action","format"},{"ure_fs_type","ext4"},{"ure_fs_erase","0"},{"ure_fs_label","URETEST"}})DataManager::SetValue(key,text);
         check(run_management(action,"filesystem-plan")==1 && digest(image)==original,"GUI format accepted missing data-loss choice");
@@ -116,6 +121,6 @@ int main(int argc,char* argv[]) {
         DataManager::SetValue("ure_gpt_source",image.string()); check(run_management(action,"partition-job-rollback")==1,"Changed GUI target reused journal confirmation");
         DataManager::SetValue("ure_gpt_source",disk.string()); check(run_management(action,"partition-job-rollback")==0 && digest(disk)==original_disk,"Actual GUI failed complete partition rollback");
         check(management_foreign_reads==0 && management_foreign_writes==0,"A backend worker read or wrote the mutable GUI state");
-        ure_gui_shutdown_jobs(); ure::fs::remove_all(fixture); std::cout<<"Actual management callbacks: sealed review, changed selections/view epochs, image format/readback/rollback, rescue review, truthful empty audit, native Btrfs discovery, applied-scale persistence and UTF-8 preview boundaries passed; host UI stand-ins only.\n"; return 0;
+        ure_gui_shutdown_jobs(); ure::fs::remove_all(fixture); std::cout<<"Actual management callbacks: sealed review, changed selections/view epochs, image format/readback/rollback, rescue review, truthful empty audit, native Btrfs discovery, queued scale application, unavailable private-preference refusal and UTF-8 preview boundaries passed; host UI stand-ins only.\n"; return 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; ure_gui_shutdown_jobs(); ure::fs::remove_all(fixture); return 1; }
 }

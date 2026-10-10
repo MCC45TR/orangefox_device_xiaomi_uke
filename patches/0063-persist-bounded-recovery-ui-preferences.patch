@@ -1,0 +1,349 @@
+diff --git a/data.cpp b/data.cpp
+index b85a633..2abd3d1 100644
+--- a/data.cpp
++++ b/data.cpp
+@@ -43,6 +43,23 @@
+ #include "set_metadata.h"
+ #include "gui/gui.hpp"
+ #include "infomanager.hpp"
++#ifdef TW_UKE_NATIVE_THEME
++#include "uke.h"
++#include "ure-theme.hpp"
++#include "ui-preference-writer.hpp"
++#include "gui/pages.hpp"
++#include <mutex>
++#include <atomic>
++namespace {
++std::mutex uke_preferences_state, uke_preferences_writer_lock;
++std::string uke_preferences_saved;
++std::atomic<unsigned long long> uke_preferences_generation{0};
++std::atomic<bool> uke_preferences_dirty_notification{false};
++std::atomic<bool> uke_preferences_dirty{false};
++bool uke_preferences_stopped = false;
++std::unique_ptr<ure::PreferenceWriter> uke_preferences_writer;
++}
++#endif
+ 
+ #define DEVID_MAX 64
+ #define HWID_MAX 32
+@@ -244,13 +261,26 @@ void DataManager::get_device_id(void) {
+ 
+ int DataManager::ResetDefaults()
+ {
++#ifdef TW_UKE_NATIVE_THEME
++  std::lock_guard<std::mutex> resetting(uke_preferences_state);
++  const bool admitted = GetIntValue("ure_preferences_loaded") == 1;
++#endif
+   pthread_mutex_lock(&m_valuesLock);
+   mPersist.Clear();
+   mData.Clear();
+   mConst.Clear();
++#ifdef TW_UKE_NATIVE_THEME
++  ++uke_preferences_generation;
++  uke_preferences_dirty = true;
++#endif
+   pthread_mutex_unlock(&m_valuesLock);
+ 
+   SetDefaultValues();
++#ifdef TW_UKE_NATIVE_THEME
++  ure::theme::commit(ure::theme::Overlay{});
++  SetValue("ure_preferences_loaded", admitted ? "1" : "0");
++  QueuePreferences();
++#endif
+   return 0;
+ }
+ 
+@@ -321,6 +351,33 @@ int DataManager::RestorePasswordBackup(void) {
+ 
+ int DataManager::LoadPersistValues(void)
+ {
++#ifdef TW_UKE_NATIVE_THEME
++  std::lock_guard<std::mutex> loading(uke_preferences_state);
++  static bool preferences_loaded = false;
++  if (preferences_loaded || android::base::GetProperty("ro.twrp.fastbootd", "") == "1") return -1;
++  if (!mInitialized) SetDefaultValues();
++  try {
++    const auto record = ure::ui_preferences_load();
++    pthread_mutex_lock(&m_valuesLock);
++    for (const auto& key : record["values"].getMemberNames())
++      mPersist.SetValue(key, record["values"][key].asString());
++    pthread_mutex_unlock(&m_valuesLock);
++    preferences_loaded = true;
++    SetValue("ure_preferences_loaded", "1");
++    if (GetIntValue("ure_theme_active") == 1) {
++      ure::theme::Overlay overlay;
++      if (ure::theme::prepare(GetStrValue("ure_theme_style"), GetStrValue("ure_theme_accent"),
++          GetStrValue("ure_theme_light"), GetStrValue("ure_theme_dark"),
++          GetIntValue("ure_theme_dark_accent") == 1, overlay)) ure::theme::commit(std::move(overlay));
++    }
++    SetValue("ure_preferences_status", "Persistent recovery preferences loaded.");
++    return 0;
++  } catch (const ure::Error&) {
++    SetValue("ure_preferences_status", "Persistent storage is unavailable; changes apply to this session.");
++    LOGERR("Persistent UI preferences are unavailable; using session defaults.\n");
++    return -1;
++  }
++#endif
+ #if defined(OF_DEVICE_WITHOUT_PERSIST) || defined(OF_SETTINGS_ROOT_DIRECTORY)
+ 	//LOGINFO("OF_DEVICE_WITHOUT_PERSIST is set - avoiding /persist...\n");
+ 	return -1;
+@@ -367,8 +424,69 @@ int DataManager::Flush()
+   return SaveValues();
+ }
+ 
++#ifdef TW_UKE_NATIVE_THEME
++void DataManager::QueuePreferences()
++{
++  if (GetIntValue("ure_preferences_loaded") != 1) return;
++  if (!uke_preferences_dirty.exchange(false)) return;
++  std::lock_guard<std::mutex> ownership(uke_preferences_writer_lock);
++  if (uke_preferences_stopped) return;
++  if (!uke_preferences_writer)
++    uke_preferences_writer = std::make_unique<ure::PreferenceWriter>([] { (void)DataManager::Flush(); });
++  uke_preferences_writer->request();
++}
++
++int DataManager::ShutdownPreferences()
++{
++  std::unique_ptr<ure::PreferenceWriter> writer;
++  {
++    std::lock_guard<std::mutex> ownership(uke_preferences_writer_lock);
++    uke_preferences_stopped = true;
++    writer = std::move(uke_preferences_writer);
++  }
++  writer.reset(); // Drain and join before the cache, GUI queue or reboot disappears.
++  return Flush();
++}
++#endif
++
+ int DataManager::SaveValues()
+ {
++#ifdef TW_UKE_NATIVE_THEME
++  std::lock_guard<std::mutex> ownership(uke_preferences_state);
++  if (android::base::GetProperty("ro.twrp.fastbootd", "") == "1") return -1;
++  if (GetIntValue("ure_preferences_loaded") != 1) return -1;
++  pthread_mutex_lock(&m_valuesLock);
++  const auto values = mPersist.Values();
++  const auto generation = uke_preferences_generation.load();
++  pthread_mutex_unlock(&m_valuesLock);
++  ure::Value preferences(Json::objectValue);
++  for (const auto& entry : values)
++    if (ure::ui_preference_key(entry.first)) preferences[entry.first] = entry.second;
++  const auto serialized = ure::json(preferences);
++  if (serialized == uke_preferences_saved) {
++    gui_run_on_main([generation] {
++      if (uke_preferences_generation.load() == generation)
++        DataManager::SetValue("ure_preferences_status", "Recovery preferences saved and verified.");
++    });
++    return 0;
++  }
++  try {
++    (void)ure::ui_preferences_save(preferences);
++    uke_preferences_saved = serialized;
++    gui_run_on_main([generation] {
++      if (uke_preferences_generation.load() == generation)
++        DataManager::SetValue("ure_preferences_status", "Recovery preferences saved and verified.");
++    });
++    return 0;
++  } catch (const ure::Error&) {
++    gui_run_on_main([generation] {
++      if (uke_preferences_generation.load() == generation)
++        DataManager::SetValue("ure_preferences_status", "Applied for this session; persistent storage is unavailable.");
++    });
++    fprintf(stderr, "UI preferences were not saved; retaining the last complete record.\n");
++    return -1;
++  }
++#endif
+ #ifndef TW_OEM_BUILD
+ 
+   #ifndef OF_DEVICE_WITHOUT_PERSIST
+@@ -544,6 +662,9 @@ int DataManager::SetValue(const string & varName, const string & value,
+     return -1;
+ 
+   string test;
++#ifdef TW_UKE_NATIVE_THEME
++  bool preference_changed = false;
++#endif
+   pthread_mutex_lock(&m_valuesLock);
+   int constChk = mConst.GetValue(varName, test);
+   if (constChk == 0)
+@@ -552,8 +673,22 @@ int DataManager::SetValue(const string & varName, const string & value,
+       return -1;
+     }
+ 
+-  if (persist)
++  if (persist
++#ifdef TW_UKE_NATIVE_THEME
++      || ure::ui_preference_key(varName)
++#endif
++     )
+     {
++#ifdef TW_UKE_NATIVE_THEME
++      if (ure::ui_preference_key(varName)) {
++        string previous;
++        preference_changed = mPersist.GetValue(varName, previous) != 0 || previous != value;
++        if (preference_changed) {
++          ++uke_preferences_generation;
++          uke_preferences_dirty = true;
++        }
++      }
++#endif
+       mPersist.SetValue(varName, value);
+     }
+   else
+@@ -571,6 +706,14 @@ int DataManager::SetValue(const string & varName, const string & value,
+ 
+   pthread_mutex_unlock(&m_valuesLock);
+ 
++#ifdef TW_UKE_NATIVE_THEME
++  if (preference_changed && !uke_preferences_dirty_notification.exchange(true))
++    gui_run_on_main([] {
++      uke_preferences_dirty_notification = false;
++      DataManager::SetValue("ure_preferences_status", "Changes are waiting for a verified save.");
++    });
++#endif
++
+ #ifndef TW_NO_SCREEN_TIMEOUT
+   if (varName == "tw_screen_timeout_secs")
+     {
+@@ -738,6 +881,8 @@ void DataManager::SetDefaultValues()
+ {
+ #ifdef TW_UKE_NATIVE_THEME
+   mConst.SetValue("ure_native_theme", "1");
++  mPersist.SetValue("ure_ui_scale_percent", "75");
++  mPersist.SetValue("ure_theme_active", "0");
+ #endif
+   string str, path;
+ 
+@@ -1677,6 +1822,23 @@ void DataManager::Output_Version(void)
+ 
+ void DataManager::ReadSettingsFile(void)
+ {
++#ifdef TW_UKE_NATIVE_THEME
++  (void)LoadPersistValues();
++#ifndef TW_NO_SCREEN_TIMEOUT
++  blankTimer.setTime(GetIntValue("tw_screen_timeout_secs"));
++#endif
++  update_tz_environment_variables();
++  // The saved raw value may belong to a different panel/firmware maximum.
++  const int percent = std::max(5, std::min(100, GetIntValue("tw_brightness_pct")));
++  const int maximum = GetIntValue("tw_brightness_max");
++  if (maximum > 0 && maximum <= 65535) {
++    const int brightness = std::max(1, maximum * percent / 100);
++    SetValue("tw_brightness", brightness);
++    SetValue("tw_brightness_pct", percent);
++    TWFunc::Set_Brightness(std::to_string(brightness));
++  }
++  return;
++#endif
+ #ifndef TW_OEM_BUILD
+   // Load up the values for TWRP - Sleep to let the card be ready
+   char mkdir_path[255], settings_file[255];
+diff --git a/data.hpp b/data.hpp
+index cc9dc99..b9cbd89 100644
+--- a/data.hpp
++++ b/data.hpp
+@@ -37,6 +37,10 @@ public:
+ 	static int FindPasswordBackup(void);
+ 	static int RestorePasswordBackup(void);
+ 	static int Flush();
++#ifdef TW_UKE_NATIVE_THEME
++	static void QueuePreferences();
++	static int ShutdownPreferences();
++#endif
+ 
+ 	// Core get routines
+ 	static int GetValue(const string& varName, string& value);
+diff --git a/infomanager.hpp b/infomanager.hpp
+index 4ce67aa..78d75da 100644
+--- a/infomanager.hpp
++++ b/infomanager.hpp
+@@ -35,6 +35,7 @@ public:
+ 	void SetFileVersion(int version);
+ 	void SetConst();
+ 	void Clear();
++	std::map<std::string, std::string> Values() const { return mValues; }
+ 	int LoadValues();
+ 	int SaveValues();
+ 
+diff --git a/twrp.cpp b/twrp.cpp
+index ea6987b..5cf7aa2 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -556,6 +556,10 @@ int main(int argc, char **argv) {
+ 	if (!startup.Get_Fastboot_Mode()) PartitionManager.Setup_Fstab_Partitions(true);
+ 
+ 	// Load up all the resources
++#ifdef TW_UKE_NATIVE_THEME
++	// Restore density and packaged theme before the first resource layout.
++	DataManager::LoadPersistValues();
++#endif
+ 	gui_loadResources();
+ 
+ #ifndef TW_UKE_BOUNDED_TELEMETRY
+@@ -670,6 +674,11 @@ int main(int argc, char **argv) {
+ 	ure_touch_stop();
+ 	extern void ure_gui_shutdown_jobs();
+ 	ure_gui_shutdown_jobs();
++#ifdef TW_UKE_NATIVE_THEME
++	// Finish the last preference snapshot before reboot; exit destructors
++	// are not guaranteed to run after the kernel reboot call.
++	DataManager::ShutdownPreferences();
++#endif
+ 
+ 	delete adb_bu_fifo;
+ 	TWFunc::Update_Intent_File(startup.Get_Intent());
+diff --git a/gui/action.cpp b/gui/action.cpp
+index a5ed90e..56ccb99 100644
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -194,6 +194,9 @@ void ActionThread::run(void *data)
+   std::vector < GUIAction::Action >::iterator it;
+   for (it = act->mActions.begin(); it != act->mActions.end(); ++it)
+     act->doAction(*it);
++#ifdef TW_UKE_NATIVE_THEME
++  DataManager::QueuePreferences();
++#endif
+ 
+   pthread_mutex_lock(&m_act_lock);
+   m_thread_running = false;
+@@ -641,6 +644,10 @@ int GUIAction::doActions()
+ 	const size_t cnt = mActions.size();
+ 	for (size_t i = 0; i < cnt; ++i)
+ 	  doAction(mActions[i]);
++#ifdef TW_UKE_NATIVE_THEME
++	// Schedule coalesced saves without storage I/O on the render thread.
++	DataManager::QueuePreferences();
++#endif
+       }
+     }
+ 
+@@ -1042,8 +1049,14 @@ int GUIAction::restoredefaultsettings(std::string arg __unused)
+   else
+     {
+       DataManager::ResetDefaults();
++#ifdef TW_UKE_NATIVE_THEME
++      if (DataManager::Flush() != 0)
++        gui_err("Defaults applied for this session; persistent settings could not be saved.");
++      PageManager::RequestUreThemeReload();
++#else
+       PartitionManager.Update_System_Details();
+       PartitionManager.Mount_Current_Storage(true);
++#endif
+     }
+   operation_end(0);
+   return 0;
+@@ -1977,6 +1990,13 @@ int GUIAction::uretheme(std::string arg)
+         return 1;
+     }
+     ure::theme::commit(std::move(overlay));
++    DataManager::SetValue("ure_theme_active", DataManager::GetIntValue("remove_theme") ? "0" : "1", 1);
++    DataManager::SetValue("ure_theme_style", DataManager::GetStrValue("theme_style_tmp"), 1);
++    DataManager::SetValue("ure_theme_accent", DataManager::GetStrValue("theme_accent_tmp"), 1);
++    DataManager::SetValue("ure_theme_light", DataManager::GetStrValue("theme_accent_light_tmp"), 1);
++    DataManager::SetValue("ure_theme_dark", DataManager::GetStrValue("theme_accent_dark_tmp"), 1);
++    DataManager::SetValue("ure_theme_dark_accent", DataManager::GetStrValue("theme_style_act_tmp") == "Default" ? "1" : "0", 1);
++    DataManager::QueuePreferences();
+     DataManager::SetValue("needs_repack", 0);
+     DataManager::SetValue("remove_theme", 0);
+     PageManager::RequestUreThemeReload();

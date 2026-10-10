@@ -13,6 +13,10 @@ cd "$component"
     find src/upstream/orangefox-android16/bootable/recovery/touch -type f -print0
     find src/upstream/orangefox-android16/bootable/recovery/gui/touch -type f -print0
     printf '%s\0' src/upstream/orangefox-android16/bootable/recovery/ure-touch.hpp
+    printf '%s\0' patches/0063-persist-bounded-recovery-ui-preferences.patch \
+        tests/check-ui-preferences.sh \
+        src/upstream/orangefox-android16/bootable/recovery/infomanager.hpp \
+        src/upstream/orangefox-android16/bootable/recovery/data.hpp
     printf '%s\0' src/device/xiaomi/uke/maintainer.xml
     printf '%s\0' src/device/xiaomi/uke/{twrp_uke.mk,system.prop,ure-device-identity.hpp} \
         patches/0061-describe-uke-device-and-soc.patch

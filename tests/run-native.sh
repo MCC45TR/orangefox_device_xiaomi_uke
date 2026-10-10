@@ -67,6 +67,7 @@ bash tests/check-weaver.sh
 bash tests/check-clock.sh
 bash tests/check-clock-mount.sh
 bash tests/check-native-theme.sh
+bash tests/check-ui-preferences.sh
 bash tests/check-reviewed-additions.sh
 bash tests/check-host-prerequisites.sh
 bash tests/check-lp-record-reader.sh

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <fcntl.h>
 #include <iostream>
 #include <optional>
 #include <unistd.h>
+#include <sys/syscall.h>
 
 namespace ure {
 static std::optional<std::string> option(std::vector<std::string>& args, const std::string& key) {
@@ -141,6 +143,24 @@ static Value usage() {
 int dispatch(std::vector<std::string> args) {
     const bool binary_output=args.size()>1 && args[0]=="backup" && (args[1]=="export" || args[1]=="store-export");
     try {
+        if(args.size()==2 && args[0]=="preferences-private" && (args[1]=="load" || args[1]=="save")) {
+            // Close descriptor races from the multithreaded GUI after exec.
+            require(::syscall(SYS_close_range,3u,~0u,0)==0,"preferences-unavailable","Cannot close inherited management descriptors");
+            Value values(Json::objectValue);
+            if(args[1]=="save") {
+                std::string input; std::array<char,4096> buffer{};
+                while(true) {
+                    const auto count=::read(STDIN_FILENO,buffer.data(),buffer.size());
+                    if(count<0 && errno==EINTR)continue;
+                    require(count>=0,"io-error","Cannot read UI preference request");
+                    if(!count)break;
+                    input.append(buffer.data(),static_cast<std::size_t>(count));
+                    require(input.size()<=32768,"size-limit","UI preference request exceeds 32 KiB");
+                }
+                values=parse_json(input);
+            }
+            std::cout<<json(envelope(ui_preferences_device(args[1]=="save",values))); return 0;
+        }
         if(management_command(args)) {
             const auto data=management_dispatch(std::move(args)); auto result=envelope(data);
             const bool failed=data.isObject() && data.isMember("successful") && !data["successful"].asBool();

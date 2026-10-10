@@ -9,7 +9,9 @@ work=$(mktemp -d "$component/build/native-theme-check-XXXXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 awk '/^int GUIAction::uretheme\(/ {copy=1} copy {print} copy && /^}/ {exit}' "$source_tree/gui/action.cpp" > "$work/theme-handler.inc"
 rg -q 'ure::theme::prepare' "$work/theme-handler.inc"
-if rg -n 'Exec_Cmd|Mount_By_Path|Flush|SaveValues|ReadSettingsFile' "$work/theme-handler.inc"; then exit 1; fi
+if rg -n 'Exec_Cmd|Mount_By_Path|SaveValues|ReadSettingsFile' "$work/theme-handler.inc"; then exit 1; fi
+[[ $(rg -c 'DataManager::QueuePreferences\(\)' "$work/theme-handler.inc") == 1 ]]
+rg -q 'ure_theme_active' "$work/theme-handler.inc"
 for flavor in native sanitized; do
     flags=()
     [[ $flavor != sanitized ]] || flags=(-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer -g)
@@ -21,4 +23,4 @@ for flavor in native sanitized; do
         "$source_tree/gui/theme/portrait_hdpi" "$work/$flavor-fixture"
 done
 xmllint --noout "$source_tree/gui/theme/portrait_hdpi/pages/customization.xml" "$source_tree/gui/theme/portrait_hdpi/pages/templates/templates.xml"
-printf '%s\n' 'Native session theme tests passed; settings persistence and physical rendering remain separate.'
+printf '%s\n' 'Native packaged theme and preference handoff tests passed; device persistence and physical rendering remain separate.'

@@ -26,11 +26,14 @@ public:
         out=found->second; return 0;
     }
     static int GetValue(const std::string& key,int& out) { std::string text; const auto status=GetValue(key,text); if(!status)out=std::stoi(text); return status; }
-    static void SetValue(const std::string& key,const std::string& value) {
+    static void SetValue(const std::string& key,const std::string& value,int = 0) {
         if(std::this_thread::get_id()!=management_ui_thread)++management_foreign_writes;
         std::lock_guard<std::mutex> guard(management_variable_mutex); management_variables[key]=value;
     }
     static void SetValue(const std::string& key,int value) { SetValue(key,std::to_string(value)); }
+    inline static unsigned preference_flushes=0,preference_requests=0;
+    static int Flush() { ++preference_flushes; return -1; } // Host GUI fixtures never activate tablet storage.
+    static void QueuePreferences() { ++preference_requests; }
 };
 class PageManager { public: inline static int reloads=0; static void RequestUreReload() { ++reloads; } };
 class GUIAction { public: int uremanager(std::string command); };

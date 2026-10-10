@@ -476,12 +476,11 @@ void ure_gui_density(float& scale_w,float& scale_h,int width,int height) {
     try {
         if(!initialized) {
             initialized=true;
-            int percent=75;
-            try { percent=ure::display_settings_load("/mnt/uke-settings")["scale_percent"].asInt(); }
-            catch(const ure::Error&) { /* Absent/unavailable storage uses the tablet default. */ }
+            const auto stored=DataManager::GetStrValue("ure_ui_scale_percent");
+            int percent=ure::display_scale_parse(stored.empty() ? "75" : stored);
             DataManager::SetValue("ure_ui_scale_percent",percent);
-            DataManager::SetValue("ure_scale_directory","/mnt/uke-settings");
-            DataManager::SetValue("ure_scale_status","Choose a scale; save to dedicated mounted storage for reuse");
+            DataManager::SetValue("ure_scale_directory","/persist/OrangeFox-uke-ui");
+            DataManager::SetValue("ure_scale_status","Choose a scale and apply it. Recovery preferences are saved automatically when storage is available.");
         }
         const int percent=ure::display_scale_parse(value("ure_ui_scale_percent"));
         const auto layout=ure::display_layout(width,height,scale_w,scale_h,percent);
@@ -560,7 +559,7 @@ bool ure_gui_variable(const std::string& name,std::string& output) {
     return true;
 }
 bool ure_gui_keep_variable(const std::string& name) {
-    if(name.compare(0,4,"ure_")!=0)return false;
+    if(name.compare(0,4,"ure_")!=0 && !ure::ui_preference_key(name))return false;
     std::string existing;
     return DataManager::GetValue(name,existing)==0;
 }
@@ -593,18 +592,19 @@ int ManagementSession::run(const std::string& command) {
         } else if(command=="mirror-modes") {
             set("ure_mirror_modes",gr_external_modes());
         } else if(command=="scale-reset" || command=="scale-load") {
-            const int percent=command=="scale-reset" ? 75 : ure::display_settings_load(value("ure_scale_directory"))["scale_percent"].asInt();
+            const auto preferences=command=="scale-reset" ? ure::Value(Json::objectValue) : ure::ui_preferences_load();
+            const int percent=command=="scale-reset" ? 75 : ure::display_scale_parse(preferences["values"].get("ure_ui_scale_percent","75").asString());
             set("ure_scale_choice",percent);
             set("ure_scale_status","Selection ready. Apply to change the interface size.");
         } else if(command=="scale-apply") {
             const int percent=ure::display_scale_parse(value("ure_scale_choice"));
-            set("ure_ui_scale_percent",percent);
-            set("ure_scale_status","Applied to text, icons and touch targets.");
+            DataManager::SetValue("ure_ui_scale_percent",std::to_string(percent),1);
+            DataManager::QueuePreferences();
+            set("ure_scale_status","Applied. Check Saved recovery preferences for the storage result.");
             PageManager::RequestUreReload();
         } else if(command=="scale-save") {
-            const auto saved=ure::display_settings_save(value("ure_scale_directory"),ure::display_scale_parse(value("ure_ui_scale_applied")));
-            set("ure_scale_status",saved["volatile_filesystem"]==true ?
-                "Saved on volatile storage; this setting will be lost on reboot" : "Saved and read back; load this directory after mounting it on future boots");
+            ure::require(DataManager::Flush()==0,"preferences-unavailable","Applied for this session; persistent preferences are unavailable");
+            set("ure_scale_status","Interface scale saved and verified in persistent recovery preferences.");
         } else if(command=="services-status")publish(ure::recovery_services_status(system));
         else if(command=="capabilities")publish(ure::capabilities(system));
         else if(command=="storage")publish(ure::storage_graph(system));

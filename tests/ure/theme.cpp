@@ -23,6 +23,9 @@ struct DataManager {
     static int GetIntValue(const char* name) { return std::atoi(values[name].c_str()); }
     static std::string GetStrValue(const char* name) { return values[name]; }
     static void SetValue(const char* name, int value) { values[name] = std::to_string(value); }
+    static int SetValue(const char* name, const std::string& value, int = 0) { values[name] = value; return 0; }
+    static int Flush() { return 0; } // Handoff fixture; no device persistence.
+    static void QueuePreferences() {}
 };
 struct PageManager { static inline unsigned requests = 0; static void RequestUreThemeReload() { ++requests; } };
 static void gui_err(const char*) {}

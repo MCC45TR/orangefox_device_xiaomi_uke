@@ -2944,7 +2944,7 @@
             <icon res="ure_monitor_icon"/>
             <action function="page">ure_monitor</action>
           </listitem>
-          <listitem name="Scale storage settings" description="Choose the mounted folder used to save or load a size">
+          <listitem name="Saved recovery preferences" description="Check automatic storage for the selected interface size and appearance">
             <icon res="ure_files_icon"/>
             <action function="page">ure_display_storage</action>
           </listitem>
@@ -2952,7 +2952,7 @@
             <icon res="ure_display_icon"/>
             <action function="uremanager">scale-reset</action>
           </listitem>
-          <listitem name="Save the applied size" description="Save to the selected, already mounted settings directory">
+          <listitem name="Save the applied size" description="Retry saving the current size to persistent recovery preferences">
             <icon res="ure_upload_icon"/>
             <action function="uremanager">scale-save</action>
           </listitem>
@@ -3025,23 +3025,25 @@
       <action><touch key="back"/><action function="page">ure_display</action></action>
     </page>
     <page name="ure_display_storage">
-      <template name="base_ex_key"/>
+      <template name="base_ex"/>
       <text style="text_ab_title">
         <placement x="%col1_x_indent%" y="%ab_bc_y%"/>
-        <text>Scale storage settings</text>
+        <text>Saved recovery preferences</text>
       </text>
       <text style="caption">
         <placement x="%col1_x%" y="%row1_2_y%"/>
-        <text>Dedicated mounted settings directory; /tmp is volatile</text>
+        <text>Interface preferences are saved automatically after changes.</text>
       </text>
-      <input>
-        <placement x="%col1_x%" y="%row2_2a_y%" w="%input_w%" h="%input_height%"/>
-        <font resource="fixed"/>
+      <text style="caption">
+        <placement x="%col1_x%" y="%row2_2a_y%"/>
         <text>%ure_scale_directory%</text>
-        <data name="ure_scale_directory"/>
-        <restrict minlen="1" maxlen="4096"/>
-      </input>
-      <template name="gestures_key"/>
+      </text>
+      <text style="caption">
+        <placement x="%col1_x%" y="%row3_2a_y%"/>
+        <text>%ure_preferences_status%</text>
+      </text>
+      <template name="navbar"/>
+      <template name="gestures"/>
       <action>
         <touch key="back"/>
         <action function="page">ure_display</action>

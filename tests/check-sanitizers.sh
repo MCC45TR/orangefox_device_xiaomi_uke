@@ -46,6 +46,7 @@ bash tests/check-weaver.sh
 bash tests/check-clock.sh
 bash tests/check-clock-mount.sh
 bash tests/check-native-theme.sh
+bash tests/check-ui-preferences.sh
 cmp <(bash scripts/native-inputs.sh) reports/private/partition-sanitizer-inputs.sha256
 jq -n --arg inputs "$(sha256sum reports/private/partition-sanitizer-inputs.sha256 | cut -d' ' -f1)" \
     --arg localization "$(sed -n 's/^# localization_source_sha256=//p' reports/private/partition-sanitizer-inputs.sha256)" \
