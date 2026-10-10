@@ -239,6 +239,16 @@ inline bool kernel_api(std::string_view fs) {
            fs == "cgroup2" || fs == "configfs" || fs == "functionfs";
 }
 enum class MountPhase { isolated, init_preparation };
+// Overlaying a root-owned, full, read-only calibration partition does not
+// require changing its OEM directory mode. This exception never admits a
+// writable mount, subdirectory bind, different device or different pathname.
+inline bool readonly_persist_overlay(const Mount& mount, unsigned device_major,
+                                    unsigned device_minor, unsigned owner, unsigned mode) {
+    return owner == 0 && (mode & 0170000) == 0040000 && mount.visible &&
+           mount.path == "/persist" && mount.root == "/" && mount.fs == "ext4" &&
+           mount.major != 0 && mount.major == device_major && mount.minor == device_minor &&
+           mount.readonly() && token(mount.options,"nosuid") && token(mount.options,"nodev");
+}
 inline Code mount_policy(const std::vector<Mount> &mounts, bool final, bool real_cache,
                          MountPhase phase = MountPhase::isolated) {
     // Init owns inherited shared mounts. Only the verified init-namespace

@@ -23,6 +23,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
+#include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
@@ -190,12 +191,21 @@ const Mount &visible_mount(const std::vector<Mount> &mounts, std::string_view pa
     require(found != nullptr, Code::mount_invalid);
     return *found;
 }
-void directory(std::string_view path) {
+void directory(std::string_view path, bool overlay_admission = false) {
     auto fd = open_path(path, O_RDONLY | O_DIRECTORY);
     struct stat s{};
-    require(::fstat(fd.get(), &s) == 0 && S_ISDIR(s.st_mode) && s.st_uid == 0 &&
-                !(s.st_mode & 0022),
+    require(::fstat(fd.get(), &s) == 0 && S_ISDIR(s.st_mode) && s.st_uid == 0,
             Code::mount_invalid);
+    if (s.st_mode & 0022) {
+        require(overlay_admission && path == "/persist", Code::mount_invalid);
+        struct statfs filesystem{};
+        require(::fstatfs(fd.get(), &filesystem) == 0 && (filesystem.f_flags & ST_RDONLY),
+                Code::mount_invalid);
+        const auto mounts = current_mounts();
+        require(readonly_persist_overlay(visible_mount(mounts,path), major(s.st_dev),
+                                        minor(s.st_dev), s.st_uid, s.st_mode),
+                Code::mount_invalid);
+    }
 }
 void make_directory(const char *path, mode_t mode) {
     require(::mkdir(path, mode) == 0 || errno == EEXIST, Code::io_failed);
@@ -420,7 +430,7 @@ void pmsg() {
             Code::pmsg_failed);
 }
 void overlay(const char *target) {
-    directory(target);
+    directory(target, true);
     require(::mount("uke-touch-ram", target, "tmpfs", MS_NOSUID | MS_NODEV | MS_NOEXEC,
                     "mode=0755,size=16m") == 0,
             Code::overlay_failed);

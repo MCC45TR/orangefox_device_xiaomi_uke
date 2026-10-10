@@ -156,6 +156,24 @@ void controls(const std::string &root) {
     fuse[0].super = "ro";
     check(mount_policy(fuse, false, false) == Code::ok, "read-only persist before isolation");
     check(mount_policy(fuse, true, false) == Code::persistent_alias, "uncovered persist rejected");
+    const auto calibration = parse("19 1 8:87 / /persist ro,nosuid,nodev - ext4 /dev/block/sdf7 ro\n")[0];
+    check(readonly_persist_overlay(calibration,8,87,0,0040771), "OEM read-only persist mode admitted for private overlay");
+    check(!readonly_persist_overlay(calibration,8,87,1000,0040771), "foreign persist directory owner refused");
+    check(!readonly_persist_overlay(calibration,8,87,0,0100771), "regular-file overlay target refused");
+    check(!readonly_persist_overlay(calibration,8,86,0,0040771), "different persist device refused");
+    for(unsigned field=0;field<9;++field) {
+        auto changed=calibration;
+        if(field==0)changed.visible=false;
+        if(field==1)changed.path="/vendor";
+        if(field==2)changed.root="/calibration";
+        if(field==3)changed.fs="f2fs";
+        if(field==4)changed.major=0;
+        if(field==5)changed.options="rw,nosuid,nodev";
+        if(field==6)changed.super="rw";
+        if(field==7)changed.options="ro,nodev";
+        if(field==8)changed.options="ro,nosuid";
+        check(!readonly_persist_overlay(changed,8,87,0,0040771), "unsafe inherited persist overlay refused");
+    }
     auto pstore = parse("12 1 0:12 / /sys/fs/pstore rw - pstore pstore rw\n");
     check(mount_policy(pstore, false, false) == Code::ok, "pstore allowed only before overlay");
     check(mount_policy(pstore, true, false) != Code::ok, "pstore hidden before OEM execution");
