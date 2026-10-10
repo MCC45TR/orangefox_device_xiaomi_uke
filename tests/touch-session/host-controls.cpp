@@ -101,6 +101,23 @@ void controls(const std::string &root) {
     mounts[0].propagation = true;
     check(mount_policy(mounts, false, false) == Code::namespace_shared,
           "recursive propagation gate");
+    check(mount_policy(mounts, false, false, MountPhase::init_preparation) == Code::ok,
+          "verified init preparation accepts inherited shared RAM mounts");
+    check(mount_policy(mounts, true, false, MountPhase::init_preparation) == Code::namespace_shared,
+          "init preparation cannot admit final OEM execution");
+    mounts[1].visible = true;
+    check(mount_policy(mounts, false, false, MountPhase::init_preparation) == Code::mount_invalid,
+          "init preparation still rejects writable block mounts");
+    mounts[1].options = "ro,nosuid,nodev";
+    mounts[1].propagation = true;
+    check(mount_policy(mounts, false, false, MountPhase::init_preparation) == Code::ok,
+          "verified init preparation accepts shared read-only providers");
+    check(mount_policy(mounts, false, false) == Code::namespace_shared,
+          "isolation remains required after input preparation");
+    for (auto &mount : mounts)
+        mount.propagation = false;
+    check(mount_policy(mounts, false, false) == Code::ok,
+          "private read-only view passes unchanged policy");
     check(!mountinfo("1 0 0:1 / / rw - tmpfs\n"), "truncated mountinfo");
     check(!mountinfo("1 0 0:1 / / rw - tmpfs x rw\n1 0 0:2 / /x rw - tmpfs x rw\n"),
           "duplicate mount ID");

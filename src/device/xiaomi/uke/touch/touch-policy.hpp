@@ -238,13 +238,19 @@ inline bool kernel_api(std::string_view fs) {
            fs == "selinuxfs" || fs == "binder" || fs == "binderfs" || fs == "cgroup" ||
            fs == "cgroup2" || fs == "configfs" || fs == "functionfs";
 }
-inline Code mount_policy(const std::vector<Mount> &mounts, bool final, bool real_cache) {
+enum class MountPhase { isolated, init_preparation };
+inline Code mount_policy(const std::vector<Mount> &mounts, bool final, bool real_cache,
+                         MountPhase phase = MountPhase::isolated) {
+    // Init owns inherited shared mounts. Only the verified init-namespace
+    // preparation may see them; an OEM execution view must always be private.
+    if (final && phase != MountPhase::isolated)
+        return Code::namespace_shared;
     const std::array<std::string_view, 8> protected_paths = {"/data", "/metadata", "/mnt",
         "/dev/socket", "/cache", "/persist", "/sys/fs/pstore", "/dev/block"};
     for (const auto &m : mounts) {
         if (!m.visible)
             continue;
-        if (m.propagation)
+        if (m.propagation && phase != MountPhase::init_preparation)
             return Code::namespace_shared;
         // Device numbers, not source spelling, decide block-backed policy.
         if (m.major != 0 && !m.readonly())
