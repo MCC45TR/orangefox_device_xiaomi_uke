@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "boot_state.hpp"
 #include "dualboot_quarantine.hpp"
 #include "dualboot_view_handoff.hpp"
 #include "job_registry.hpp"
@@ -438,8 +439,8 @@ void check_snapshot(const Root& system,const Value& plan) {
 void current_root(const Root& system) {
     Root current("/"); require(json(descriptor_identity(current.fd()))==json(descriptor_identity(system.fd())) && ::geteuid()==0,
         "untrusted-dualboot-system","Live admission requires the current recovery root and root privileges");
-    require(live_property("ro.product.device")=="uke" && live_property("ro.boot.vbmeta.device_state")=="unlocked" &&
-        live_property("ro.boot.flash.locked")=="0","unsupported-dualboot-device","Current device and unlocked boot properties must identify Uke");
+    require(bootloader_unlocked(system),"unsupported-dualboot-device",
+        "Current kernel and recovery properties must consistently identify unlocked Uke");
 }
 void crypto_fstab(const Root& system) {
     bool matched=false; for(const auto* file:{"vendor/etc/fstab.qcom","first_stage_ramdisk/fstab.qcom","fstab.qcom"})if(system.exists(file)) {

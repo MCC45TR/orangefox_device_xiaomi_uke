@@ -29,6 +29,7 @@ export URE_OPERATION_COORDINATOR="$operation_scope/coordinator"
 trap 'rm -f -- "$initial_inputs"; if [[ -f $operation_scope/coordinator/owner.json ]]; then printf "Unresolved CLI ownership preserved at %s\n" "$operation_scope" >&2; else rm -rf -- "$operation_scope"; fi' EXIT
 bash tests/check-ure.sh
 bash tests/check-device-profile.sh
+bash tests/check-boot-state.sh
 bash tests/check-backup.sh
 bash tests/check-tree-backup.sh
 bash tests/check-storage-backup.sh

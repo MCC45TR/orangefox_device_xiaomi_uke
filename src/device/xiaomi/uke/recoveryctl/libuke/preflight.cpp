@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "uke.h"
+#include "boot_state.hpp"
 #include "recovery_write_policy.hpp"
 #include "../install_policy.h"
 #include <algorithm>
@@ -70,7 +71,7 @@ Value storage_preflight(const Root& system,const StorageTarget& target,const std
         const auto device=property("ro.product.device"),suffix=property("ro.boot.slot_suffix");
         out["observed_device"]=device; out["observed_model"]=property("ro.product.model");
         check(out,"uke-device",device=="uke","Pad 7 and POCO Pad X1 share the Uke target; the actual SKU and firmware still need separate matching evidence");
-        check(out,"unlocked-bootloader",property("ro.boot.vbmeta.device_state")=="unlocked" && property("ro.boot.flash.locked")=="0","Boot properties must consistently report an unlocked bootloader");
+        check(out,"unlocked-bootloader",bootloader_unlocked(system),"Current kernel and recovery properties must consistently identify unlocked Uke");
         const auto slots=boot_query("get-number-slots"),current=boot_query("get-current-slot"),merge=boot_query("get-snapshot-merge-status");
         out["boot_control"]["slots"]=slots; out["boot_control"]["current"]=current; out["boot_control"]["merge"]=merge;
         check(out,"two-ab-slots",slots["successful"]==true && slots["value"]=="2","Authoritative boot-control HAL must report exactly two slots");

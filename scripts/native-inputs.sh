@@ -68,6 +68,7 @@ cd "$component"
     printf '%s\0' scripts/check-ui-resource-parity.sh tests/check-ui-resource-parity.sh
     printf '%s\0' configs/release-policy.json scripts/release-policy-lib.sh scripts/release-policy.sh \
         scripts/native-test-catalog.sh scripts/check-package-repeat.sh tests/check-release-policy.sh
+    printf '%s\0' tests/check-boot-state.sh tests/ure/boot_state.cpp
     printf '%s\0' tests/check-stock-job.sh scripts/describe-stock-payloads.sh manifests/stock-payloads-global.json
     printf '%s\0' tests/installer_test.cpp tests/check-stock-boot-programming.sh scripts/describe-stock-boot-programming.sh manifests/stock-boot-programming-global.json
     printf '%s\0' tests/check-boot-router.sh tests/check-aarch64.sh
