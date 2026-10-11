@@ -49,6 +49,7 @@ case $mode in
         work=$(mktemp -d "${job%/*}/verify-XXXXXXXX")
         build_verify "$project" "$android" "$job" "$android/out-public" host-fixture "$work";;
     integrity) build_receipt_integrity "$job" host-fixture;;
+    cache-index) build_cache_index "$job" "$7";;
     production-class) build_receipt_integrity "$job" android-recovery;;
     *) exit 2;;
 esac
@@ -218,10 +219,36 @@ jq -e '.validation.fresh_output==false and .validation.cache_seeded==true and .o
 entry publish "$consumer"
 entry verify "$consumer"
 refuse entry production-class "$consumer"
+# Real Android outputs retain a FIFO and a closed Unix socket after success.
+cat > "$scratch/cache-ipc.cpp" <<'IPC_EOF'
+#include <cassert>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <unistd.h>
+int main(int argc,char** argv) {
+    assert(argc==2 && chdir(argv[1])==0 && mkfifo(".ninja_fifo",0600)==0);
+    const int fd=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0); assert(fd>=0);
+    sockaddr_un address{}; address.sun_family=AF_UNIX;
+    __builtin_strcpy(address.sun_path,".path_interposer_log");
+    assert(bind(fd,reinterpret_cast<sockaddr*>(&address),sizeof(address))==0);
+    assert(chmod(address.sun_path,0700)==0 && close(fd)==0);
+}
+IPC_EOF
+ccache /usr/bin/c++ -std=c++20 -O2 -Wall -Wextra -Werror "$scratch/cache-ipc.cpp" -o "$scratch/cache-ipc"
+"$scratch/cache-ipc" "$android/out-public"
+mkdir "$scratch/invalid-ipc"
+printf 'wrong-type\n' > "$scratch/invalid-ipc/.ninja_fifo"
+refuse entry cache-index "$scratch/invalid-ipc" "$scratch/refused-ipc-index"
+unlink "$scratch/invalid-ipc/.ninja_fifo"
+mkfifo "$scratch/invalid-ipc/unexpected-fifo"
+refuse entry cache-index "$scratch/invalid-ipc" "$scratch/refused-special-index"
 accepted_seed="$project/build/android-builds/job-CacheSeed003"
 entry seed "$accepted_seed" "$consumer"
 [[ ! -e $accepted_seed/output/target/product/uke/recovery && ! -e $accepted_seed/output/.uke-build-id &&
-   -f $accepted_seed/output/soong/.intermediates/fixture/object ]]
+   -f $accepted_seed/output/soong/.intermediates/fixture/object &&
+   ! -e $accepted_seed/output/.ninja_fifo && ! -e $accepted_seed/output/.path_interposer_log &&
+   -p $android/out-public/.ninja_fifo && -S $android/out-public/.path_interposer_log ]]
 jq -e '.output_origin.seed.producer_success_claimed==false and
     (.output_origin.seed.producer_receipt_sha256|length)==64 and
     (.output_origin.seed.producer_service_completion_sha256|length)==64' "$accepted_seed/prepared.json" >/dev/null
@@ -270,7 +297,7 @@ refuse entry seed "$project/build/android-builds/job-CacheSeed016" "$producer"
 unlink "$producer/receipt"
 printf 'corrupt-input-index\n' >> "$producer/inputs-before/android/files.sha256"
 refuse entry seed "$project/build/android-builds/job-CacheSeed007" "$producer"
-printf 'Reflink cache consumers accept interrupted or controller-accepted producers, invalidate installed payloads, and retain independent intermediates. Stale sealing, incomplete controllers, wrong identities, tampered products, foreign lunch, unsafe paths and corrupted source indexes refused.\n'
+printf 'Reflink cache consumers accept interrupted or controller-accepted producers, invalidate installed payloads and runtime IPC, and retain independent intermediates. Stale sealing, incomplete controllers, wrong identities, tampered products, invalid IPC types, unknown special objects, foreign lunch, unsafe paths and corrupted source indexes refused.\n'
 
 # The existing interrupted-job tests retain their accepted output expectation.
 entry verify "$consumer"

@@ -54,8 +54,11 @@ Copied content and layout must match. Installed recovery, root and partition
 payloads, final images, packaging timestamps and stale build identity are
 removed from the new copy; Soong and Make object intermediates are retained.
 Ninja must reinstall and repack those outputs. The producer is preserved, and
-the new receipt binds its cache provenance alongside the new before/after
-source evidence. Cache reuse does not establish binary reproducibility.
+the known Ninja FIFO and path-interposer socket are type/owner checked, excluded
+from cached content and removed from the consumer. Unexpected types or other
+special objects refuse cache admission. The new receipt binds cache provenance
+alongside the new before/after source evidence. Cache reuse does not establish
+binary reproducibility.
 
 The sealed receipt maps these inputs to the actual recovery image, complete
 staged recovery payload, installed product files, generated Soong configuration

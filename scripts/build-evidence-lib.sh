@@ -90,14 +90,25 @@ build_input_index_integrity() {
     done
 }
 build_cache_index() {
-    local output=$1 destination=$2
+    local output=$1 destination=$2 ipc kind mode
     [[ -d $output && ! -L $output && ! -e $destination ]]
+    for ipc in .ninja_fifo .path_interposer_log; do
+        [[ -e $output/$ipc || -L $output/$ipc ]] || continue
+        kind=p; mode=600
+        [[ $ipc != .path_interposer_log ]] || { kind=s; mode=700; }
+        [[ ! -L $output/$ipc && $(stat -c '%u %a %h' "$output/$ipc") == "$UID $mode 1" &&
+           $(find "$output/$ipc" -maxdepth 0 -type "$kind" -printf yes) == yes ]] || {
+            echo 'Unexpected build IPC object refused.' >&2; return 1;
+        }
+    done
     mkdir -m 0700 -- "$destination"
     (
         cd -- "$output"
         # Bind even files omitted from final-product audits: cached compiler
         # objects, Ninja dependency state and generated build graphs.
-        find . -printf '%p\t%y\t%m\t%s\t%T@\t%l\0' | sort -z -S 64M --parallel=1 > "$destination/layout.bin"
+        # Ninja IPC nodes are runtime endpoints, never reusable build inputs.
+        find . \( -path './.ninja_fifo' -type p -o -path './.path_interposer_log' -type s \) -prune \
+            -o -printf '%p\t%y\t%m\t%s\t%T@\t%l\0' | sort -z -S 64M --parallel=1 > "$destination/layout.bin"
         awk -v RS='\0' -F '\t' 'NF!=6 || $1~/[\n\r]/ || $2!~/^[fdl]$/ || $3!~/^[0-7]{3,4}$/ ||
             $4!~/^[0-9]+$/ || $5!~/^[0-9]+\.[0-9]+$/ || $6~/[\n\r]/ {exit 1}' "$destination/layout.bin"
         find . -type f -print0 | sort -z -S 64M --parallel=1 | xargs -0 -r sha256sum > "$destination/files.sha256"
@@ -187,6 +198,12 @@ build_seed() {
     # Invalidate all installed payloads and final artifacts while retaining
     # obj/ and Soong intermediates. Ninja must reinstall and repack everything.
     : > "$job/cache-seed/invalidated-paths.txt"
+    for path in .ninja_fifo .path_interposer_log; do
+        if [[ -e $job/output/$path || -L $job/output/$path ]]; then
+            printf '%s\n' "$path" >> "$job/cache-seed/invalidated-paths.txt"
+            unlink "$job/output/$path"
+        fi
+    done
     for path in recovery root system vendor oem odm product system_ext ramdisk debug_ramdisk symbols fake_packages kernel; do
         record="$job/output/target/product/uke/$path"
         if [[ -e $record || -L $record ]]; then
