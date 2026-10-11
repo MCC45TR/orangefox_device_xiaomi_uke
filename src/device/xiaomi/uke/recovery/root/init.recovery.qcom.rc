@@ -36,12 +36,12 @@ on early-fs && property:ro.boot.usbcontroller=a600000.dwc3
     write /sys/bus/platform/devices/a600000.ssusb/mode peripheral
     wait /sys/class/udc/a600000.dwc3 2
 
-# /dev is first-stage tmpfs. Keep the generic boot-device partition labels
-# available through the fstab's compatibility prefix, without replacing paths.
+# Qualcomm RPMB discovery requires the controller symlink, not a directory.
+# Keep the measured Uke controller and its existing partition labels intact.
 # init's symlink() fails on an existing link; it never unlinks or follows it.
-on early-fs
-    mkdir /dev/block/bootdevice 0755 root root
-    symlink /dev/block/by-name /dev/block/bootdevice/by-name
+on early-fs && property:ro.boot.bootdevice=1d84000.ufshc && property:ro.boot.boot_devices=soc/1d84000.ufshc
+    wait /dev/block/platform/soc/1d84000.ufshc/by-name 2
+    symlink /dev/block/platform/soc/1d84000.ufshc /dev/block/bootdevice
 
 # Derive UTC from the installed RTC counter and ATS_TOD offset. The helper
 # verifies the Uke persist geometry, creates its own private mount namespace,
