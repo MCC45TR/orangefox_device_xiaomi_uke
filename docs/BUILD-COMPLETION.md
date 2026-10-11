@@ -2,7 +2,8 @@
 
 Every new recovery build owns a separate private output directory. It starts
 empty by default. An explicit `--cache-seed job-ID` may copy intermediates from
-an earlier unsealed project job using mandatory filesystem reflinks. Existing
+an earlier unsealed project job or the current controller-accepted published
+output using mandatory filesystem reflinks. Existing
 outputs stay available until the new job is accepted. Seeded output is recorded
 as `fresh_output=false` and `cache_seeded=true`; the producer is never adopted
 as successful build evidence. Compiler cache remains separate.
@@ -43,6 +44,10 @@ resealed. Their intermediates may supply an explicitly bound cache to a new job.
 
 Cache admission checks producer ownership, output identity, source lock and
 revision list, host tools/runtime, lunch, build targets and firmware profiles.
+An accepted producer additionally requires its immutable receipt, successful
+outer-controller acknowledgment, matching published build ID and unchanged
+product content. Its receipt and service digests are retained as cache
+provenance; they do not replace the new consumer's compilation or acceptance.
 It indexes every cached file by content and records modes, timestamps and
 symlink targets before and after copying; producer changes reject the seed.
 Copied content and layout must match. Installed recovery, root and partition
@@ -95,9 +100,9 @@ production trust root, which remain AUD-035 work.
 
 ```sh
 bash scripts/prepare-build-tree.sh global-os3.0.303.0
-bash scripts/build-public.sh 16
-# Optional: seed a new job from an explicitly selected unsealed project job.
-bash scripts/build-public.sh 16 --cache-seed job-XXXXXXXXXXXX
+bash scripts/build-public.sh 12
+# Optional: select an unsealed job or the current accepted published job.
+bash scripts/build-public.sh 12 --cache-seed job-XXXXXXXXXXXX
 bash scripts/build-evidence.sh verify
 bash scripts/build-evidence.sh export artifacts/NEW-CANDIDATE/BUILD-COMPLETION.json
 ```

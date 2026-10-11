@@ -218,7 +218,29 @@ jq -e '.validation.fresh_output==false and .validation.cache_seeded==true and .o
 entry publish "$consumer"
 entry verify "$consumer"
 refuse entry production-class "$consumer"
-refuse entry seed "$project/build/android-builds/job-CacheSeed003" "$consumer"
+accepted_seed="$project/build/android-builds/job-CacheSeed003"
+entry seed "$accepted_seed" "$consumer"
+[[ ! -e $accepted_seed/output/target/product/uke/recovery && ! -e $accepted_seed/output/.uke-build-id &&
+   -f $accepted_seed/output/soong/.intermediates/fixture/object ]]
+jq -e '.output_origin.seed.producer_success_claimed==false and
+    (.output_origin.seed.producer_receipt_sha256|length)==64 and
+    (.output_origin.seed.producer_service_completion_sha256|length)==64' "$accepted_seed/prepared.json" >/dev/null
+refuse entry seal "$accepted_seed"
+cp "$consumer/SERVICE-COMPLETION.json" "$scratch/accepted-service.json"
+chmod 0600 "$consumer/SERVICE-COMPLETION.json"
+jq '.controller_confirmed=false' "$scratch/accepted-service.json" > "$consumer/SERVICE-COMPLETION.json"
+chmod 0444 "$consumer/SERVICE-COMPLETION.json"
+refuse entry seed "$project/build/android-builds/job-CacheSeed013" "$consumer"
+chmod 0600 "$consumer/SERVICE-COMPLETION.json"
+cp "$scratch/accepted-service.json" "$consumer/SERVICE-COMPLETION.json"
+chmod 0444 "$consumer/SERVICE-COMPLETION.json"
+printf 'wrong-producer\n' > "$android/out-public/.uke-build-id"
+refuse entry seed "$project/build/android-builds/job-CacheSeed014" "$consumer"
+printf '%s\n' "${consumer##*/}" > "$android/out-public/.uke-build-id"
+printf 'tampered-product\n' > "$android/out-public/host/linux-x86/lib64/fixture-host-runtime.so"
+refuse entry seed "$project/build/android-builds/job-CacheSeed015" "$consumer"
+cp /usr/bin/true "$android/out-public/host/linux-x86/lib64/fixture-host-runtime.so"
+entry verify "$consumer"
 ln -s "$producer" "$project/build/android-builds/job-CacheSeed004"
 refuse entry seed "$project/build/android-builds/job-CacheSeed005" "$project/build/android-builds/job-CacheSeed004"
 cp "$producer/prepared.json" "$scratch/producer-prepared.json"
@@ -243,9 +265,12 @@ entry seed "$clean_seed" "$producer"
 [[ ! -e $clean_seed/output/.uke-build-id && ! -L $clean_seed/output/.uke-build-id &&
    ! -e $clean_seed/output/target/product/uke/dangling.img && ! -L $clean_seed/output/target/product/uke/dangling.img &&
    ! -e $scratch/never-create-this-id && ! -e $scratch/never-create-this-image ]]
+ln -s "$scratch/missing-receipt" "$producer/receipt"
+refuse entry seed "$project/build/android-builds/job-CacheSeed016" "$producer"
+unlink "$producer/receipt"
 printf 'corrupt-input-index\n' >> "$producer/inputs-before/android/files.sha256"
 refuse entry seed "$project/build/android-builds/job-CacheSeed007" "$producer"
-printf 'Reflink cache consumer rebuilt installed payloads, retained intermediates and bound producer provenance; stale sealing, foreign lunch, symlink and nested producers, external product parents, completed producer and corrupted source-index controls refused; dangling IDs/images removed without following links.\n'
+printf 'Reflink cache consumers accept interrupted or controller-accepted producers, invalidate installed payloads, and retain independent intermediates. Stale sealing, incomplete controllers, wrong identities, tampered products, foreign lunch, unsafe paths and corrupted source indexes refused.\n'
 
 # The existing interrupted-job tests retain their accepted output expectation.
 entry verify "$consumer"

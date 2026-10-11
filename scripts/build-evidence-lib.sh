@@ -105,51 +105,74 @@ build_cache_index() {
     sha256sum "$destination/layout.bin" "$destination/files.sha256" | awk '{print $1}' > "$destination/index.sha256"
 }
 build_seed() {
-    local component=$1 job=$2 producer=$3 class=$4 expected_root="${1}/build/android-builds" identity source path record provenance_before provenance_after
+    local component=$1 job=$2 producer=$3 class=$4 android=$5 expected_root="${1}/build/android-builds" identity source path record provenance_before provenance_after
+    local output="$3/output" prepared="$3/prepared.json" inputs="$3/inputs-before" receipt_digest= service_digest=
     [[ $producer == "$expected_root/${producer##*/}" && ${producer##*/} =~ ^job-[a-zA-Z0-9]{12}$ && $producer != "$job" ]]
     [[ -d $expected_root && ! -L $expected_root && $(stat -c '%u %a' "$expected_root") == "$UID 700" ]]
     [[ $(realpath -e -- "$producer") == "$producer" && ! -L $producer && $(stat -c '%u %a' "$producer") == "$UID 700" ]]
-    [[ -f $producer/prepared.json && ! -L $producer/prepared.json && ! -e $producer/receipt && ! -e $producer/SERVICE-COMPLETION.json ]]
-    [[ -d $producer/output && ! -L $producer/output && $(stat -c '%u %a' "$producer/output") == "$UID 700" ]]
-    identity=$(build_identity "$producer/output")
+    if [[ -e $producer/receipt || -L $producer/receipt || -e $producer/SERVICE-COMPLETION.json || -L $producer/SERVICE-COMPLETION.json ]]; then
+        build_receipt_integrity "$producer" "$class"
+        [[ -f $producer/SERVICE-COMPLETION.json && ! -L $producer/SERVICE-COMPLETION.json &&
+           $(stat -c '%u %a %h' "$producer/SERVICE-COMPLETION.json") == "$UID 444 1" ]]
+        receipt_digest=$(build_digest "$producer/receipt/SHA256SUMS")
+        service_digest=$(build_digest "$producer/SERVICE-COMPLETION.json")
+        jq -e --arg receipt "$receipt_digest" '.schema_version==1 and .receipt_index_sha256==$receipt and
+            .command_status==0 and .new_oom_events==0 and .published==true and
+            .systemd_run_status==0 and .controller_confirmed==true' "$producer/SERVICE-COMPLETION.json" >/dev/null
+        output="$android/out-public"; prepared="$producer/receipt/prepared.json"; inputs="$producer/receipt/inputs"
+        [[ -f $output/.uke-build-id && ! -L $output/.uke-build-id && $(cat "$output/.uke-build-id") == "${producer##*/}" ]]
+        [[ $(build_identity "$output") == "$(jq -er .output_identity "$producer/receipt/BUILD-COMPLETION.json")" ]]
+    else
+        [[ -f $prepared && ! -L $prepared ]]
+    fi
+    [[ -d $output && ! -L $output && $(stat -c '%u %a' "$output") == "$UID 700" ]]
+    identity=$(build_identity "$output")
     jq -e --arg class "$class" --arg identity "$identity" --slurpfile incoming "$job/prepared.json" \
         '.schema_version==1 and .evidence_class==$class and .state=="prepared" and .output_identity==$identity and
          .expected_project_count==$incoming[0].expected_project_count and .build.lunch==$incoming[0].build.lunch and
          .build.targets==$incoming[0].build.targets and .environment.output==$incoming[0].environment.output and
          .environment.source_date_epoch==$incoming[0].environment.source_date_epoch and
          .environment.build_datetime==$incoming[0].environment.build_datetime and
-         .environment.build_number==$incoming[0].environment.build_number' "$producer/prepared.json" >/dev/null
-    build_input_index_integrity "$producer/inputs-before"
+         .environment.build_number==$incoming[0].environment.build_number' "$prepared" >/dev/null
+    build_input_index_integrity "$inputs"
     build_input_index_integrity "$job/inputs-before"
-    provenance_before=$(sha256sum "$producer/prepared.json" "$producer/inputs-before/"{revisions.tsv,host-tools.tsv,host-runtime.tsv} \
-        "$producer/inputs-before/"{project,android}/index.sha256 | sha256sum | cut -d' ' -f1)
+    provenance_before=$(sha256sum "$prepared" "$inputs/"{revisions.tsv,host-tools.tsv,host-runtime.tsv} \
+        "$inputs/"{project,android}/index.sha256 | sha256sum | cut -d' ' -f1)
     # Reviewed source changes are expected, but a cache cannot cross a source
     # lock, host compiler/runtime, lunch or firmware-profile boundary.
     for source in revisions.tsv host-tools.tsv host-runtime.tsv; do
-        cmp -- "$producer/inputs-before/$source" "$job/inputs-before/$source"
+        cmp -- "$inputs/$source" "$job/inputs-before/$source"
     done
     if [[ $class == android-recovery ]]; then
         # Locked Git revisions alone do not cover staged/local prebuilt edits.
         # Reuse cannot cross a changed Android toolchain or embedded kernel.
-        cmp <(awk '$2~/^\.\/prebuilts\// || $2~/^\.\/device\/xiaomi\/uke\/prebuilt\//' "$producer/inputs-before/android/files.sha256") \
+        cmp <(awk '$2~/^\.\/prebuilts\// || $2~/^\.\/device\/xiaomi\/uke\/prebuilt\//' "$inputs/android/files.sha256") \
             <(awk '$2~/^\.\/prebuilts\// || $2~/^\.\/device\/xiaomi\/uke\/prebuilt\//' "$job/inputs-before/android/files.sha256")
     fi
     for path in manifests/firmware.lock.json manifests/boot-profile-global.json manifests/boot-profile-cn.json; do
-        source=$(awk -v path="$path" '$2==path {print $1}' "$producer/inputs-before/project/files.sha256")
+        source=$(awk -v path="$path" '$2==path {print $1}' "$inputs/project/files.sha256")
         record=$(awk -v path="$path" '$2==path {print $1}' "$job/inputs-before/project/files.sha256")
         [[ $class != android-recovery || ( $source =~ ^[a-f0-9]{64}$ && $record =~ ^[a-f0-9]{64}$ ) ]]
         [[ $source == "$record" ]]
     done
     [[ ! -e $job/cache-seed ]]
     mkdir -m 0700 -- "$job/cache-seed"
-    build_cache_index "$producer/output" "$job/cache-seed/producer-before"
-    cp -a --reflink=always -- "$producer/output/." "$job/output/"
-    [[ $(build_identity "$producer/output") == "$identity" ]]
-    build_cache_index "$producer/output" "$job/cache-seed/producer-after"
+    build_cache_index "$output" "$job/cache-seed/producer-before"
+    if [[ -n $receipt_digest ]]; then
+        bash "$build_scripts/index-build-tree.sh" "$output" "$job/cache-seed/accepted-products" products
+        diff -qr -- "$producer/receipt/products" "$job/cache-seed/accepted-products" >/dev/null
+    fi
+    cp -a --reflink=always -- "$output/." "$job/output/"
+    [[ $(build_identity "$output") == "$identity" ]]
+    build_cache_index "$output" "$job/cache-seed/producer-after"
     diff -qr -- "$job/cache-seed/producer-before" "$job/cache-seed/producer-after" >/dev/null
-    provenance_after=$(sha256sum "$producer/prepared.json" "$producer/inputs-before/"{revisions.tsv,host-tools.tsv,host-runtime.tsv} \
-        "$producer/inputs-before/"{project,android}/index.sha256 | sha256sum | cut -d' ' -f1)
+    provenance_after=$(sha256sum "$prepared" "$inputs/"{revisions.tsv,host-tools.tsv,host-runtime.tsv} \
+        "$inputs/"{project,android}/index.sha256 | sha256sum | cut -d' ' -f1)
     [[ $provenance_before == "$provenance_after" ]]
+    if [[ -n $receipt_digest ]]; then
+        [[ $(build_digest "$producer/receipt/SHA256SUMS") == "$receipt_digest" &&
+           $(build_digest "$producer/SERVICE-COMPLETION.json") == "$service_digest" ]]
+    fi
     build_cache_index "$job/output" "$job/cache-seed/copied"
     # Root directory metadata can differ because begin owns the new output.
     cmp -- "$job/cache-seed/producer-before/files.sha256" "$job/cache-seed/copied/files.sha256"
@@ -181,15 +204,17 @@ build_seed() {
     # The output identity is new; producer identity and index are provenance,
     # never a previous successful compilation or service-completion claim.
     jq -cn --arg producer "${producer##*/}" --arg identity "$identity" \
-        --arg prepared "$(build_digest "$producer/prepared.json")" \
-        --arg inputs "$(build_digest "$producer/inputs-before/android/index.sha256")" \
-        --arg project "$(build_digest "$producer/inputs-before/project/index.sha256")" \
+        --arg prepared "$(build_digest "$prepared")" \
+        --arg inputs "$(build_digest "$inputs/android/index.sha256")" \
+        --arg project "$(build_digest "$inputs/project/index.sha256")" \
+        --arg receipt "$receipt_digest" --arg service "$service_digest" \
         --arg index "$(build_digest "$job/cache-seed/producer-before/index.sha256")" \
         --arg invalidated "$(build_digest "$job/cache-seed/invalidated-paths.txt")" \
         '{schema_version:1,producer_job_id:$producer,producer_output_identity:$identity,producer_prepared_sha256:$prepared,
           producer_android_inputs_index_sha256:$inputs,producer_project_inputs_index_sha256:$project,producer_cache_index_sha256:$index,
           invalidated_paths_sha256:$invalidated,copy_method:"cp--reflink=always",producer_unchanged_during_copy:true,
-          copied_file_contents_match:true,installed_payloads_invalidated:true,producer_success_claimed:false}' > "$job/cache-seed/SEED.json"
+          copied_file_contents_match:true,installed_payloads_invalidated:true,producer_success_claimed:false,
+          producer_receipt_sha256:$receipt,producer_service_completion_sha256:$service}' > "$job/cache-seed/SEED.json"
     jq --slurpfile seed "$job/cache-seed/SEED.json" --arg identity "$(build_identity "$job/output")" \
         '.output_identity=$identity | .output_origin={fresh_output:false,cache_seeded:true,seed:$seed[0]}' \
         "$job/prepared.json" > "$job/prepared.seeded.json"
@@ -211,7 +236,7 @@ build_begin() {
             source_date_epoch:1790726400,build_datetime:1790726400,build_number:"uke-r12",host_python_write_bytecode:false,
             go_procs:$go_procs,go_heap:$go_heap,go_gc:$go_gc}}' \
         > "$job/prepared.json"
-    [[ -z $producer ]] || build_seed "$component" "$job" "$producer" "$class"
+    [[ -z $producer ]] || build_seed "$component" "$job" "$producer" "$class" "$android"
 }
 build_seal() {
     local component=$1 android=$2 job=$3 id=${3##*/} count identity stage binary payload file
