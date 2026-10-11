@@ -109,6 +109,22 @@ printf '%s\n' 'PASS: marker-only mutant rejected with the recovery executable ab
 
 compile_loader "$task_result/unpatched-libmodprobe.cpp" \
     "$task_result/libmodprobe-removed-denial"
+# The inherited init_boot executable runs before our patched init. Exercise
+# its unpatched loader with the actual recovery overlay and no executable marker.
+cp "$task_component/src/device/xiaomi/uke/recovery/root/lib/modules/modules.blocklist" \
+    "$task_result/stock-fixture/modules.blocklist"
+cmp <(sed '/^# Deny automatic storage writers/,$d' \
+    "$task_result/stock-fixture/modules.blocklist" | sed '${/^$/d;}') \
+    "$task_candidate/stock/modules.blocklist"
+timeout 30 "$task_result/libmodprobe-removed-denial" \
+    "$task_result/synthetic-fixture" "$task_result/stock-fixture" early-blocklist
+cp "$task_candidate/stock/modules.blocklist" "$task_result/stock-fixture/modules.blocklist"
+if timeout 30 "$task_result/libmodprobe-removed-denial" \
+    "$task_result/synthetic-fixture" "$task_result/stock-fixture" early-blocklist \
+    > "$task_result/missing-overlay.log" 2>&1; then
+    echo 'Inherited loader accepted a missing recovery blocklist' >&2; exit 1
+fi
+rg -q '^FAIL: stock denial: charger_partition$' "$task_result/missing-overlay.log"
 set +e
 timeout 30 "$task_result/libmodprobe-removed-denial" \
     "$task_result/synthetic-fixture" "$task_result/stock-fixture" > \
@@ -128,6 +144,7 @@ sha256sum "$task_compiler" "$task_libs/libbase.so" "$task_libs/liblog.so" \
     "$task_source/system/core/libmodprobe/exthandler.cpp" \
     "$task_candidate/loader.cpp" \
     "$task_candidate/stock/modules.dep" \
+    "$task_component/src/device/xiaomi/uke/recovery/root/lib/modules/modules.blocklist" \
     "$task_candidate/stock/modules.load.recovery" > "$task_result/inputs.sha256"
 sha256sum "$task_result/libmodprobe-recovery-denial" \
     "$task_result/libmodprobe-recovery-build-denial" \
@@ -140,6 +157,7 @@ jq -n --arg runner "$(sha256sum "${BASH_SOURCE[0]}"|cut -d' ' -f1)" \
       staged_source_verified:$staged,
       actual_complete_translation_units:3,removed_guard_rejected:true,marker_only_mutant_rejected:true,
       recovery_build_missing_marker_denied:true,validation:{direct_and_alias_paths:true,
+      inherited_unpatched_loader_blocklist:true,missing_overlay_rejected:true,
       hard_and_soft_dependencies:true,sequential_and_parallel_loaders:true,oem_blocklist_preserved:true,
       caller_bypass_refused:true,stock_graph:true,normal_boot_control:true,module_syscalls_mocked:true,
       external_handler_calls:0,physical_device:false,target_runtime:false}}' \

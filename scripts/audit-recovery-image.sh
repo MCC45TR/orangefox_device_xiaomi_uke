@@ -72,6 +72,8 @@ cmp "$component/src/device/xiaomi/uke/recovery/root/init.recovery.qcom.rc" "$wor
 [[ ! -e $work/root/init.recovery.usb.rc ]]
 strings "$work/root/system/bin/init" | rg -F charger_partition >/dev/null
 strings "$work/root/system/bin/init" | rg -F ufs_ffu >/dev/null
+cmp "$component/src/device/xiaomi/uke/recovery/root/lib/modules/modules.blocklist" \
+    "$work/root/lib/modules/modules.blocklist"
 cmp "$tree/bootable/recovery/gui/theme/common/languages/en.xml" "$work/root/twres/languages/en.xml"
 [[ $(xmllint --xpath 'count(/language/resources/string[@name="ure_device_write_blocked"])' "$work/root/twres/languages/en.xml") == 1 ]]
 for binary in recovery fastbootd; do

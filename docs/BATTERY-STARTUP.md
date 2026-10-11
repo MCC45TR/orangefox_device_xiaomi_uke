@@ -5,6 +5,14 @@ when that provider is missing, unreadable or invalid, and starts showing a real
 percentage when a valid provider appears. It never substitutes an old percentage
 or a made-up default. CPU thermal observation is separate from battery reporting.
 
+The installed `init_boot` supplies the first-stage executable. On the measured
+boot it ignored recovery's header arguments and loaded modules before the patched
+recovery init ran. Recovery therefore also overlays `/lib/modules/modules.blocklist`,
+retaining the measured OEM exclusions and adding `charger_partition` and `ufs_ffu`.
+Host tests exercise this file with an unpatched loader and the complete stock
+dependency graph. Physical absence of both modules must be checked after flashing;
+the header and patched second-stage executable alone do not prove that exclusion.
+
 The latest connected-tablet investigation found no power-supply devices. ADSP
 was offline and the PMIC GLINK battery child had not been created. The installed
 active-slot ADSP firmware headers match the previous successful RAM trial, but

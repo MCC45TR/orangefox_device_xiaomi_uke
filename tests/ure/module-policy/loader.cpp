@@ -70,9 +70,9 @@ void Synthetic(const fs::path& base) {
         "qti_battery_charger.ko\nindirect.ko\nusb_safe.ko\nsoft_safe.ko\n"
         "stock_forbidden.ko\n");
 }
-void Stock(const fs::path& base, bool parallel) {
+void Stock(const fs::path& base, bool parallel, bool use_blocklist = false) {
     ResetAttempts();
-    Modprobe stock({base.string()}, "modules.load.recovery", false);
+    Modprobe stock({base.string()}, "modules.load.recovery", use_blocklist);
     const std::vector<std::string> denied = {"charger_partition", "ufs_ffu",
         "qti_battery_charger", "qcom-hv-haptics", "mi_thermal_interface",
         "qcom-spmi-wled", "leds-qti-flash"};
@@ -138,9 +138,17 @@ extern "C" long __wrap_syscall(long number, ...) {
 }
 
 int main(int argc, char** argv) {
-    Require(argc == 3 || (argc == 4 && std::string(argv[3]) == "marker-absent"),
-            "usage: fixture SYNTHETIC_DIR STOCK_FIXTURE_DIR [marker-absent]");
+    Require(argc == 3 || (argc == 4 && (std::string(argv[3]) == "marker-absent" ||
+            std::string(argv[3]) == "early-blocklist")),
+            "usage: fixture SYNTHETIC_DIR STOCK_FIXTURE_DIR [marker-absent|early-blocklist]");
     android::base::SetMinimumLogSeverity(android::base::FATAL);
+    if (argc == 4 && std::string(argv[3]) == "early-blocklist") {
+        recovery_present = false;
+        Stock(argv[2], false, true);
+        Stock(argv[2], true, true);
+        std::cout << "PASS: inherited unpatched loader enforces the packaged OEM-preserving blocklist.\n";
+        return 0;
+    }
     const fs::path synthetic(argv[1]);
     Synthetic(synthetic);
     recovery_present = argc != 4;

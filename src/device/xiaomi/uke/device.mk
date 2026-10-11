@@ -17,7 +17,8 @@ PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
 
 # Recovery's /etc resolves to /system/etc, including logd's task-profile database.
 PRODUCT_COPY_FILES += \
-    system/core/libprocessgroup/profiles/task_profiles.json:$(TARGET_COPY_OUT_RECOVERY)/root/system/etc/task_profiles.json
+    system/core/libprocessgroup/profiles/task_profiles.json:$(TARGET_COPY_OUT_RECOVERY)/root/system/etc/task_profiles.json \
+    $(DEVICE_PATH)/recovery/root/lib/modules/modules.blocklist:$(TARGET_COPY_OUT_RECOVERY)/root/lib/modules/modules.blocklist
 
 PRODUCT_PACKAGES += \
     uke-clock-sync \
