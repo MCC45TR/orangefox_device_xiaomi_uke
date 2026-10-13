@@ -4,13 +4,13 @@ An independent OrangeFox recovery project for the `uke` device family (SM7675), 
 
 [Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) · [Installation guide](docs/INSTALLATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Uke Linux workspace](https://github.com/MCC45TR/uke-linux)
 
-## Project status
+## Status — 13 October 2026
 
-**Experimental; neither commercial model has completed physical recovery acceptance.** The default branch, `R12.0`, follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 are tracked separately by model, SKU and installed firmware.
+**Experimental. Full recovery testing remains incomplete on both models.** The default branch, `R12.0`, follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 are tracked separately by model, SKU and installed firmware.
 
-The feature summary below describes **current source**, including tools tested on disposable images and in generic virtual machines. Hardware test previews have separate build and package evidence. The owner confirmed touch navigation in a corrected live session; a replacement image still needs its own first-boot test.
+The table describes the current implementation. Storage tools have tests on disposable images and generic virtual machines. Touch navigation worked in a corrected live recovery session; cold-start touch on a replacement image remains untested. Preview builds retain their separate build and package results.
 
-Current source [blocks general live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. The separate [dualboot shell backend](docs/DUALBOOT-SETUP.md) implements narrowly checked F2FS userdata erase/recreation, but remains physically unaccepted and requires an already opened encryption map. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass general mutation gates; older release images retain their original behavior.
+Current source [blocks general live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. The separate [dualboot shell backend](docs/DUALBOOT-SETUP.md) implements narrowly checked F2FS userdata erase/recreation, but has not passed tablet testing and requires an already opened encryption map. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass general mutation gates; older release images retain their original behavior.
 
 ## Feature overview
 
@@ -27,7 +27,7 @@ The **Extra** menu groups the added tools by task, with matching icons and short
 | Android and Windows inspection | Per-feature Android/boot admission reports; bounded read-only slot, snapshot and battery/thermal/UFS observations; Windows installation and EFI/BCD discovery; conditional WIM/ESD and NTFS inspection | [Platform admission](docs/PLATFORM-ADMISSION.md), [native commands](docs/URE-NATIVE.md) |
 | Files and diagnostics | Metadata-aware browsing; a native text editor with fstab/crypttab/BLS validation; reviewed file replacement and rollback; bounded diagnostics and redacted report export | [Native tools](docs/URE-NATIVE.md) |
 
-Availability depends on the selected filesystem, kernel, packaged tools and operation policy. A capability entry is not device acceptance. In particular:
+Availability depends on the selected filesystem, kernel, packaged tools and operation policy. Tablet testing remains incomplete in the following areas:
 
 - Partition transactions and six-LUN restoration have **regular-image** test
   evidence. The narrow live dualboot backend still requires physical acceptance
@@ -82,4 +82,4 @@ This project is unofficial and is not an endorsed OrangeFox release.
 
 See [the software FMEA](FMEA.md) for storage, interruption, crypto, boot routing,
 input and diagnostic-export risks, existing controls and evidence required for
-closure. The assessment keeps packed-image and physical acceptance separate.
+closure. Packaged-image checks and tablet tests are recorded separately.

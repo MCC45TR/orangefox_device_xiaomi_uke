@@ -34,7 +34,7 @@ checksum or durable write should be removed solely to improve a timing result.
   receipts, two small host ASan/UBSan probes, font character-map inspection, and
   read-only image/header/profile capacity checks. No new full build or VM run
   was performed for this audit. The interactive emulator was closed at the
-  owner's request; no QEMU process was present at the final inspection.
+  explicit request; no QEMU process was present at the final inspection.
 - No tablet, host block device, credentials, security keys or private calibration
   were accessed or modified. Probes and raw logs remain in ignored build storage.
 - All source line references describe this checkout. Upstream references refer
@@ -130,7 +130,7 @@ opens where supported; retain revalidation and explain their limits. **Acceptanc
 concurrent CLI/GUI jobs, mount and loop-alias races, target replacement and reboot
 requests during writes. An in-process lock alone is insufficient.
 
-### AUD-006 — P1: the owner's installed profile and physical geometry are open
+### AUD-006 — P1: installed profile and physical geometry remain unverified
 
 **Known validation gap.** The read-only stock inventory establishes names and
 Android observations, not all six LUN GPT extents or recovery block sizes.
@@ -242,7 +242,7 @@ obtain it. This does not prove that every frame stops rendering.
 **Change:** an owned job executor, immutable reviewed inputs, short state locks,
 bounded progress publication and cancellation at safe durable boundaries.
 **Acceptance:** time status and cancel acknowledgement during large backup,
-hashing, resize and rollback; report noninterruptible I/O honestly.
+hashing, resize and rollback; report noninterruptible I/O accurately.
 
 ### AUD-014 — P1: detached maintenance has incomplete global lifetime coverage
 
@@ -367,7 +367,7 @@ render latency. Advertising on the hub is not link-negotiation evidence.
 
 ### AUD-022 — P1: the host build budget leaves no reserve on a 16 GiB machine
 
-**Confirmed policy issue, not a diagnosis of the owner's earlier OOM.**
+**Confirmed policy issue, not a diagnosis of the earlier OOM.**
 `scripts/with-host-budget.sh:20–23` allows 14G high/16G max memory, a 12 GiB Go
 heap target and 16 parallel jobs. A 16 GiB target computer also needs memory for
 the desktop, agent, kernel and unrelated processes. Earlier small VM peaks do
@@ -717,7 +717,7 @@ boundary tests remains necessary.
 | Windows/LUKS | Tool inventory and conditional capabilities | LUKS open/close/header workflows, WIM/ESD metadata restoration and ESP/BCD recovery; BitLocker remains deferred |
 | ADB workflows | Packaged CLI and existing management commands | Documented shell-like inspection/job commands, safe return/exit codes, interruption, transfer resume and privacy-reviewed diagnostics; SSH/network remains deferred |
 | Display/input | Generic renderer geometry, native-resolution private GUI and callback tests | Actual panel/dock 2K@75 link, touch/mouse/keyboard, every scale/language, disconnect/fallback and measured latency |
-| Sensors | Reviewed stock descriptors/configuration and honest unavailable UI | Verified recovery SSC/service stream, mounted axes, units/timestamps, orientation/lux tests and per-model calibration ownership |
+| Sensors | Reviewed stock descriptors/configuration and UI marking unavailable functions | Verified recovery SSC/service stream, mounted axes, units/timestamps, orientation/lux tests and per-model calibration ownership |
 | Release | Exact payload receipts, dependency/privacy scans, repeat packaging and experimental disclosure | Closed source-to-ELF receipt, all-input invalidation, name-independent policies, authenticated updates and two clean builds |
 
 Prior passing native/sanitizer and shipping-CLI guest checkpoints are recorded

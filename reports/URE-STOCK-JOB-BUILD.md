@@ -159,7 +159,7 @@ POCO Pad X1 firmware/capacity profiles and physical stock return remain open.
 Next is item 3: the common live writer, model/SKU/range provenance and exact
 forced-reboot durability, including correcting the DTBO preflight contract.
 
-Items 4–8 remain in the owner's order: filesystem resize/repair/tool packaging;
+Items 4–8 remain in the recorded sequence: filesystem resize/repair/tool packaging;
 Android trust/A-B/Virtual-A-B/super/OTA/isolation; real Arch/Fedora rescue and
 cancellation; Btrfs kernel/receive/restore/paths/boot; full installed boot asset,
 root, Uke DT, module ABI and signature closure. Shipping-kernel Btrfs remains

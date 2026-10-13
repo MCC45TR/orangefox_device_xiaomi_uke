@@ -184,7 +184,7 @@ review, so no abandoned image fixture continues consuming RAM-backed `/tmp`.
   into bounded jobs, and distinguish repeated packaging from a clean, fully
   reproducible binary build.
 
-The owner subsequently requested 16 build jobs with a 16 GiB RAM budget and
+The revised build requirement sets 16 jobs, a 16 GiB RAM budget and
 compiler caching. The final host policy uses that hard memory cap, a 14 GiB high
 threshold, 12GiB Go soft limit, 16 allowed CPUs and two separate 10 GB C++ caches.
 The first j16 trial hit the 512-task cgroup limit (`newosproc`, 476 Go OS threads),

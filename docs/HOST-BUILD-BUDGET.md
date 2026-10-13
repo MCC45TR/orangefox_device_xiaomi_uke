@@ -25,7 +25,7 @@ These example snapshots demonstrate the policy, not measured recovery build peak
 | 32 / 28 GiB, no tighter ancestor | 16 GiB | 16 | 11 | 6 processors / 6 GiB soft heap |
 | 8 GiB ancestor, 2 GiB charged | 2 GiB | 1 | 1 | Android admission refused |
 
-Compile scheduling allows 768 MiB per normal worker or 1280 MiB per sanitizer worker after an internal reserve of up to 2 GiB. These are conservative scheduling estimates, not a guarantee that each translation unit fits. CPUs are limited to the caller's permitted set and at most 16. A full build can still fail its own limit; unrelated allocations can change shared pressure after admission. Neither snapshot fixtures nor small jobs diagnose the owner's earlier task shutdowns or establish responsive-desktop acceptance under a complete clean build.
+Compile scheduling allows 768 MiB per normal worker or 1280 MiB per sanitizer worker after an internal reserve of up to 2 GiB. These are conservative scheduling estimates, not a guarantee that each translation unit fits. CPUs are limited to the caller's permitted set and at most 16. A full build can still fail its own limit; unrelated allocations can change shared pressure after admission. Neither snapshot fixtures nor small jobs diagnose the earlier task shutdowns or establish responsive-desktop acceptance under a complete clean build.
 
 ## Separate Soong and compiler parallelism
 

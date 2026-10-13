@@ -1,6 +1,6 @@
 # Recovery sensor readiness
 
-The owner's locked POCO Pad X1 stock observations are scoped to Android 15,
+Stock observations from the locked POCO Pad X1 are scoped to Android 15,
 OS2.0.205.0.VOZMIXM. This recovery candidate uses Global OS3.0.303.0.WOZMIXM
 inputs. Neither matching recovery services nor a sensor stream has been observed.
 The corresponding Xiaomi Pad 7 profile requires independent evidence.

@@ -12,7 +12,7 @@
 
 ## Integration and evidence status
 
-The owner's 3 October 2026 instruction orders the current work as boot
+The development sequence recorded on 3 October 2026 is boot
 management, LUKS/Windows recovery, ADB/backups, files/sessions and
 distribution/diagnostics. BitLocker, SSH/SFTP, USB networking and Wi-Fi rescue
 are deferred. The proposed designs below are reference scope, not authority to
@@ -50,7 +50,7 @@ encrypted migration and model-specific physical acceptance remain open. See
 |---|---|
 | The native shared library/JSON CLI, Storage Graph, Linux/Windows discovery, file editor/journals, chunked image backups and GPT image backup/repair/restore have host fixtures. | General live storage ownership/write policy, controlled chroot, OS repair and full GUI acceptance remain unfinished. Fixture checks do not demonstrate a live mount or UFS write. |
 | The Global stock303 recovery and native active-slot installer are built; package, privacy and payload checks are recorded in the [public alpha report](../reports/PUBLIC-ALPHA-BUILD.md). | Neither commercial model has boot, display, touch, USB, installed-slot or stock-return acceptance. |
-| Installer policy has host negative tests and a QEMU refusal without boot-control evidence; native file/image transactions add verified backups, durable journals and inspected recovery. | Device writes and forced-reboot acceptance, the owner's primary interruption scenario, and shared preflight for all upstream controls remain open. |
+| Installer policy has host negative tests and a QEMU refusal without boot-control evidence; native file/image transactions add verified backups, durable journals and inspected recovery. | Device writes and forced-reboot acceptance, the primary interruption scenario, and shared preflight for all upstream controls remain open. |
 | Stock kernel, module and boot-profile inputs are recorded separately. | Btrfs mounting is blocked by the selected stock kernel; LUKS/BITLK and networking remain planned. Android FBE is blocked pending installed-firmware KeyMint/TEE trust evidence. |
 
 The [hardware ledger](https://github.com/MCC45TR/uke-linux-docs/blob/main/DEVICE-STATUS.md)

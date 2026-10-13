@@ -96,7 +96,7 @@ parent before relying on rollback across reboot. Backup plans in `/tmp` contain
 only private metadata; captured chunks use the explicitly selected destination.
 The CLI can select a persistent journal. Resume requires current identity and
 backup verification; it does not replay automatically. Host SIGKILL recovery
-passes. The owner clarified on 2 October 2026 that forced reboot is the primary
+passes. The test plan adopted forced reboot on 2 October 2026 as the primary
 tablet interruption scenario; exact-device reset durability and hostile
 concurrent-write acceptance remain open. Live-source backup software requires complete unit/boot and usage
 evidence plus a retained kernel claim; positive tablet acceptance, atomic

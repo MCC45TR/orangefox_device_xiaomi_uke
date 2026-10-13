@@ -1,7 +1,7 @@
 # Observed stock namespace VM fixture
 
 `tests/fixtures/stock-adb-2026-10-03.json` derives selected, non-unit-specific
-observations from the owner's locked POCO Pad X1 Android inventory,
+observations from the locked POCO Pad X1 Android inventory,
 `STOCK-ADB-20261003-01`. Source document and JSON checksums are retained. The
 installed firmware is **OS2.0.205.0.VOZMIXM**, Android 15; the current experimental
 recovery build targets **OS3.0.303.0.WOZMIXM**, Android 16. This fixture does not

@@ -35,7 +35,7 @@ The original stale-language result was reproduced before the change. The
 corrected normal and instrumented controls cover stale completion, regional
 language changes, filesystem review, exact Btrfs control and a successful fresh
 review. Separate copies of the actual hook generator also compiled and ran
-the reviewed GUI change without the owner's unrelated uncommitted overlay.
+the reviewed GUI change without the unrelated uncommitted changes.
 
 This is the first AUD-031 correction. The subsequent
 [offline provenance checkpoint](LOCALIZATION-PROVENANCE.md) checks current

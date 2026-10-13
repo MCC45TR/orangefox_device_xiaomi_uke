@@ -113,13 +113,13 @@ stock return and exact-device forced-reboot tests. Dual/single boot acceptance
 and Windows support remain open. Consult the dated build report and root
 engineering lessons for results bound to a particular source/artifact revision.
 
-## Current owner priorities
+## Development sequence — 3 October 2026
 
 The 3 October 2026 delivery order is boot management, then LUKS/Windows,
 ADB/backups, files/sessions and distribution/diagnostics. BitLocker is deferred.
 Remote recovery uses ADB only: SSH/SFTP, USB networking and Wi-Fi are deferred.
-The owner subsequently authorized publishing focused English commits before
-the comprehensive host-only VM review. Existing dormant Dropbear packaging is
+Focused English commits were approved for publication before the comprehensive
+host-only VM review. Existing dormant Dropbear packaging is
 not an enabled service or acceptance of a network rescue feature.
 
 The archived Aloha reference is pinned to

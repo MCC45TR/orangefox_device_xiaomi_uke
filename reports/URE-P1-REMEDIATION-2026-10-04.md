@@ -20,7 +20,7 @@ Remaining source work follows this order: AUD-031 provenance and safe wording
 admission, AUD-033 Btrfs receive/kernel eligibility, AUD-034 exact-profile
 capability contracts, and AUD-035 authenticated updates/rollback. Then collect
 the complete matching build/package/VM results; P2 follows last. Public README
-and branch requests were separate owner-authorized work and do not close a P1
+and branch requests were separate explicitly authorized work and do not close a P1
 finding. New features and optional network translator work are outside this
 remediation queue.
 

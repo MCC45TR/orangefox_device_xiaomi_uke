@@ -55,8 +55,8 @@ durability and device-write policies were not relaxed.
 
 ## Device and release boundary
 
-The owner reports POCO Pad X1 with OS3.0.303.0.WOZMIXM as the intended test
-configuration. This is a current user report, not a privileged measurement of
+The reported test configuration is POCO Pad X1 with OS3.0.303.0.WOZMIXM.
+This is a reported target, not a privileged measurement of
 installed firmware bytes, geometry, bootloader state or fallback. The older
 OS2 inventory is retained as historical evidence. Global OS3 stock source
 inputs do not independently accept this physical unit.

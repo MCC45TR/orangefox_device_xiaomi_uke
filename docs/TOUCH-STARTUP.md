@@ -48,8 +48,8 @@ claim that every OEM behavior or root capability has been independently proven.
 
 ## Evidence boundaries
 
-On 2026-10-10, the owner confirmed physical Files → Menu → Extra → Files
-navigation in a RAM-corrected v001 session at 75% density, including a display
+On 2026-10-10, Files → Menu → Extra → Files navigation worked in a
+RAM-corrected v001 session at 75% density, including a display
 off/on and lock/unlock cycle after diagnostic logging was removed. The fixes
 admit the RAM-only persist placeholder, declare the touch AIDL instance,
 retain unchanged evdev coordinates and calculate the scrolling viewport after

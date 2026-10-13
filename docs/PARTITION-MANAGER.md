@@ -249,7 +249,7 @@ complete original-image rollback. Native ARM64 execution and guest reset are
 separate validation stages. Live tablet writes, real UFS reset durability,
 Android encrypted-data migration and installed OS boot remain unaccepted.
 
-On 2 October 2026 the owner clarified that **forced reboot** is the primary
+On 2 October 2026 the test plan adopted **forced reboot** as the primary
 tablet interruption scenario. Older power-loss wording remains historical
 evidence. A process kill or a generic VM emergency reboot is not an exact-device
 forced-reboot acceptance result.

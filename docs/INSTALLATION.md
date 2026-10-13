@@ -49,7 +49,7 @@ The preview briefly cycles the display once after the touch service starts;
 allow that cycle to finish without pressing the power button.
 Try **Files → Menu → Extra → Files**, including repeated taps on the same
 tab. Turn the screen off and on with the power button, unlock it and repeat.
-The owner confirmed these actions in the corrected live session; the new
+These actions worked in the corrected live session; the new
 image still needs this check after installation.
 Check the displayed time, battery and temperature, then reconnect USB and run
 `adb devices` to confirm recovery access. Report whether touch works immediately
