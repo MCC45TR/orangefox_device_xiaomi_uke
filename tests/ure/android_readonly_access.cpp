@@ -3,9 +3,14 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <cstdarg>
+#include <fcntl.h>
+#include <linux/fscrypt.h>
 #include <map>
 #include <string>
 #include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <sys/statvfs.h>
 #include <vector>
 #define LOG(level) std::clog
@@ -40,10 +45,14 @@ static bool retrieveExistingKeyReadOnly(const std::string& path,const Authentica
 static bool ro=true, fbe=true, exists=true, have_de=true, loaded=true;
 static const char* DATA_MNT_POINT="/data";
 static std::string device_key_path="/data/unencrypted/key", de_key_raw_ref;
-struct Policy { std::string key_raw_ref="fixture-ref"; };
+static std::string data_data_dir="/data/data";
+struct Options { int version=2,contents_mode=1,filenames_mode=4,flags=2; bool dusize_4k=false; };
+struct EncryptionPolicy { Options options; std::string key_raw_ref=std::string(16,'k'); };
+using Policy=EncryptionPolicy;
+struct UserPolicies { EncryptionPolicy internal; };
 static Policy s_device_policy;
 static int s_data_options=1;
-static std::map<unsigned,int> s_de_policies{{0,1}}, s_ce_policies;
+static std::map<unsigned,UserPolicies> s_de_policies{{0,{}}}, s_ce_policies;
 static bool fscrypt_init_user0_done=false;
 static bool init_data_file_encryption_options() { return true; }
 static bool IsFbeEnabled() { return fbe; }
@@ -58,11 +67,39 @@ extern "C" int __wrap_statvfs(const char* path,struct statvfs* fs) {
     assert(std::string(path)=="/data"); fs->f_flag=ro ? ST_RDONLY : 0; return 0;
 }
 namespace android::os { struct IVold { enum {STORAGE_FLAG_DE=1,STORAGE_FLAG_CE=2}; }; }
+namespace android::base { struct unique_fd { int fd; explicit unique_fd(int value):fd(value) {} int get()const{return fd;} }; }
+namespace android::vold {
+static std::string BuildDataSystemDePath(unsigned id) { return "/data/system_de/"+std::to_string(id); }
+static std::string BuildDataVendorDePath(unsigned id) { return "/data/vendor_de/"+std::to_string(id); }
+static std::string BuildDataMiscDePath(const std::string&,unsigned id) { return "/data/misc_de/"+std::to_string(id); }
+static std::string BuildDataUserDePath(const std::string&,unsigned id) { return "/data/user_de/"+std::to_string(id); }
+static std::string BuildDataSystemCePath(unsigned id) { return "/data/system_ce/"+std::to_string(id); }
+static std::string BuildDataVendorCePath(unsigned id) { return "/data/vendor_ce/"+std::to_string(id); }
+static std::string BuildDataMiscCePath(const std::string&,unsigned id) { return "/data/misc_ce/"+std::to_string(id); }
+static std::string BuildDataMediaCePath(const std::string&,unsigned id) { return "/data/media/"+std::to_string(id); }
+static std::string BuildDataUserCePath(const std::string&,unsigned id) { return "/data/user/"+std::to_string(id); }
+}
+static fscrypt_get_policy_ex_arg kernel_policy;
+static bool policy_readable=true, same_device=true;
+static unsigned policy_reads=0;
+extern "C" int __wrap_open(const char* path,int flags,...) {
+    assert(std::string(path).starts_with("/data/") && (flags&O_ACCMODE)==O_RDONLY && (flags&O_NOFOLLOW) && (flags&O_DIRECTORY));
+    return 100;
+}
+extern "C" int __wrap_fstat(int fd,struct stat* info) { assert(fd==100); info->st_dev=same_device?7:8; return 0; }
+extern "C" int __wrap_stat(const char* path,struct stat* info) { assert(std::string(path)=="/data"); info->st_dev=7; return 0; }
+extern "C" int __wrap_fstatvfs(int fd,struct statvfs* info) { assert(fd==100); info->f_flag=ro?ST_RDONLY:0; info->f_bsize=4096; return 0; }
+extern "C" int __wrap_ioctl(int fd,unsigned long request,...) {
+    assert(fd==100 && request==FS_IOC_GET_ENCRYPTION_POLICY_EX); ++policy_reads;
+    va_list args; va_start(args,request); auto* result=va_arg(args,fscrypt_get_policy_ex_arg*); va_end(args);
+    *result=kernel_policy; return policy_readable?0:-1;
+}
 #define retrieveExistingKeyReadOnly read_device_key
 #include "systemwide-keys.inc"
 #undef retrieveExistingKeyReadOnly
 #include "user0-keys.inc"
 using userid_t=unsigned;
+#include "verify-policy.inc"
 #include "prepare-user-storage.inc"
 namespace ure::readonly_fstab {
 static bool mounted_readonly(const char*,const std::string&) { return ro; }
@@ -94,13 +131,31 @@ int main() {
     KeyBuffer key;
     assert(!read_key("/metadata/other",{},true,&key) && reads==0);
     assert(read_key("/metadata/vold/metadata_encryption",{},true,&key) && reads==1);
-    assert(fscrypt_initialize_systemwide_keys() && installs==1 && de_key_raw_ref=="fixture-ref");
+    assert(fscrypt_initialize_systemwide_keys() && installs==1 && de_key_raw_ref==std::string(16,'k'));
     ro=false; assert(!fscrypt_initialize_systemwide_keys() && installs==1); ro=true;
     key_result=false; assert(!fscrypt_initialize_systemwide_keys() && installs==1); key_result=true;
     assert(fscrypt_init_user0() && fscrypt_init_user0_done);
     for(bool* flag:{&fbe,&exists,&have_de,&loaded}) { *flag=false; assert(!fscrypt_init_user0()); *flag=true; }
-    assert(fscrypt_prepare_user_storage("",0,1)); assert(!fscrypt_prepare_user_storage("",0,2));
-    s_ce_policies[0]=1; assert(fscrypt_prepare_user_storage("",0,3));
+    kernel_policy.policy_size=sizeof(kernel_policy.policy.v2);
+    kernel_policy.policy.v2.version=FSCRYPT_POLICY_V2;
+    kernel_policy.policy.v2.contents_encryption_mode=1; kernel_policy.policy.v2.filenames_encryption_mode=4;
+    kernel_policy.policy.v2.flags=2;
+    std::fill_n(kernel_policy.policy.v2.master_key_identifier,16,'k');
+    assert(fscrypt_prepare_user_storage("",0,1) && policy_reads==4); assert(!fscrypt_prepare_user_storage("",0,2));
+    s_ce_policies[0]={}; assert(fscrypt_prepare_user_storage("",0,3));
+    kernel_policy.policy.v2.master_key_identifier[0]='x'; assert(!fscrypt_prepare_user_storage("",0,3));
+    kernel_policy.policy.v2.master_key_identifier[0]='k';
+    kernel_policy.policy.v2.flags=0; assert(!fscrypt_prepare_user_storage("",0,3)); kernel_policy.policy.v2.flags=2;
+    kernel_policy.policy.v2.log2_data_unit_size=12; assert(!fscrypt_prepare_user_storage("",0,3)); kernel_policy.policy.v2.log2_data_unit_size=0;
+    policy_readable=false; assert(!fscrypt_prepare_user_storage("",0,3)); policy_readable=true;
+    same_device=false; assert(!fscrypt_prepare_user_storage("",0,3)); same_device=true;
+    EncryptionPolicy legacy; legacy.options.version=1; legacy.key_raw_ref=std::string(8,'l');
+    const auto v2=kernel_policy; kernel_policy={}; kernel_policy.policy_size=sizeof(kernel_policy.policy.v1);
+    kernel_policy.policy.v1.version=FSCRYPT_POLICY_V1; kernel_policy.policy.v1.contents_encryption_mode=1;
+    kernel_policy.policy.v1.filenames_encryption_mode=4; kernel_policy.policy.v1.flags=2;
+    std::fill_n(kernel_policy.policy.v1.master_key_descriptor,8,'l');
+    assert(verify_existing_policy(legacy,"/data/legacy")); legacy.key_raw_ref[0]='x';
+    assert(!verify_existing_policy(legacy,"/data/legacy")); kernel_policy=v2;
     assert(!fscrypt_prepare_user_storage("external",0,3)); assert(!fscrypt_prepare_user_storage("",0,4));
     assert(!fscrypt_prepare_user_storage("",1,3)); assert(!fscrypt_prepare_user_storage("",0,0));
     ro=false; assert(!fscrypt_prepare_user_storage("",0,3)); ro=true;

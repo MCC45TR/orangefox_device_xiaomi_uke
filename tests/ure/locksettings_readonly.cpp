@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <cassert>
+#include <chrono>
 #include <string>
 #include <sqlite3.h>
 #include <sys/statvfs.h>
@@ -37,6 +38,10 @@ int main(int argc,char** argv) {
     assert(reader.getHandle(0).empty());
     readonly=false; assert(reader.getHandle(0).empty()); readonly=true;
     assert(reader.getHandle(10000).empty());
+    sql("DROP TABLE locksettings; CREATE VIEW locksettings AS WITH RECURSIVE r(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM r WHERE x<100000000) SELECT 'sp-handle' AS name,0 AS user,max(x) AS value FROM r;");
+    const auto began=std::chrono::steady_clock::now();
+    assert(reader.getHandle(0).empty());
+    assert(std::chrono::steady_clock::now()-began<std::chrono::seconds(3));
     assert(sqlite3_close(writer)==SQLITE_OK);
-    std::cout<<"PASS read-only locksettings query observes committed WAL updates and refuses duplicates, absent users, writable data and unsupported user IDs.\n";
+    std::cout<<"PASS read-only locksettings query observes committed WAL updates, bounds expensive queries and refuses duplicates, absent users, writable data and unsupported user IDs.\n";
 }

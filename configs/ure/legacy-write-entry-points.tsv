@@ -48,7 +48,7 @@ bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Format_Data(void)
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Media_From_Data(void)	Wipe
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Repair_By_Path(string Path, bool Display_Error)	Repair
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Resize_By_Path(string Path, bool Display_Error)	Resize
-bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Decrypt_Device(string Password, int user_id)	ReadOnlyDecryption
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Decrypt_Device(string Password, int user_id, const ure::LegacyLifecycleGuard* parent)	ReadOnlyDecryption
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Fix_Contexts(void)	FileMutation
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::usb_storage_enable(void)	WritableMount
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Partition_SDCard(void)	PartitionMetadata

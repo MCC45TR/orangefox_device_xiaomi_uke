@@ -22,12 +22,15 @@ credential metadata is not treated as a default password.
   KeyMint client. Secret-protected CE keys retain authenticated decryption.
 - The recovery path does not generate, upgrade, rename, fixate or delete keys,
   create Android directories, repair permissions, run fsck or format userdata.
+- Existing DE/CE directory policies must match the installed key identifiers,
+  modes and flags. Verification uses a read-only policy query, never a policy
+  setter. Nested decryption borrows the existing mount lifecycle token.
 - Wrapped-key conversion and fscrypt installation affect the active kernel
   session. Linux read-only mounts do not prove that an OEM TEE has no side effects.
 - The metadata mapper is read-only. A pre-existing mapper is refused; failed
   filesystem mounting removes only the mapper created by this operation.
 - Locksettings is queried read-only with SQLite's ordinary WAL handling and a
-  bounded busy wait. No stale database-only copy or immutable-mode fallback is
+  bounded busy wait and query deadline. No stale database-only copy or immutable-mode fallback is
   used. If the existing WAL/shared-memory state cannot be read, access fails.
 - Generic FDE stubs, adopted-storage decryption, writable mounts, formatting,
   installation and other legacy mutations remain refused by the common policy.
