@@ -111,6 +111,7 @@ cd "$component"
         src/upstream/orangefox-android16/bootable/recovery/etc/init/android.hardware.boot@{1.0,1.1,1.2}-service.rc \
         src/upstream/orangefox-android16/bootable/recovery/prebuilt/Android.mk
     printf '%s\0' tests/check-recovery-first-stage.sh tests/check-recovery-first-stage-cmdline.sh patches/0039-preserve-recovery-first-stage-root.patch \
+        scripts/check-recovery-boot-chain.sh \
         src/upstream/orangefox-android16/system/core/init/first_stage_init.cpp \
         src/upstream/orangefox-android16/system/libbase/include/android-base/unique_fd.h
     printf '%s\0' tests/check-recovery-module-policy.sh patches/0040-recovery-block-automatic-storage-modules.patch \
