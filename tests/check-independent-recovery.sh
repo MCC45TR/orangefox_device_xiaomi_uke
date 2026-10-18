@@ -31,7 +31,7 @@ if [[ $# == 1 ]]; then
     image="$prototype/recovery-v2.img"
     jq -e '.evidence_class=="private-unqualified-recovery-prototype" and .header_version==2 and
         .source_inputs_unchanged and .payload_audit and .elf_closure and
-        (.kernel_load_address_equivalence|not) and (.validation.installable_release|not) and
+        .raw_kernel_bytes_preserved and (.reference_compressed_kernel_path|not) and (.validation.installable_release|not) and
         (.validation.physical_acceptance|not)' "$report" >/dev/null
     [[ $(sha256sum "$image" | cut -d' ' -f1) == $(jq -r .image_sha256 "$report") && $(stat -c %s "$image") == 104857600 ]]
     cmp "$prototype/INPUTS-BEFORE.sha256" "$prototype/INPUTS-AFTER.sha256"
@@ -46,10 +46,15 @@ if [[ $# == 1 ]]; then
        $(od -An -tu8 --endian=little -j1636 -N8 "$image" | tr -d ' \n') == "$dtbo_offset" ]]
     [[ $(u32 12) == 32768 && $(u32 20) == 16777216 && $(u32 32) == 256 &&
        $(od -An -tu8 --endian=little -j1652 -N8 "$image" | tr -d ' \n') == 32505856 ]]
+    cmdline=$({ dd if="$image" bs=1 skip=64 count=512 status=none;
+        dd if="$image" bs=1 skip=608 count=1024 status=none; } | tr -d '\000')
+    [[ $cmdline == "$(cat "$prototype/CMDLINE.txt")" &&
+       $cmdline == *'rdinit=/system/bin/init'* && $cmdline == *'androidboot.force_normal_boot=0'* &&
+       $cmdline == *'module_blacklist=charger_partition,ufs_ffu'* ]]
     for section in kernel ramdisk dtbo dtb; do
         case $section in
-            kernel) offset=4096; bytes=$kernel_bytes; file=kernel.gz;;
-            ramdisk) offset=$ramdisk_offset; bytes=$ramdisk_bytes; file=ramdisk.gz;;
+            kernel) offset=4096; bytes=$kernel_bytes; file=kernel;;
+            ramdisk) offset=$ramdisk_offset; bytes=$ramdisk_bytes; file=ramdisk.zst;;
             dtbo) offset=$dtbo_offset; bytes=$dtbo_bytes; file=recovery-dtbo.img;;
             dtb) offset=$dtb_offset; bytes=$dtb_bytes; file=dtb;;
         esac
@@ -59,10 +64,11 @@ if [[ $# == 1 ]]; then
     avb="$component/src/upstream/orangefox-android16/out-public/host/linux-x86/bin/avbtool"
     "$avb" info_image --image "$image" > "$work/avb.txt"
     rg -q '^Algorithm:.*NONE$' "$work/avb.txt"
-    gzip -dc "$prototype/kernel.gz" | sha256sum > "$work/kernel.sha256"
+    sha256sum "$prototype/kernel" > "$work/kernel.sha256"
     [[ $(cut -d' ' -f1 "$work/kernel.sha256") == 97b2c53022e8c0bd0b279c4c592a196126a6eb0a93647c2957b39dcd5f2dc1c9 ]]
     cat "$prototype/vendor.cpio" "$prototype/recovery.cpio" > "$work/expected.cpio"
-    gzip -dc "$prototype/ramdisk.gz" | cmp "$work/expected.cpio" -
+    zstd -q -dc "$prototype/ramdisk.zst" | cmp "$work/expected.cpio" -
+    rg -x 'CONFIG_RD_ZSTD=y' "$prototype/kernel.config" >/dev/null
     bash "$component/scripts/check-recovery-boot-chain.sh" "$image" "$work/boot-chain.json"
     jq -e '.structural_candidate and .header_version==2' "$work/boot-chain.json" >/dev/null
 elif [[ $# != 0 ]]; then
