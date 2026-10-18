@@ -14,6 +14,11 @@ printf '%s\n' "$line" > "$root/init.rc"
 refuse 'legacy-only script is not the pinned default'
 printf '%s\n' "$line" > "$script"
 [[ $(touch_payload_init "$root") == "$script" ]]
+status=0
+bash "$component/scripts/check-touch-payload.sh" "$root" "$work/report.json" \
+    > "$work/profile.log" 2>&1 || status=$?
+[[ $status == 1 && ! -e $work/report.json ]]
+rg -q 'pen-charge notifier provider is unavailable' "$work/profile.log"
 printf 'unrelated legacy script\n' > "$root/init.rc"
 [[ $(touch_payload_init "$root") == "$script" ]]
 printf '    copy /system/etc/ldXconfigYtxt /linkerconfig/ldXconfigYtxt\n' > "$script"

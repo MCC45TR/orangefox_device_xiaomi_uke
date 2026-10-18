@@ -13,6 +13,7 @@ trap 'rm -rf -- "$work"' EXIT
 "${CXX:-g++}" -std=c++20 -Wall -Wextra -Werror \
     -I "$component/src/device/xiaomi/uke/touch" \
     "$component/tests/touch-session/image-pins.cpp" -o "$work/pins"
+"$work/pins" --input-startup
 "$work/pins" > "$work/pins.tsv"
 kernel=$("$work/pins" --kernel)
 [[ $kernel == 6.1.175-android14-11-ga3b9c44908dd-ab13320413 ]]
