@@ -1,15 +1,23 @@
 # Linux and ESP tools in Uke recovery
 
-The local Uke recovery build includes the project-owned `uke-recoveryctl`
-command and the upstream `sgdisk`, `e2fsck`, `mke2fs`, `resize2fs`, `tune2fs`,
-`fsck.fat` and `mkfs.fat` utilities. Tool presence does **not** authorize a
-storage operation. No Linux or ESP partition is declared in `recovery.fstab`,
-because neither partition exists in the measured stock Global layout.
+**18 October 2026 source status:** the existing `linux` and `esp` partitions are
+registered as optional storage in recovery. In **Mount**, select **Linux** or
+**ESP**, then use **Files** or the storage selector to browse `/linux` or `/esp`.
+Linux uses ext4 without journal replay; ESP uses FAT32. Both mounts are read-only,
+`nosuid`, `nodev` and `noexec`. They are excluded from formatting, wiping, factory
+reset and settings storage. An absent partition is normal on a stock layout.
+The new image and physical file-browser workflow still require device testing.
 
-The first Uke partition names reserved for a future, verified Linux layout are
-`uke_esp` (FAT, mounted at `/mnt/uke-esp`) and `uke_linux` (ext4 or Btrfs,
-mounted at `/mnt/uke-linux`). The control accepts only a full GPT PARTUUID matching the
-requested exact name. It never guesses a UFS LUN or a partition number.
+This does not recreate or format the accepted volumes. The dated ESP/Linux
+creation and filesystem checks belong to
+[REC-FB144](https://github.com/MCC45TR/uke-linux-docs/blob/main/docs/lessons/2026-10-11-RECOVERY-ESP-LINUX-CREATION.md).
+Android files use the separate [read-only decryption path](ANDROID-FILE-ACCESS.md).
+
+The existing project-owned `uke-recoveryctl` also retains explicit PARTUUID-bound
+mount commands. It accepts the current `esp`/`linux` GPT names and historical
+`uke_esp`/`uke_linux` names without renaming them. These commands use
+`/mnt/uke-esp` and `/mnt/uke-linux`; the recovery storage entries above use
+`/esp` and `/linux`. It never guesses a UFS LUN or partition number.
 
 From the recovery terminal or ADB shell:
 
@@ -33,12 +41,9 @@ the Btrfs selector is a fail-closed plan for a future compatible kernel, not
 an advertised working feature. Btrfs administration and formatting utilities
 are not yet packaged. The upstream source is pinned separately in
 [`btrfs-progs.lock.json`](../manifests/btrfs-progs.lock.json) for future porting.
-The command cannot create, resize, format or
-write a partition. Direct invocations of the bundled upstream tools are not
-guarded by this command and must wait for an approved Uke-specific storage plan,
-verified backup/return path and physical-device acceptance. A future setup UI
-must use the same identity checks before any write. The recovery is not yet
-boot-tested on either commercial model.
+These mount commands cannot create, resize, format or write a partition.
+Separate native transaction commands retain their reviewed plan and write
+policy. Bundled upstream tools are not a substitute for those controls.
 
 The default display orientation remains 270 degrees. `uke-recoveryctl rotation
 show` and `uke-recoveryctl rotation 0|90|180|270` read or set OrangeFox's
