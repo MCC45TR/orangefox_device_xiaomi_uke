@@ -110,8 +110,9 @@ inline constexpr std::array<FilePin, 18> kImageFiles = {{
 inline constexpr bool kKnownDlopenAndAssetInventoryReviewed = true;
 inline constexpr bool kImageRuntimeClosureReviewed = true;
 // This input profile grants no storage, encryption or first-stage acceptance.
-// Input startup is still subject to a fresh-image cold-boot owner test.
-inline constexpr bool kInputStartupProfileReviewed = true;
+// The excluded battery driver owns the two pen-charge notifier imports;
+// no compatible persistence-free provider is accepted for this kernel.
+inline constexpr bool kInputStartupProfileReviewed = false;
 inline constexpr std::string_view kKernelRelease =
     "6.1.175-android14-11-ga3b9c44908dd-ab13320413";
 inline constexpr std::array<FilePin, 2> kInputModules = {{

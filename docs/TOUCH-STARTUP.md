@@ -7,6 +7,13 @@ shutdown. Page changes and theme reloads cannot start additional sessions.
 
 ## Reviewed input profile
 
+**18 October 2026 status:** startup acceptance is withdrawn. The 11 October
+cold-image test could not pass the lock screen: `nt36532_touch` lacked both
+pen-charge notifier imports provided by the excluded battery driver. No matching
+persistence-free replacement is accepted. The startup and extracted-payload
+checks now refuse this profile before module effects. Prior successful RAM
+sessions below retain their original scope; they do not qualify this image.
+
 The current input profile is specific to the reviewed Android 17 installed
 kernel `6.1.175-android14-11-ga3b9c44908dd-ab13320413` and the pinned installed
 ODM, vendor and vendor_dlkm files. It does not qualify a different ROM, firmware

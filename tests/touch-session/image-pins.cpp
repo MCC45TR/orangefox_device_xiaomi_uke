@@ -7,6 +7,12 @@ int main(int argc, char **argv) {
         std::cout << uke::touch::kKernelRelease << '\n';
         return 0;
     }
+    if (argc == 2 && std::string_view(argv[1]) == "--input-startup") {
+        if (uke::touch::kInputStartupProfileReviewed)
+            return 0;
+        std::cerr << "Touch input dependencies are unaccepted: the pen-charge notifier provider is unavailable.\n";
+        return 1;
+    }
     if (argc != 1)
         return 2;
     for (const auto &pin : uke::touch::kImageFiles)

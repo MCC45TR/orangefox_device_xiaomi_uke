@@ -276,7 +276,14 @@ void controls(const std::string &root) {
         }
         check(refused, "unexpected linker path/output");
     }
-    profile_gate();
+    bool profile_refused = false;
+    try {
+        profile_gate();
+    } catch (Code code) {
+        profile_refused = code == Code::image_provider_unapproved;
+    }
+    check(!kInputStartupProfileReviewed && profile_refused,
+          "missing pen-charge notifier provider refuses before module preparation");
     check(std::size(kInstalledFiles) == 21 && kImageFiles.size() == 18 &&
           kInputModules.size() == 2, "exact installed and image input inventory");
     check(firmware_lookup("/vendor/firmware,/vendor/other,") ==
