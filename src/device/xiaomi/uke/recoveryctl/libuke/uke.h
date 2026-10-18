@@ -148,9 +148,9 @@ void dualboot_validate_plan(const Value& plan);
 Value dualboot_device_commands(const Value& plan);
 Value dualboot_device_preflight(const Root& system, const StorageTarget& target, const Value& plan);
 Value dualboot_device_execute(const Root& system, const Value& plan, const fs::path& journal,
-    const std::string& confirmation, const std::string& data_policy);
+    const std::string& confirmation, const std::string& data_policy, bool host_stdio = false);
 Value dualboot_device_recover(const Root& system, const fs::path& journal, const std::string& action,
-    const std::string& confirmation, const std::string& data_policy);
+                             const std::string& confirmation, const std::string& data_policy, bool host_stdio = false);
 Value partition_job_execute_reviewed(const Root& system, StorageTarget& target, const Value& plan,
     const fs::path& directory, const std::string& confirmation, const Value& setup);
 Value dualboot_image_execute(const Root& system, StorageTarget& target, const Value& plan, const fs::path& journal, const std::string& confirmation, const std::string& data_policy);

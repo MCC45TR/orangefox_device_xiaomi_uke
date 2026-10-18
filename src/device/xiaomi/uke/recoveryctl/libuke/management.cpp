@@ -177,13 +177,14 @@ Value management_dispatch(std::vector<std::string> args) {
             save_json(options.need("--output"),plan); return plan;
         }
         if(operation=="execute") {
-            positional(options,3); options.allow({"--system-root","--image","--object","--sector-size","--journal","--confirm","--data-policy"});
+            positional(options,3); options.allow({"--system-root","--image","--object","--sector-size","--journal","--confirm","--data-policy","--host-journal"});
+            require(!options.has("--host-journal") || (options.get("--host-journal","")=="stdio" && options.has("--object")),"invalid-options","Host checkpoints require an explicit live object and stdio transport");
             require(options.has("--image")!=options.has("--object"),"invalid-options","Select one image or the reviewed live LUN identity");
             if(options.has("--object")) {
                 require(!options.has("--sector-size"),"invalid-options","Live sector size comes from the kernel");
                 const auto plan=json_file(words[2]);
                 require(plan["target_identity"]["stable_id"]==options.need("--object"),"stale-device","The selected object differs from the reviewed live plan");
-                return dualboot_device_execute(system,plan,options.need("--journal"),options.need("--confirm"),options.need("--data-policy"));
+                return dualboot_device_execute(system,plan,options.need("--journal"),options.need("--confirm"),options.need("--data-policy"),options.has("--host-journal"));
             }
             auto selected=target(options,system,true);
             return dualboot_image_execute(system,selected,json_file(words[2]),options.need("--journal"),options.need("--confirm"),options.need("--data-policy"));
@@ -194,11 +195,12 @@ Value management_dispatch(std::vector<std::string> args) {
             auto selected=storage_select(system,options.need("--object"),false); return dualboot_device_preflight(system,selected,plan);
         }
         if(operation=="device-inspect" || operation=="device-restore-gpt") {
-            positional(options,3); options.allow({"--system-root","--confirm","--data-policy"});
+            positional(options,3); options.allow({"--system-root","--confirm","--data-policy","--host-journal"});
+            require(!options.has("--host-journal") || options.get("--host-journal","")=="stdio","invalid-options","Host checkpoints use stdio transport");
             const bool inspect=operation=="device-inspect";
             require(!inspect || (!options.has("--confirm") && !options.has("--data-policy")),"invalid-options","Read-only journal inspection does not accept write consent");
             return dualboot_device_recover(system,words[2],inspect ? "inspect" : "restore-gpt",
-                inspect ? "" : options.need("--confirm"),inspect ? "" : options.need("--data-policy"));
+                inspect ? "" : options.need("--confirm"),inspect ? "" : options.need("--data-policy"),options.has("--host-journal"));
         }
         throw Error("invalid-options","Select dualboot template, plan, preview, preflight, execute, device-inspect or device-restore-gpt");
     }
