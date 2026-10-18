@@ -64,7 +64,7 @@ std::string attribute(xmlNodePtr node, const char* name) {
     xmlFree(data); return result;
 }
 std::string name(xmlNodePtr node) { return reinterpret_cast<const char*>(node->name); }
-std::string site(xmlNodePtr node) {
+std::string site(xmlNodePtr node, const std::string& resource) {
     std::vector<std::string> parts;
     for(auto* current=node;current && current->type==XML_ELEMENT_NODE;current=current->parent) {
         unsigned index=0;
@@ -74,7 +74,7 @@ std::string site(xmlNodePtr node) {
         if(name(current)=="page")part+=":"+attribute(current,"name");
         parts.push_back(std::move(part));
     }
-    std::string result="maintainer";
+    std::string result=resource;
     for(auto part=parts.rbegin();part!=parts.rend();++part)result+="/"+*part;
     return result;
 }
@@ -144,7 +144,6 @@ Json::Value collect_catalog(const fs::path& component) {
         source_inputs.emplace(fs::relative(path,component).generic_string(),digest(read(path)));
     };
     record(theme / "common/languages/en.xml");
-    record(component / "src/device/xiaomi/uke/maintainer.xml");
     record(component / "src/localization/catalog.cpp");
     record(component / "src/localization/catalog-source.hpp");
     record(component / "src/localization/key-catalog.cpp");
@@ -155,22 +154,34 @@ Json::Value collect_catalog(const fs::path& component) {
     record(component / "configs/localization-inputs.json");
     Strings by_text;
     for (const auto& [key, text] : base) by_text.emplace(text, key);
+    Strings referenced_keys;
     std::map<std::string, std::set<std::string>> contexts;
+    const std::regex reference(R"(\{@([A-Za-z_][A-Za-z_0-9]*)=([^{}]+)\})");
     auto collect = [&](const std::string& text, const std::string& context) {
+        for (std::sregex_iterator item(text.begin(), text.end(), reference), end; item != end; ++item) {
+            const auto key=(*item)[1].str(), fallback=(*item)[2].str();
+            const auto [found,inserted]=referenced_keys.emplace(fallback,key);
+            if (!inserted && found->second!=key) throw std::runtime_error("Conflicting GUI fallback keys");
+            contexts[fallback].insert(context+":resource:"+key);
+        }
         if (human(text)) contexts[text].insert(context);
     };
-    Document maintainer(component / "src/device/xiaomi/uke/maintainer.xml");
-    visit(xmlDocGetRootElement(maintainer.value), [&](auto* node) {
-        const auto type = name(node);
-        if (type == "text" && (!node->children || node->children->type == XML_TEXT_NODE))
-            collect(content(node), site(node)+":text");
-        if (type == "listitem") {
-            collect(attribute(node, "name"), site(node)+":name");
-            collect(attribute(node, "description"), site(node)+":description");
-        }
-        if (type == "variable" && attribute(node, "value").find(' ') != std::string::npos)
-            collect(attribute(node, "value"), site(node)+":default");
-    });
+    for (const auto* resource : {"maintainer", "multiboot"}) {
+        const auto path=component / "src/device/xiaomi/uke" / (std::string(resource)+".xml");
+        record(path);
+        Document pages(path);
+        visit(xmlDocGetRootElement(pages.value), [&](auto* node) {
+            const auto type = name(node);
+            if (type == "text" && (!node->children || node->children->type == XML_TEXT_NODE))
+                collect(content(node), site(node,resource)+":text");
+            if (type == "listitem") {
+                collect(attribute(node, "name"), site(node,resource)+":name");
+                collect(attribute(node, "description"), site(node,resource)+":description");
+            }
+            if (type == "variable" && attribute(node, "value").find(' ') != std::string::npos)
+                collect(attribute(node, "value"), site(node,resource)+":default");
+        });
+    }
     // Runtime human messages are catalogued separately from paths, command names,
     // field IDs and JSON. A later GUI adapter only translates whitelisted display variables.
     std::vector<fs::path> native = {component / "src/device/xiaomi/uke/ure-gui.cpp"};
@@ -202,10 +213,12 @@ Json::Value collect_catalog(const fs::path& component) {
     catalog["strings"] = Json::arrayValue;
     for (const auto& [text, sites] : contexts) {
         const auto existing = by_text.find(text);
+        const auto referenced = referenced_keys.find(text);
         const auto key = text == "Extra" ? "ure_extra_tab" :
+            referenced != referenced_keys.end() ? referenced->second :
             existing == by_text.end() ? "ure_text_" + digest(text).substr(0, 16) : existing->second;
         Json::Value row(Json::objectValue); row["name"] = key; row["source"] = text;
-        row["upstream_key"] = existing != by_text.end(); row["contexts"] = Json::arrayValue;
+        row["upstream_key"] = base.count(key)!=0; row["contexts"] = Json::arrayValue;
         for (const auto& site : sites) row["contexts"].append(site);
         catalog["strings"].append(row);
     }
@@ -245,6 +258,7 @@ Json::Value collect_catalog(const fs::path& component) {
     catalog["source_inputs"] = Json::objectValue;
     for (const auto& [path,hash] : source_inputs)catalog["source_inputs"][path] = hash;
     catalog["source_inputs_sha256"] = digest(json(catalog["source_inputs"]));
+    static_cast<void>(ure_locale_host::validate_keys(catalog));
     return catalog;
 }
 #ifndef UKE_LOCALE_SOURCE_ONLY

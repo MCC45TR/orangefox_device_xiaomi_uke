@@ -10,6 +10,7 @@
     "scripts/prepare-build-tree.sh",
     "src/device/xiaomi/uke/ure-gui.cpp",
     "src/device/xiaomi/uke/maintainer.xml",
+    "src/device/xiaomi/uke/multiboot.xml",
     "src/device/xiaomi/uke/prepare-public-ramdisk.sh",
     "src/device/xiaomi/uke/device.mk",
     "src/device/xiaomi/uke/recoveryctl/CMakeLists.txt",

@@ -66,20 +66,20 @@ localization_ui() {
     local component=$1 payload=$2 work=$3 path resolved
     [[ -d $payload && ! -L $payload ]] || return 1
     payload=$(realpath -e -- "$payload")
-    for path in twres sbin/maintainer.xml system/etc/ure/licenses; do
+    for path in twres sbin/maintainer.xml sbin/multiboot.xml system/etc/ure/licenses; do
         resolved=$(realpath -e -- "$payload/$path")
         [[ $resolved == "$payload/$path" ]] || { echo 'Indirect GUI resource root refused.' >&2; return 1; }
     done
     [[ -d $payload/twres/languages && ! -L $payload/twres/languages &&
        -d $payload/twres/fonts && ! -L $payload/twres/fonts ]] || return 1
     bash "$component/scripts/index-build-tree.sh" "$payload" "$work/index" ui
-    [[ -z $(find "$payload/twres" "$payload/sbin/maintainer.xml" "$payload/system/etc/ure/licenses" -type l -print -quit) ]] || {
+    [[ -z $(find "$payload/twres" "$payload/sbin/maintainer.xml" "$payload/sbin/multiboot.xml" "$payload/system/etc/ure/licenses" -type l -print -quit) ]] || {
         echo 'Indirect GUI resources refused; inventory must not follow host runtime links.' >&2; return 1;
     }
     jq -Sn --arg index "$(localization_digest "$work/index/index.sha256")" \
         --argjson count "$(wc -l < "$work/index/files.sha256")" \
         '{schema_version:1,evidence_class:"gui-resource-inventory",input_index_sha256:$index,file_count:$count,
-          includes:{themes:true,icons:true,languages:true,fonts:true,licenses:true,maintainer_pages:true},
+          includes:{themes:true,icons:true,languages:true,fonts:true,licenses:true,maintainer_pages:true,multiboot_pages:true},
           validation:{resource_inventory_only:true,glyph_coverage:false,translation_semantics:false,
             license_closure:false,visual_review:false,physical_device:false}}'
 }

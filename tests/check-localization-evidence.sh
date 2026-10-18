@@ -78,7 +78,7 @@ for file in "$common/"*.xml; do
     changed
     cp "$work/original" "$file"
 done
-for path in scripts/translate-locales.sh src/device/xiaomi/uke/ure-localization.hpp \
+for path in src/device/xiaomi/uke/multiboot.xml scripts/translate-locales.sh src/device/xiaomi/uke/ure-localization.hpp \
     src/device/xiaomi/uke/ure-locale-keys.hpp src/device/xiaomi/uke/font-fallback.hpp \
     src/device/xiaomi/uke/localization/fonts/ure-cjk.ttf src/localization/catalog.cpp \
     src/localization/font-instance.cpp src/localization/key-catalog.cpp src/localization/key-catalog.hpp \
@@ -125,18 +125,24 @@ refuse snapshot "$work/invalid.json"
 payload="$work/payload"
 mkdir -p "$payload/twres/"{languages,fonts,images,pages} "$payload/sbin" "$payload/system/etc/ure/licenses"
 for path in twres/languages/en.xml twres/fonts/Roboto.ttf twres/fonts/LICENSE.txt twres/images/icon.png \
-    twres/pages/main.xml twres/ui.xml sbin/maintainer.xml system/etc/ure/licenses/font.txt; do
+    twres/pages/main.xml twres/ui.xml sbin/maintainer.xml sbin/multiboot.xml system/etc/ure/licenses/font.txt; do
     printf 'GUI resource fixture\n' > "$payload/$path"
 done
 bash "$driver" ui "$payload" > "$work/ui-before.json"
+jq -e '.includes.multiboot_pages==true' "$work/ui-before.json" >/dev/null
 for path in twres/languages/en.xml twres/fonts/Roboto.ttf twres/fonts/LICENSE.txt twres/images/icon.png \
-    twres/pages/main.xml twres/ui.xml sbin/maintainer.xml system/etc/ure/licenses/font.txt; do
+    twres/pages/main.xml twres/ui.xml sbin/maintainer.xml sbin/multiboot.xml system/etc/ure/licenses/font.txt; do
     cp "$payload/$path" "$work/original"
     printf 'Changed GUI bytes\n' >> "$payload/$path"
     bash "$driver" ui "$payload" > "$work/ui-after.json"
     ! cmp -s "$work/ui-before.json" "$work/ui-after.json"
     cp "$work/original" "$payload/$path"
 done
+mv "$payload/sbin/multiboot.xml" "$work/multiboot.xml"
+refuse bash "$driver" ui "$payload"
+ln -s "$work/multiboot.xml" "$payload/sbin/multiboot.xml"
+refuse bash "$driver" ui "$payload"
+rm "$payload/sbin/multiboot.xml"; mv "$work/multiboot.xml" "$payload/sbin/multiboot.xml"
 chmod 0644 "$payload/twres/fonts/Roboto.ttf"
 bash "$driver" ui "$payload" > "$work/ui-after.json"
 ! cmp -s "$work/ui-before.json" "$work/ui-after.json"
@@ -172,4 +178,4 @@ for change in 'del(.shipping_ui_assets_sha256)' '.localization_inputs_sha256="ol
 done
 refuse bash "$driver" verify-gui "$work/source-after.json" "$work/ui-before.json" "$work/matching-resources.json"
 refuse bash "$driver" verify-gui "$work/source-before.json" "$work/ui-after.json" "$work/matching-resources.json"
-printf '%s\n' 'All 32 language mutations, draft headers/generators/fonts/licenses, mode/link/membership/pin controls and old GUI resource receipt refusals passed; no generator, font renderer, guest or tablet acceptance is asserted.'
+printf '%s\n' 'All 32 language mutations, multiboot source/payload closure, draft headers/generators/fonts/licenses, mode/link/membership/pin controls and old GUI resource receipt refusals passed; no generator, font renderer, guest or tablet acceptance is asserted.'
