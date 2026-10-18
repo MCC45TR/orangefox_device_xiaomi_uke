@@ -46,7 +46,7 @@ case $kind in
             [[ ! -e $path && ! -L $path ]] || roots+=("$path")
         done < <(jq -r '.optional[]' configs/localization-inputs.json)
         ;;
-    ui) roots=(twres sbin/maintainer.xml system/etc/ure/licenses);;
+    ui) roots=(twres sbin/maintainer.xml sbin/multiboot.xml system/etc/ure/licenses);;
     *) exit 2;;
 esac
 for path in "${roots[@]}"; do [[ -e $path || -L $path ]]; done

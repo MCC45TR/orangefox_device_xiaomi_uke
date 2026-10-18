@@ -65,7 +65,23 @@ int main(int argc,char** argv) {
         write(native,"const char* keep=\"Keep %device% data\";\n");
         const auto maintainer=component/"src/device/xiaomi/uke/maintainer.xml";
         write(maintainer,"<recovery><pages><page name=\"erase\"><text>Erase %device% now</text></page><page name=\"backup\"><text>Keep %device% data</text></page></pages></recovery>");
+        const auto multiboot=component/"src/device/xiaomi/uke/multiboot.xml";
+        const std::string wizard="<recovery><pages><page name=\"setup\"><text>{@ure_mb_welcome=Setup Multiboot}</text>"
+            "<listitem name=\"{@ure_mb_welcome=Setup Multiboot}\" description=\"{@ure_mb_warning=Erase %device% multiboot data}\"/>"
+            "</page></pages></recovery>";
+        write(multiboot,wizard);
         auto catalog=collect_catalog(component); write(catalog_path,json(catalog));
+        check(catalog["source_inputs"].isMember("src/device/xiaomi/uke/multiboot.xml") &&
+            ure_locale_host::validate_keys(catalog).at("Setup Multiboot")=="ure_mb_welcome",
+            "Wizard input or authored fallback key is absent");
+        for(const auto& row:catalog["strings"])if(row["name"]=="ure_mb_welcome")
+            check(row["contexts"].size()==2 && row["contexts"][0].asString().starts_with("multiboot/"),
+                "Wizard fallback contexts were lost or merged with another resource");
+        for(const auto& language:catalog["languages"])if(language["locale"]!="en") {
+            bool present=false;
+            for(const auto& missing:language["missing"])present|=missing["name"]=="ure_mb_welcome";
+            check(present,"Wizard fallback disappeared from a supported locale review");
+        }
         check(ure_locale_host::current_catalog(component,catalog_path)==catalog,"Fresh fixture catalog did not bind source");
         const ure_locale_host::ReviewCatalog bound(catalog);
         const auto br=ure_locale_host::review_bundle(bound,"pt_BR"), pt=ure_locale_host::review_bundle(bound,"pt_PT");
@@ -128,11 +144,35 @@ int main(int argc,char** argv) {
         refuse([&] { static_cast<void>(ure_locale_host::combine_review(bound,bundle,job_index,foreign)); });
         foreign=combined; std::swap(foreign["children"][0],foreign["children"][1]);
         refuse([&] { static_cast<void>(ure_locale_host::combine_review(bound,bundle,job_index,foreign)); });
-        for(const auto& path:std::vector<fs::path>{gui,native,maintainer,language_dir/"pt_PT.xml",component/"src/localization/review-plan.cpp"}) {
+        for(const auto& path:std::vector<fs::path>{gui,native,maintainer,multiboot,language_dir/"pt_PT.xml",component/"src/localization/review-plan.cpp"}) {
             const auto original=ure_locale_host::read_regular(path); write(path,original+"\n");
             refuse([&] { static_cast<void>(ure_locale_host::current_catalog(component,catalog_path)); });
             write(path,original);
         }
+        auto changed_wizard=wizard;
+        const std::string old_warning="Erase %device% multiboot data";
+        changed_wizard.replace(changed_wizard.find(old_warning),old_warning.size(),"Preserve %device% multiboot data");
+        write(multiboot,changed_wizard);
+        const auto changed_catalog=collect_catalog(component);
+        check(changed_catalog["source_inputs_sha256"]!=catalog["source_inputs_sha256"],"Changed wizard wording retained the source identity");
+        refuse([&] { static_cast<void>(ure_locale_host::current_catalog(component,catalog_path)); });
+        const ure_locale_host::ReviewCatalog changed_bound(changed_catalog);
+        refuse([&] { ure_locale_host::check_bundle(changed_bound,bundle); });
+        changed_wizard=wizard;
+        changed_wizard.replace(changed_wizard.find("setup"),5,"another-page");
+        write(multiboot,changed_wizard);
+        refuse([&] { static_cast<void>(ure_locale_host::current_catalog(component,catalog_path)); });
+        const ure_locale_host::ReviewCatalog moved_bound(collect_catalog(component));
+        refuse([&] { ure_locale_host::check_bundle(moved_bound,bundle); });
+        changed_wizard=wizard;
+        changed_wizard.insert(changed_wizard.find("</page>"),"<text>{@ure_mb_other=Setup Multiboot}</text>");
+        write(multiboot,changed_wizard);
+        refuse([&] { static_cast<void>(collect_catalog(component)); });
+        write(multiboot,"<recovery><text>{@ure_mb_welcome=Setup Multiboot}</text><text>{@ure_mb_welcome=Another wizard}</text></recovery>");
+        refuse([&] { static_cast<void>(collect_catalog(component)); });
+        fs::remove(multiboot);
+        refuse([&] { static_cast<void>(collect_catalog(component)); });
+        write(multiboot,wizard);
         write(component/"src/device/xiaomi/uke/recoveryctl/libuke/new.cpp","// New source member\n");
         refuse([&] { static_cast<void>(ure_locale_host::current_catalog(component,catalog_path)); });
         fs::remove(component/"src/device/xiaomi/uke/recoveryctl/libuke/new.cpp");
@@ -145,7 +185,7 @@ int main(int argc,char** argv) {
         const auto original_output=ure_locale_host::read_regular(output);
         const auto cli_bundle=work/"cli-bundle.json", cli_children=work/"cli-children.json", combined_path=work/"children.json";
         check(run({argv[2],"jobs",component.string(),catalog_path.string(),"tr_TR",cli_bundle.string()})==0 &&
-            ure_locale_host::parse_strict(ure_locale_host::read_regular(cli_bundle))==bundle,"Real CLI did not regenerate expected locale jobs");
+            json(ure_locale_host::parse_strict(ure_locale_host::read_regular(cli_bundle)))==json(bundle),"Real CLI did not regenerate expected locale jobs");
         write(work/"expected-children.json",json(split));
         check(run({argv[2],"split",component.string(),catalog_path.string(),bundle_path.string(),std::to_string(job_index),cli_children.string()})==0 &&
             json(ure_locale_host::parse_strict(ure_locale_host::read_regular(cli_children)))==json(split),"Real CLI did not bind complete child jobs");

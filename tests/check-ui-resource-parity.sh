@@ -16,7 +16,7 @@ mkdir -p "$output/host/linux-x86/"{bin,lib64} "$output/target/product/uke/system
 cp -p "$tools/mkbootfs" "$tools/lz4" "$output/host/linux-x86/bin/"
 cp -p "$tools/../lib64/libc++.so" "$output/host/linux-x86/lib64/"
 for path in twres/languages/en.xml twres/fonts/font.ttf twres/fonts/LICENSE.txt twres/images/icon.png \
-    twres/pages/main.xml twres/ui.xml sbin/maintainer.xml system/etc/ure/licenses/font.txt; do
+    twres/pages/main.xml twres/ui.xml sbin/maintainer.xml sbin/multiboot.xml system/etc/ure/licenses/font.txt; do
     printf 'GUI resource fixture; no licensed font or rendering claim.\n' > "$staging/$path"
 done
 "$tools/mkbootfs" -d "$output/target/product/uke/system" "$staging" > "$work/canonical.cpio"
@@ -49,7 +49,7 @@ refuse() {
     fi
     ((cases+=1)); printf 'REFUSED %s\n' "$name"
 }
-for name in content missing extra hidden type link fifo root-link; do cp -a "$work/extracted" "$work/$name"; done
+for name in content missing extra hidden type link fifo root-link wizard-content wizard-missing wizard-link; do cp -a "$work/extracted" "$work/$name"; done
 printf altered > "$work/content/twres/fonts/font.ttf"; refuse content
 rm "$work/missing/twres/fonts/font.ttf"; refuse missing
 printf extra > "$work/extra/twres/extra"; refuse extra
@@ -59,6 +59,10 @@ rm "$work/link/twres/fonts/font.ttf"; ln -s "$work/extracted/twres/fonts/font.tt
 mkfifo "$work/fifo/twres/fifo"; refuse fifo
 mv "$work/root-link/system/etc/ure/licenses" "$work/licenses"
 ln -s "$work/licenses" "$work/root-link/system/etc/ure/licenses"; refuse root-link
+printf altered > "$work/wizard-content/sbin/multiboot.xml"; refuse wizard-content
+rm "$work/wizard-missing/sbin/multiboot.xml"; refuse wizard-missing
+rm "$work/wizard-link/sbin/multiboot.xml"
+ln -s "$work/extracted/sbin/multiboot.xml" "$work/wizard-link/sbin/multiboot.xml"; refuse wizard-link
 cp -a "$work/extracted" "$work/mode"
 chmod 600 "$work/mode/twres/fonts/font.ttf"
 bash "$helper" "$staging" "$work/mode" "$work/ui-mode" > "$work/ui-mode.json"
