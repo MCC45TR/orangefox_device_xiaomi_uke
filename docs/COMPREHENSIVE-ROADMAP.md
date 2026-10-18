@@ -12,6 +12,13 @@
 
 ## Integration and evidence status
 
+**18 October 2026 requirement:** recovery must remain available when both boot
+slots contain Linux, including the project's 7.2.10 series. The kernel-less
+baseline does not meet this requirement. The
+[independent recovery contract](INDEPENDENT-RECOVERY.md) separates the prototype
+image, loader compatibility and required tablet tests; all topics 0–102 remain
+in scope.
+
 The development sequence recorded on 3 October 2026 is boot
 management, LUKS/Windows recovery, ADB/backups, files/sessions and
 distribution/diagnostics. BitLocker, SSH/SFTP, USB networking and Wi-Fi rescue
