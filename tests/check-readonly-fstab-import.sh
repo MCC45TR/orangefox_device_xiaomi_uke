@@ -25,7 +25,7 @@ awk '/auto merge_readonly = / {copy=1} copy {print} copy && /^[[:space:]]*};$/ {
 [[ -s $scratch/readonly-fstab-merge.inc ]]
 ! rg -q 'goto parse;|delete data;|delete meta;|Path_Exists\(additional_fstab\)' \
     "$scratch/source/partitionmanager.cpp"
-rg -q 'if \(!additional_fstab_readonly_approved\)' "$scratch/source/partitionmanager.cpp"
+rg -qF 'if (!additional_fstab_readonly_approved ||' "$scratch/source/partitionmanager.cpp"
 rg -q 'same_block_device\(imported.data.block_device, data->Primary_Block_Device\)' \
     "$scratch/source/partitionmanager.cpp"
 rg -q 'same_block_device\(imported.metadata.block_device, meta->Primary_Block_Device\)' \

@@ -10,7 +10,7 @@ namespace ure {
 enum class LegacyWrite {
     Wipe, Format, Repair, Resize, Restore, Flash, InstallPackage,
     PartitionMetadata, SlotSwitch, BootPatch, FileMutation, Script,
-    WritableMount, EncryptionAccess
+    WritableMount, EncryptionAccess, ReadOnlyDecryption
 };
 struct RecoveryWriteDecision {
     bool allowed;
@@ -18,7 +18,11 @@ struct RecoveryWriteDecision {
     const char* message;
 };
 constexpr bool live_storage_backend_accepted() noexcept { return false; }
-constexpr RecoveryWriteDecision legacy_write_decision(LegacyWrite) noexcept {
+constexpr RecoveryWriteDecision legacy_write_decision(LegacyWrite operation) noexcept {
+    // Only the scoped metadata/FBE callers use this operation. They additionally
+    // verify the imported profile and actual read-only mount identities.
+    if (operation == LegacyWrite::ReadOnlyDecryption)
+        return {true, "ure-readonly-decryption", "Existing Android keys and read-only mounts only."};
     return {false, "ure-legacy-write-unavailable",
         "Device writes are unavailable: verified device and firmware checks, a backup and a reviewed URE storage plan are required."};
 }
@@ -38,6 +42,7 @@ constexpr const char* legacy_write_name(LegacyWrite operation) noexcept {
         case LegacyWrite::Script: return "script";
         case LegacyWrite::WritableMount: return "writable-mount";
         case LegacyWrite::EncryptionAccess: return "encryption-access";
+        case LegacyWrite::ReadOnlyDecryption: return "readonly-decryption";
     }
     return "unknown";
 }

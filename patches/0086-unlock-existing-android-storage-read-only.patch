@@ -1,0 +1,474 @@
+diff --git a/Android.bp b/Android.bp
+index 26d6706..d89e040 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -330,6 +330,9 @@ filegroup {
+ 
+ cc_library {
+     name: "libkeystoreinfo",
++    target: {
++        recovery: { cflags: ["-D__ANDROID_RECOVERY__"] },
++    },
+     host_supported: true,
+     cflags: [
+         "-Wno-unused-parameter",
+@@ -401,4 +404,4 @@ aconfig_declarations {
+ cc_aconfig_library {
+     name: "vold_flags_c_lib",
+     aconfig_declarations: "vold_flags",
+-}
+\ No newline at end of file
++}
+diff --git a/Decrypt.cpp b/Decrypt.cpp
+index 225b6df..5b4a5e0 100755
+--- a/Decrypt.cpp
++++ b/Decrypt.cpp
+@@ -396,10 +396,17 @@ namespace android {
+  * the keystore is not always ready when TWRP boots */
+ android::sp<IBinder> getKeystoreBinder() {
+ 	android::sp<IServiceManager> sm = android::defaultServiceManager();
++#ifdef __ANDROID_RECOVERY__
++    return sm->checkService(String16("android.security.keystore"));
++#else
+     return sm->waitForService(String16("android.security.keystore"));
++#endif
+ }
+ 
+ android::sp<IBinder> getKeystoreBinderRetry() {
++#ifdef __ANDROID_RECOVERY__
++    return getKeystoreBinder();
++#else
+ 	printf("Starting keystore...\n");
+     property_set("ctl.start", "keystore");
+ 	int retry_count = 50;
+@@ -410,6 +417,7 @@ android::sp<IBinder> getKeystoreBinderRetry() {
+ 		binder = getKeystoreBinder();
+ 	}
+ 	return binder;
++#endif
+ }
+ 
+ namespace keystore {
+@@ -442,6 +450,7 @@ namespace keystore {
+ 	}
+ 
+ 	void copySqliteDb() {
++#ifndef __ANDROID_RECOVERY__
+ 		std::string keystore_path = "/tmp/misc/keystore/";
+ 		std::string dst = keystore_path + "persistent.sqlite";
+ 		std::string src = "/data/misc/keystore/persistent.sqlite";
+@@ -451,6 +460,7 @@ namespace keystore {
+ 		dstof << srcif.rdbuf();
+ 		srcif.close();
+ 		dstof.close();
++#endif
+ 	}
+ 
+ 	/* C++ replacement for function of the same name
+@@ -651,6 +661,9 @@ bool Decrypt_User_Synth_Pass(const userid_t user_id, const std::string& Password
+ 	// Get the handle: https://android.googlesource.com/platform/frameworks/base/+/android-8.0.0_r23/services/core/java/com/android/server/locksettings/LockSettingsService.java#2017
+ 	KeystoreInfo keystore_info;
+ 	std::string handle_str = keystore_info.getHandle(user_id);
++#ifdef __ANDROID_RECOVERY__
++	if (handle_str.empty()) return Free_Return(retval, weaver_key, &pwd);
++#endif
+ 	// Now we begin driving unwrapPasswordBasedSyntheticPassword from: https://android.googlesource.com/platform/frameworks/base/+/android-8.0.0_r23/services/core/java/com/android/server/locksettings/SyntheticPasswordManager.java#758
+ 	// First we read the password data which contains scrypt parameters
+ 	// printf("pwd N %i R %i P %i salt ", pwd.scryptN, pwd.scryptR, pwd.scryptP); output_hex((char*)pwd.salt, pwd.salt_len); printf("\n");
+@@ -915,6 +928,9 @@ extern "C" int Get_Password_Type(const userid_t user_id, std::string& filename)
+ 		std::string spblob_path = spblob_path_char;
+ 		KeystoreInfo keystore_info;
+ 		std::string handle_str = keystore_info.getHandle(user_id);
++#ifdef __ANDROID_RECOVERY__
++		if (handle_str.empty()) return -1;
++#endif
+ 		printf("Handle is '%s'\n", handle_str.c_str());
+ 		password_data_struct pwd;
+ 		if (!Get_Password_Data(spblob_path, handle_str, &pwd)) {
+diff --git a/FsCrypt.cpp b/FsCrypt.cpp
+index fa952a6..ee03e1a 100644
+--- a/FsCrypt.cpp
++++ b/FsCrypt.cpp
+@@ -21,6 +21,9 @@
+ #include "KeyUtil.h"
+ #include "Utils.h"
+ #include "VoldUtil.h"
++#ifdef __ANDROID_RECOVERY__
++#include <sys/statvfs.h>
++#endif
+ 
+ #include <algorithm>
+ #include <map>
+@@ -70,6 +73,9 @@ using android::vold::kEmptyAuthentication;
+ using android::vold::KeyBuffer;
+ using android::vold::KeyGeneration;
+ using android::vold::retrieveKey;
++#ifdef __ANDROID_RECOVERY__
++using android::vold::retrieveExistingKeyReadOnly;
++#endif
+ using android::vold::retrieveOrGenerateKey;
+ using android::vold::SetDefaultAcl;
+ using android::vold::SetQuotaInherit;
+@@ -216,12 +222,16 @@ static bool read_and_fixate_user_ce_key(userid_t user_id,
+     auto const paths = get_ce_key_paths(directory_path);
+     for (auto const ce_key_path : paths) {
+         LOG(INFO) << "Trying user CE key " << ce_key_path;
++#ifdef __ANDROID_RECOVERY__
++        if (retrieveExistingKeyReadOnly(ce_key_path, auth, ce_key)) return true;
++#else
+         if (retrieveKey(ce_key_path, auth, ce_key)) {
+             LOG(INFO) << "Successfully retrieved key";
+             s_deferred_fixations.erase(directory_path);
+             fixate_user_ce_key(directory_path, ce_key_path, paths);
+             return true;
+         }
++#endif
+     }
+     LOG(ERROR) << "Failed to find working ce key for user " << user_id;
+     return false;
+@@ -307,6 +317,9 @@ static bool DoesHardwareSupportOnly32DunBits(const std::string& blk_device) {
+ 
+ // Sets s_data_options to the file encryption options for the /data filesystem.
+ static bool init_data_file_encryption_options() {
++#ifdef __ANDROID_RECOVERY__
++    if (!android::fs_mgr::ReadFstabFromFile("/etc/additional.fstab", &fstab_default)) return false;
++#endif
+     if (fstab_default.empty()) {
+         if (!ReadDefaultFstab(&fstab_default)) {
+             PLOG(ERROR) << "Failed to open default fstab";
+@@ -345,7 +358,11 @@ static bool install_storage_key(const std::string& mountpoint, const EncryptionO
+     }
+     KeyBuffer ephemeral_wrapped_key;
+     if (options.use_hw_wrapped_key) {
++#ifdef __ANDROID_RECOVERY__
++        if (!android::vold::exportMetadataWrappedKeyReadOnly(key, &ephemeral_wrapped_key)) {
++#else
+         if (!exportWrappedStorageKey(key, &ephemeral_wrapped_key)) {
++#endif
+             LOG(ERROR) << "Failed to get ephemeral wrapped key";
+             return false;
+         }
+@@ -520,7 +537,11 @@ static bool load_all_de_keys() {
+         auto key_path = de_dir + "/" + entry->d_name;
+         KeyBuffer de_key;
+         LOG(INFO) << "fscrypt::load_all_de_keys::retrieveKey";
++#ifdef __ANDROID_RECOVERY__
++        if (!retrieveExistingKeyReadOnly(key_path, kEmptyAuthentication, &de_key)) {
++#else
+         if (!retrieveKey(key_path, kEmptyAuthentication, &de_key)) {
++#endif
+             // This is probably a partially removed user, so ignore
+             if (user_id != 0) continue;
+             return false;
+@@ -546,6 +567,17 @@ bool fscrypt_initialize_systemwide_keys() {
+ 
+     if (!init_data_file_encryption_options()) return false;
+ 
++#ifdef __ANDROID_RECOVERY__
++    struct statvfs filesystem{};
++    if (statvfs(DATA_MNT_POINT, &filesystem) != 0 || (filesystem.f_flag & ST_RDONLY) == 0)
++        return false;
++    KeyBuffer existing;
++    if (!retrieveExistingKeyReadOnly(device_key_path, kEmptyAuthentication, &existing) ||
++        !install_storage_key(DATA_MNT_POINT, s_data_options, existing, &s_device_policy)) return false;
++    de_key_raw_ref = s_device_policy.key_raw_ref;
++    return true;
++#else
++
+     EncryptionOptions options;
+     if (!get_volume_file_encryption_options(&options)) return false;
+ 
+@@ -592,8 +624,12 @@ install:
+     LOG(INFO) << "Wrote per boot key reference to:" << per_boot_ref_filename;
+ 
+     return true;
++#endif
+ }
+ 
++#ifdef __ANDROID_RECOVERY__
++[[maybe_unused]]
++#endif
+ static bool prepare_special_dirs() {
+     // Ensure that /data/data and its "alias" /data/user/0 exist, and create the
+     // bind mount of /data/data onto /data/user/0.  This *should* happen in
+@@ -654,6 +690,13 @@ bool fscrypt_init_user0_done;
+ bool fscrypt_init_user0() {
+     LOG(INFO) << "fscrypt_init_user0";
+ 
++#ifdef __ANDROID_RECOVERY__
++    if (!IsFbeEnabled() || !de_key_exists(0) || !ce_key_exists(0) || !load_all_de_keys() ||
++        s_de_policies.count(0) == 0) return false;
++    fscrypt_init_user0_done = true;
++    return true;
++#else
++
+     if (IsFbeEnabled()) {
+         if (!prepare_dir(user_key_dir, 0700, AID_ROOT, AID_ROOT)) return false;
+         if (!prepare_dir(user_key_dir + "/ce", 0700, AID_ROOT, AID_ROOT)) return false;
+@@ -684,6 +727,7 @@ bool fscrypt_init_user0() {
+ 
+     fscrypt_init_user0_done = true;
+     return true;
++#endif
+ }
+ 
+ // Creates the CE and DE keys for a new user.
+@@ -958,6 +1002,18 @@ static bool prepare_subdirs(const std::string& action, const std::string& volume
+ }
+ 
+ bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_id, int flags) {
++#ifdef __ANDROID_RECOVERY__
++    // Unlock only existing internal policies. Do not create directories, adopt
++    // volumes, set policies, run prepare_subdirs or repair SELinux metadata.
++    struct statvfs filesystem{};
++    if (!volume_uuid.empty() || statvfs(DATA_MNT_POINT, &filesystem) != 0 ||
++        (filesystem.f_flag & ST_RDONLY) == 0 || flags == 0 ||
++        (flags & ~(android::os::IVold::STORAGE_FLAG_DE | android::os::IVold::STORAGE_FLAG_CE)))
++        return false;
++    if ((flags & android::os::IVold::STORAGE_FLAG_DE) && s_de_policies.count(user_id) == 0) return false;
++    if ((flags & android::os::IVold::STORAGE_FLAG_CE) && s_ce_policies.count(user_id) == 0) return false;
++    return true;
++#else
+     LOG(INFO) << "fscrypt_prepare_user_storage for volume " << escape_empty(volume_uuid)
+                << ", user " << user_id << ", flags " << flags;
+ 
+@@ -1084,6 +1140,7 @@ bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_
+     if (!prepare_subdirs("prepare", volume_uuid, user_id, flags)) return false;
+ 
+     return true;
++#endif
+ }
+ 
+ bool fscrypt_destroy_user_storage(const std::string& volume_uuid, userid_t user_id, int flags) {
+diff --git a/KeyStorage.cpp b/KeyStorage.cpp
+index a602fdb..168bca1 100644
+--- a/KeyStorage.cpp
++++ b/KeyStorage.cpp
+@@ -729,6 +729,52 @@ bool exportMetadataWrappedKeyReadOnly(const KeyBuffer& blob, KeyBuffer* key) {
+     ExistingKeyMint keymint;
+     return keymint.exportWrapped(blob, key);
+ }
++
++bool retrieveExistingKeyReadOnly(const std::string& dir, const KeyAuthentication& auth,
++                                KeyBuffer* key) {
++    if (!key || auth.secret.size() > 65536) return false;
++    *key = KeyBuffer{};
++    android::base::unique_fd directory(open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
++    struct stat info{};
++    struct statvfs filesystem{};
++    if (directory.get() < 0 || fstat(directory.get(), &info) != 0 || info.st_uid != 0 ||
++        fstatvfs(directory.get(), &filesystem) != 0 || (filesystem.f_flag & ST_RDONLY) == 0)
++        return false;
++    if (auth.usesKeystore()) {
++        MetadataKeyBinding binding;
++        {
++            const std::lock_guard<std::mutex> lock(storage_binding_info.guard);
++            // An absent seed can only try the unbound application ID. A bound
++            // installation still needs its actual seed; authentication must pass.
++            binding = storage_binding_info.state == StorageBindingInfo::State::IN_USE
++                          ? MetadataKeyBinding::Bound : MetadataKeyBinding::Unbound;
++        }
++        return retrieveMetadataKeyReadOnly(directory.get(), binding, key);
++    }
++    struct SecretRecords {
++        std::string version, secdiscardable, encrypted, hash, app_id;
++        ~SecretRecords() {
++            for (auto* value : {&version, &secdiscardable, &encrypted, &hash, &app_id})
++                if (!value->empty()) OPENSSL_cleanse(value->data(), value->size());
++        }
++    } records;
++    struct stat pending{};
++    if (fstatat(directory.get(), kFn_keymaster_key_blob_upgraded, &pending, AT_SYMLINK_NOFOLLOW) == 0 ||
++        errno != ENOENT ||
++        !readMetadataKeyFile(directory.get(), kFn_version, 1, &records.version) ||
++        records.version != kCurrentVersion ||
++        !readMetadataKeyFile(directory.get(), kFn_secdiscardable, SECDISCARDABLE_BYTES, &records.secdiscardable) ||
++        records.secdiscardable.size() != SECDISCARDABLE_BYTES ||
++        !readMetadataKeyFile(directory.get(), kFn_encrypted_key, 65536, &records.encrypted) ||
++        records.encrypted.size() <= GCM_NONCE_BYTES + GCM_MAC_BYTES) return false;
++    hashWithPrefix(kHashPrefix_secdiscardable, records.secdiscardable, &records.hash);
++    records.app_id = generateAppId(auth, records.hash);
++    if (!decryptWithoutKeystore(records.app_id, records.encrypted, key)) {
++        *key = KeyBuffer{};
++        return false;
++    }
++    return !key->empty();
++}
+ #endif
+ 
+ static bool DeleteKeystoreKey(const std::string& blob_file) {
+diff --git a/KeyStorage.h b/KeyStorage.h
+index e761f2a..0bc1d1b 100644
+--- a/KeyStorage.h
++++ b/KeyStorage.h
+@@ -67,6 +67,8 @@ bool retrieveKey(const std::string& dir, const KeyAuthentication& auth, KeyBuffe
+ enum class MetadataKeyBinding { Unknown, Unbound, Bound };
+ bool retrieveMetadataKeyReadOnly(int key_dir_fd, MetadataKeyBinding binding, KeyBuffer* key);
+ bool exportMetadataWrappedKeyReadOnly(const KeyBuffer& blob, KeyBuffer* key);
++bool retrieveExistingKeyReadOnly(const std::string& dir, const KeyAuthentication& auth,
++                                KeyBuffer* key);
+ #endif
+ 
+ // Securely destroy the key stored in the named directory and delete the directory.
+diff --git a/KeystoreInfo.cpp b/KeystoreInfo.cpp
+index a74a713..bce656d 100755
+--- a/KeystoreInfo.cpp
++++ b/KeystoreInfo.cpp
+@@ -28,6 +28,9 @@
+ #include <string>
+ #include <sqlite3.h>
+ #include "KeystoreInfo.hpp"
++#ifdef __ANDROID_RECOVERY__
++#include <sys/statvfs.h>
++#endif
+ 
+ std::string KeystoreInfo::uint2hex(int64_t num) {
+ 	uint64_t temp = num;
+@@ -45,6 +48,28 @@ std::string KeystoreInfo::uint2hex(int64_t num) {
+ }
+ 
+ std::string KeystoreInfo::getHandle(const userid_t user_id) {
++#ifdef __ANDROID_RECOVERY__
++	struct statvfs filesystem{};
++	if (user_id > 9999 || statvfs("/data", &filesystem) != 0 ||
++		(filesystem.f_flag & ST_RDONLY) == 0) return "";
++	sqlite3* db = nullptr;
++	sqlite3_stmt* statement = nullptr;
++	const int opened = sqlite3_open_v2("/data/system/locksettings.db", &db,
++		SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_PRIVATECACHE, nullptr);
++	std::string result;
++	if (opened == SQLITE_OK && sqlite3_db_readonly(db, "main") == 1 &&
++		sqlite3_busy_timeout(db, 250) == SQLITE_OK &&
++		sqlite3_prepare_v2(db, "SELECT value FROM locksettings WHERE name='sp-handle' AND user=?",
++			-1, &statement, nullptr) == SQLITE_OK &&
++		sqlite3_bind_int64(statement, 1, user_id) == SQLITE_OK &&
++		sqlite3_step(statement) == SQLITE_ROW) {
++		const auto value = sqlite3_column_int64(statement, 0);
++		if (sqlite3_step(statement) == SQLITE_DONE) result = uint2hex(value);
++	}
++	if (statement) sqlite3_finalize(statement);
++	if (db && sqlite3_close(db) != SQLITE_OK) result.clear();
++	return result;
++#else
+ 	int rc = 0;
+ 	sqlite3 *db;
+ 	sqlite3_stmt *stmt;
+@@ -72,6 +97,7 @@ std::string KeystoreInfo::getHandle(const userid_t user_id) {
+ 	sqlite3_finalize(stmt);
+ 	sqlite3_close(db);
+ 	return uint2hex(value);
++#endif
+ }
+ 
+ std::string KeystoreInfo::getAlias(std::string handle) {
+diff --git a/MetadataCrypt.cpp b/MetadataCrypt.cpp
+index c1b12cc..f23b06f 100644
+--- a/MetadataCrypt.cpp
++++ b/MetadataCrypt.cpp
+@@ -24,6 +24,10 @@
+ #include <sys/param.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
++#ifdef __ANDROID_RECOVERY__
++#include <algorithm>
++#include <sys/mount.h>
++#endif
+ 
+ #include <android-base/logging.h>
+ #include <android-base/properties.h>
+@@ -97,6 +101,20 @@ void defaultkey_precreate_dm_device() {
+ }
+ 
+ static bool mount_via_fs_mgr(const char* mount_point, const char* blk_device, bool needs_encrypt) {
++#ifdef __ANDROID_RECOVERY__
++    const auto* entry = GetEntryForMountPoint(&fstab_default, mount_point);
++    if (needs_encrypt || std::string(mount_point) != "/data" || !entry ||
++        (entry->flags & MS_RDONLY) == 0) return false;
++    const auto options = android::base::Split(entry->fs_options, ",");
++    const std::string replay = entry->fs_type == "ext4" ? "noload" :
++                               entry->fs_type == "f2fs" ? "norecovery" : "";
++    if (replay.empty() || std::find(options.begin(), options.end(), replay) == options.end())
++        return false;
++    // fs_mgr's ordinary mount path can run fsck or initialize a filesystem.
++    return ::mount(blk_device, mount_point, entry->fs_type.c_str(),
++                   MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC | MS_NOATIME,
++                   entry->fs_options.c_str()) == 0;
++#else
+     // fs_mgr_do_mount runs fsck. Use setexeccon to run trusted
+     // partitions in the fsck domain.
+     if (setexeccon(android::vold::sFsckContext)) {
+@@ -115,10 +133,17 @@ static bool mount_via_fs_mgr(const char* mount_point, const char* blk_device, bo
+     }
+     LOG(INFO) << "Mounted " << mount_point;
+     return true;
++#endif
+ }
+ 
+ static bool read_key(const std::string& metadata_key_dir, const KeyGeneration& gen, bool first_key,
+                      KeyBuffer* key) {
++#ifdef __ANDROID_RECOVERY__
++    (void)gen;
++    (void)first_key;
++    if (metadata_key_dir != "/metadata/vold/metadata_encryption") return false;
++    return retrieveExistingKeyReadOnly(metadata_key_dir + "/key", kEmptyAuthentication, key);
++#else
+     if (metadata_key_dir.empty()) {
+         LOG(ERROR) << "Failed to get metadata_key_dir";
+         return false;
+@@ -142,6 +167,7 @@ static bool read_key(const std::string& metadata_key_dir, const KeyGeneration& g
+     }
+     auto temp = metadata_key_dir + "/tmp";
+     return retrieveOrGenerateKey(dir, temp, kEmptyAuthentication, gen, key);
++#endif
+ }
+ 
+ static bool get_number_of_sectors(const std::string& real_blkdev, uint64_t* nr_sec) {
+@@ -162,7 +188,11 @@ static bool create_crypto_blk_dev(const std::string& dm_name, const std::string&
+ 
+     KeyBuffer module_key;
+     if (options.use_hw_wrapped_key) {
++#ifdef __ANDROID_RECOVERY__
++        if (!exportMetadataWrappedKeyReadOnly(key, &module_key)) {
++#else
+         if (!exportWrappedStorageKey(key, &module_key)) {
++#endif
+             LOG(ERROR) << "Failed to get ephemeral wrapped key";
+             return false;
+         }
+@@ -187,6 +217,11 @@ static bool create_crypto_blk_dev(const std::string& dm_name, const std::string&
+     table.AddTarget(std::move(target));
+ 
+     auto& dm = DeviceMapper::Instance();
++#ifdef __ANDROID_RECOVERY__
++    table.set_readonly(true);
++    if (dm_name != kDmNameUserdata || !is_userdata ||
++        dm.GetState(dm_name) != DmDeviceState::INVALID) return false;
++#endif
+     if (dm_name == kDmNameUserdata && dm.GetState(dm_name) == DmDeviceState::SUSPENDED) {
+         // The device was created in advance, populate it now.
+         if (!dm.LoadTableAndActivate(dm_name, table)) {
+@@ -292,6 +327,11 @@ bool fscrypt_mount_metadata_encrypted(const std::string& blk_device, const std::
+                                       const std::string& fs_type, bool is_zoned,
+                                       const std::vector<std::string>& user_devices,
+                                       const std::vector<bool>& device_aliased, int64_t length, std::string fstab_path) {
++#ifdef __ANDROID_RECOVERY__
++    if (needs_encrypt || should_format || is_zoned || !user_devices.empty() ||
++        !device_aliased.empty() || length != 0 || mount_point != "/data" ||
++        fstab_path != "/etc/additional.fstab") return false;
++#endif
+     LOG(INFO) << "fscrypt_mount_metadata_encrypted: " << mount_point
+                << " encrypt: " << needs_encrypt << " format: " << should_format << " with "
+                << fs_type << " block device: " << blk_device << " with zoned " << is_zoned
+@@ -436,6 +476,12 @@ bool fscrypt_mount_metadata_encrypted(const std::string& blk_device, const std::
+     LOG(INFO) << "Mounting metadata-encrypted filesystem:" << mount_point;
+     if (!mount_via_fs_mgr(mount_point.c_str(), crypto_blkdev.c_str(), needs_encrypt)) {
+         LOG(ERROR) << "Failed to mount metadata-encrypted filesystem";
++#ifdef __ANDROID_RECOVERY__
++        // The recovery creator refuses existing mappings, so only its new map
++        // can reach this cleanup. Preserve any removal failure for diagnosis.
++        if (!DeviceMapper::Instance().DeleteDevice(kDmNameUserdata))
++            LOG(ERROR) << "Could not remove the failed recovery userdata mapping";
++#endif
+         return false;
+     }
+     android::base::SetProperty("ro.crypto.fs_crypto_blkdev", crypto_blkdev);

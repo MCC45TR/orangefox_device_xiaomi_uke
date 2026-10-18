@@ -1,0 +1,89 @@
+diff --git a/partition.cpp b/partition.cpp
+index cdcd2ef..36f5fcd 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -800,6 +800,7 @@ void TWPartition::Set_FBE_Status() {
+ }
+ 
+ bool TWPartition::Decrypt_FBE_DE() {
++	if (!PartitionManager.Read_Only_Android_Access(true)) return false;
+ if (TWFunc::Path_Exists("/data/unencrypted/key/version")) {
+ 		DataManager::SetValue(TW_IS_FBE, 1);
+ 		PartitionManager.Set_Crypto_State();
+@@ -849,8 +850,8 @@ if (TWFunc::Path_Exists("/data/unencrypted/key/version")) {
+ 		string filename;
+ 		int pwd_type = android::keystore::Get_Password_Type(0, filename);
+ 		if (pwd_type < 0) {
+-			LOGERR("This build does not have synthetic password decrypt support\n");
+-			pwd_type = 0;  // default password
++			LOGERR("Existing credential metadata is unavailable; default unlock was not attempted\n");
++			return false;
+ 		}
+ 		PartitionManager.Parse_Users();  // after load_all_de_keys() to parse_users
+ 		std::vector<users_struct>::iterator iter;
+@@ -3498,6 +3499,7 @@ void TWPartition::Find_Actual_Block_Device(void) {
+ }
+ 
+ void TWPartition::Recreate_Media_Folder(void) {
++	if (Mount_Read_Only) return;
+ 	string Command;
+ 	string Media_Path = Mount_Point + "/media";
+ 
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index f4da4ab..a883125 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -675,12 +675,24 @@ int TWPartitionManager::Write_Fstab(void) {
+ 	return true;
+ }
+ 
+-void TWPartitionManager::Decrypt_Data() {
+-    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return;
+-	if (!additional_fstab_readonly_approved) {
+-		LOGERR("Metadata decryption refused without a validated read-only fstab pair\n");
+-		return;
++bool TWPartitionManager::Read_Only_Android_Access(bool require_data) {
++	auto* data = Find_Partition_By_Path("/data");
++	auto* metadata = Find_Partition_By_Path("/metadata");
++	if (!additional_fstab_readonly_approved || !data || !metadata ||
++		!data->Mount_Read_Only || !metadata->Mount_Read_Only || !metadata->Mount(false) ||
++		!ure::readonly_fstab::mounted_readonly("/metadata", metadata->Actual_Block_Device) ||
++		(require_data && (!data->Mount(false) ||
++		 !ure::readonly_fstab::mounted_readonly("/data", data->Actual_Block_Device)))) {
++		LOGERR("Android access requires a validated profile and matching read-only mounts\n");
++		return false;
+ 	}
++	return true;
++}
++
++void TWPartitionManager::Decrypt_Data() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::ReadOnlyDecryption)) return;
++	ure::LegacyLifecycleGuard lifecycle("mount");
++	if (!ure_legacy_lifecycle_guard(lifecycle) || !Read_Only_Android_Access(false)) return;
+ 	#ifdef TW_INCLUDE_CRYPTO
+ 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
+ 	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
+@@ -2367,7 +2379,10 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
+ }
+ 
+ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+-    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return -1;
++    if (!ure_legacy_write_guard(ure::LegacyWrite::ReadOnlyDecryption)) return -1;
++	ure::LegacyLifecycleGuard lifecycle("mount");
++	if (!ure_legacy_lifecycle_guard(lifecycle) || !Read_Only_Android_Access(true) ||
++		!DataManager::GetIntValue(TW_IS_FBE)) return -1;
+ #ifdef TW_INCLUDE_CRYPTO
+   char crypto_blkdev[PROPERTY_VALUE_MAX];
+   std::vector < TWPartition * >::iterator iter;
+diff --git a/partitions.hpp b/partitions.hpp
+index f852038..5e7481c 100644
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -350,6 +350,7 @@ public:
+ 	void Setup_Fstab_Partitions(bool Display_Error);                          // Populates the partitions
+ 	int Write_Fstab();                                                        // Creates /etc/fstab file that's used by the command line for mount commands
+ 	void Decrypt_Data();							  // Decrypt Data if enabled
++	bool Read_Only_Android_Access(bool require_data);
+ 	void Output_Partition_Logging();                                          // Outputs partition information to the log
+ 	void Output_Partition(TWPartition* Part);                                 // Outputs partition details to the log
+ 	int Mount_By_Path(string Path, bool Display_Error);                       // Mounts partition based on path (e.g. /system)
