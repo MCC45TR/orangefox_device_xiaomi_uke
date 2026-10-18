@@ -21,7 +21,7 @@ catalog="$component/manifests/stock-payloads-global.json"
 lz4="$product/host/linux-x86/bin/lz4"
 mkboot="$product/host/linux-x86/bin/mkbootimg"
 avb="$product/host/linux-x86/bin/avbtool"
-for tool in jq od dd sha256sum stat gzip cpio bwrap strings readelf truncate rg; do command -v "$tool" >/dev/null; done
+for tool in jq od dd sha256sum stat gzip zstd cpio bwrap strings readelf truncate rg; do command -v "$tool" >/dev/null; done
 pin() {
     [[ -f $1 && ! -L $1 && $(sha256sum "$1" | cut -d' ' -f1) == "$2" ]] || {
         printf 'Pinned input rejected: %s\n' "${1##*/}" >&2; exit 1;
@@ -53,9 +53,12 @@ mkdir -p -- "${destination%/*}"
 [[ ! -L ${destination%/*} ]]
 mkdir -- "$destination"
 inputs=("$recovery" "$kernel" "$vendor/vendor_ramdisk00" "$vendor/dtb" "$vendor/bootconfig" \
-    "$stock/vendor_boot.img" "$stock/dtbo.img" "$catalog" "$lz4" "$mkboot" "$avb" "${BASH_SOURCE[0]}")
+    "$stock/vendor_boot.img" "$stock/dtbo.img" "$catalog" "$lz4" "$mkboot" "$avb" "$(command -v zstd)" "${BASH_SOURCE[0]}")
 sha256sum "${inputs[@]}" > "$destination/INPUTS-BEFORE.sha256"
 trap 'status=$?; if ((status)); then printf "Private prototype incomplete; see retained evidence. No device was accessed.\n" >&2; fi' EXIT
+# IKCONFIG extent in the exact hash-pinned Image; do not assume another kernel accepts Zstd.
+dd if="$kernel" bs=1M iflag=skip_bytes,count_bytes skip=17641512 count=44417 status=none | gzip -dc > "$destination/kernel.config"
+rg -x 'CONFIG_RD_ZSTD=y' "$destination/kernel.config" >/dev/null
 dd if="$recovery" of="$destination/recovery.lz4" bs=1M iflag=skip_bytes,count_bytes skip=4096 count="$ramdisk_bytes" status=none
 "$lz4" -dc "$vendor/vendor_ramdisk00" > "$destination/vendor.cpio"
 "$lz4" -dc "$destination/recovery.lz4" > "$destination/recovery.cpio"
@@ -85,8 +88,8 @@ bash "$component/tests/check-payload.sh" "$root" > "$destination/payload-audit.l
 bash "$component/tests/check-nested-payloads.sh" "$root" > "$destination/nested-payload-audit.log"
 bash "$component/tests/check-elf-closure.sh" "$root" > "$destination/elf-closure.log"
 # Preserve both original newc streams. Linux initramfs accepts concatenated archives and recovery overlays vendor last.
-cat "$destination/vendor.cpio" "$destination/recovery.cpio" | gzip -9 -n -c > "$destination/ramdisk.gz"
-gzip -9 -n -c "$kernel" > "$destination/kernel.gz"
+cat "$destination/vendor.cpio" "$destination/recovery.cpio" | zstd -q -19 -T1 --no-check -c > "$destination/ramdisk.zst"
+cp -- "$kernel" "$destination/kernel"
 cp -- "$vendor/dtb" "$destination/dtb"
 dd if="$stock/dtbo.img" of="$destination/recovery-dtbo.img" bs=1M iflag=count_bytes count="$dtbo_bytes" status=none
 vendor_cmdline=$(dd if="$stock/vendor_boot.img" bs=1 skip=28 count=2048 status=none | tr -d '\000')
@@ -100,15 +103,15 @@ printf '%s\n' "$cmdline" > "$destination/CMDLINE.txt"
     --ramdisk_offset "$(u32 "$stock/vendor_boot.img" 20)" \
     --tags_offset "$(u32 "$stock/vendor_boot.img" 2076)" \
     --dtb_offset "$(od -An -tu8 --endian=little -j2104 -N8 "$stock/vendor_boot.img" | tr -d ' \n')" \
-    --kernel "$destination/kernel.gz" --ramdisk "$destination/ramdisk.gz" \
+    --kernel "$destination/kernel" --ramdisk "$destination/ramdisk.zst" \
     --recovery_dtbo "$destination/recovery-dtbo.img" --dtb "$destination/dtb" \
     --os_version 16.0.0 --os_patch_level 2025-06 --cmdline "$cmdline" --output "$destination/recovery-v2.img"
 align() { echo $(( ($1+4095)/4096*4096 )); }
-kernel_gzip_bytes=$(stat -c %s "$destination/kernel.gz")
-ramdisk_gzip_bytes=$(stat -c %s "$destination/ramdisk.gz")
+kernel_bytes=$(stat -c %s "$destination/kernel")
+ramdisk_bytes=$(stat -c %s "$destination/ramdisk.zst")
 dtb_bytes=$(stat -c %s "$destination/dtb")
 # This exact reference parser counts the v2 DTB twice; retain padding before the AVB footer for that read extent.
-abl_extent=$((4096+$(align "$kernel_gzip_bytes")+$(align "$ramdisk_gzip_bytes")+$(align "$dtbo_bytes")+2*$(align "$dtb_bytes")))
+abl_extent=$((4096+$(align "$kernel_bytes")+$(align "$ramdisk_bytes")+$(align "$dtbo_bytes")+2*$(align "$dtb_bytes")))
 [[ $abl_extent -le $("$avb" add_hash_footer --partition_size 104857600 --calc_max_image_size) ]]
 truncate -s "$abl_extent" "$destination/recovery-v2.img"
 "$avb" add_hash_footer --image "$destination/recovery-v2.img" --partition_name recovery \
@@ -117,16 +120,16 @@ sha256sum "${inputs[@]}" > "$destination/INPUTS-AFTER.sha256"
 cmp "$destination/INPUTS-BEFORE.sha256" "$destination/INPUTS-AFTER.sha256"
 jq -n --arg source "$(sha256sum "$recovery" | cut -d' ' -f1)" \
     --arg image "$(sha256sum "$destination/recovery-v2.img" | cut -d' ' -f1)" \
-    --argjson kernel_bytes "$kernel_gzip_bytes" --argjson ramdisk_bytes "$ramdisk_gzip_bytes" \
+    --argjson kernel_bytes "$kernel_bytes" --argjson ramdisk_bytes "$ramdisk_bytes" \
     --argjson dtb_bytes "$dtb_bytes" --argjson dtbo_bytes "$dtbo_bytes" --argjson abl_extent "$abl_extent" \
     '{schema_version:1,date:"2026-10-18",evidence_class:"private-unqualified-recovery-prototype",source_recovery_sha256:$source,
       image_sha256:$image,header_version:2,partition_bytes:104857600,reference_abl_read_extent:$abl_extent,
       firmware_profile:"global-os3.0.303.0",kernel_release:"6.1.138-android14-11-g0c3d559bcd85-ab14529422",
-      kernel_gzip_bytes:$kernel_bytes,ramdisk_gzip_bytes:$ramdisk_bytes,dtb_bytes:$dtb_bytes,dtbo_bytes:$dtbo_bytes,
+      kernel_bytes:$kernel_bytes,ramdisk_zstd_bytes:$ramdisk_bytes,dtb_bytes:$dtb_bytes,dtbo_bytes:$dtbo_bytes,
       ramdisk_archive_order:["stock-vendor","pinned-recovery"],avb_algorithm:"NONE",source_inputs_unchanged:true,
       payload_audit:true,elf_closure:true,blocked_modules:["charger_partition","ufs_ffu"],
-      kernel_load_address_equivalence:false,reference_gzip_kernel_offset:524288,raw_kernel_text_offset:0,
+      raw_kernel_bytes_preserved:true,reference_compressed_kernel_path:false,raw_kernel_text_offset:0,
       existing_touch_kernel_requirement:"6.1.175-android14-11-ga3b9c44908dd-ab13320413",
-      validation:{oem_abl_binary_match:false,boot_image_independence:false,kernel_archive_execution:false,
+      validation:{oem_abl_binary_match:false,boot_image_independence:false,physical_load_address:false,
         physical_acceptance:false,physical_touch:false,both_slots_linux:false,installable_release:false}}' > "$destination/PROTOTYPE.json"
 printf 'Private v2 prototype assembled; boot, touch and installation acceptance remain unavailable.\n'

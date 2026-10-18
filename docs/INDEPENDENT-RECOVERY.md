@@ -22,7 +22,7 @@ On 18 October, a private 100 MiB v2 prototype passed section readback, reference
 ABL parser/overflow controls, AVB structure, payload privacy, no-Python and ELF
 dependency checks. It uses historical recovery ramdisk `67ffc810…`, not a fresh
 build containing the retained source changes. Its SHA-256 is
-`92b2e5ad8a5c9a5b2695a16bc095cd9e37e5bac63a311cd14d1d511eaa29c6b9`.
+`4637e71ea2cf5e8ea26501642e7e36fde8be9c2a1451536b32cc595cbc29924b`.
 The prototype is not an installable release.
 
 ## Image contract
@@ -38,11 +38,11 @@ kernel alongside Linux 7.2.10; it does not port OrangeFox to the native kernel.
 The OEM touch provider remains pinned to its different 6.1.175 profile and
 unavailable. No module ABI override or automatic storage writer is admitted.
 
-The prototype compresses its kernel with gzip to fit. Reference ABL selects a
-512 KiB kernel offset for this path, while the raw reference Image declares
-offset zero. Load-address equivalence has not been established; temporary-boot
-qualification must resolve it. Do not infer that fitting or decompressing the
-image establishes a safe boot.
+The final prototype preserves the exact raw kernel and compresses only the
+ramdisk with Zstd. The kernel's embedded configuration enables that decoder.
+This avoids the different compressed-kernel load path found during the first
+prototype. OEM loader acceptance and actual memory placement remain untested;
+fitting or decompressing the image does not establish a safe boot.
 
 The complete image, including its unsigned development AVB footer, must fit
 **104857600 bytes**. Verify the actual sections, transitive payload, module
