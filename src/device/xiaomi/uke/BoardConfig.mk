@@ -92,12 +92,11 @@ TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
 TARGET_USES_LOGD := true
 TWRP_INCLUDE_LOGCAT := true
 
-# Crypto flags disable decryption only. The shared recovery write policy also
-# blocks legacy formatting, restore, flash, OTA and fastbootd mutations. Neither
-# a writable mount preference nor advanced mode grants an unreviewed live write.
-TW_INCLUDE_CRYPTO := false
-TW_INCLUDE_CRYPTO_FBE := false
-TW_INCLUDE_FBE_METADATA_DECRYPT := false
+# Existing-key metadata/FBE access uses the dedicated read-only recovery Vold.
+# Format, key generation/upgrades, adopted storage and other writes stay gated.
+TW_INCLUDE_CRYPTO := true
+TW_INCLUDE_CRYPTO_FBE := true
+TW_INCLUDE_FBE_METADATA_DECRYPT := true
 
 TW_THEME := portrait_hdpi
 TW_ROTATION := 270

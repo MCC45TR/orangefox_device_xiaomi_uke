@@ -76,7 +76,9 @@ records source and host-tested parts of C01–C08/C14–C16/C18/C20/C23. Native
 Btrfs snapshot/send/maintenance code also extends C12/C13 conditionally. Bounded
 usage/mapper policy and identity-bound storage stream software extend C01/C18;
 native firmware/slot/snapshot and namespace/holder preflight now extends C01,
-while live writer/range/SKU acceptance and managed USB/SSH remain unfinished. The full contracts
+while live writer/range/SKU acceptance and managed USB/SSH remain unfinished. The
+[existing Android key/mount path](ANDROID-FILE-ACCESS.md) is enabled for the next
+test build; provider and physical decryption acceptance remain blocked. The full contracts
 below remain acceptance targets; no whole contract is complete. Optional P3 work remains optional.
 Physical results continue to use the workspace hardware ledger and test records.
 The [filesystem/rescue checkpoint](../reports/URE-RESCUE-FILESYSTEMS-BUILD.md)

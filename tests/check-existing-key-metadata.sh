@@ -19,7 +19,7 @@ for file in KeyStorage.cpp KeyStorage.h Android.bp; do
     git -C "$source_dir" show "$pin:$file" > "$work/before/$file"
 done
 while IFS= read -r patch; do
-    [[ $patch == 0082-read-existing-metadata-keys-without-keystore2.patch ]] && continue
+    [[ $patch == 0082-read-existing-metadata-keys-without-keystore2.patch ]] && break
     git -C "$work/before" apply --include=KeyStorage.cpp --include=KeyStorage.h --include=Android.bp "$component/patches/$patch"
 done < "$component/configs/vold-patches.list"
 normal() {
@@ -47,7 +47,7 @@ flags=(-std=c++20 -D__ANDROID_RECOVERY__ -Wall -Wextra -Werror -UNDEBUG -g -O1
 timeout 20 "$work/client"
 {
     printf '#include "reader_fixture.hpp"\nnamespace android::vold {\n'
-    awk '/^static bool readMetadataKeyFile\(/ {copy=1} copy && /^#endif/ {exit} copy {print}' "$source_dir/KeyStorage.cpp"
+    awk '/^static bool readMetadataKeyFile\(/ {copy=1} copy && (/^#endif/ || /^bool retrieveExistingKeyReadOnly\(/) {exit} copy {print}' "$source_dir/KeyStorage.cpp"
     printf '}\n'
     cat "$component/tests/crypto-existing-key/reader_controls.cpp"
 } > "$work/reader.cpp"

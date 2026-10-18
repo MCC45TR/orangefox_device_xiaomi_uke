@@ -31,6 +31,10 @@ cd "$component"
         scripts/check-vold-recovery-variant.sh tests/check-vold-recovery-variant.sh src/upstream/orangefox-android16/system/vold/Android.bp \
         patches/0081-report-metadata-mount-failure.patch tests/check-metadata-mount-result.sh \
         patches/0082-read-existing-metadata-keys-without-keystore2.patch tests/check-existing-key-metadata.sh \
+        patches/0085-read-only-android-file-access.patch patches/0086-unlock-existing-android-storage-read-only.patch \
+        tests/check-android-readonly-access.sh tests/crypto-existing-key/storage_access.cpp src/device/xiaomi/uke/fox_uke.mk \
+        src/upstream/orangefox-android16/system/vold/{FsCrypt.cpp,KeystoreInfo.cpp} \
+        src/upstream/orangefox-android16/external/sqlite/dist/{Android.bp,sqlite-default/sqlite3.c,sqlite-default/sqlite3.h} \
         patches/0083-fix-apex-loop-size-and-device-ownership.patch tests/check-apex-loop.sh tests/ure/apex_loop.cpp \
         src/upstream/orangefox-android16/bootable/recovery/twrpApex.{cpp,hpp} \
         tests/crypto-existing-key/{fake.hpp,existing_key.cpp,reader_fixture.hpp,reader_controls.cpp} \

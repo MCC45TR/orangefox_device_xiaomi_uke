@@ -23,9 +23,9 @@ OF_USE_LOCKSCREEN_BUTTON := 1
 # control until per-model hardware evidence supplies a safe device path.
 OF_FLASHLIGHT_ENABLE := 0
 
-# FBE access remains off for the first build profile. It will be enabled only
-# after firmware-matched KeyMint/TEE evidence and a read-only device test.
-OF_SKIP_FBE_DECRYPTION := 1
+# Compile the read-only existing-key path for the next device test. A missing
+# compatible KeyMint/Gatekeeper provider remains a failure, never a format.
+OF_SKIP_FBE_DECRYPTION := 0
 # Persist contains device calibration. Settings and password backups must use
 # accepted user storage; never use the OEM persist fallback for either.
 OF_DEVICE_WITHOUT_PERSIST := 1

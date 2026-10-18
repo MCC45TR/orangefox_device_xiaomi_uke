@@ -207,8 +207,10 @@ int main() {
         require(!ure::live_storage_backend_accepted(),"Unaccepted live backend was enabled");
         for (int operation=-1; operation<=static_cast<int>(ure::LegacyWrite::EncryptionAccess)+1; ++operation) {
             const auto decision=ure::legacy_write_decision(static_cast<ure::LegacyWrite>(operation));
-            require(!decision.allowed && string(decision.code)=="ure-legacy-write-unavailable","Unknown/managed write was authorized");
+            const bool read_only=operation==static_cast<int>(ure::LegacyWrite::ReadOnlyDecryption);
+            require(decision.allowed==read_only && (read_only || string(decision.code)=="ure-legacy-write-unavailable"),"Unknown/managed write was authorized");
         }
+        require(!ure::legacy_write_decision(static_cast<ure::LegacyWrite>(999)).allowed,"Unknown future operation was authorized");
         for (const string command : {"FLASH","flash "," getvar","","continue","boot","oem reboot"})
             require(!ure::legacy_fastboot_command_permitted(command),"Ambiguous/unknown fastboot command was accepted");
         format_and_slot(original); managed_writers(original); mounts(original); fastboot(original);
