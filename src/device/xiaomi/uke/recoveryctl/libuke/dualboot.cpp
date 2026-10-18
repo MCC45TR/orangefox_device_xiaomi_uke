@@ -60,7 +60,7 @@ void validate(const Value& plan) {
 }
 void dualboot_validate_plan(const Value& plan) { validate(plan); }
 Value dualboot_layout_request(const Value& input) {
-    fields(input,{"schema","format","linux_enabled","windows_enabled","esp_enabled","separate_linux_boot","userdata_policy","userdata_filesystem","esp","linux_boot","linux","windows"});
+    fields(input,{"schema","format","linux_enabled","windows_enabled","esp_enabled","separate_linux_boot","userdata_policy","userdata_filesystem","userdata_initialization","esp","linux_boot","linux","windows"});
     require(input["schema"]==1 && input["format"]=="uke-dualboot-request","invalid-dualboot-request","Select version 1 dualboot settings");
     for(const auto* name:{"linux_enabled","windows_enabled","separate_linux_boot"})
         require(input[name].isBool(),"invalid-dualboot-selection","Linux, Windows and separate boot choices must be explicit booleans");
@@ -72,6 +72,8 @@ Value dualboot_layout_request(const Value& input) {
     require(!boot || linux_selected,"linux-boot-without-linux","A separate Linux boot partition requires Linux");
     require(input["userdata_policy"]=="preserve" || input["userdata_policy"]=="recreate","invalid-userdata-policy","Explicitly choose userdata shrink or erase and recreate");
     require(input["userdata_filesystem"]=="f2fs" || input["userdata_filesystem"]=="ext4","invalid-layout-filesystem","Select the installed supported userdata filesystem");
+    require(!input.isMember("userdata_initialization") || (input["userdata_initialization"]=="android-first-boot" &&
+        input["userdata_policy"]=="recreate" && input["userdata_filesystem"]=="f2fs"),"invalid-userdata-policy","Deferred initialization requires explicit F2FS userdata erasure");
     Value request; request["schema"]=1; request["format"]="ure-layout-request"; request["placement"]="after_userdata";
     request["mode"]=input["userdata_policy"]=="recreate" ? "advanced" : "standard"; request["userdata_policy"]=input["userdata_policy"];
     request["rows"]=Value(Json::arrayValue);
@@ -85,6 +87,7 @@ Value dualboot_layout_request(const Value& input) {
 Value dualboot_plan(const Root& system,const StorageTarget& target,const Value& input,const std::string& profile) {
     const auto request=dualboot_layout_request(input);
     const bool image=target.identity["kind"]=="regular-image";
+    require(!image || !input.isMember("userdata_initialization"),"unsupported-userdata-policy","Android first-boot initialization is a live-device policy");
     require(image || (input["userdata_policy"]=="recreate" && input["userdata_filesystem"]=="f2fs"),
         "unsupported-live-dualboot-policy","Live setup supports explicit F2FS userdata erase and recreate only; preserve/shrink and ext4 userdata are available only for regular images");
     const auto image_job=image ? partition_job_plan(system,target,request,profile) : Value();
@@ -104,14 +107,15 @@ Value dualboot_plan(const Root& system,const StorageTarget& target,const Value& 
     if(image)plan["image_job"]=image_job;
     plan["writes_other_partition_payloads"]=false; plan["data_loss"]=input["userdata_policy"]=="recreate";
     plan["physical_test_record"]=false; plan["private_record"]=true; plan["read_only"]=true;
-    plan["execution_backend"]=image ? "regular-image-partition-job" : "live-uke-f2fs-recreate-requires-preflight";
+    plan["execution_backend"]=image ? "regular-image-partition-job" : input.isMember("userdata_initialization") ?
+        "live-uke-android-first-boot-requires-preflight" : "live-uke-f2fs-recreate-requires-preflight";
     plan["live_backend_implemented"]=!image;
     plan["live_device_acceptance"]=false;
-    plan["live_write_admission"]=image ? "not-applicable" : "current-device-preflight-and-external-USB-journal-required";
+    plan["live_write_admission"]=image ? "not-applicable" : "current-device-preflight-and-durable-USB-or-PC-journal-required";
     plan["commands"]=Value(Json::arrayValue);
     Value inspect; inspect["operation"]="verify-original-userdata-and-GPT"; inspect["writes"]=false; plan["commands"].append(inspect);
     Value stage; stage["operation"]="prepare-filesystems-and-durable-journal"; stage["writes"]=false;
-    stage["scope"]=image ? "external-staging-only" : "external-USB-GPT-journal"; plan["commands"].append(stage);
+    stage["scope"]=image ? "external-staging-only" : "external-USB-or-PC-GPT-journal"; plan["commands"].append(stage);
     if(!image) {
         plan["device_commands"]=dualboot_device_commands(plan);
         for(const auto& command:plan["device_commands"])plan["commands"].append(command);
@@ -147,8 +151,11 @@ Value dualboot_plan(const Root& system,const StorageTarget& target,const Value& 
     if(!input.get("esp_enabled",true).asBool())plan["warnings"].append("No ESP will be created. Linux needs an existing compatible ESP or a separately configured non-UEFI boot route.");
     if(image)plan["warnings"].append("The image executor needs up to three original-userdata copies plus 64 MiB in a private journal.");
     else {
-        plan["warnings"].append("Live application supports explicit F2FS userdata erase and recreate only. The installed encryption map must already be opened and idle; F2FS metadata must already be mounted read-only with norecovery. Setup never opens encryption or changes metadata.");
-        plan["warnings"].append("Use a private journal on external USB storage. GPT restoration cannot recover erased userdata. After application or GPT restoration, reboot recovery before accessing any partition nodes.");
+        if(input.isMember("userdata_initialization")) {
+            plan["userdata_initialization_pending"]=true;
+            plan["warnings"].append("Android userdata is erased and left unformatted. The installed Android formattable policy must initialize it through its own metadata-encryption service on the next Android boot. Recovery does not create, replace or export encryption keys.");
+        } else plan["warnings"].append("Live F2FS recreation requires an existing idle metadata-encryption map. Setup never opens encryption or changes metadata.");
+        plan["warnings"].append("Use external USB storage or a connected PC checkpoint receiver for the private journal. GPT restoration cannot recover erased userdata. Reboot recovery before accessing the new partition nodes.");
         plan["warnings"].append("Runtime locks coordinate recovery components and do not prevent privileged raw shell writes. Forced restart recovery is not yet physically accepted.");
     }
     plan["layout_bar"]=partition_layout_bar(layout,80); plan["plan_sha256"]=sealed(plan); validate(plan); return plan;
@@ -168,7 +175,9 @@ std::string dualboot_preview(const Value& plan) {
     out<<'['<<bar<<"]\nD=userdata E=ESP B=linux_boot L=Linux W=Windows\n\n";
     out<<std::fixed<<std::setprecision(2);
     for(const auto& row:plan["gpt"]["layout"]["rows"])if(row["enabled"]==true) {
-        out<<row["role"].asString()<<"  "<<row["filesystem"].asString()<<"  "<<static_cast<double>(row["bytes"].asUInt64())/static_cast<double>(mib)<<" MiB  [LBA "
+        out<<row["role"].asString()<<"  "<<row["filesystem"].asString();
+        if(row["role"]=="userdata" && plan["request"].get("userdata_initialization","")=="android-first-boot")out<<" (Android initialization pending)";
+        out<<"  "<<static_cast<double>(row["bytes"].asUInt64())/static_cast<double>(mib)<<" MiB  [LBA "
            <<row["start_lba"].asUInt64()<<".."<<row["end_lba"].asUInt64()<<"]\n";
     }
     out<<"\nOperations to review:\n";

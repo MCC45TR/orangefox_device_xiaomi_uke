@@ -3,6 +3,7 @@
 #include "boot_state.hpp"
 #include "dualboot_quarantine.hpp"
 #include "dualboot_view_handoff.hpp"
+#include "dualboot_host_journal.hpp"
 #include "job_registry.hpp"
 #include <algorithm>
 #include <array>
@@ -33,6 +34,7 @@ namespace ure {
 namespace {
 constexpr std::uint64_t live_mib=1048576,live_maximum=1024ULL*1024*1024*1024;
 constexpr std::size_t dm_budget=64*1024;
+bool deferred_userdata(const Value& plan) { return plan["request"].get("userdata_initialization","")=="android-first-boot"; }
 struct alignas(std::uint64_t) DmBuffer {
     std::array<char,dm_budget> bytes{};
     char* data() { return bytes.data(); }
@@ -179,7 +181,7 @@ class DmControl {
 public:
     explicit DmControl(const Root& system):fd_(system.open("dev/device-mapper",O_RDWR|O_NONBLOCK)) {
         struct stat st{}; require(::fstat(fd_.get(),&st)==0 && S_ISCHR(st.st_mode) && st.st_uid==0,"invalid-dualboot-map","Device-mapper control must be the root-owned kernel character device");
-        const auto number=trimmed(system.read("sys/class/misc/device-mapper/dev",64)); require(st.st_rdev==devnumber(number),"invalid-dualboot-map","Mapper control identity differs from sysfs");
+        const auto number=trimmed(system.read("sys/devices/virtual/misc/device-mapper/dev",64)); require(st.st_rdev==devnumber(number),"invalid-dualboot-map","Mapper control identity differs from canonical sysfs");
     }
     explicit DmControl(Fd injected):fd_(std::move(injected)) {} // Only a private native test directly constructs this overload.
     DmTable table(const std::string& name) const {
@@ -501,7 +503,7 @@ void current_root(const Root& system) {
     require(bootloader_unlocked(system),"unsupported-dualboot-device",
         "Current kernel and recovery properties must consistently identify unlocked Uke");
 }
-void crypto_fstab(const Root& system) {
+void crypto_fstab(const Root& system,bool deferred=false) {
     bool matched=false; for(const auto* file:{"vendor/etc/fstab.qcom","first_stage_ramdisk/fstab.qcom","fstab.qcom"})if(system.exists(file)) {
         std::istringstream text(system.read(file,256*1024)); std::string line;
         while(std::getline(text,line)) {
@@ -512,7 +514,8 @@ void crypto_fstab(const Root& system) {
             require(field[0].ends_with("/userdata") && field[2]=="f2fs" && mount_option(field[3],"inlinecrypt") &&
                 mount_option(field[4],"fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0") &&
                 mount_option(field[4],"metadata_encryption=aes-256-xts:wrappedkey_v0") &&
-                mount_option(field[4],"keydirectory=/metadata/vold/metadata_encryption"),
+                mount_option(field[4],"keydirectory=/metadata/vold/metadata_encryption") &&
+                (!deferred || (mount_option(field[4],"formattable") && mount_option(field[4],"latemount"))),
                 "unsupported-userdata-policy","The installed F2FS, FBE and wrapped metadata-key policy differs from this backend"); matched=true;
         }
     }
@@ -559,6 +562,11 @@ void write_exact(int fd,std::uint64_t offset,const std::string& data) {
         if(n<0 && errno==EINTR)continue;
         require(n>0,"dualboot-write-error","Bounded metadata write failed"); done+=static_cast<std::size_t>(n); }
 }
+void erase_android_userdata_header(int fd) {
+    require(storage_bytes(fd)>=16384,"invalid-dualboot-range","Userdata view is shorter than its erase header");
+    write_exact(fd,0,std::string(16384,'\0')); sync_fd(fd);
+    require(storage_read(fd,0,16384)==std::string(16384,'\0'),"dualboot-filesystem-readback","Erased userdata header readback differs");
+}
 void journal_usb(const Root& system,const Root& store) {
     struct stat st{}; struct statvfs space{}; require(::fstat(store.fd(),&st)==0 && ::fstatvfs(store.fd(),&space)==0 && st.st_uid==0 &&
         (st.st_mode&0777)==0700 && (space.f_flag&ST_RDONLY)==0 && space.f_frsize>0 && space.f_bavail>=(32*live_mib-1)/space.f_frsize+1,
@@ -579,6 +587,7 @@ class Quarantine {
     Value intent_;
     const RuntimeActivityLease& lease_;
     std::string marker_;
+    DualbootHostJournal* host_=nullptr;
     void publish_marker(DualbootQuarantineState state) {
         require(lease_.valid(),"dualboot-runtime-lease-lost","The recovery runtime lease changed");
         const auto* contents=dualboot_quarantine_marker(state);
@@ -590,8 +599,8 @@ class Quarantine {
         require(directory_.read("phase",96)==marker_ && dualboot_quarantine_state()==state,"dualboot-quarantine-error","Recovery quarantine marker readback differs");
     }
 public:
-    Quarantine(const Root& system,const StorageTarget& target,const Value& plan,const Root& store,const fs::path& journal,bool create,const RuntimeActivityLease& lease)
-        :directory_(private_directory(dualboot_quarantine_detail::path(),create)),lease_(lease) {
+    Quarantine(const Root& system,const StorageTarget& target,const Value& plan,const Root& store,const fs::path& journal,bool create,const RuntimeActivityLease& lease,DualbootHostJournal* host=nullptr)
+        :directory_(private_directory(dualboot_quarantine_detail::path(),create)),lease_(lease),host_(host) {
         struct stat st{}; require(::fstat(store.fd(),&st)==0,"dualboot-quarantine-error","Cannot bind the durable journal");
         if(create) {
             intent_["schema"]=1; intent_["format"]="ure-dualboot-quarantine"; intent_["plan_sha256"]=plan["plan_sha256"];
@@ -615,17 +624,18 @@ public:
     }
     void verify() const { require(lease_.valid() && json(parse_json(directory_.read("intent.json",1024*1024)))==json(intent_) && directory_.read("phase",96)==marker_,
         "dualboot-quarantine-error","Pending ownership intent or runtime lease changed"); sync_fd(directory_.fd()); }
-    void checkpoint(const Value& state) {
+    void checkpoint(const Value& state,const Root* store=nullptr) {
         verify(); intent_["phase"]=state["phase"]; intent_["irreversible_data_loss"]=state.get("irreversible_data_loss",false);
         directory_.save_record("intent.json",intent_,true);
         const auto next=intent_["phase"]=="COMMITTED_REBOOT_REQUIRED" ? DualbootQuarantineState::Committed :
             intent_["phase"]=="GPT_RESTORED_REBOOT_REQUIRED" ? DualbootQuarantineState::GptRestored : DualbootQuarantineState::Pending;
         publish_marker(next); verify();
+        if(host_) { require(store!=nullptr,"invalid-host-checkpoint","The checkpoint store is unavailable"); host_->checkpoint(*store,state); }
     }
 };
 void phase(const Root& store,Value& state,const std::string& name,Quarantine* pending=nullptr) {
     state["phase"]=name; state["timestamp_utc"]=utc(); store.save_record("state.json",state,true); sync_fd(store.fd());
-    if(pending)pending->checkpoint(state);
+    if(pending)pending->checkpoint(state,&store);
 }
 Value read_record(const Root& store,const std::string& name) {
     auto file=store.open(name,O_RDONLY|O_NONBLOCK); struct stat st{};
@@ -770,19 +780,23 @@ void format_partitions(const Root& system,const StorageTarget& target,const Valu
     for(const auto& row:plan["gpt"]["layout"]["rows"])if(row["enabled"]==true) {
         const auto role=row["role"].asString(),name="ure-db-"+token+"-"+role,uuid_value="URE-DUALBOOT-"+plan["plan_sha256"].asString()+"-"+role;
         state["irreversible_data_loss"]=true; state["role"]=role; state["mapper_name"]=name; state["mapper_uuid"]=uuid_value; phase(store,state,"ERASE_AND_FORMAT",pending);
-        const auto offset=role=="userdata" ? 0 : row["offset"].asUInt64()-pool; const auto backing=role=="userdata" ? crypto.device : devnumber(userdata["device_number"].asString());
+        const bool defer=role=="userdata" && deferred_userdata(plan);
+        const auto offset=role=="userdata" ? 0 : row["offset"].asUInt64()-pool; const auto backing=role=="userdata" && !defer ? crypto.device : devnumber(userdata["device_number"].asString());
         auto view=control.create_linear(name,uuid_value,backing,offset,row["bytes"].asUInt64());
         try {
             owned_view_tool(system,control,view,row["bytes"].asUInt64(),true,*pending,recovery,[&](const Fd& descriptor){
+              if(defer) { erase_android_userdata_header(descriptor.get()); return; }
               const auto result=run_tool(format_tool(row),format_arguments(row,"/proc/self/fd/"+std::to_string(descriptor.get())),300,{}, {descriptor.get()});
               require(result.status==0 && !result.timed_out,"dualboot-format-failed","The bounded formatter failed; userdata may already be erased. Inspect the durable journal.");
             },[&](const Fd& descriptor){
-              sync_fd(descriptor.get()); const auto signature=filesystem_probe(descriptor.get());
+              sync_fd(descriptor.get());
+              if(defer) { require(storage_read(descriptor.get(),0,16384)==std::string(16384,'\0'),"dualboot-filesystem-readback","Erased userdata header readback differs"); return; }
+              const auto signature=filesystem_probe(descriptor.get());
               require(signature["type"]==(row["filesystem"]=="fat32" ? "vfat" : row["filesystem"].asString()) &&
                   (role!="userdata" || signature["filesystem_encryption_feature"]==true),"dualboot-filesystem-readback","The bounded formatted filesystem or userdata encryption feature differs");
               if(role=="esp")esp_bpb_policy(storage_read(descriptor.get(),0,512),row["bytes"].asUInt64());
             });
-            owned_view_tool(system,control,view,row["bytes"].asUInt64(),false,*pending,recovery,[&](const Fd& descriptor){
+            if(!defer)owned_view_tool(system,control,view,row["bytes"].asUInt64(),false,*pending,recovery,[&](const Fd& descriptor){
               require(filesystem_check(descriptor.get())["successful"]==true,"dualboot-filesystem-check","The newly formatted filesystem failed its independent read-only checker");
             },[](const Fd&){});
             // Retain the shortened owned userdata view until reboot, together
@@ -793,7 +807,8 @@ void format_partitions(const Root& system,const StorageTarget& target,const Valu
             if(role!="userdata")control.remove(name,uuid_value);
             else { state["userdata_guard"]["name"]=name; state["userdata_guard"]["uuid"]=uuid_value; state["userdata_guard"]["bytes"]=row["bytes"]; }
             if(!state["formatted_roles"].isArray())state["formatted_roles"]=Value(Json::arrayValue);
-            state["formatted_roles"].append(role);
+            if(defer)state["userdata_initialization_pending"]=true;
+            else state["formatted_roles"].append(role);
             protected_verify(target.descriptor.get(),plan,state["protected"]); phase(store,state,"FILESYSTEM_CHECKED",pending);
         } catch(...) {
             // Intentionally retain an operation-bound mapper after a format
@@ -808,6 +823,7 @@ Value device_result(const Value& state) {
     Value result; result["schema"]=1; result["operation"]="dualboot.setup"; result["state"]=state["phase"]; result["plan_sha256"]=state["plan_sha256"];
     result["data_loss"]=state.get("irreversible_data_loss",false); result["userdata_data_rollback_available"]=false;
     result["metadata_written"]=false; result["other_partition_payloads_written"]=false; result["reboot_required"]=true; result["partition_nodes_refreshed"]=false;
+    result["userdata_initialization_pending"]=state.get("userdata_initialization_pending",false);
     result["private_record"]=true; result["physical_test_record"]=false; result["cooperating_locks_only"]=true;
     result["retained_userdata_guard"]=state["userdata_guard"]; result["warning"]="Do not mount or reuse the old partition nodes. Reboot recovery before installing either OS. GPT restoration cannot restore erased userdata."; return result;
 }
@@ -831,8 +847,13 @@ Value dualboot_device_commands(const Value& plan) {
         command["tool"]=format_tool(row); command["argv"]=Value(Json::arrayValue);
         for(const auto& argument:format_arguments(row,"<owned-bounded-view-fd>"))command["argv"].append(argument);
         command["scope"]="original-userdata-only";
+        if(role=="userdata" && deferred_userdata(plan)) {
+            command["operation"]="erase-raw-userdata-header-for-android-first-boot";
+            command["tool"]="native-bounded-zero"; command["argv"]=Value(Json::arrayValue); command["erase_bytes"]=16384;
+            command["userdata_filesystem_created"]=false;
+        }
         command["destination_placeholder"]="An inherited descriptor for the exact owned DM-linear view; never the whole LUN or unbounded userdata";
-        command["view_backing"]=role=="userdata" ? "existing-verified-metadata-encryption-map" : "original-userdata-raw-partition";
+        command["view_backing"]=role=="userdata" && !deferred_userdata(plan) ? "existing-verified-metadata-encryption-map" : "original-userdata-raw-partition";
         command["view_sector_start"]=Json::UInt64(0); command["view_length_512_sectors"]=Json::UInt64(row["bytes"].asUInt64()/512);
         if(role=="userdata")command["view_backing_offset_512_sectors"]=Json::UInt64(0);
         else {
@@ -866,17 +887,20 @@ Value dualboot_device_preflight(const Root& system,const StorageTarget& target,c
     check("metadata-readonly-norecovery",[&]{current_root(system); (void)mounted_metadata(system,plan);});
     check("slot-and-virtual-ab-exclusion",[&]{current_root(system); check_snapshot(system,plan);});
     check("all-visible-mount-process-swap-usb-owners-idle",[&]{current_root(system); device_usage(system,plan);});
-    check("direct-idle-metadata-encryption-map",[&]{current_root(system); const auto graph=storage_graph(system),userdata=original_userdata(graph,plan),object=encryption_object(graph,userdata);
+    check("kernel-bounded-device-mapper-control",[&]{current_root(system); DmControl control(system);});
+    check(deferred_userdata(plan) ? "idle-raw-userdata-without-encryption-holders" : "direct-idle-metadata-encryption-map",[&]{current_root(system); const auto graph=storage_graph(system),userdata=original_userdata(graph,plan);
+        if(deferred_userdata(plan)) { require(userdata["holders"].isArray() && userdata["holders"].empty() && userdata["mounts"].empty(),"busy-userdata","Deferred initialization requires unmapped, unmounted original userdata"); return; }
+        const auto object=encryption_object(graph,userdata);
         DmControl control(system); auto table=control.table(object["mapper_name"].asString()); require(table.device==devnumber(object["device_number"].asString()),"stale-dualboot-device","Mapper and sysfs devices differ");
         (void)crypto_policy(table,userdata); auto fd=node(system,object,false); require(filesystem_probe(fd.get())["type"]=="f2fs","unsupported-userdata-policy","The decrypted installed userdata filesystem is not F2FS");});
-    check("installed-wrapped-f2fs-policy",[&]{current_root(system); crypto_fstab(system);});
+    check("installed-wrapped-f2fs-policy",[&]{current_root(system); crypto_fstab(system,deferred_userdata(plan));});
     check("packaged-formatters-and-readonly-checkers",[&]{device_plan(plan); formatter_admission(plan);});
     out["eligible"]=out["blockers"].empty(); out["journal_checked_at_execute"]=true; out["atomic_snapshot"]=false;
     out["scope"]="Explicit F2FS userdata erase; native DM-linear views; no metadata, firmware or other partition payload writes. Read-only preflight cannot acquire future DM view claims.";
     return out;
 }
 
-Value dualboot_device_execute(const Root& system,const Value& plan,const fs::path& journal,const std::string& confirmation,const std::string& policy) {
+Value dualboot_device_execute(const Root& system,const Value& plan,const fs::path& journal,const std::string& confirmation,const std::string& policy,bool host_stdio) {
     device_plan(plan);
     require(json(plan["device_commands"])==json(dualboot_device_commands(plan)),"stale-dualboot-commands","The exact bounded formatter command array differs from the reviewed preview");
     require(confirmation==plan["plan_sha256"].asString() && policy=="ERASE USERDATA","confirmation-required","Confirm this exact dualboot plan hash and ERASE USERDATA"); current_root(system);
@@ -886,14 +910,21 @@ Value dualboot_device_execute(const Root& system,const Value& plan,const fs::pat
     const auto preflight=dualboot_device_preflight(system,target,plan); require(preflight["eligible"]==true,"dualboot-preflight-blocked","One or more explicit device preflight conditions failed; inspect dualboot preflight before applying");
     RecoveryBcb recovery(system,plan);
     require(::flock(target.descriptor.get(),LOCK_EX|LOCK_NB)==0,"dualboot-busy","A cooperating dualboot writer already owns the measured LUN");
-    auto store=private_directory(journal,true); journal_usb(system,store); auto lock=store.open("owner.lock",O_RDWR|O_CREAT|O_EXCL,0600);
+    DualbootHostJournal host(host_stdio);
+    auto store=private_directory(journal,true); if(host_stdio)host.validate_store(store); else journal_usb(system,store);
+    auto lock=store.open("owner.lock",O_RDWR|O_CREAT|O_EXCL,0600);
     require(::flock(lock.get(),LOCK_EX|LOCK_NB)==0,"dualboot-busy","The external journal is already owned");
-    const auto graph=storage_graph(system),userdata=original_userdata(graph,plan),object=encryption_object(graph,userdata); DmControl control(system); auto crypto=control.table(object["mapper_name"].asString()); (void)crypto_policy(crypto,userdata);
+    const auto graph=storage_graph(system),userdata=original_userdata(graph,plan); DmControl control(system);
+    auto crypto=[&] { if(deferred_userdata(plan))return DmTable();
+        const auto object=encryption_object(graph,userdata); return control.table(object["mapper_name"].asString()); }();
+    if(!deferred_userdata(plan))(void)crypto_policy(crypto,userdata);
     Value source; const auto regions=gpt_layout_regions(target,plan["gpt"]["layout"]["request"],plan["firmware_profile"].asString(),source,&system);
     require(source["layout_sha256"]==plan["gpt"]["layout"]["layout_sha256"],"stale-dualboot-plan","Regenerated layout differs from the preview");
     store.save_record("plan.json",plan); Value state; state["schema"]=1; state["format"]="ure-live-dualboot-journal"; state["plan_sha256"]=plan["plan_sha256"];
     state["irreversible_data_loss"]=false; state["userdata_data_backup_available"]=false; state["protected"]=protected_digests(target.descriptor.get(),plan);
-    state["crypto_identity"]["name"]=crypto.name; state["crypto_identity"]["uuid"]=crypto.uuid; state["crypto_identity"]["device_number"]=devtext(crypto.device); state["crypto_identity"]["length_sectors"]=Json::UInt64(crypto.length);
+    if(deferred_userdata(plan))state["userdata_initialization"]="android-first-boot";
+    else { state["crypto_identity"]["name"]=crypto.name; state["crypto_identity"]["uuid"]=crypto.uuid;
+        state["crypto_identity"]["device_number"]=devtext(crypto.device); state["crypto_identity"]["length_sectors"]=Json::UInt64(crypto.length); }
     for(const auto& range:regions) {
         Value expected; for(const auto& row:plan["gpt"]["after"])if(row["name"]==range.name)expected=row;
         require(expected["offset"].asUInt64()==range.offset && expected["bytes"].asUInt64()==range.bytes.size() && expected["sha256"]==sha256(range.bytes),"stale-dualboot-plan","Generated GPT bytes differ from the reviewed plan");
@@ -903,17 +934,21 @@ Value dualboot_device_execute(const Root& system,const Value& plan,const fs::pat
     sync_fd(store.fd()); phase(store,state,"BEFORE_GPT_VERIFIED"); original_gpt(target.descriptor.get(),plan); (void)load_regions(store,plan);
     // Last complete ownership/OTA pass occurs before creating any raw writer.
     require(dualboot_device_preflight(system,target,plan)["eligible"]==true,"dualboot-preflight-changed","Device ownership or Android state changed during journal preparation");
-    Quarantine pending(system,target,plan,store,journal,true,lease); pending.checkpoint(state);
+    Quarantine pending(system,target,plan,store,journal,true,lease,host_stdio ? &host : nullptr); pending.checkpoint(state,&store);
     format_partitions(system,target,plan,userdata,crypto,control,store,state,&pending,recovery);
     pending.verify(); check_snapshot(system,plan); device_usage(system,plan);
-    original_gpt(target.descriptor.get(),plan); write_regions(system,target,plan,store,state,false,&pending,recovery); return device_result(state);
+    original_gpt(target.descriptor.get(),plan); write_regions(system,target,plan,store,state,false,&pending,recovery);
+    if(host_stdio)dualboot_pipe_write(STDOUT_FILENO,"UKE-JOURNAL-DONE-1\n");
+    return device_result(state);
 }
 
-Value dualboot_device_recover(const Root& system,const fs::path& journal,const std::string& action,const std::string& confirmation,const std::string& policy) {
+Value dualboot_device_recover(const Root& system,const fs::path& journal,const std::string& action,const std::string& confirmation,const std::string& policy,bool host_stdio) {
     require(action=="inspect" || action=="restore-gpt","unsupported-dualboot-recovery","Available recovery actions are inspect and restore-gpt; formats are never silently replayed");
-    current_root(system); auto store=private_directory(journal,false); journal_usb(system,store); const auto plan=read_record(store,"plan.json"); device_plan(plan); auto state=read_record(store,"state.json");
+    current_root(system); DualbootHostJournal host(host_stdio); auto store=private_directory(journal,false);
+    if(host_stdio)host.validate_store(store); else journal_usb(system,store);
+    const auto plan=read_record(store,"plan.json"); device_plan(plan); auto state=read_record(store,"state.json");
     require(state["schema"]==1 && state["format"]=="ure-live-dualboot-journal" && state["plan_sha256"]==plan["plan_sha256"],"invalid-dualboot-journal","Journal identity differs from the sealed preview");
-    auto lock=store.open("owner.lock",O_RDWR); require(::flock(lock.get(),LOCK_EX|LOCK_NB)==0,"dualboot-busy","The journal still has an active owner");
+    auto lock=store.open("owner.lock",O_RDWR|O_CREAT,0600); require(::flock(lock.get(),LOCK_EX|LOCK_NB)==0,"dualboot-busy","The journal still has an active owner");
     auto target=storage_select(system,plan["target_identity"]["stable_id"].asString()); binding(target,plan,false);
     require(::flock(target.descriptor.get(),LOCK_EX|LOCK_NB)==0,"dualboot-busy","A cooperating operation owns this LUN");
     const auto regions=load_regions(store,plan); protected_verify(target.descriptor.get(),plan,state["protected"]); auto observations=region_inspect(target.descriptor.get(),regions,state);
@@ -924,10 +959,12 @@ Value dualboot_device_recover(const Root& system,const fs::path& journal,const s
         check_snapshot(system,plan); device_usage(system,plan);
         RecoveryBcb recovery(system,plan);
         struct stat existing{}; const bool absent=::fstatat(system.fd(),"tmp/uke-dualboot",&existing,AT_SYMLINK_NOFOLLOW)!=0 && errno==ENOENT;
-        Quarantine pending(system,target,plan,store,journal,absent,lease); pending.checkpoint(state);
+        Quarantine pending(system,target,plan,store,journal,absent,lease,host_stdio ? &host : nullptr); pending.checkpoint(state,&store);
         write_regions(system,target,plan,store,state,true,&pending,recovery);
     }
     auto result=device_result(state); result["read_only"]=action=="inspect"; result["gpt_regions"]=observations; result["protected_payloads_verified"]=true;
-    result["resume_supported"]=false; result["recovery_note"]="Filesystem formatting is intentionally not idempotently resumed. Inspect or restore GPT, reboot recovery, reopen the installed encryption map and create a fresh explicitly destructive plan."; return result;
+    result["resume_supported"]=false; result["recovery_note"]="Filesystem formatting is intentionally not idempotently resumed. Inspect or restore GPT and reboot recovery before a fresh explicitly destructive plan.";
+    if(host_stdio && action=="restore-gpt")dualboot_pipe_write(STDOUT_FILENO,"UKE-JOURNAL-DONE-1\n");
+    return result;
 }
 } // namespace ure

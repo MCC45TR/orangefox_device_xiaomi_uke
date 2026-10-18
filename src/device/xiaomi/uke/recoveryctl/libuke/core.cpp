@@ -132,7 +132,10 @@ struct stat Root::stat(std::string_view relative) const {
     return st;
 }
 std::vector<std::string> Root::list(std::string_view relative, std::size_t limit) const {
-    auto dir = open(relative, O_RDONLY | O_DIRECTORY);
+    auto parent = open(relative, O_RDONLY | O_DIRECTORY);
+    // A duplicated root descriptor shares its directory cursor across checkpoints.
+    Fd dir(::openat(parent.get(), ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+    require(dir.get() >= 0, "io-error", "Cannot retain an independent directory cursor");
     DIR* stream = ::fdopendir(::dup(dir.get()));
     require(stream != nullptr, "io-error", "Cannot list directory");
     std::unique_ptr<DIR, int(*)(DIR*)> guard(stream, ::closedir);
