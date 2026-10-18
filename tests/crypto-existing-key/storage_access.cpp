@@ -41,7 +41,8 @@ int main(int argc,char** argv) {
     fs::remove(root/"encrypted_key"); fs::rename(root/"encrypted_key.real",root/"encrypted_key");
     save("version","2");
     assert(!retrieveExistingKeyReadOnly(root,KeyAuthentication("right"),&key));
-    assert(!retrieveExistingKeyReadOnly(root,KeyAuthentication(std::string(65537,'s')),&key));
+    key.assign(32,9);
+    assert(!retrieveExistingKeyReadOnly(root,KeyAuthentication(std::string(65537,'s')),&key) && key.empty());
     fs::create_directory_symlink(root,root.string()+"-link");
     assert(!retrieveExistingKeyReadOnly(root.string()+"-link",KeyAuthentication("right"),&key));
     fs::remove(root.string()+"-link");

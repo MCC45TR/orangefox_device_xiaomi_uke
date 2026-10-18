@@ -69,8 +69,8 @@ cp -- /mnt/external/jsoncpp/LICENSE "$payload/system/etc/ure/licenses/jsoncpp.tx
 cp -- /mnt/external/zstd/LICENSE "$payload/system/etc/ure/licenses/zstd.txt"
 cp -- /mnt/external/lzma/NOTICE "$payload/system/etc/ure/licenses/lzma-sdk.txt"
 cp -- /mnt/device/xiaomi/uke/recoveryctl/LICENSE-APACHE "$payload/system/etc/ure/licenses/native-Apache-2.0.txt"
-# This generic vendor helper depends on an unaccepted KeyMint/TEE stack. FBE is
-# disabled in this profile; do not ship a dangling prebuilt decryption helper.
+# The existing-key reader uses a direct KeyMint client. Do not ship the generic
+# vendor helper whose KeyMint/TEE dependencies have not been accepted.
 rm -f -- "$payload/system/bin/keystore_cli_v2"
 # AOSP filesystem utilities select the bootstrap interpreter path. Resolve it
 # to the packaged source-built Bionic loader using a relative runtime link.

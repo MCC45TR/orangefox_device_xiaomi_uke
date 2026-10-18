@@ -86,20 +86,22 @@ index 225b6df..5b4a5e0 100755
  		password_data_struct pwd;
  		if (!Get_Password_Data(spblob_path, handle_str, &pwd)) {
 diff --git a/FsCrypt.cpp b/FsCrypt.cpp
-index fa952a6..ee03e1a 100644
+index fa952a6..5606281 100644
 --- a/FsCrypt.cpp
 +++ b/FsCrypt.cpp
-@@ -21,6 +21,9 @@
+@@ -21,6 +21,11 @@
  #include "KeyUtil.h"
  #include "Utils.h"
  #include "VoldUtil.h"
 +#ifdef __ANDROID_RECOVERY__
++#include <linux/fscrypt.h>
++#include <sys/ioctl.h>
 +#include <sys/statvfs.h>
 +#endif
  
  #include <algorithm>
  #include <map>
-@@ -70,6 +73,9 @@ using android::vold::kEmptyAuthentication;
+@@ -70,6 +75,9 @@ using android::vold::kEmptyAuthentication;
  using android::vold::KeyBuffer;
  using android::vold::KeyGeneration;
  using android::vold::retrieveKey;
@@ -109,7 +111,7 @@ index fa952a6..ee03e1a 100644
  using android::vold::retrieveOrGenerateKey;
  using android::vold::SetDefaultAcl;
  using android::vold::SetQuotaInherit;
-@@ -216,12 +222,16 @@ static bool read_and_fixate_user_ce_key(userid_t user_id,
+@@ -216,12 +224,16 @@ static bool read_and_fixate_user_ce_key(userid_t user_id,
      auto const paths = get_ce_key_paths(directory_path);
      for (auto const ce_key_path : paths) {
          LOG(INFO) << "Trying user CE key " << ce_key_path;
@@ -126,7 +128,7 @@ index fa952a6..ee03e1a 100644
      }
      LOG(ERROR) << "Failed to find working ce key for user " << user_id;
      return false;
-@@ -307,6 +317,9 @@ static bool DoesHardwareSupportOnly32DunBits(const std::string& blk_device) {
+@@ -307,6 +319,9 @@ static bool DoesHardwareSupportOnly32DunBits(const std::string& blk_device) {
  
  // Sets s_data_options to the file encryption options for the /data filesystem.
  static bool init_data_file_encryption_options() {
@@ -136,7 +138,7 @@ index fa952a6..ee03e1a 100644
      if (fstab_default.empty()) {
          if (!ReadDefaultFstab(&fstab_default)) {
              PLOG(ERROR) << "Failed to open default fstab";
-@@ -345,7 +358,11 @@ static bool install_storage_key(const std::string& mountpoint, const EncryptionO
+@@ -345,7 +360,11 @@ static bool install_storage_key(const std::string& mountpoint, const EncryptionO
      }
      KeyBuffer ephemeral_wrapped_key;
      if (options.use_hw_wrapped_key) {
@@ -148,7 +150,7 @@ index fa952a6..ee03e1a 100644
              LOG(ERROR) << "Failed to get ephemeral wrapped key";
              return false;
          }
-@@ -520,7 +537,11 @@ static bool load_all_de_keys() {
+@@ -520,7 +539,11 @@ static bool load_all_de_keys() {
          auto key_path = de_dir + "/" + entry->d_name;
          KeyBuffer de_key;
          LOG(INFO) << "fscrypt::load_all_de_keys::retrieveKey";
@@ -160,7 +162,7 @@ index fa952a6..ee03e1a 100644
              // This is probably a partially removed user, so ignore
              if (user_id != 0) continue;
              return false;
-@@ -546,6 +567,17 @@ bool fscrypt_initialize_systemwide_keys() {
+@@ -546,6 +569,17 @@ bool fscrypt_initialize_systemwide_keys() {
  
      if (!init_data_file_encryption_options()) return false;
  
@@ -178,7 +180,7 @@ index fa952a6..ee03e1a 100644
      EncryptionOptions options;
      if (!get_volume_file_encryption_options(&options)) return false;
  
-@@ -592,8 +624,12 @@ install:
+@@ -592,8 +626,12 @@ install:
      LOG(INFO) << "Wrote per boot key reference to:" << per_boot_ref_filename;
  
      return true;
@@ -191,7 +193,7 @@ index fa952a6..ee03e1a 100644
  static bool prepare_special_dirs() {
      // Ensure that /data/data and its "alias" /data/user/0 exist, and create the
      // bind mount of /data/data onto /data/user/0.  This *should* happen in
-@@ -654,6 +690,13 @@ bool fscrypt_init_user0_done;
+@@ -654,6 +692,13 @@ bool fscrypt_init_user0_done;
  bool fscrypt_init_user0() {
      LOG(INFO) << "fscrypt_init_user0";
  
@@ -205,7 +207,7 @@ index fa952a6..ee03e1a 100644
      if (IsFbeEnabled()) {
          if (!prepare_dir(user_key_dir, 0700, AID_ROOT, AID_ROOT)) return false;
          if (!prepare_dir(user_key_dir + "/ce", 0700, AID_ROOT, AID_ROOT)) return false;
-@@ -684,6 +727,7 @@ bool fscrypt_init_user0() {
+@@ -684,6 +729,7 @@ bool fscrypt_init_user0() {
  
      fscrypt_init_user0_done = true;
      return true;
@@ -213,9 +215,55 @@ index fa952a6..ee03e1a 100644
  }
  
  // Creates the CE and DE keys for a new user.
-@@ -958,6 +1002,18 @@ static bool prepare_subdirs(const std::string& action, const std::string& volume
+@@ -782,6 +828,9 @@ static std::string volume_secdiscardable_path(const std::string& volume_uuid) {
+     return systemwide_volume_key_dir + "/" + volume_uuid + "/secdiscardable";
  }
  
++#ifdef __ANDROID_RECOVERY__
++[[maybe_unused]]
++#endif
+ static bool read_or_create_volkey(const std::string& misc_path, const std::string& volume_uuid,
+                                   UserPolicies& user_policies, EncryptionPolicy* policy) {
+     auto secdiscardable_path = volume_secdiscardable_path(volume_uuid);
+@@ -957,7 +1006,71 @@ static bool prepare_subdirs(const std::string& action, const std::string& volume
+     return true;
+ }
+ 
++#ifdef __ANDROID_RECOVERY__
++static bool verify_existing_policy(const EncryptionPolicy& expected, const std::string& path) {
++    android::base::unique_fd fd(open(path.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
++    struct stat directory{}, data{};
++    struct statvfs filesystem{};
++    struct fscrypt_get_policy_ex_arg actual{};
++    actual.policy_size = sizeof(actual.policy);
++    if (fd.get() < 0 || fstat(fd.get(), &directory) != 0 || stat(DATA_MNT_POINT, &data) != 0 ||
++        directory.st_dev != data.st_dev || fstatvfs(fd.get(), &filesystem) != 0 ||
++        (filesystem.f_flag & ST_RDONLY) == 0 ||
++        ioctl(fd.get(), FS_IOC_GET_ENCRYPTION_POLICY_EX, &actual) != 0) return false;
++    const auto& options = expected.options;
++    if (options.version == 1 && actual.policy_size == sizeof(actual.policy.v1) &&
++        actual.policy.version == FSCRYPT_POLICY_V1) {
++        const auto& policy = actual.policy.v1;
++        return options.contents_mode == policy.contents_encryption_mode &&
++               options.filenames_mode == policy.filenames_encryption_mode &&
++               options.flags == policy.flags && !options.dusize_4k &&
++               expected.key_raw_ref == std::string(reinterpret_cast<const char*>(policy.master_key_descriptor),
++                                                   sizeof(policy.master_key_descriptor));
++    }
++    if (options.version == 2 && actual.policy_size == sizeof(actual.policy.v2) &&
++        actual.policy.version == FSCRYPT_POLICY_V2) {
++        const auto& policy = actual.policy.v2;
++        return options.contents_mode == policy.contents_encryption_mode &&
++               options.filenames_mode == policy.filenames_encryption_mode &&
++               options.flags == policy.flags &&
++               policy.log2_data_unit_size == (options.dusize_4k && filesystem.f_bsize != 4096 ? 12 : 0) &&
++               expected.key_raw_ref == std::string(reinterpret_cast<const char*>(policy.master_key_identifier),
++                                                   sizeof(policy.master_key_identifier));
++    }
++    return false;
++}
++#endif
++
  bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_id, int flags) {
 +#ifdef __ANDROID_RECOVERY__
 +    // Unlock only existing internal policies. Do not create directories, adopt
@@ -225,14 +273,31 @@ index fa952a6..ee03e1a 100644
 +        (filesystem.f_flag & ST_RDONLY) == 0 || flags == 0 ||
 +        (flags & ~(android::os::IVold::STORAGE_FLAG_DE | android::os::IVold::STORAGE_FLAG_CE)))
 +        return false;
-+    if ((flags & android::os::IVold::STORAGE_FLAG_DE) && s_de_policies.count(user_id) == 0) return false;
-+    if ((flags & android::os::IVold::STORAGE_FLAG_CE) && s_ce_policies.count(user_id) == 0) return false;
++    if (flags & android::os::IVold::STORAGE_FLAG_DE) {
++        const auto policy = s_de_policies.find(user_id);
++        if (policy == s_de_policies.end()) return false;
++        for (const auto& path : {android::vold::BuildDataSystemDePath(user_id),
++                                android::vold::BuildDataVendorDePath(user_id),
++                                android::vold::BuildDataMiscDePath("", user_id),
++                                android::vold::BuildDataUserDePath("", user_id)})
++            if (!verify_existing_policy(policy->second.internal, path)) return false;
++    }
++    if (flags & android::os::IVold::STORAGE_FLAG_CE) {
++        const auto policy = s_ce_policies.find(user_id);
++        if (policy == s_ce_policies.end()) return false;
++        for (const auto& path : {android::vold::BuildDataSystemCePath(user_id),
++                                android::vold::BuildDataVendorCePath(user_id),
++                                android::vold::BuildDataMiscCePath("", user_id),
++                                android::vold::BuildDataMediaCePath("", user_id),
++                                user_id == 0 ? data_data_dir : android::vold::BuildDataUserCePath("", user_id)})
++            if (!verify_existing_policy(policy->second.internal, path)) return false;
++    }
 +    return true;
 +#else
      LOG(INFO) << "fscrypt_prepare_user_storage for volume " << escape_empty(volume_uuid)
                 << ", user " << user_id << ", flags " << flags;
  
-@@ -1084,6 +1140,7 @@ bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_
+@@ -1084,6 +1197,7 @@ bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_
      if (!prepare_subdirs("prepare", volume_uuid, user_id, flags)) return false;
  
      return true;
@@ -241,18 +306,19 @@ index fa952a6..ee03e1a 100644
  
  bool fscrypt_destroy_user_storage(const std::string& volume_uuid, userid_t user_id, int flags) {
 diff --git a/KeyStorage.cpp b/KeyStorage.cpp
-index a602fdb..168bca1 100644
+index a602fdb..4f7ba79 100644
 --- a/KeyStorage.cpp
 +++ b/KeyStorage.cpp
-@@ -729,6 +729,52 @@ bool exportMetadataWrappedKeyReadOnly(const KeyBuffer& blob, KeyBuffer* key) {
+@@ -729,6 +729,53 @@ bool exportMetadataWrappedKeyReadOnly(const KeyBuffer& blob, KeyBuffer* key) {
      ExistingKeyMint keymint;
      return keymint.exportWrapped(blob, key);
  }
 +
 +bool retrieveExistingKeyReadOnly(const std::string& dir, const KeyAuthentication& auth,
 +                                KeyBuffer* key) {
-+    if (!key || auth.secret.size() > 65536) return false;
++    if (!key) return false;
 +    *key = KeyBuffer{};
++    if (auth.secret.size() > 65536) return false;
 +    android::base::unique_fd directory(open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
 +    struct stat info{};
 +    struct statvfs filesystem{};
@@ -311,20 +377,21 @@ index e761f2a..0bc1d1b 100644
  
  // Securely destroy the key stored in the named directory and delete the directory.
 diff --git a/KeystoreInfo.cpp b/KeystoreInfo.cpp
-index a74a713..bce656d 100755
+index a74a713..42e1f79 100755
 --- a/KeystoreInfo.cpp
 +++ b/KeystoreInfo.cpp
-@@ -28,6 +28,9 @@
+@@ -28,6 +28,10 @@
  #include <string>
  #include <sqlite3.h>
  #include "KeystoreInfo.hpp"
 +#ifdef __ANDROID_RECOVERY__
++#include <chrono>
 +#include <sys/statvfs.h>
 +#endif
  
  std::string KeystoreInfo::uint2hex(int64_t num) {
  	uint64_t temp = num;
-@@ -45,6 +48,28 @@ std::string KeystoreInfo::uint2hex(int64_t num) {
+@@ -45,6 +49,37 @@ std::string KeystoreInfo::uint2hex(int64_t num) {
  }
  
  std::string KeystoreInfo::getHandle(const userid_t user_id) {
@@ -337,6 +404,15 @@ index a74a713..bce656d 100755
 +	const int opened = sqlite3_open_v2("/data/system/locksettings.db", &db,
 +		SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_PRIVATECACHE, nullptr);
 +	std::string result;
++	auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
++	if (opened == SQLITE_OK) {
++		sqlite3_limit(db, SQLITE_LIMIT_LENGTH, 1048576);
++		sqlite3_limit(db, SQLITE_LIMIT_VDBE_OP, 65536);
++		sqlite3_progress_handler(db, 1000, [](void* context) {
++			return std::chrono::steady_clock::now() >
++				*static_cast<const std::chrono::steady_clock::time_point*>(context) ? 1 : 0;
++		}, &deadline);
++	}
 +	if (opened == SQLITE_OK && sqlite3_db_readonly(db, "main") == 1 &&
 +		sqlite3_busy_timeout(db, 250) == SQLITE_OK &&
 +		sqlite3_prepare_v2(db, "SELECT value FROM locksettings WHERE name='sp-handle' AND user=?",
@@ -353,7 +429,7 @@ index a74a713..bce656d 100755
  	int rc = 0;
  	sqlite3 *db;
  	sqlite3_stmt *stmt;
-@@ -72,6 +97,7 @@ std::string KeystoreInfo::getHandle(const userid_t user_id) {
+@@ -72,6 +107,7 @@ std::string KeystoreInfo::getHandle(const userid_t user_id) {
  	sqlite3_finalize(stmt);
  	sqlite3_close(db);
  	return uint2hex(value);

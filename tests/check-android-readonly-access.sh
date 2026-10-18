@@ -18,6 +18,7 @@ extract "$vold/MetadataCrypt.cpp" 'static bool mount_via_fs_mgr(' "$work/mount-m
 extract "$vold/MetadataCrypt.cpp" 'static bool read_key(' "$work/read-metadata-key.inc"
 extract "$vold/FsCrypt.cpp" 'bool fscrypt_initialize_systemwide_keys(' "$work/systemwide-keys.inc"
 extract "$vold/FsCrypt.cpp" 'bool fscrypt_init_user0(' "$work/user0-keys.inc"
+extract "$vold/FsCrypt.cpp" 'static bool verify_existing_policy(' "$work/verify-policy.inc"
 extract "$vold/FsCrypt.cpp" 'bool fscrypt_prepare_user_storage(' "$work/prepare-user-storage.inc"
 extract "$recovery/partitionmanager.cpp" 'bool TWPartitionManager::Read_Only_Android_Access(' "$work/android-access.inc"
 extract "$vold/KeystoreInfo.cpp" 'std::string KeystoreInfo::getHandle(' "$work/locksettings-handle.inc"
@@ -25,6 +26,7 @@ flags=(-std=c++20 -Wall -Wextra -Werror -D__ANDROID_RECOVERY__ -UNDEBUG -O1 -g
     -fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer -I"$work")
 export ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1
 ccache "$compiler" "${flags[@]}" -Wl,--wrap=mount -Wl,--wrap=statvfs \
+    -Wl,--wrap=open -Wl,--wrap=fstat -Wl,--wrap=stat -Wl,--wrap=fstatvfs -Wl,--wrap=ioctl \
     "$component/tests/ure/android_readonly_access.cpp" -o "$work/admission"
 "$work/admission"
 # Use the pinned SQLite default source, with host options; this is not an Android runtime test.
