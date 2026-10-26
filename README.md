@@ -4,13 +4,15 @@ An independent OrangeFox recovery project for the `uke` device family (SM7675), 
 
 [Releases](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/releases) · [Installation guide](docs/INSTALLATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Feature coverage](docs/FEATURE-PARITY.md) · [Uke Linux workspace](https://github.com/MCC45TR/uke-linux)
 
-## Status — 13 October 2026
+## Status — 26 October 2026
 
-**Experimental. Full recovery testing remains incomplete on both models.** The default branch, `R12.0`, follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 are tracked separately by model, SKU and installed firmware.
+**Experimental. Full physical recovery acceptance remains incomplete.** The `R12.0` branch follows the pinned official OrangeFox `fox_16.0` / Android 16 baseline. Xiaomi Pad 7 and POCO Pad X1 retain separate model, SKU and firmware requirements.
 
-The table describes the current implementation. Storage tools have tests on disposable images and generic virtual machines. Touch navigation worked in a corrected live recovery session; cold-start touch on a replacement image remains untested. Preview builds retain their separate build and package results.
+The published v003 preview remains the downloadable recovery baseline. Recorded touch navigation in a corrected live session does not establish cold-start touch, Android decryption, destructive storage operations or a replacement image's reliability.
 
-Current source [blocks general live device writes](docs/RECOVERY-WRITE-POLICY.md) until the storage backend and selected device profile have been accepted. This covers Format Data, package installation, writable device mounts, fastbootd writes and the recovery installer. The separate [dualboot shell backend](docs/DUALBOOT-SETUP.md) implements narrowly checked F2FS userdata erase/recreation, but has not passed tablet testing and requires an already opened encryption map. Image transactions and read-only observations have separate validation paths. Advanced mode and confirmation cannot bypass general mutation gates; older release images retain their original behavior.
+A [separate source checkpoint](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/tree/publish/source-snapshot-20261026) retains pending build-evidence, existing-key read-only access and deferred-userdata fixture work. Source, compiler/payload, VM and physical results remain separate; publishing that branch does not rebuild or flash recovery.
+
+Current source [blocks general live writes](docs/RECOVERY-WRITE-POLICY.md) until the backend and exact device profile have been accepted. The [dualboot backend](docs/DUALBOOT-SETUP.md) remains a separately gated path. Confirmation or advanced mode cannot bypass mutation guards. Encrypted-userdata preservation, actual decryption and full Linux boot/Android-return workflows remain unqualified.
 
 ## Feature overview
 
