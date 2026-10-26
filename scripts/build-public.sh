@@ -42,7 +42,7 @@ done
 job_id=$(bash "$component/scripts/build-evidence.sh" begin "$jobs" "$vm_fixture" "${cache_seed:-fresh}")
 job="$component/build/android-builds/$job_id"
 bash "$component/scripts/with-android-build-environment.sh" "$tree" "$job/output" \
-    bash -c 'source build/envsetup.sh >/dev/null && lunch twrp_uke-bp2a-eng >/dev/null && targets=(recoveryimage) && if [[ $2 == 1 ]]; then targets+=(uke-btrfs-vm-fixture-soong); fi && m "${targets[@]}" -j"$1"' bash "$jobs" "$vm_fixture" \
+    bash -c 'source build/envsetup.sh >/dev/null && lunch twrp_uke-bp2a-eng >/dev/null && targets=(recoveryimage) && if [[ $2 == 1 ]]; then targets+=(uke-btrfs-vm-fixture-soong uke-deferred-userdata-vm-fixture-soong); fi && m "${targets[@]}" -j"$1"' bash "$jobs" "$vm_fixture" \
     > "$job/build.log" 2>&1
 bash "$component/scripts/build-evidence.sh" seal "$job_id"
 echo 'Recovery compilation sealed; the owned service must still accept completion and publish the output.'

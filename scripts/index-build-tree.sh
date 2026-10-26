@@ -34,8 +34,10 @@ case $kind in
                 fi
             done
         done
-        fixture=soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture
-        [[ ! -d $fixture ]] || roots+=("$fixture")
+        for name in uke-btrfs-vm-fixture uke-deferred-userdata-vm-fixture; do
+            fixture="soong/.intermediates/device/xiaomi/uke/recoveryctl/$name"
+            [[ ! -d $fixture ]] || roots+=("$fixture")
+        done
         ;;
     payload) roots=(.);;
     localization)
