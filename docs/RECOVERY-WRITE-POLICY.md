@@ -22,8 +22,8 @@ separate supported host/VM capability.
   Virtual A/B, Memtag, kernel-command-line and control messages. The generic boot
   HAL's independent slot-control writer also refuses before writable open.
   Failed CRC or Virtual A/B initialization remains failed on subsequent queries.
-- Writable mounts and readonly-to-writable transitions; credential/decryption
-  entry points; USB mass-storage exposure and the writable MTP service.
+- Writable mounts and readonly-to-writable transitions; generic FDE/adopted
+  decryption; USB mass-storage exposure and the writable MTP service.
 - Managed file commands, GUI raw imaging/shell helpers, external ADB restore,
   SELinux context changes and ORS mutations. ORS discovery/copy refuses before
   deleting its caller-owned source. Unknown ORS commands refuse before dispatch,
@@ -59,6 +59,12 @@ lock. Source and extracted-image gates require this base resource. The wider
 localization draft remains a separate, unfinished change.
 
 ## Read and recovery behavior
+
+The scoped [Android file-access path](ANDROID-FILE-ACCESS.md) uses a distinct
+read-only decryption operation. It additionally requires the validated installed
+fstab pair and actual matching read-only mounts. Metadata/FBE access does not
+enable the generic encryption entry points or any storage writer. Existing-key
+reader and no-replay controls remain separate from provider/device acceptance.
 
 Initial slot observation remains available without a boot-control HAL write.
 Read-only inspection and unmount/namespace cleanup are retained. Fastbootd

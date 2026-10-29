@@ -34,7 +34,7 @@ bootable/recovery/partition.cpp	void TWPartition::Change_Mount_Read_Only(bool ne
 bootable/recovery/partition.cpp	int TWPartition::Decrypt_Adopted()	EncryptionAccess
 bootable/recovery/partitionmanager.cpp	bool Do_Disable_AVB2(string File_Name, char Disable_Flags, bool Display_Info)	BootPatch
 bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Disable_AVB2(bool Display_Info)	BootPatch
-bootable/recovery/partitionmanager.cpp	void TWPartitionManager::Decrypt_Data()	EncryptionAccess
+bootable/recovery/partitionmanager.cpp	void TWPartitionManager::Decrypt_Data()	ReadOnlyDecryption
 bootable/recovery/partitionmanager.cpp	bool TWPartitionManager::Restore_Partition(PartitionSettings *part_settings)	Restore
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Run_Restore(const string& Restore_Name)	Restore
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_By_Path(string Path)	Wipe
@@ -48,7 +48,7 @@ bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Format_Data(void)
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Wipe_Media_From_Data(void)	Wipe
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Repair_By_Path(string Path, bool Display_Error)	Repair
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Resize_By_Path(string Path, bool Display_Error)	Resize
-bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Decrypt_Device(string Password, int user_id)	EncryptionAccess
+bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Decrypt_Device(string Password, int user_id, const ure::LegacyLifecycleGuard* parent)	ReadOnlyDecryption
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Fix_Contexts(void)	FileMutation
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::usb_storage_enable(void)	WritableMount
 bootable/recovery/partitionmanager.cpp	int TWPartitionManager::Partition_SDCard(void)	PartitionMetadata

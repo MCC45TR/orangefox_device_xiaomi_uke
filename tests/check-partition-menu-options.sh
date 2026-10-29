@@ -51,5 +51,19 @@ for label in misc frp modemst1 modemst2 fsg fsc metadata_image persist_image; do
 done
 [[ $(awk '$1=="/super" {n++} END {print n+0}' "$fstab") == 0 ]]
 rg -q '^vendor[[:space:]]+/vendor[[:space:]]+ext4[[:space:]]+ro,noload,nosuid,nodev' "$fstab"
+for label in linux esp; do
+    awk -v path="/$label" -v block="/dev/block/bootdevice/by-name/$label" '
+      $1==path {
+        n++;
+        if($3!=block || !index($0,";storage;") || !index($0,";removable;") ||
+           !index($0,";settingsstorage=0;") || !index($0,";backup=0;") ||
+           !index($0,";flashimg=0;") || !index($0,";canbewiped=0;") ||
+           !index($0,";wipeingui=0;") || !index($0,";wipeduringfactoryreset=0;") ||
+           !index($0,";fsflags=ro,") || !index($0,",nosuid,nodev,noexec")) exit 1;
+        if(path=="/linux" && ($2!="ext4" || !index($0,"ro,noload,"))) exit 1;
+        if(path=="/esp" && $2!="vfat") exit 1;
+      }
+      END {if(n!=1) exit 1}' "$fstab"
+done
 ! rg -q '"/data;/boot;"' "$core/data.cpp" "$core/gui/theme/portrait_hdpi/resources/vars.xml"
 printf '%s\n' 'Partition menus: explicit-slot backup flags, raw metadata/persist choices, vendor EXT4 no-replay fallback and unavailable Wipe rows passed; host-only source controls.'

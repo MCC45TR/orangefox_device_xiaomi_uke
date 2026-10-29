@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -148,6 +149,18 @@ inline bool same_block_device(const std::string& imported, const std::string& tr
     return !trusted.empty() && stat(imported.c_str(), &actual) == 0 &&
         stat(trusted.c_str(), &expected) == 0 && S_ISBLK(actual.st_mode) &&
         S_ISBLK(expected.st_mode) && actual.st_rdev == expected.st_rdev;
+}
+
+inline bool mounted_readonly(const std::string& path, const std::string& block) {
+    const int descriptor = open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (descriptor < 0) return false;
+    struct stat directory{}, source{};
+    struct statvfs filesystem{};
+    const bool accepted = fstat(descriptor, &directory) == 0 &&
+        stat(block.c_str(), &source) == 0 && S_ISBLK(source.st_mode) &&
+        directory.st_dev == source.st_rdev && fstatvfs(descriptor, &filesystem) == 0 &&
+        (filesystem.f_flag & ST_RDONLY) != 0;
+    return close(descriptor) == 0 && accepted;
 }
 
 inline bool read_bounded(const std::string& path, std::string* output) {

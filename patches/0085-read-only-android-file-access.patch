@@ -1,0 +1,155 @@
+diff --git a/etc/init/keystore2.rc b/etc/init/keystore2.rc
+index fa62662..014ff20 100644
+--- a/etc/init/keystore2.rc
++++ b/etc/init/keystore2.rc
+@@ -1,4 +1,4 @@
+-# Start the keystore2 service.
++# Manual startup only; the installed Keystore provider is not yet qualified.
+ # Keystore 2.0 changes its working directory to the first positional
+ # command line option, i.e., /data/misc/keystore, where it stores its
+ # database.
+@@ -6,11 +6,10 @@
+ #
+ # See system/core/init/README.md for information on the init.rc language.
+ 
+-on late-init
+-    start keystore2
+-
+ service keystore2 /system/bin/keystore2 /tmp/misc/keystore
+     class early_hal
++    disabled
++    oneshot
+     user root
+     group keystore readproc log
+     writepid /dev/cpuset/foreground/tasks
+diff --git a/partition.cpp b/partition.cpp
+index cdcd2ef..5b19d14 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -799,7 +799,10 @@ void TWPartition::Set_FBE_Status() {
+ 	}
+ }
+ 
+-bool TWPartition::Decrypt_FBE_DE() {
++bool TWPartition::Decrypt_FBE_DE(const ure::LegacyLifecycleGuard* parent) {
++	ure::LegacyLifecycleGuard lifecycle("mount", parent);
++	if (!ure_legacy_lifecycle_guard(lifecycle)) return false;
++	if (!PartitionManager.Read_Only_Android_Access(true)) return false;
+ if (TWFunc::Path_Exists("/data/unencrypted/key/version")) {
+ 		DataManager::SetValue(TW_IS_FBE, 1);
+ 		PartitionManager.Set_Crypto_State();
+@@ -849,8 +852,8 @@ if (TWFunc::Path_Exists("/data/unencrypted/key/version")) {
+ 		string filename;
+ 		int pwd_type = android::keystore::Get_Password_Type(0, filename);
+ 		if (pwd_type < 0) {
+-			LOGERR("This build does not have synthetic password decrypt support\n");
+-			pwd_type = 0;  // default password
++			LOGERR("Existing credential metadata is unavailable; default unlock was not attempted\n");
++			return false;
+ 		}
+ 		PartitionManager.Parse_Users();  // after load_all_de_keys() to parse_users
+ 		std::vector<users_struct>::iterator iter;
+@@ -3498,6 +3501,7 @@ void TWPartition::Find_Actual_Block_Device(void) {
+ }
+ 
+ void TWPartition::Recreate_Media_Folder(void) {
++	if (Mount_Read_Only) return;
+ 	string Command;
+ 	string Media_Path = Mount_Point + "/media";
+ 
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index f4da4ab..cc883da 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -675,12 +675,24 @@ int TWPartitionManager::Write_Fstab(void) {
+ 	return true;
+ }
+ 
+-void TWPartitionManager::Decrypt_Data() {
+-    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return;
+-	if (!additional_fstab_readonly_approved) {
+-		LOGERR("Metadata decryption refused without a validated read-only fstab pair\n");
+-		return;
++bool TWPartitionManager::Read_Only_Android_Access(bool require_data) {
++	auto* data = Find_Partition_By_Path("/data");
++	auto* metadata = Find_Partition_By_Path("/metadata");
++	if (!additional_fstab_readonly_approved || !data || !metadata ||
++		!data->Mount_Read_Only || !metadata->Mount_Read_Only || !metadata->Mount(false) ||
++		!ure::readonly_fstab::mounted_readonly("/metadata", metadata->Actual_Block_Device) ||
++		(require_data && (!data->Mount(false) ||
++		 !ure::readonly_fstab::mounted_readonly("/data", data->Actual_Block_Device)))) {
++		LOGERR("Android access requires a validated profile and matching read-only mounts\n");
++		return false;
+ 	}
++	return true;
++}
++
++void TWPartitionManager::Decrypt_Data() {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::ReadOnlyDecryption)) return;
++	ure::LegacyLifecycleGuard lifecycle("mount");
++	if (!ure_legacy_lifecycle_guard(lifecycle) || !Read_Only_Android_Access(false)) return;
+ 	#ifdef TW_INCLUDE_CRYPTO
+ 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
+ 	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
+@@ -705,7 +717,7 @@ void TWPartitionManager::Decrypt_Data() {
+ 				while (!Decrypt_Data->Mount(false) && --retry_count)
+ 					usleep(500);
+ 				if (Decrypt_Data->Mount(false)) {
+-					if (!Decrypt_Data->Decrypt_FBE_DE()) {
++					if (!Decrypt_Data->Decrypt_FBE_DE(&lifecycle)) {
+ 						LOGERR("Unable to decrypt FBE device\n");
+ 					}
+ 
+@@ -721,7 +733,7 @@ void TWPartitionManager::Decrypt_Data() {
+ 		}
+ 		if (Decrypt_Data->Is_FBE) {
+ 			if (DataManager::GetIntValue(TW_CRYPTO_PWTYPE) == 0) {
+-				if (Decrypt_Device("!") == 0) {
++				if (Decrypt_Device("!", 0, &lifecycle) == 0) {
+ 					gui_msg("decrypt_success=Successfully decrypted with default password.");
+ 					DataManager::SetValue(TW_IS_ENCRYPTED, 0);
+ 				} else {
+@@ -2366,8 +2378,11 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
+ #endif
+ }
+ 
+-int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+-    if (!ure_legacy_write_guard(ure::LegacyWrite::EncryptionAccess)) return -1;
++int TWPartitionManager::Decrypt_Device(string Password, int user_id, const ure::LegacyLifecycleGuard* parent) {
++    if (!ure_legacy_write_guard(ure::LegacyWrite::ReadOnlyDecryption)) return -1;
++	ure::LegacyLifecycleGuard lifecycle("mount", parent);
++	if (!ure_legacy_lifecycle_guard(lifecycle) || !Read_Only_Android_Access(true) ||
++		!DataManager::GetIntValue(TW_IS_FBE)) return -1;
+ #ifdef TW_INCLUDE_CRYPTO
+   char crypto_blkdev[PROPERTY_VALUE_MAX];
+   std::vector < TWPartition * >::iterator iter;
+diff --git a/partitions.hpp b/partitions.hpp
+index f852038..db54ee2 100644
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -179,7 +179,7 @@ public:
+ 	void Set_Backup_FileName(string fname);                                   // Set Backup_FileName for partition
+ 	std::string Get_Backup_FileName();                                        // Get the backup filename for the partition
+ 	string Get_Backup_Name();                                                 // Get Backup_Name for partition
+-	bool Decrypt_FBE_DE();                                                    // If FBE is present, backup exclusions are set up and DE decrypt is attempted
++	bool Decrypt_FBE_DE(const ure::LegacyLifecycleGuard* parent = nullptr);    // Read existing DE keys under the mount lifecycle
+ 	std::string Get_Display_Name();                                           // Get the display name in the gui for the partition
+ 	bool Is_SlotSelect();                                                     // Return whether the partition is a slot partition or not
+ 	bool Get_Super_Status();						  // Returns true if partition is a super volume mounted partitions
+@@ -350,6 +350,7 @@ public:
+ 	void Setup_Fstab_Partitions(bool Display_Error);                          // Populates the partitions
+ 	int Write_Fstab();                                                        // Creates /etc/fstab file that's used by the command line for mount commands
+ 	void Decrypt_Data();							  // Decrypt Data if enabled
++	bool Read_Only_Android_Access(bool require_data);
+ 	void Output_Partition_Logging();                                          // Outputs partition information to the log
+ 	void Output_Partition(TWPartition* Part);                                 // Outputs partition details to the log
+ 	int Mount_By_Path(string Path, bool Display_Error);                       // Mounts partition based on path (e.g. /system)
+@@ -392,7 +393,7 @@ public:
+ 	int Resize_By_Path(string Path, bool Display_Error);                      // Resizes a partition based on path
+ 	void Update_System_Details();                                             // Updates fstab, file systems, sizes, etc.
+ 	void Update_System_Details_OTA_Survival();                                // Updates fstab, file systems, sizes, etc.
+-	int Decrypt_Device(string Password, int user_id = 0);                     // Attempt to decrypt any encrypted partitions
++	int Decrypt_Device(string Password, int user_id = 0, const ure::LegacyLifecycleGuard* parent = nullptr); // Unlock existing internal FBE keys
+ 	void Parse_Users();                                                       // Parse FBE users
+ 	int usb_storage_enable(void);                                             // Enable USB storage mode
+ 	int usb_storage_disable(void);                                            // Disable USB storage mode

@@ -16,6 +16,11 @@ mi_ext          /mi_ext          erofs   ro   wait,slotselect,avb=vbmeta,logical
 /misc emmc /dev/block/bootdevice/by-name/misc flags=display="Bootloader Message";backup=1;flashimg=0;canbewiped=0;wipeingui=0
 /dev/block/bootdevice/by-name/persist   /persist   ext4  ro,noload,nosuid,nodev  wait,backup=1,wipeingui=0,canbewiped=0
 
+# Existing optional multiboot volumes. Expose them in Mount/Storage and Files;
+# absence is normal on stock layouts. Browsing never enables format or writes.
+/linux ext4 /dev/block/bootdevice/by-name/linux flags=display="Linux";storagename="Linux";storage;settingsstorage=0;removable;backup=0;flashimg=0;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;fsflags=ro,noload,nosuid,nodev,noexec
+/esp vfat /dev/block/bootdevice/by-name/esp flags=display="ESP";storagename="ESP";storage;settingsstorage=0;removable;backup=0;flashimg=0;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;fsflags=ro,nosuid,nodev,noexec,utf8=1
+
 # Explicit slots avoid silently backing up the inactive slot under an ambiguous
 # alias. These are backup selections, never factory-reset or image-flash targets.
 /boot_a emmc /dev/block/bootdevice/by-name/boot_a flags=display="Boot A";backup=1;flashimg=0;canbewiped=0;wipeingui=0

@@ -69,6 +69,7 @@ bash tests/check-crypto-nullability.sh
 bash tests/check-vold-recovery-variant.sh
 bash tests/check-metadata-mount-result.sh
 bash tests/check-existing-key-metadata.sh
+bash tests/check-android-readonly-access.sh
 bash tests/check-apex-loop.sh
 bash tests/check-touch-release.sh
 bash tests/check-touch-device-state.sh

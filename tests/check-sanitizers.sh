@@ -34,6 +34,7 @@ bash tests/check-gui-language.sh sanitizer
 bash tests/check-localization-review.sh sanitizer
 bash tests/check-platform.sh sanitizer
 bash tests/check-readonly-fstab-import.sh
+bash tests/check-android-readonly-access.sh
 bash tests/check-fox-command-admission.sh
 bash tests/check-vold-key-upgrade.sh
 bash tests/check-touch-release.sh

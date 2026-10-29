@@ -14,7 +14,7 @@ awk '/^m.libvold_android_arm64_armv8-a_static.cFlags1 = /' "${ninja_files[@]}" >
 [[ $(wc -l < "$work/recovery-flags") == 1 && $(wc -l < "$work/normal-flags") == 1 ]]
 rg -q -- '(^| )-D__ANDROID_RECOVERY__( |$)' "$work/recovery-flags"
 ! rg -q -- '-D__ANDROID_RECOVERY__' "$work/normal-flags"
-for source in Keystore Decrypt KeyStorage ExistingKeyMint; do
+for source in Keystore Decrypt KeyStorage ExistingKeyMint MetadataCrypt FsCrypt; do
     awk -v suffix="libvold_uke_recovery/android_arm64_armv8-a_static/obj/system/vold/$source.o:" '
         index($0,suffix) {copy=1}
         copy {print}
@@ -37,4 +37,11 @@ nm="$tree/prebuilts/clang/host/linux-x86/clang-r547379/bin/llvm-nm"
 rg -q ' U android::vold::ExistingKeyMint::decryptMetadata\(' "$work/reader-symbols.txt"
 rg -q ' T android::vold::ExistingKeyMint::decryptMetadata\(' "$work/client-symbols.txt"
 ! rg -q '/libvold/android_arm64_armv8-a_static/obj/system/vold/ExistingKeyMint\.o:' "${ninja_files[@]}"
-printf '%s\n' 'Generated recovery flags and four compile edges, the dedicated archive, bounded-reader/client symbols and non-waiting lookup passed. Normal libvold excludes the new client. No Binder/TEE or decryption acceptance.'
+awk '/^m.libkeystoreinfo_android_recovery_arm64_armv8-a_shared.cFlags1 = /' "${ninja_files[@]}" > "$work/locksettings-flags"
+[[ $(wc -l < "$work/locksettings-flags") == 1 ]]
+rg -q -- '(^| )-D__ANDROID_RECOVERY__( |$)' "$work/locksettings-flags"
+locksettings="$output/soong/.intermediates/system/vold/libkeystoreinfo/android_recovery_arm64_armv8-a_shared/obj/system/vold/KeystoreInfo.o"
+"$nm" -u "$locksettings" > "$work/locksettings-symbols"
+rg -q ' U sqlite3_open_v2$' "$work/locksettings-symbols"
+! rg -q ' U sqlite3_open$' "$work/locksettings-symbols"
+printf '%s\n' 'Generated recovery flags, six Vold compile edges, read-only locksettings object, dedicated archive and non-waiting lookup passed. Normal libvold excludes the new client. No Binder/TEE or decryption acceptance.'

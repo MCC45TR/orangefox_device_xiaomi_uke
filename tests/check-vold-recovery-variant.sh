@@ -18,7 +18,7 @@ cmp "$work/Android.bp" "$tree/system/vold/Android.bp"
 "$tree/prebuilts/build-tools/linux-x86/bin/bpfmt" -o "$work/Android.bp" > "$work/parsed.bp"
 module() {
     awk -v target="$2" '
-        /^(cc_defaults|cc_library_static) \{$/ {inside=1;record=$0 ORS;selected=0;next}
+        /^(cc_defaults|cc_library_static|cc_library) \{$/ {inside=1;record=$0 ORS;selected=0;next}
         inside {record=record $0 ORS;if(index($0,"name: \"" target "\","))selected=1}
         inside && /^}$/ {if(selected){printf "%s",record;found++};inside=0}
         END {if(found!=1)exit 1}' "$1"
@@ -39,4 +39,6 @@ rg -qx 'LOCAL_STATIC_LIBRARIES \+= libfoxui libvold_uke_recovery libuke-recovery
 ! rg -q '(^|[[:space:]])libvold([[:space:]]|$)' "$tree/bootable/recovery/Android.mk"
 sed '/cflags: \["-D__ANDROID_RECOVERY__"\],/d' "$work/recovery-module" > "$work/no-macro"
 ! policy "$work/no-macro"
+module "$work/Android.bp" libkeystoreinfo > "$work/locksettings-module"
+rg -Uq 'target: \{\n[[:space:]]*recovery: \{ cflags: \["-D__ANDROID_RECOVERY__"\] \},' "$work/locksettings-module"
 printf '%s\n' 'Recovery vold module parsing, unchanged platform properties, caller and missing-macro control passed. Actual generated output requires the separate post-build gate.'

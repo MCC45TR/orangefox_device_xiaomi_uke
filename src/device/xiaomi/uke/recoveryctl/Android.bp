@@ -27,6 +27,20 @@ cc_library_static {
 
 // Explicit build target for disposable QEMU media; excluded from all products.
 cc_binary {
+    name: "uke-deferred-userdata-vm-fixture",
+    recovery: true,
+    installable: false,
+    cpp_std: "c++20",
+    cppflags: ["-fexceptions"],
+    cflags: ["-Wall", "-Wextra", "-Werror", "-ffunction-sections", "-fdata-sections"],
+    ldflags: ["-Wl,--gc-sections"],
+    srcs: ["vm-deferred-userdata-fixture.cpp"],
+    static_libs: ["libuke-recovery", "libjsoncpp", "liblzma"],
+    shared_libs: ["libcrypto", "libz", "libzstd"],
+}
+
+// Explicit build target for disposable QEMU media; excluded from all products.
+cc_binary {
     name: "uke-btrfs-vm-fixture",
     recovery: true,
     installable: false,
