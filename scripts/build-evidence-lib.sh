@@ -248,7 +248,7 @@ build_begin() {
         --argjson jobs "$jobs" --argjson vm "$vm" \
         '{schema_version:1,evidence_class:$class,state:"prepared",output_identity:$identity,publisher_sha256:$publisher,expected_project_count:$count,
           output_origin:{fresh_output:true,cache_seeded:false},
-          build:{lunch:"twrp_uke-bp2a-eng",targets:(if $vm==1 then ["recoveryimage","uke-btrfs-vm-fixture-soong"] else ["recoveryimage"] end),compile_jobs:$jobs},
+          build:{lunch:"twrp_uke-bp2a-eng",targets:(if $vm==1 then ["recoveryimage","uke-btrfs-vm-fixture-soong","uke-deferred-userdata-vm-fixture-soong"] else ["recoveryimage"] end),compile_jobs:$jobs},
           environment:{path:"/tmp/uke-build-launchers:/usr/bin:/bin",locale:"C",timezone:"UTC",home:"/tmp/uke-build-home",output:"/mnt/out-public",
             source_date_epoch:1790726400,build_datetime:1790726400,build_number:"uke-r12",host_python_write_bytecode:false,
             go_procs:$go_procs,go_heap:$go_heap,go_gc:$go_gc}}' \
@@ -273,6 +273,12 @@ build_seal() {
     [[ -s $job/output/target/product/uke/recovery.img && ! -L $job/output/target/product/uke/recovery.img ]]
     if jq -e '.build.targets|index("uke-btrfs-vm-fixture-soong")!=null' "$job/prepared.json" >/dev/null; then
         [[ -s $job/output/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-btrfs-vm-fixture/android_recovery_arm64_armv8-a/uke-btrfs-vm-fixture ]]
+    fi
+    if jq -e '.build.targets|index("uke-deferred-userdata-vm-fixture-soong")!=null' "$job/prepared.json" >/dev/null; then
+        file="$job/output/soong/.intermediates/device/xiaomi/uke/recoveryctl/uke-deferred-userdata-vm-fixture/android_recovery_arm64_armv8-a/uke-deferred-userdata-vm-fixture"
+        [[ -s $file && ! -L $file ]]
+        readelf -h "$file" | rg 'Machine:.*AArch64' >/dev/null
+        [[ ! -e $payload/system/bin/uke-deferred-userdata-vm-fixture ]]
     fi
     stage="$job/.receipt-incomplete"
     [[ ! -e $stage ]]

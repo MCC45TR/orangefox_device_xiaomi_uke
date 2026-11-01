@@ -77,9 +77,3 @@ For a useful [issue report](https://github.com/MCC45TR/orangefox_device_xiaomi_u
 Repository-level material uses the [MIT license](LICENSE). The native recovery library includes an [Apache 2.0 license](src/device/xiaomi/uke/recoveryctl/LICENSE-APACHE); upstream OrangeFox, Android and other imported components retain their own licenses and attribution. Icon licensing is recorded with the [interface assets](src/device/xiaomi/uke/ui-icons/LICENSE).
 
 This project is unofficial and is not an endorsed OrangeFox release.
-
-## Software FMEA
-
-See [the software FMEA](FMEA.md) for storage, interruption, crypto, boot routing,
-input and diagnostic-export risks, existing controls and evidence required for
-closure. The assessment keeps packed-image and physical acceptance separate.
