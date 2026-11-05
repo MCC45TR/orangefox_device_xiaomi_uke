@@ -26,10 +26,9 @@ checksum or durable write should be removed solely to improve a timing result.
 - Recovery baseline: `6b5f3adfc44c2f46f132ef55670791f6cd010ab0`.
 - The current localization and capacity-checker work is uncommitted and unbuilt.
   Findings about that work are explicitly marked **draft**.
-- Three specialist agent reviews were started for storage safety, performance,
-  and hardware/release policy. Their partial findings were consolidated and
-  checked against source by the primary reviewer. This is not a claim that all
-  three independent reviews completed or that every upstream line was audited.
+- Preliminary findings on storage safety, performance and hardware/release
+  policy were consolidated and checked against the source. Independent review
+  coverage was incomplete; this report does not claim a full upstream audit.
 - Methods: targeted source/call-chain inspection, review of existing sealed
   receipts, two small host ASan/UBSan probes, font character-map inspection, and
   read-only image/header/profile capacity checks. No new full build or VM run
@@ -370,7 +369,7 @@ render latency. Advertising on the hub is not link-negotiation evidence.
 **Confirmed policy issue, not a diagnosis of the earlier OOM.**
 `scripts/with-host-budget.sh:20–23` allows 14G high/16G max memory, a 12 GiB Go
 heap target and 16 parallel jobs. A 16 GiB target computer also needs memory for
-the desktop, agent, kernel and unrelated processes. Earlier small VM peaks do
+the desktop, development services, kernel and unrelated processes. Earlier small VM peaks do
 not establish full-build safety.
 
 **Change:** derive the job ceiling from available memory and ancestor cgroup
