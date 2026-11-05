@@ -10,7 +10,7 @@ An independent OrangeFox recovery project for the `uke` device family (SM7675), 
 
 The published v003 preview remains the downloadable recovery baseline. Recorded touch navigation in a corrected live session does not establish cold-start touch, Android decryption, destructive storage operations or a replacement image's reliability.
 
-A [separate source checkpoint](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/tree/publish/source-snapshot-20261026) retains pending build-evidence, existing-key read-only access and deferred-userdata fixture work. Source, compiler/payload, VM and physical results remain separate; publishing that branch does not rebuild or flash recovery.
+The retained [source checkpoint](https://github.com/MCC45TR/orangefox_device_xiaomi_uke/tree/fb54e4b73751598a68b56de2fa6184a6fc6aa936) records build-evidence, existing-key read-only access and deferred-userdata fixtures. It is included in `R12.0`. Source, compiler/payload, VM and physical results remain separate; this checkpoint does not qualify a replacement recovery image.
 
 Current source [blocks general live writes](docs/RECOVERY-WRITE-POLICY.md) until the backend and exact device profile have been accepted. The [dualboot backend](docs/DUALBOOT-SETUP.md) remains a separately gated path. Confirmation or advanced mode cannot bypass mutation guards. Encrypted-userdata preservation, actual decryption and full Linux boot/Android-return workflows remain unqualified.
 
